@@ -1,0 +1,2264 @@
+const { query } = require("express");
+const jwt = require("jsonwebtoken");
+const jwtToken = process.env.JWT_SECRET;
+const bcrypt = require("bcryptjs");
+let helper = require("../config/helper");
+const db = require("../models");
+const sequelize = require("sequelize");
+const Op = sequelize.Op;
+const { sendBrevoEmail } = require("../config/sendMail");
+const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
+const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
+const { calculateDealMetrics: calcDealMetrics, calculatePortfolioMetrics: calcPortfolioMetrics } = require("../services/calculatorService");
+const User = db.users;
+const Deal = db.deals;
+const DealTeamMembers = db.deal_team_members;
+const DealExternalAdvisors = db.deal_external_advisors;
+const RecentActivity = db.recent_activities;
+const DealComments = db.deal_comments;
+const CommentMentions = db.comment_mentions;
+const UserNotification = db.user_notifications;
+const DealDocuments = db.deal_documents;
+const MasterDeals = db.master_deals;
+Deal.hasMany(DealTeamMembers, {
+  foreignKey: "deal_id",
+  as: "deal_team_members",
+});
+Deal.hasMany(DealExternalAdvisors, {
+  foreignKey: "deal_id",
+  as: "deal_external_advisors",
+});
+Deal.belongsTo(MasterDeals, {
+  foreignKey: "master_deal_id",
+  as: "master_deal",
+});
+MasterDeals.hasMany(Deal, {
+  foreignKey: "master_deal_id",
+  as: "deals",
+});
+DealTeamMembers.belongsTo(User, { foreignKey: "user_id", as: "user" });
+DealExternalAdvisors.belongsTo(User, { foreignKey: "user_id", as: "user" });
+Deal.belongsTo(User, { foreignKey: "deal_lead_id", as: "deal_lead" });
+Deal.belongsTo(User, {
+  foreignKey: "assistant_deal_lead_id",
+  as: "assistant_deal_lead",
+});
+DealComments.belongsTo(User, { foreignKey: "user_id", as: "user" });
+DealDocuments.belongsTo(User, { foreignKey: "user_id", as: "user" });
+CommentMentions.belongsTo(User, {
+  foreignKey: "mentioned_user_id",
+  as: "user",
+});
+DealComments.hasMany(DealComments, { as: "replies", foreignKey: "parent_id" });
+DealComments.belongsToMany(User, {
+  through: "comment_mentions",
+  as: "mentioned_users",
+  foreignKey: "comment_id",
+  otherKey: "mentioned_user_id",
+});
+
+module.exports = {
+  createDeal: async (req, res) => {
+    try {
+      const required = {
+        user_id: req.user.id,
+        address: req.body.address,
+        deals: req.body.deals,
+      };
+      const nonrequired = {
+        priority_level: req.body.priority_level,
+        deal_source: req.body.deal_source,
+        primary_contact_name: req.body.primary_contact_name,
+        title: req.body.title,
+        phone_number: req.body.phone_number,
+        email: req.body.email,
+        target_close_date: req.body.target_close_date,
+        dd_period_weeks: req.body.dd_period_weeks,
+        price_per_bed: req.body.price_per_bed ? req.body.price_per_bed : 0,
+        down_payment: req.body.down_payment ? req.body.down_payment : 0,
+        financing_amount: req.body.financing_amount
+          ? req.body.financing_amount
+          : 0,
+        revenue_multiple: req.body.revenue_multiple
+          ? req.body.revenue_multiple
+          : 0,
+        ebitda: req.body.ebitda ? req.body.ebitda : 0,
+        ebitda_multiple: req.body.ebitda_multiple
+          ? req.body.ebitda_multiple
+          : 0,
+        ebitda_margin: req.body.ebitda_margin ? req.body.ebitda_margin : 0,
+        net_operating_income: req.body.net_operating_income
+          ? req.body.net_operating_income
+          : 0,
+        current_occupancy: req.body.current_occupancy
+          ? req.body.current_occupancy
+          : 0,
+        average_daily_rate: req.body.average_daily_rate
+          ? req.body.average_daily_rate
+          : 0,
+        medicare_percentage: req.body.medicare_percentage
+          ? req.body.medicare_percentage
+          : 0,
+        private_pay_percentage: req.body.private_pay_percentage
+          ? req.body.private_pay_percentage
+          : 0,
+        target_irr_percentage: req.body.target_irr_percentage
+          ? req.body.target_irr_percentage
+          : 0,
+        target_hold_period: req.body.target_hold_period
+          ? req.body.target_hold_period
+          : 0,
+        projected_cap_rate_percentage: req.body.projected_cap_rate_percentage
+          ? req.body.projected_cap_rate_percentage
+          : 0,
+        exit_multiple: req.body.exit_multiple ? req.body.exit_multiple : 0,
+        assistant_deal_lead_id: req.body.assistant_deal_lead_id,
+        deal_team_members: req.body.deal_team_members,
+        deal_external_advisors: req.body.deal_external_advisors,
+        deal_status: req.body.deal_status,
+        documents: req.body.documents, // Array of uploaded documents from extraction
+        extraction_data: req.body.extraction_data, // Raw AI extraction data for analysis view
+      };
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      // creating master deal:
+      const masterDeal = await MasterDeals.create({
+        unique_id: helper.generateUniqueId(),
+        user_id: requiredData.user_id,
+        street_address: requiredData.address.street_address,
+        city: requiredData.address.city,
+        state: requiredData.address.state,
+        country: requiredData.address.country,
+        zip_code: requiredData.address.zip_code,
+      });
+
+      let dealData = [];
+      // creating multiple deal data:
+      if (requiredData.deals && requiredData.deals.length > 0) {
+        dealData = await Promise.all(
+          requiredData.deals.map(async (deal) => {
+            const allUserIds = new Set();
+            deal.email_notification_major_updates =
+              deal.notificationSettings.email_notification_major_updates ===
+              true
+                ? "yes"
+                : "no";
+            deal.document_upload_notification =
+              deal.notificationSettings.document_upload_notification === true
+                ? "yes"
+                : "no";
+            deal.target_close_date = deal.target_close_date
+              ? deal.target_close_date
+              : null;
+            deal.price_per_bed = deal.price_per_bed ? deal.price_per_bed : 0;
+            deal.down_payment = deal.down_payment ? deal.down_payment : 0;
+            deal.financing_amount = deal.financing_amount
+              ? deal.financing_amount
+              : 0;
+            deal.revenue_multiple = deal.revenue_multiple
+              ? deal.revenue_multiple
+              : 0;
+            deal.ebitda = deal.ebitda ? deal.ebitda : 0;
+            deal.ebitda_multiple = deal.ebitda_multiple
+              ? deal.ebitda_multiple
+              : 0;
+            deal.ebitda_margin = deal.ebitda_margin ? deal.ebitda_margin : 0;
+            deal.net_operating_income = deal.net_operating_income
+              ? deal.net_operating_income
+              : 0;
+            deal.current_occupancy = deal.current_occupancy
+              ? deal.current_occupancy
+              : 0;
+            deal.average_daily_rate = deal.average_daily_rate
+              ? deal.average_daily_rate
+              : 0;
+            deal.medicare_percentage = deal.medicare_percentage
+              ? deal.medicare_percentage
+              : 0;
+            deal.private_pay_percentage = deal.private_pay_percentage
+              ? deal.private_pay_percentage
+              : 0;
+            deal.target_irr_percentage = deal.target_irr_percentage
+              ? deal.target_irr_percentage
+              : 0;
+            deal.target_hold_period = deal.target_hold_period
+              ? deal.target_hold_period
+              : 0;
+            deal.projected_cap_rate_percentage =
+              deal.projected_cap_rate_percentage
+                ? deal.projected_cap_rate_percentage
+                : 0;
+            deal.exit_multiple = deal.exit_multiple ? deal.exit_multiple : 0;
+
+            // create deal:
+            // Get index to check if this is the first deal (for extraction_data)
+            const dealIndex = requiredData.deals.indexOf(deal);
+
+            const dealCreated = await Deal.create({
+              ...deal,
+              user_id: requiredData.user_id,
+              master_deal_id: masterDeal.id,
+              // Only store extraction_data on the first deal
+              extraction_data: dealIndex === 0 ? requiredData.extraction_data : null,
+            });
+
+            // create recent activity for admin:
+            const admin = await User.findByPk(1);
+            const dealCreatedBy = await User.findByPk(requiredData.user_id);
+            await RecentActivity.create({
+              to_id: admin.id,
+              from_id: dealCreated.user_id,
+              subject_type: "deal",
+              subject_id: dealCreated.id,
+              action: "new_deal_created",
+              message: `A new deal <strong>${dealCreated.deal_name}</strong> has been created by <strong>${dealCreatedBy.first_name} ${dealCreatedBy.last_name}</strong> on our platform.`,
+              data: JSON.stringify({
+                deal_id: dealCreated.id,
+                deal_name: dealCreated.deal_name,
+                to_id: admin.id,
+                from_id: dealCreated.user_id,
+              }),
+            });
+
+            // append all user to allUserIds:
+            allUserIds.add(dealCreated?.deal_lead_id);
+            allUserIds.add(dealCreated?.assistant_deal_lead_id);
+            
+            // Fixed: Create deal team members from the current deal's data
+            if (deal.deal_team_members && deal.deal_team_members.length > 0) {
+              await Promise.all(
+                deal.deal_team_members.map(async (element) => {
+                  const dealTeamMember = await DealTeamMembers.create({
+                    deal_id: dealCreated.id,
+                    user_id: element.id,
+                  });
+                  allUserIds.add(element.id);
+                })
+              );
+            }
+            
+            // Fixed: Create deal external advisors from the current deal's data
+            if (deal.deal_external_advisors && deal.deal_external_advisors.length > 0) {
+              await Promise.all(
+                deal.deal_external_advisors.map(async (element) => {
+                  const dealExternalAdvisor = await DealExternalAdvisors.create({
+                    deal_id: dealCreated.id,
+                    user_id: element.id,
+                  });
+                  allUserIds.add(element.id);
+                })
+              );
+            }
+
+            // send email:
+            await Promise.all(
+              [...allUserIds].map(async (userId) => {
+                const user = await User.findByPk(userId);
+                if (user) {
+                  await sendBrevoEmail({
+                    receiver_email: user.email,
+                    receiver_name: user.first_name + " " + user.last_name,
+                    subject: "You've been added to a new deal",
+                    htmlContent: `
+      <p>Hi ${user.first_name} ${user.last_name},</p>
+      <p>You've been added to the deal <strong>${deal.deal_name}</strong> on our platform.</p>
+      <p>You can now collaborate, view details, and track progress in your dashboard.</p>
+      <p>Best regards.</p>
+    `,
+                  });
+
+                  // create recent activity:
+                  await RecentActivity.create({
+                    to_id: userId,
+                    from_id: dealCreated.user_id,
+                    subject_type: "deal",
+                    subject_id: dealCreated.id,
+                    action: "added_to_deal",
+                    message: `You've been added to the deal <strong>${dealCreated.deal_name}</strong> on our platform.`,
+                    data: JSON.stringify({
+                      deal_id: dealCreated.id,
+                      deal_name: dealCreated.deal_name,
+                      to_id: userId,
+                      from_id: dealCreated.user_id,
+                    }),
+                  });
+                }
+              })
+            );
+
+            return dealCreated;
+          })
+        );
+      }
+
+      // Save uploaded documents from extraction (associate with the first deal created)
+      if (requiredData.documents && requiredData.documents.length > 0 && dealData.length > 0) {
+        const firstDealId = dealData[0].id;
+        await Promise.all(
+          requiredData.documents.map(async (doc) => {
+            await DealDocuments.create({
+              deal_id: firstDealId,
+              user_id: requiredData.user_id,
+              document_url: doc.file_path || doc.url,
+              document_name: doc.original_name || doc.filename,
+            });
+          })
+        );
+      }
+
+      // return the success response:
+      return helper.success(res, "Deal created successfully", {
+        masterDeal,
+        dealData,
+      });
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+ 
+  updateMasterDeal: async (req, res) => {
+    try {
+      const required = {
+        master_deal_id: req.body.master_deal_id,
+      };
+  
+      const nonrequired = {
+        deal_name: req.body.deal_name,
+        deal_type: req.body.deal_type,
+        deal_status: req.body.deal_status,
+        priority_level: req.body.priority_level,
+        deal_source: req.body.deal_source,
+        primary_contact_name: req.body.primary_contact_name,
+        title: req.body.title,
+        phone_number: req.body.phone_number,
+        email: req.body.email,
+        target_close_date: req.body.target_close_date,
+        dd_period_weeks: req.body.dd_period_weeks,
+        price_per_bed: req.body.price_per_bed || 0,
+        down_payment: req.body.down_payment || 0,
+        financing_amount: req.body.financing_amount || 0,
+        revenue_multiple: req.body.revenue_multiple || 0,
+        ebitda: req.body.ebitda || 0,
+        ebitda_multiple: req.body.ebitda_multiple || 0,
+        ebitda_margin: req.body.ebitda_margin || 0,
+        net_operating_income: req.body.net_operating_income || 0,
+        current_occupancy: req.body.current_occupancy || 0,
+        average_daily_rate: req.body.average_daily_rate || 0,
+        medicare_percentage: req.body.medicare_percentage || 0,
+        private_pay_percentage: req.body.private_pay_percentage || 0,
+        target_irr_percentage: req.body.target_irr_percentage || 0,
+        target_hold_period: req.body.target_hold_period || 0,
+        projected_cap_rate_percentage: req.body.projected_cap_rate_percentage || 0,
+        exit_multiple: req.body.exit_multiple || 0,
+        deal_lead_id: req.body.deal_lead_id,
+        assistant_deal_lead_id: req.body.assistant_deal_lead_id,
+        email_notification_major_updates: req.body.email_notification_major_updates,
+        document_upload_notification: req.body.document_upload_notification,
+        address: req.body.address,
+        deals: req.body.deals, // array of deals for update/create
+      };
+  
+      const requiredData = await helper.validateObject(required, nonrequired);
+  
+      // Find master deal
+      const existingMasterDeal = await MasterDeals.findByPk(requiredData.master_deal_id);
+      if (!existingMasterDeal) {
+        return helper.error(res, "Master deal not found");
+      }
+  
+      // Prepare update payload
+      const masterDealUpdateData = {
+        deal_name: requiredData.deal_name,
+        deal_type: requiredData.deal_type,
+        deal_status: requiredData.deal_status,
+        priority_level: requiredData.priority_level,
+        deal_source: requiredData.deal_source,
+        primary_contact_name: requiredData.primary_contact_name,
+        title: requiredData.title,
+        phone_number: requiredData.phone_number,
+        email: requiredData.email,
+        target_close_date: requiredData.target_close_date,
+        dd_period_weeks: requiredData.dd_period_weeks,
+        price_per_bed: requiredData.price_per_bed,
+        down_payment: requiredData.down_payment,
+        financing_amount: requiredData.financing_amount,
+        revenue_multiple: requiredData.revenue_multiple,
+        ebitda: requiredData.ebitda,
+        ebitda_multiple: requiredData.ebitda_multiple,
+        ebitda_margin: requiredData.ebitda_margin,
+        net_operating_income: requiredData.net_operating_income,
+        current_occupancy: requiredData.current_occupancy,
+        average_daily_rate: requiredData.average_daily_rate,
+        medicare_percentage: requiredData.medicare_percentage,
+        private_pay_percentage: requiredData.private_pay_percentage,
+        target_irr_percentage: requiredData.target_irr_percentage,
+        target_hold_period: requiredData.target_hold_period,
+        projected_cap_rate_percentage: requiredData.projected_cap_rate_percentage,
+        exit_multiple: requiredData.exit_multiple,
+        deal_lead_id: requiredData.deal_lead_id,
+        assistant_deal_lead_id: requiredData.assistant_deal_lead_id,
+        email_notification_major_updates: requiredData.email_notification_major_updates,
+        document_upload_notification: requiredData.document_upload_notification,
+      };
+  
+      // Add address fields if provided
+      if (requiredData.address) {
+        Object.assign(masterDealUpdateData, {
+          street_address: requiredData.address.street_address,
+          city: requiredData.address.city,
+          state: requiredData.address.state,
+          country: requiredData.address.country,
+          zip_code: requiredData.address.zip_code,
+        });
+      }
+  
+      // Update master deal
+      await MasterDeals.update(masterDealUpdateData, { where: { id: requiredData.master_deal_id } });
+  
+      // Handle deals (update existing or create new ones)
+      if (requiredData.deals && requiredData.deals.length > 0) {
+        await Promise.all(
+          requiredData.deals.map(async (deal) => {
+            const payload = {
+              ...deal,
+              email_notification_major_updates:
+                deal.notificationSettings?.email_notification_major_updates ? "yes" : "no",
+              document_upload_notification:
+                deal.notificationSettings?.document_upload_notification ? "yes" : "no",
+              target_close_date: deal.target_close_date || null,
+              price_per_bed: deal.price_per_bed || 0,
+              down_payment: deal.down_payment || 0,
+              financing_amount: deal.financing_amount || 0,
+              revenue_multiple: deal.revenue_multiple || 0,
+              ebitda: deal.ebitda || 0,
+              ebitda_multiple: deal.ebitda_multiple || 0,
+              ebitda_margin: deal.ebitda_margin || 0,
+              net_operating_income: deal.net_operating_income || 0,
+              current_occupancy: deal.current_occupancy || 0,
+              average_daily_rate: deal.average_daily_rate || 0,
+              medicare_percentage: deal.medicare_percentage || 0,
+              private_pay_percentage: deal.private_pay_percentage || 0,
+              target_irr_percentage: deal.target_irr_percentage || 0,
+              target_hold_period: deal.target_hold_period || 0,
+              projected_cap_rate_percentage: deal.projected_cap_rate_percentage || 0,
+              exit_multiple: deal.exit_multiple || 0,
+            };
+  
+            if (deal.id) {
+              // Update existing deal
+              await Deal.update(payload, { where: { id: deal.id } });
+              await DealTeamMembers.destroy({ where: { deal_id: deal.id } });
+              await DealExternalAdvisors.destroy({ where: { deal_id: deal.id } });
+            } else {
+              // Create new deal under the master deal
+              const createdDeal = await Deal.create({
+                ...payload,
+                master_deal_id: requiredData.master_deal_id,
+                user_id: req.user.id,
+              });
+              deal.id = createdDeal.id;
+            }
+  
+            // Add team members
+            if (deal.deal_team_members?.length > 0) {
+              await Promise.all(
+                deal.deal_team_members.map((member) =>
+                  DealTeamMembers.create({
+                    deal_id: deal.id,
+                    user_id: member.id || member.user_id,
+                  })
+                )
+              );
+            }
+  
+            // Add external advisors
+            if (deal.deal_external_advisors?.length > 0) {
+              await Promise.all(
+                deal.deal_external_advisors.map((advisor) =>
+                  DealExternalAdvisors.create({
+                    deal_id: deal.id,
+                    user_id: advisor.id || advisor.user_id,
+                  })
+                )
+              );
+            }
+          })
+        );
+      }
+  
+      // Fetch updated master deal
+      const updatedMasterDeal = await MasterDeals.findByPk(requiredData.master_deal_id, {
+        include: [
+          {
+            model: Deal,
+            as: "deals",
+            include: [
+              { model: User, as: "deal_lead", attributes: ["id", "first_name", "last_name", "profile_url"] },
+              { model: User, as: "assistant_deal_lead", attributes: ["id", "first_name", "last_name", "profile_url"] },
+              {
+                model: DealTeamMembers,
+                as: "deal_team_members",
+                include: [{ model: User, as: "user", attributes: ["id", "first_name", "last_name", "profile_url"] }],
+              },
+              {
+                model: DealExternalAdvisors,
+                as: "deal_external_advisors",
+                include: [{ model: User, as: "user", attributes: ["id", "first_name", "last_name", "profile_url"] }],
+              },
+            ],
+          },
+        ],
+      });
+  
+      // Create recent activity log
+      const updatedBy = await User.findByPk(req.user.id);
+      await RecentActivity.create({
+        to_id: existingMasterDeal.user_id,
+        from_id: req.user.id,
+        subject_type: "master_deal",
+        subject_id: requiredData.master_deal_id,
+        action: "master_deal_updated",
+        message: `Master deal <strong>${updatedMasterDeal.deal_name}</strong> has been updated by <strong>${updatedBy.first_name} ${updatedBy.last_name}</strong>.`,
+        data: JSON.stringify({
+          master_deal_id: requiredData.master_deal_id,
+          deal_name: updatedMasterDeal.deal_name,
+          to_id: existingMasterDeal.user_id,
+          from_id: req.user.id,
+        }),
+      });
+  
+      return helper.success(res, "Master deal updated successfully", updatedMasterDeal);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+  
+
+  getDeal: async (req, res) => {
+    try {
+      const search = req.query.search;
+      const status = req.query.status;
+      const type = req.query.type;
+      const date = req.query.date;
+      const value = req.query.value;
+      const page = req.query.page || 1;
+      const limit = req.query.limit || 5;
+      const offset = (page - 1) * limit;
+
+      const whereClause = {};
+
+      // role based filtering:
+      const user = await User.findByPk(req.user.id);
+
+      if (user.role !== "admin") {
+        // fetch team member assigned deals:
+        const teamMemberDeals = await DealTeamMembers.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: user.id },
+        });
+
+        const teamDealIds = teamMemberDeals.map((entry) => entry.deal_id);
+
+        // fetch external advisor assigned deals:
+        const externalAdvisorDeals = await DealExternalAdvisors.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: user.id },
+        });
+        const externalAdvisorDealIds = externalAdvisorDeals.map(
+          (entry) => entry.deal_id
+        );
+
+        whereClause[Op.or] = [
+          { user_id: user.id },
+          { deal_lead_id: user.id },
+          { assistant_deal_lead_id: user.id },
+          { id: { [Op.in]: teamDealIds } },
+          { id: { [Op.in]: externalAdvisorDealIds } },
+        ];
+      }
+
+      // Apply search filters
+      if (search) {
+        whereClause.deal_name = {
+          [Op.like]: `%${search}%`,
+        };
+      }
+
+      if (status && status != "All") {
+        whereClause.deal_status = status;
+      }
+
+      if (date && date != "All") {
+        whereClause.target_close_date = date;
+      }
+
+      if (value && value != "All") {
+        whereClause.purchase_price = value;
+      }
+
+      if (type && type != "All") {
+        whereClause.deal_type = type;
+      }
+
+      const deal = await Deal.findAll({
+        where: whereClause,
+        limit: limit,
+        offset: offset,
+        order: [["created_at", "DESC"]],
+        include: [
+          { model: User, as: "deal_lead" },
+          { model: User, as: "assistant_deal_lead" },
+        ],
+      });
+
+      const total = await Deal.count({ where: whereClause });
+      const totalPages = Math.ceil(total / limit);
+
+      const body = {
+        deals: deal,
+        total: total,
+        totalPages: totalPages,
+      };
+
+      return helper.success(res, "Deal fetched successfully", body);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  //fetch master deals:
+  getMasterDeals: async (req, res) => {
+    try {
+      const { page = 1, limit = 10, search = "" } = req.query;
+
+      const user = await User.findByPk(req.user.id);
+
+      const whereClause = {};
+
+      if (user.role !== "admin") {
+        whereClause.user_id = user.id;
+      }
+
+      if (search) {
+        whereClause[Op.or] = [
+          { street_address: { [Op.like]: `%${search}%` } },
+          { zip_code: { [Op.like]: `%${search}%` } },
+          { city: { [Op.like]: `%${search}%` } },
+          { state: { [Op.like]: `%${search}%` } },
+        ];
+      }
+
+      // fetch data:
+      const masterDeals = await MasterDeals.findAndCountAll({
+        where: whereClause,
+        limit: parseInt(limit),
+        offset: (parseInt(page) - 1) * parseInt(limit),
+        order: [["created_at", "DESC"]],
+      });
+      if (masterDeals.length > 0) {
+        return helper.success(res, "Master deals fetched successfully", {
+          masterDeals: [],
+        });
+      }
+      const responseData = await Promise.all(
+        masterDeals.rows.map(async (data) => {
+          const deals = await Deal.count({
+            where: {
+              master_deal_id: data.id,
+            },
+          });
+          return {
+            ...data.dataValues,
+            deals: deals,
+          };
+        })
+      );
+
+      const body = {
+        deals: responseData,
+        total: masterDeals.count,
+        totalPages: Math.ceil(masterDeals.count / parseInt(limit)),
+        currentPage: parseInt(page),
+      };
+
+      return helper.success(res, "Master deals fetched successfully", body);
+    } catch (error) {
+      return helper.error(res, error);
+    }
+  },
+
+  // get master deal:
+  getParticularMasterDeal: async (req, res) => {
+    try {
+      const required = {
+        id: req.query.id,
+      };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      const masterDeal = await MasterDeals.findOne({
+        where: { id: requiredData.id },
+        include: [
+          {
+            model: Deal,
+            as: "deals",
+            include: [
+              {
+                model: User,
+                as: "deal_lead",
+                attributes: [
+                  "id",
+                  "first_name",
+                  "last_name",
+                  "email",
+                  "phone_number",
+                ],
+              },
+              {
+                model: User,
+                as: "assistant_deal_lead",
+                attributes: [
+                  "id",
+                  "first_name",
+                  "last_name",
+                  "email",
+                  "phone_number",
+                ],
+              },
+              {
+                model: DealTeamMembers,
+                as: "deal_team_members",
+                include: [
+                  {
+                    model: User,
+                    as: "user",
+                    attributes: [
+                      "id",
+                      "first_name",
+                      "last_name",
+                      "profile_url",
+                    ],
+                  },
+                ],
+              },
+              {
+                model: DealExternalAdvisors,
+                as: "deal_external_advisors",
+                include: [
+                  {
+                    model: User,
+                    as: "user",
+                    attributes: [
+                      "id",
+                      "first_name",
+                      "last_name",
+                      "profile_url",
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      return helper.success(
+        res,
+        "Master deal fetched successfully",
+        masterDeal
+      );
+    } catch (error) {
+      return helper.error(res, error);
+    }
+  },
+
+  // delete master deals:
+  deleteMasterDeal: async (req, res) => {
+    try {
+      const required = { id: req.params.id }; // master_deal_id
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      // fetch the master deal:
+      const masterDeal = await MasterDeals.findByPk(requiredData.id);
+      if (!masterDeal) {
+        return helper.error(res, "Master deal not found");
+      }
+
+      // fetch all deals under this master deal:
+      const deals = await Deal.findAll({
+        where: { master_deal_id: requiredData.id },
+      });
+
+      for (const deal of deals) {
+        // delete deal comments:
+        await DealComments.destroy({
+          where: {
+            deal_id: deal.id,
+          },
+        });
+
+        // delete deal documents:
+        await DealDocuments.destroy({ where: { deal_id: deal.id } });
+
+        // delete deal team members:
+        await DealTeamMembers.destroy({ where: { deal_id: deal.id } });
+
+        // delete deal external advisors:
+        await DealExternalAdvisors.destroy({ where: { deal_id: deal.id } });
+
+        // finally delete deal itself
+        await deal.destroy();
+      }
+
+      // delete master deal itself:
+      await masterDeal.destroy();
+
+      // return the success response:
+      return helper.success(
+        res,
+        "Master deal and related deals deleted successfully",
+        {
+          id: requiredData.id,
+        }
+      );
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  // update master deal:
+
+  getDealStats: async (req, res) => {
+    try {
+      const user = await User.findByPk(req.user.id);
+      const whereClause = {
+        [Op.not]: {
+          deal_status: "closed",
+        },
+      };
+
+      // Apply role-based filters for non-admin users
+      if (user.role !== "admin") {
+        // fetch team member assigned deals:
+        const teamMemberDeals = await DealTeamMembers.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: user.id },
+        });
+
+        const teamDealIds = teamMemberDeals.map((entry) => entry.deal_id);
+
+        // fetch external advisor assigned deals:
+        const externalAdvisorDeals = await DealExternalAdvisors.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: user.id },
+        });
+        const externalAdvisorDealIds = externalAdvisorDeals.map(
+          (entry) => entry.deal_id
+        );
+
+        whereClause[Op.and] = [
+          {
+            [Op.or]: [
+              { user_id: user.id },
+              { deal_lead_id: user.id },
+              { assistant_deal_lead_id: user.id },
+              { id: { [Op.in]: teamDealIds } },
+              { id: { [Op.in]: externalAdvisorDealIds } },
+            ],
+          },
+        ];
+      }
+
+      // Get total active deals
+      const totalActiveDeals = await Deal.count({
+        where: whereClause,
+      });
+
+      // Get total pipeline value (sum of purchase prices)
+      const pipelineValue = await Deal.sum("purchase_price", {
+        where: { ...whereClause, deal_status: "pipeline" },
+      });
+
+      // Get average deal size
+      const avgDealSize = await Deal.findOne({
+        attributes: [
+          [sequelize.fn("AVG", sequelize.col("purchase_price")), "average"],
+        ],
+        where: whereClause,
+      });
+
+      // Get closing this month count
+      const currentDate = new Date();
+      const firstDayOfMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        1
+      );
+      const lastDayOfMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        0
+      );
+
+      const closingThisMonth = await Deal.count({
+        where: {
+          ...whereClause,
+          target_close_date: {
+            [Op.between]: [firstDayOfMonth, lastDayOfMonth],
+          },
+        },
+      });
+
+      // Calculate success rate
+      const totalDeals = await Deal.count({
+        where:
+          user.role === "admin"
+            ? {}
+            : {
+                [Op.or]: [
+                  { user_id: user.id },
+                  { deal_lead_id: user.id },
+                  { assistant_deal_lead_id: user.id },
+                ],
+              },
+      });
+
+      const successRate =
+        totalDeals > 0 ? ((totalActiveDeals / totalDeals) * 100).toFixed(0) : 0;
+
+      const stats = {
+        total_active_deals: totalActiveDeals,
+        total_pipeline_value:
+          pipelineValue && pipelineValue > 1000000
+            ? `$${(pipelineValue / 1000000).toFixed(1)}M`
+            : pipelineValue,
+        average_deal_size:
+          avgDealSize?.dataValues?.average &&
+          avgDealSize?.dataValues?.average > 1000000
+            ? `$${(avgDealSize.dataValues.average / 1000000).toFixed(1)}M`
+            : avgDealSize?.dataValues?.average,
+        closing_this_month: closingThisMonth,
+        success_rate: `${successRate}%`,
+      };
+
+      return helper.success(res, "Deal statistics fetched successfully", stats);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  // Dashboard Api:
+  getDashboardData: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const user = await User.findByPk(userId);
+      const isAdmin = user.role === "admin";
+
+      let userDealIds = [];
+      if (!isAdmin) {
+        const userDeals = await Deal.findAll({
+          attributes: ["id"],
+          where: { user_id: userId },
+        });
+        const leadDeals = await Deal.findAll({
+          attributes: ["id"],
+          where: { deal_lead_id: userId },
+        });
+        const assistantDeals = await Deal.findAll({
+          attributes: ["id"],
+          where: { assistant_deal_lead_id: userId },
+        });
+        const teamDeals = await DealTeamMembers.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: userId },
+        });
+        const advisorDeals = await DealExternalAdvisors.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: userId },
+        });
+        userDealIds = [
+          ...userDeals.map((d) => d.id),
+          ...leadDeals.map((d) => d.id),
+          ...assistantDeals.map((d) => d.id),
+          ...teamDeals.map((d) => d.deal_id),
+          ...advisorDeals.map((d) => d.deal_id),
+        ];
+        userDealIds = [...new Set(userDealIds)];
+      }
+
+      const whereClause = isAdmin ? {} : { id: { [Op.in]: userDealIds } };
+
+      const currentDate = new Date();
+
+      const startOfWeek = new Date();
+      startOfWeek.setUTCDate(
+        currentDate.getUTCDate() - currentDate.getUTCDay()
+      );
+      startOfWeek.setUTCHours(0, 0, 0, 0);
+
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6);
+      endOfWeek.setUTCHours(23, 59, 59, 999);
+
+      const firstDayOfMonth = new Date(
+        Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), 1)
+      );
+      const lastDayOfMonth = new Date(
+        Date.UTC(
+          currentDate.getUTCFullYear(),
+          currentDate.getUTCMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      const thisQuarterRange = helper.getQuarterDateRangeUTC(0);
+      const lastQuarterRange = helper.getQuarterDateRangeUTC(-1);
+
+      // Run aggregate queries in parallel
+      const [
+        openDeals,
+        weeklyDeals,
+        totalPipelineRevenue,
+        monthlyRevenue,
+        dueDiligenceDeals,
+        avgCloseAllDeals,
+        thisQuarterAvg,
+        lastQuarterAvg,
+        allDealsGrouped,
+        totalBeds,
+        totalRevenue,
+        avgOccupancy,
+      ] = await Promise.all([
+        Deal.count({
+          where: { ...whereClause, deal_status: { [Op.not]: "closed" } },
+        }),
+
+        Deal.count({
+          where: {
+            ...whereClause,
+            deal_status: { [Op.not]: "closed" },
+            created_at: { [Op.between]: [startOfWeek, endOfWeek] },
+          },
+        }),
+
+        Deal.sum("purchase_price", {
+          where: { ...whereClause, deal_status: "pipeline" },
+        }),
+
+        Deal.sum("annual_revenue", {
+          where: {
+            ...whereClause,
+            deal_status: "pipeline",
+            created_at: { [Op.between]: [firstDayOfMonth, lastDayOfMonth] },
+          },
+        }),
+
+        Deal.count({ where: { ...whereClause, deal_status: "due_diligence" } }),
+
+        Deal.findOne({
+          attributes: [
+            [
+              sequelize.fn(
+                "AVG",
+                sequelize.fn(
+                  "DATEDIFF",
+                  sequelize.col("target_close_date"),
+                  sequelize.col("created_at")
+                )
+              ),
+              "average_days",
+            ],
+          ],
+          where: { ...whereClause, deal_status: "closed" },
+          raw: true,
+        }),
+
+        Deal.findOne({
+          attributes: [
+            [
+              sequelize.fn(
+                "AVG",
+                sequelize.fn(
+                  "DATEDIFF",
+                  sequelize.col("target_close_date"),
+                  sequelize.col("created_at")
+                )
+              ),
+              "average_days",
+            ],
+          ],
+          where: {
+            ...whereClause,
+            deal_status: "closed",
+            created_at: {
+              [Op.between]: [
+                thisQuarterRange.startDate,
+                thisQuarterRange.endDate,
+              ],
+            },
+          },
+          raw: true,
+        }),
+
+        Deal.findOne({
+          attributes: [
+            [
+              sequelize.fn(
+                "AVG",
+                sequelize.fn(
+                  "DATEDIFF",
+                  sequelize.col("target_close_date"),
+                  sequelize.col("created_at")
+                )
+              ),
+              "average_days",
+            ],
+          ],
+          where: {
+            ...whereClause,
+            deal_status: "closed",
+            created_at: {
+              [Op.between]: [
+                lastQuarterRange.startDate,
+                lastQuarterRange.endDate,
+              ],
+            },
+          },
+          raw: true,
+        }),
+
+        Deal.findAll({
+          attributes: ["id", "deal_name", "deal_status"],
+          where: {
+            ...whereClause,
+            deal_status: {
+              [Op.in]: ["closed", "due_diligence", "pipeline", "final_review"],
+            },
+          },
+          order: [["created_at", "DESC"]],
+          raw: true,
+        }),
+
+        Deal.sum("no_of_beds", { where: { ...whereClause } }),
+        Deal.sum("annual_revenue", { where: { ...whereClause } }),
+
+        Deal.findOne({
+          attributes: [
+            [
+              sequelize.fn("AVG", sequelize.col("current_occupancy")),
+              "average_occupancy",
+            ],
+          ],
+          where: { ...whereClause },
+          raw: true,
+        }),
+      ]);
+
+      const thisAvg = thisQuarterAvg?.average_days
+        ? parseFloat(thisQuarterAvg.average_days)
+        : 0;
+      const lastAvg = lastQuarterAvg?.average_days
+        ? parseFloat(lastQuarterAvg.average_days)
+        : 0;
+      const difference = lastAvg - thisAvg;
+
+      const groupedDeals = {
+        closedDeals: allDealsGrouped
+          .filter((d) => d.deal_status === "closed")
+          .slice(0, 5),
+        dueDiligenceDeals: allDealsGrouped
+          .filter((d) => d.deal_status === "due_diligence")
+          .slice(0, 5),
+        pipelineDeals: allDealsGrouped
+          .filter((d) => d.deal_status === "pipeline")
+          .slice(0, 5),
+        finalReviewDeals: allDealsGrouped
+          .filter((d) => d.deal_status === "final_review")
+          .slice(0, 5),
+      };
+
+      const averageRevenuePerBed = totalBeds > 0 ? totalRevenue / totalBeds : 0;
+
+      const responseData = {
+        total_deals: openDeals,
+        weekly_deals: weeklyDeals,
+        total_revenue:
+          totalRevenue && totalRevenue > 1000000
+            ? `$${(totalRevenue / 1000000).toFixed(1)}M`
+            : totalRevenue,
+        monthly_revenue: monthlyRevenue,
+        due_diligence_deals: dueDiligenceDeals,
+        average_deal_close_date: avgCloseAllDeals?.average_days ?? 0,
+        average_deal_close_date_difference: difference,
+        total_pipeline_revenue:
+          totalPipelineRevenue && totalPipelineRevenue > 1000000
+            ? `$${(totalPipelineRevenue / 1000000).toFixed(1)}M`
+            : totalPipelineRevenue,
+        total_beds: totalBeds,
+        average_revenue_per_bed: averageRevenuePerBed,
+        average_current_occupancy: avgOccupancy?.average_occupancy ?? 0,
+        ...groupedDeals,
+      };
+
+      return helper.success(
+        res,
+        "Deal statistics fetched successfully",
+        responseData
+      );
+    } catch (error) {
+      console.error(error);
+      return helper.error(res, error);
+    }
+  },
+
+  getDealById: async (req, res) => {
+    try {
+      const required = {
+        id: req.query.id,
+      };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+      const deal = await Deal.findByPk(requiredData.id, {
+        include: [
+          {
+            model: User,
+            as: "deal_lead",
+            attributes: [
+              "id",
+              "first_name",
+              "last_name",
+              "email",
+              "phone_number",
+            ],
+          },
+          {
+            model: User,
+            as: "assistant_deal_lead",
+            attributes: [
+              "id",
+              "first_name",
+              "last_name",
+              "email",
+              "phone_number",
+            ],
+          },
+          {
+            model: DealTeamMembers,
+            as: "deal_team_members",
+            include: [
+              {
+                model: User,
+                as: "user",
+                attributes: ["id", "first_name", "last_name", "profile_url"],
+              },
+            ],
+          },
+          {
+            model: DealExternalAdvisors,
+            as: "deal_external_advisors",
+            include: [
+              {
+                model: User,
+                as: "user",
+                attributes: ["id", "first_name", "last_name", "profile_url"],
+              },
+            ],
+          },
+        ],
+      });
+      return helper.success(res, "Deal fetched successfully", deal);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  deleteDeal: async (req, res) => {
+    try {
+      const required = { id: req.params.id };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      // fetch the deal:
+      const deal = await Deal.findByPk(requiredData.id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // delete the deal comments:
+      await DealComments.destroy({
+        where: {
+          deal_id: requiredData.id,
+          parent_id: { [Op.ne]: null },
+        },
+      });
+      await DealComments.destroy({
+        where: {
+          deal_id: requiredData.id,
+          parent_id: null,
+        },
+      });
+
+      // delete the deal documents:
+      await DealDocuments.destroy({ where: { deal_id: requiredData.id } });
+
+      // delete the deal team members:
+      await DealTeamMembers.destroy({ where: { deal_id: requiredData.id } });
+
+      // delete the deal external advisors:
+      await DealExternalAdvisors.destroy({
+        where: { deal_id: requiredData.id },
+      });
+
+      // delete the deal:
+      await deal.destroy();
+
+      // return the success response:
+      return helper.success(res, "Deal deleted successfully", {
+        id: requiredData.id,
+      });
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  updateDeal: async (req, res) => {
+    try {
+      // Extract fields from request body
+      const {
+        id,
+        deal_name,
+        user_id,
+        deal_type,
+        facility_name,
+        facility_type,
+        no_of_beds,
+        city,
+        state,
+        zip_code,
+        purchase_price = 0,
+        annual_revenue = 0,
+        deal_lead_id,
+        priority_level,
+        deal_source,
+        country,
+        street_address,
+        primary_contact_name,
+        title,
+        phone_number,
+        email,
+        target_close_date,
+        dd_period_weeks,
+        price_per_bed = 0,
+        down_payment = 0,
+        financing_amount = 0,
+        revenue_multiple = 0,
+        ebitda = 0,
+        ebitda_multiple = 0,
+        ebitda_margin = 0,
+        net_operating_income = 0,
+        current_occupancy = 0,
+        average_daily_rate = 0,
+        medicare_percentage = 0,
+        private_pay_percentage = 0,
+        target_irr_percentage = 0,
+        target_hold_period = 0,
+        projected_cap_rate_percentage = 0,
+        exit_multiple = 0,
+        assistant_deal_lead_id,
+        deal_team_members,
+        deal_external_advisors,
+        deal_status,
+        notificationSettings = {},
+      } = req.body;
+
+      // Compose required and nonrequired objects for validation
+      const required = {
+        id,
+        deal_name,
+        user_id,
+        deal_type,
+        facility_name,
+        facility_type,
+        no_of_beds,
+        city,
+        state,
+        country,
+        zip_code,
+        street_address,
+        purchase_price: purchase_price ? purchase_price : 0,
+        annual_revenue: annual_revenue ? annual_revenue : 0,
+        deal_lead_id,
+      };
+      const nonrequired = {
+        priority_level,
+        deal_source,
+        primary_contact_name,
+        title,
+        phone_number,
+        email,
+        target_close_date,
+        dd_period_weeks,
+        price_per_bed: price_per_bed ? price_per_bed : 0,
+        down_payment: down_payment ? down_payment : 0,
+        financing_amount: financing_amount ? financing_amount : 0,
+        revenue_multiple: revenue_multiple ? revenue_multiple : 0,
+        ebitda: ebitda ? ebitda : 0,
+        ebitda_multiple: ebitda_multiple ? ebitda_multiple : 0,
+        ebitda_margin: ebitda_margin ? ebitda_margin : 0,
+        net_operating_income: net_operating_income ? net_operating_income : 0,
+        current_occupancy: current_occupancy ? current_occupancy : 0,
+        average_daily_rate: average_daily_rate ? average_daily_rate : 0,
+        medicare_percentage: medicare_percentage ? medicare_percentage : 0,
+        private_pay_percentage: private_pay_percentage
+          ? private_pay_percentage
+          : 0,
+        target_irr_percentage: target_irr_percentage
+          ? target_irr_percentage
+          : 0,
+        target_hold_period: target_hold_period ? target_hold_period : 0,
+        projected_cap_rate_percentage: projected_cap_rate_percentage
+          ? projected_cap_rate_percentage
+          : 0,
+        exit_multiple: exit_multiple ? exit_multiple : 0,
+        assistant_deal_lead_id,
+        deal_team_members,
+        deal_external_advisors,
+        deal_status,
+      };
+
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      // Convert notification settings to 'yes'/'no'
+      requiredData.email_notification_major_updates =
+        notificationSettings.email_notification_major_updates === true
+          ? "yes"
+          : "no";
+      requiredData.weekly_progress_report =
+        notificationSettings.weekly_progress_report === true ? "yes" : "no";
+      requiredData.slack_integration_for_team_communication =
+        notificationSettings.slack_integration_for_team_communication === true
+          ? "yes"
+          : "no";
+      requiredData.calendar_integration =
+        notificationSettings.calendar_integration === true ? "yes" : "no";
+      requiredData.sms_alert_for_urgent_items =
+        notificationSettings.sms_alert_for_urgent_items === true ? "yes" : "no";
+      requiredData.document_upload_notification =
+        notificationSettings.document_upload_notification === true
+          ? "yes"
+          : "no";
+
+      // Find the deal to update
+      const deal = await Deal.findByPk(requiredData.id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      const userData = await User.findByPk(requiredData.user_id);
+
+      // create user set:
+      const allUserIds = new Set();
+      allUserIds.add(deal.deal_lead_id);
+      allUserIds.add(deal.assistant_deal_lead_id);
+      allUserIds.add(deal.user_id);
+
+      // Update the deal
+      await deal.update(requiredData);
+
+      // fetch all users who are mentioned in the comment:
+      if (deal_team_members) {
+        await DealTeamMembers.destroy({ where: { deal_id: requiredData.id } });
+        deal_team_members.forEach(async (member) => {
+          await DealTeamMembers.create({
+            deal_id: requiredData.id,
+            user_id: member.user_id ? member.user_id : member.id,
+          });
+          allUserIds.add(member.user_id);
+        });
+      }
+
+      if (deal_external_advisors) {
+        await DealExternalAdvisors.destroy({
+          where: { deal_id: requiredData.id },
+        });
+        deal_external_advisors.forEach(async (advisor) => {
+          await DealExternalAdvisors.create({
+            deal_id: requiredData.id,
+            user_id: advisor.user_id ? advisor.user_id : advisor.id,
+          });
+          allUserIds.add(advisor.user_id);
+        });
+      }
+
+      // create recent activity:
+      await Promise.all(
+        Array.from(allUserIds).map(async (userId) => {
+          if (userId !== userData.id) {
+            await RecentActivity.create({
+              to_id: userId,
+              from_id: userData.id,
+              action: "deal_updated",
+              subject_type: "deal",
+              subject_id: requiredData.id,
+              is_team: true,
+              message: `The deal <strong>${deal.deal_name}</strong> has been updated by <strong>${userData.first_name} ${userData.last_name}</strong> on our platform.`,
+              data: JSON.stringify({
+                deal_id: deal.id,
+                deal_name: deal.deal_name,
+                to_id: userId,
+                from_id: userData.id,
+              }),
+            });
+          }
+        })
+      );
+
+      const updatedDeal = await Deal.findByPk(requiredData.id, {
+        include: [
+          {
+            model: DealTeamMembers,
+            as: "deal_team_members",
+            include: [
+              {
+                model: User,
+                as: "user",
+                attributes: ["id", "first_name", "last_name", "profile_url"],
+              },
+            ],
+          },
+          {
+            model: DealExternalAdvisors,
+            as: "deal_external_advisors",
+            include: [
+              {
+                model: User,
+                as: "user",
+                attributes: ["id", "first_name", "last_name", "profile_url"],
+              },
+            ],
+          },
+        ],
+      });
+
+      return helper.success(res, "Deal updated successfully", updatedDeal);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /* 
+  This function will help to update the deal status:
+  Method: PUT
+  URL: /api/v1/deal/update-deal-status
+  */
+  updateDealStatus: async (req, res) => {
+    try {
+      const required = { id: req.body.id, deal_status: req.body.deal_status };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      // update the deal status:
+      const deal = await Deal.findByPk(requiredData.id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // update the deal status:
+      await deal.update({ deal_status: requiredData.deal_status });
+
+      // return the success response:
+      return helper.success(res, "Deal status updated successfully", deal);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /*
+  This function will help to add a deal comment:
+  METHOD: POST
+  */
+  addDealComment: async (req, res) => {
+    try {
+      const required = {
+        deal_id: req.body.deal_id,
+        user_id: req.user.id,
+        comment: req.body.comment,
+      };
+
+      const nonrequired = {
+        mentioned_user_ids: req.body.mentioned_user_ids || [],
+        parent_id: req.body.parent_id || null,
+      };
+
+      const validatedData = await helper.validateObject(required, nonrequired);
+
+      // fetch user:
+      const userDetails = await User.findByPk(validatedData.user_id);
+
+      // Create the comment
+      const dealComment = await DealComments.create({
+        deal_id: validatedData.deal_id,
+        user_id: validatedData.user_id,
+        comment: validatedData.comment,
+        parent_id: validatedData.parent_id,
+      });
+
+      const allUserIds = new Set();
+
+      // fetch deal data
+      const deal = await Deal.findByPk(validatedData.deal_id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      allUserIds.add(deal.deal_lead_id);
+      allUserIds.add(deal.assistant_deal_lead_id);
+
+      // Save mentions and send notifications:
+      if (
+        Array.isArray(validatedData.mentioned_user_ids) &&
+        validatedData.mentioned_user_ids.length > 0
+      ) {
+        const mentionData = validatedData.mentioned_user_ids.map((user_id) => ({
+          comment_id: dealComment.id,
+          mentioned_user_id: user_id,
+        }));
+        await CommentMentions.bulkCreate(mentionData);
+
+        for (const user_id of validatedData.mentioned_user_ids) {
+          if (user_id !== req.user.id) {
+            await UserNotification.create({
+              to_id: user_id,
+              from_id: userDetails.id,
+              notification_type: "comment",
+              title: "You were mentioned in a comment",
+              content: `${userDetails.first_name} ${userDetails.last_name} mentioned you in a comment on deal ${deal.deal_name}`,
+              ref_id: dealComment.id,
+            });
+            allUserIds.add(user_id);
+          }
+        }
+      }
+
+      // fetch all users who are mentioned in the comment:
+      const dealTeamMembers = await DealTeamMembers.findAll({
+        where: {
+          deal_id: validatedData.deal_id,
+        },
+      });
+      dealTeamMembers.forEach((member) => {
+        allUserIds.add(member.user_id);
+      });
+
+      const dealExternalAdvisors = await DealExternalAdvisors.findAll({
+        where: {
+          deal_id: validatedData.deal_id,
+        },
+      });
+      dealExternalAdvisors.forEach((member) => {
+        allUserIds.add(member.user_id);
+      });
+
+      // create recent activity:
+      await Promise.all(
+        Array.from(allUserIds).map(async (userId) => {
+          if (userId !== userDetails.id) {
+            await RecentActivity.create({
+              to_id: userId,
+              from_id: userDetails.id,
+              action: "mentioned_in_comment",
+              subject_type: "deal_comment",
+              subject_id: dealComment.id,
+              message: `<strong>${userDetails.first_name} ${userDetails.last_name}</strong> mentioned you in a comment on deal <strong>${deal.deal_name}</strong>.`,
+              data: JSON.stringify({
+                deal_id: deal.id,
+                deal_name: deal.deal_name,
+                comment_id: dealComment.id,
+                to_id: userId,
+                from_id: userDetails.id,
+              }),
+            });
+          }
+        })
+      );
+
+      // If it's a reply, send a notification to the original commenter
+      if (validatedData.parent_id) {
+        const parentComment = await DealComments.findByPk(
+          validatedData.parent_id
+        );
+        if (parentComment && parentComment.user_id !== req.user.id) {
+          await UserNotification.create({
+            to_id: parentComment.user_id,
+            from_id: userDetails.id,
+            notification_type: "reply",
+            title: "New reply on your comment",
+            content: `${userDetails.first_name} ${userDetails.last_name} replied to your comment on deal #${validatedData.deal_id}`,
+            ref_id: dealComment.id,
+          });
+        }
+      }
+
+      // Return with user details
+      const dealCommentData = await DealComments.findByPk(dealComment.id, {
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: ["id", "first_name", "last_name", "profile_url"],
+          },
+        ],
+      });
+
+      return helper.success(
+        res,
+        "Deal comment added successfully",
+        dealCommentData
+      );
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /*
+  This function will help to fetch all deal comments:
+  Method: GET
+  URL: /api/v1/deal/get-deal-comments
+  */
+  getDealComments: async (req, res) => {
+    try {
+      const required = { deal_id: req.query.deal_id };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      const dealComments = await DealComments.findAll({
+        where: {
+          deal_id: requiredData.deal_id,
+          parent_id: null,
+        },
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: ["id", "first_name", "last_name", "profile_url"],
+          },
+          {
+            model: DealComments,
+            as: "replies",
+            include: [
+              {
+                model: User,
+                as: "user",
+                attributes: ["id", "first_name", "last_name", "profile_url"],
+              },
+              {
+                model: User,
+                as: "mentioned_users",
+                attributes: ["id", "first_name", "last_name", "profile_url"],
+              },
+            ],
+          },
+          {
+            model: User,
+            as: "mentioned_users",
+            attributes: ["id", "first_name", "last_name"],
+          },
+        ],
+        order: [["created_at", "DESC"]],
+      });
+
+      return helper.success(
+        res,
+        "Deal comments fetched successfully",
+        dealComments
+      );
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /* 
+  This function will help to delete a deal comment:
+  Method: DELETE
+  URL: /api/v1/deal/delete-deal-comment
+  */
+  deleteDealComment: async (req, res) => {
+    try {
+      const required = { id: req.params.id };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      const dealComment = await DealComments.findByPk(requiredData.id);
+      if (!dealComment) {
+        return helper.error(res, "Deal comment not found");
+      }
+
+      // If it's a parent comment
+      if (dealComment.parent_id === null) {
+        // First delete all replies
+        await DealComments.destroy({
+          where: { parent_id: dealComment.id },
+        });
+      }
+
+      // Delete the comment itself
+      await dealComment.destroy();
+
+      // return the success response:
+      return helper.success(res, "Deal comment deleted successfully", {
+        id: dealComment.id,
+      });
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  addDealDocument: async (req, res) => {
+    try {
+      const required = {
+        deal_id: req.body.deal_id,
+        user_id: req.user.id,
+        document_url: req.body.document_url,
+        document_name: req.body.document_name,
+      };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+
+      // fetch deal:
+      const deal = await Deal.findByPk(requiredData.deal_id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // create user set:
+      const allUserIds = new Set();
+      allUserIds.add(deal.deal_lead_id);
+      allUserIds.add(deal.assistant_deal_lead_id);
+      allUserIds.add(deal.user_id);
+
+      // fetch all users who are mentioned in the comment:
+      const dealTeamMembers = await DealTeamMembers.findAll({
+        where: {
+          deal_id: requiredData.deal_id,
+        },
+      });
+      dealTeamMembers.forEach((member) => {
+        allUserIds.add(member.user_id);
+      });
+
+      const dealExternalAdvisors = await DealExternalAdvisors.findAll({
+        where: {
+          deal_id: requiredData.deal_id,
+        },
+      });
+      dealExternalAdvisors.forEach((member) => {
+        allUserIds.add(member.user_id);
+      });
+
+      // create deal document:
+      const dealDocument = await DealDocuments.create(requiredData);
+
+      // create recent activity:
+      const userData = await User.findByPk(requiredData.user_id);
+      await Promise.all(
+        Array.from(allUserIds).map(async (userId) => {
+          if (userId !== requiredData.user_id) {
+            await RecentActivity.create({
+              to_id: userId,
+              from_id: requiredData.user_id,
+              action: "new_deal_document_added",
+              subject_type: "deal_document",
+              subject_id: dealDocument.id,
+              is_team: true,
+              message: `A new document <strong>${dealDocument.document_name}</strong> has been added by <strong>${userData.first_name} ${userData.last_name}</strong> to the deal <strong>${deal.deal_name}</strong> on our platform.`,
+              data: JSON.stringify({
+                deal_id: deal.id,
+                deal_name: deal.deal_name,
+                document_id: dealDocument.id,
+                to_id: userId,
+                from_id: requiredData.user_id,
+              }),
+            });
+          }
+        })
+      );
+
+      // fetch deal document:
+      const dealDocumentData = await DealDocuments.findByPk(dealDocument.id, {
+        include: [{ model: User, as: "user" }],
+      });
+      return helper.success(
+        res,
+        "Deal document added successfully",
+        dealDocumentData
+      );
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  getDealDocuments: async (req, res) => {
+    try {
+      const required = {
+        deal_id: req.query.deal_id,
+      };
+      const nonrequired = {};
+      const requiredData = await helper.validateObject(required, nonrequired);
+      const dealDocuments = await DealDocuments.findAll({
+        where: { deal_id: requiredData.deal_id },
+        include: [{ model: User, as: "user" }],
+        order: [["created_at", "DESC"]],
+      });
+      return helper.success(
+        res,
+        "Deal documents fetched successfully",
+        dealDocuments
+      );
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /* 
+  This function will help to fetch all user notifications:
+  Method: GET
+  URL: /api/v1/deal/get-user-notifications
+  */
+  getUserNotifications: async (req, res) => {
+    try {
+      // fetch user notifications:
+      const userNotifications = await UserNotification.findAll({
+        where: { to_id: req.user.id },
+        order: [["createdAt", "DESC"]],
+      });
+      if (userNotifications.length === 0) {
+        return helper.success(res, "No user notifications found", []);
+      }
+
+      // return the success response:
+      return helper.success(
+        res,
+        "User notifications fetched successfully",
+        userNotifications
+      );
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /*
+  This function will help to mark a user notification as read:
+  Method: POST
+  URL: /api/v1/deal/read-notification
+  */
+  markUserNotificationAsRead: async (req, res) => {
+    try {
+      // Mark all user notifications as read for this user
+      await UserNotification.update(
+        { is_read: true },
+        {
+          where: {
+            status: 1,
+            to_id: req.user.id,
+          },
+        }
+      );
+
+      return helper.success(res, "User notifications marked as read");
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  getActiveDeals: async (req, res) => {
+    try {
+      const search = req.query.search;
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const offset = (page - 1) * limit;
+
+      const user = await User.findByPk(req.user.id);
+
+      const baseWhere = {
+        deal_status: { [Op.not]: "closed" },
+      };
+
+      if (search) {
+        baseWhere.deal_name = {
+          [Op.like]: `%${search}%`,
+        };
+      }
+
+      // For non-admin users, restrict results to associated deals
+      if (user.role !== "admin") {
+        // Fetch deal IDs from deal_team_members table
+        const teamMemberDeals = await DealTeamMembers.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: user.id },
+        });
+
+        const teamDealIds = teamMemberDeals.map((d) => d.deal_id);
+
+        // fetch external advisor assigned deals:
+        const externalAdvisorDeals = await DealExternalAdvisors.findAll({
+          attributes: ["deal_id"],
+          where: { user_id: user.id },
+        });
+        const externalAdvisorDealIds = externalAdvisorDeals.map(
+          (entry) => entry.deal_id
+        );
+
+        baseWhere[Op.or] = [
+          { user_id: user.id },
+          { deal_lead_id: user.id },
+          { assistant_deal_lead_id: user.id },
+          { id: { [Op.in]: teamDealIds } },
+          { id: { [Op.in]: externalAdvisorDealIds } },
+        ];
+      }
+
+      const deal = await Deal.findAll({
+        where: baseWhere,
+        limit,
+        offset,
+        order: [["created_at", "DESC"]],
+        include: [
+          {
+            model: User,
+            as: "deal_lead",
+            attributes: ["id", "first_name", "last_name", "profile_url"],
+          },
+          {
+            model: User,
+            as: "assistant_deal_lead",
+            attributes: ["id", "first_name", "last_name", "profile_url"],
+          },
+        ],
+      });
+
+      const total = await Deal.count({ where: baseWhere });
+      const totalPages = Math.ceil(total / limit);
+
+      const body = {
+        deals: deal,
+        total,
+        totalPages,
+      };
+
+      return helper.success(res, "Deals fetched successfully", body);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /**
+   * Extract deal information from uploaded document(s) using AI
+   * POST /api/v1/deal/extract-from-document
+   */
+  extractDealFromDocument: async (req, res) => {
+    try {
+      // Check if files were uploaded
+      if (!req.files || !req.files.document) {
+        return helper.error(res, "No document uploaded. Please upload a PDF, image, or text file.");
+      }
+
+      const uploadedFiles = req.files.document;
+
+      // Handle single or multiple files
+      const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+
+      // Validate file types
+      const allowedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'text/plain',
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword'
+      ];
+
+      for (const file of files) {
+        if (!allowedTypes.includes(file.mimetype) && !file.mimetype.startsWith('image/')) {
+          return helper.error(res, `Unsupported file type: ${file.mimetype}. Please upload PDF, images, Excel, Word, or text files.`);
+        }
+      }
+
+      // Check file size (max 20MB per file)
+      const maxSize = 20 * 1024 * 1024; // 20MB
+      for (const file of files) {
+        if (file.size > maxSize) {
+          return helper.error(res, `File ${file.name} exceeds maximum size of 20MB`);
+        }
+      }
+
+      // Save files to local storage (temporarily without deal ID, will be moved after deal creation)
+      const savedFiles = await saveFiles(files);
+      const successfullySavedFiles = savedFiles.filter(f => f.success);
+
+      let result;
+
+      if (files.length === 1) {
+        // Single file extraction
+        result = await extractDealFromDocument(files[0].data, files[0].mimetype, files[0].name);
+
+        if (!result.success) {
+          return helper.error(res, result.error || "Failed to extract data from document");
+        }
+
+        return helper.success(res, "Deal data extracted successfully", {
+          extractedData: result.data,
+          confidence: result.confidence,
+          fileName: files[0].name,
+          uploadedFiles: successfullySavedFiles.map(f => ({
+            filename: f.filename,
+            originalName: f.originalName,
+            url: f.url,
+            mimeType: f.mimeType,
+            size: f.size
+          }))
+        });
+      } else {
+        // Multiple files - merge results
+        result = await extractFromMultipleDocuments(files);
+
+        if (!result.success) {
+          return helper.error(res, "Failed to extract data from documents");
+        }
+
+        return helper.success(res, "Deal data extracted from multiple documents", {
+          extractedData: result.mergedData,
+          confidence: result.confidence,
+          individualResults: result.individualResults.map(r => ({
+            fileName: r.fileName,
+            success: r.success,
+            confidence: r.confidence
+          })),
+          uploadedFiles: successfullySavedFiles.map(f => ({
+            filename: f.filename,
+            originalName: f.originalName,
+            url: f.url,
+            mimeType: f.mimeType,
+            size: f.size
+          }))
+        });
+      }
+    } catch (err) {
+      console.error("Document extraction error:", err);
+      return helper.error(res, err.message || "Failed to process document");
+    }
+  },
+
+  /**
+   * Serve uploaded files
+   * GET /api/v1/files/:path
+   */
+  serveFile: async (req, res) => {
+    try {
+      const filePath = req.params[0]; // Capture the full path
+      const file = getFile(filePath);
+
+      if (!file) {
+        return res.status(404).json({ success: false, message: "File not found" });
+      }
+
+      // Determine content type
+      const ext = filePath.split('.').pop().toLowerCase();
+      const mimeTypes = {
+        'pdf': 'application/pdf',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'txt': 'text/plain',
+        'csv': 'text/csv',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      };
+
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${filePath.split('/').pop()}"`);
+      res.send(file.buffer);
+    } catch (err) {
+      console.error("File serve error:", err);
+      return res.status(500).json({ success: false, message: "Failed to serve file" });
+    }
+  },
+
+  /**
+   * Get all uploaded files for a deal
+   * GET /api/v1/deal/get-uploaded-files/:dealId
+   */
+  getUploadedFiles: async (req, res) => {
+    try {
+      const dealId = req.params.dealId;
+      const files = getDealFiles(dealId);
+      return helper.success(res, "Files retrieved successfully", files);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /**
+   * Calculate deal metrics for underwriting
+   * GET /api/v1/deal/calculate/:dealId
+   */
+  calculateDealMetrics: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+
+      // Fetch the deal with all necessary data
+      const deal = await Deal.findByPk(dealId);
+
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Calculate metrics using the service
+      const metrics = calcDealMetrics(deal);
+
+      return helper.success(res, "Deal metrics calculated successfully", metrics);
+    } catch (err) {
+      console.error("Calculator error:", err);
+      return helper.error(res, err.message || "Failed to calculate deal metrics");
+    }
+  },
+
+  /**
+   * Calculate portfolio metrics for multiple deals under a master deal
+   * GET /api/v1/deal/calculate-portfolio/:masterDealId
+   */
+  calculatePortfolioMetrics: async (req, res) => {
+    try {
+      const { masterDealId } = req.params;
+
+      // Fetch all deals under this master deal
+      const deals = await Deal.findAll({
+        where: { master_deal_id: masterDealId }
+      });
+
+      if (!deals || deals.length === 0) {
+        return helper.error(res, "No deals found for this portfolio");
+      }
+
+      // Calculate portfolio metrics using the service
+      const metrics = calcPortfolioMetrics(deals);
+
+      return helper.success(res, "Portfolio metrics calculated successfully", metrics);
+    } catch (err) {
+      console.error("Portfolio calculator error:", err);
+      return helper.error(res, err.message || "Failed to calculate portfolio metrics");
+    }
+  },
+};

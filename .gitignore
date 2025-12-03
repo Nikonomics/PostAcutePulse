@@ -1,0 +1,42 @@
+# Environment variables (NEVER commit these)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Dependencies
+**/node_modules/
+
+# Build outputs
+frontend/build/
+dist/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads (keep directory structure)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Python
+*.pyc
+__pycache__/
+venv/
+frontend/cascadia-contract-management-web
+marcusevans2025
+healthcare-entrepreneur-chatbot/
