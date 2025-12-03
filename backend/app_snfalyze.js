@@ -18,14 +18,26 @@ var server;
 const db = require('./models');
 const EventMatchesScore = db.event_matches_score;
 const EventMatches = db.event_matches;
-if (process.env.MODE === 'local') {
+
+// Sync database tables on startup
+db.sequelize.sync({ alter: true }).then(() => {
+  console.log('Database synced successfully');
+}).catch(err => {
+  console.error('Database sync error:', err);
+});
+
+// Server setup - HTTP for Render/local, HTTPS only for specific deployments
+if (process.env.MODE === 'local' || process.env.NODE_ENV === 'production') {
+  // Use HTTP for local dev and Render (Render handles SSL termination)
   server = http.createServer(app);
-} else {
+} else if (fs.existsSync('/etc/letsencrypt/live/www.portacourts.com/privkey.pem')) {
   options = {
     key: fs.readFileSync('/etc/letsencrypt/live/www.portacourts.com/privkey.pem'),
     cert: fs.readFileSync('/etc/letsencrypt/live/www.portacourts.com/fullchain.pem')
   };
   server = https.createServer(options, app);
+} else {
+  server = http.createServer(app);
 }
 
 const corsOpts = {
@@ -102,9 +114,9 @@ app.use(function(err, req, res, next) {
 
 // --- SOCKET.IO SETUP ---
 const { Server } = require('socket.io');
-let socketConnection = server.listen(process.env.APP_PORT, function () {
-  console.clear();
-  console.log('App Server is running on  !' + process.env.APP_PORT)
+const PORT = process.env.PORT || process.env.APP_PORT || 5000;
+let socketConnection = server.listen(PORT, function () {
+  console.log('App Server is running on port ' + PORT);
 });
 
 // Set global socket

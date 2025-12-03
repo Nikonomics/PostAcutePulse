@@ -6,12 +6,30 @@ const Sequelize = require('sequelize');
 const basename = path.basename(__filename);
 const db = {};
 
-// SQLite configuration for local development
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: path.join(__dirname, '..', 'database.sqlite'),
-  logging: false // Set to console.log to see SQL queries
-});
+// Database configuration - PostgreSQL for production, SQLite for local development
+let sequelize;
+
+if (process.env.DATABASE_URL) {
+  // Production: Use PostgreSQL via DATABASE_URL
+  sequelize = new Sequelize(process.env.DATABASE_URL, {
+    dialect: 'postgres',
+    protocol: 'postgres',
+    logging: false,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    }
+  });
+} else {
+  // Local development: Use SQLite
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: path.join(__dirname, '..', 'database.sqlite'),
+    logging: false
+  });
+}
 
 fs
   .readdirSync(__dirname)
