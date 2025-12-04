@@ -57,6 +57,7 @@ const Login = () => {
                   type="email"
                   name="email"
                   placeholder="Enter your email address"
+                  autoComplete="username"
                   {...register("email")}
                 />
                 {errors.email && <span className="error-message">{errors.email.message}</span>}
@@ -69,6 +70,7 @@ const Login = () => {
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     placeholder="Enter your password"
+                    autoComplete="current-password"
                     {...register("password")}
                   />
                   {errors.password && <span className="error-message">{errors.password.message}</span>}
