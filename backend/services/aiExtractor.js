@@ -8,20 +8,12 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-// Dynamic import for pdf-parse (handles both ESM and CJS)
-let pdfParse;
+// pdf-parse v2 uses a class-based API
+let PDFParse;
 try {
   const pdfParseModule = require('pdf-parse');
-  // Handle different module formats
-  if (typeof pdfParseModule === 'function') {
-    pdfParse = pdfParseModule;
-  } else if (pdfParseModule && typeof pdfParseModule.default === 'function') {
-    pdfParse = pdfParseModule.default;
-  } else if (pdfParseModule && typeof pdfParseModule === 'object') {
-    // Try to find the function in the module
-    pdfParse = pdfParseModule.default || pdfParseModule;
-  }
-  console.log('pdf-parse loaded, type:', typeof pdfParse);
+  PDFParse = pdfParseModule.PDFParse;
+  console.log('pdf-parse PDFParse class loaded:', typeof PDFParse === 'function' ? 'success' : 'failed');
 } catch (e) {
   console.log('pdf-parse initial load failed:', e.message);
 }
@@ -445,22 +437,32 @@ Return a JSON object with this structure. Use null for fields not found. Include
 
 /**
  * Extract text from PDF buffer
+ * Uses pdf-parse v2 class-based API
  */
 async function extractTextFromPDF(buffer) {
   try {
-    // Ensure pdfParse is loaded
-    if (!pdfParse) {
+    // Ensure PDFParse class is loaded
+    if (!PDFParse) {
       const pdfParseModule = require('pdf-parse');
-      pdfParse = typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule.default || pdfParseModule;
+      PDFParse = pdfParseModule.PDFParse;
     }
 
-    if (typeof pdfParse !== 'function') {
-      console.error('pdfParse is not a function, type:', typeof pdfParse);
+    if (typeof PDFParse !== 'function') {
+      console.error('PDFParse class not found, type:', typeof PDFParse);
       throw new Error('PDF parser not properly loaded');
     }
 
-    const data = await pdfParse(buffer);
-    return data.text;
+    // Create parser instance and load the PDF
+    const parser = new PDFParse();
+    await parser.load(buffer);
+
+    // Get text from all pages
+    const text = await parser.getText();
+
+    // Clean up
+    parser.destroy();
+
+    return text;
   } catch (error) {
     console.error('PDF parsing error:', error);
     throw new Error('Failed to parse PDF document');

@@ -49,5 +49,27 @@ Object.keys(db).forEach(modelName => {
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
-// db.sequelize.sync({ alter: true, force: false });  
+
+// Run migrations before sync
+const runMigrations = async () => {
+  try {
+    // Run no_of_beds type migration for PostgreSQL
+    const { runMigration } = require('../migrations/fix-no-of-beds-type');
+    await runMigration(sequelize);
+  } catch (err) {
+    console.log('Migration file not found or error:', err.message);
+  }
+};
+
+// Sync database - creates new tables if they don't exist
+// Note: alter:true will modify existing tables to match models
+runMigrations()
+  .then(() => db.sequelize.sync({ alter: true, force: false }))
+  .then(() => {
+    console.log('Database synced successfully');
+  })
+  .catch((err) => {
+    console.error('Database sync error:', err);
+  });
+
 module.exports = db;
