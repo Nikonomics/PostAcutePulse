@@ -19,7 +19,7 @@ import {
   createFacility,
   updateFacility,
   deleteFacility,
-  reorderFacilities,
+  // reorderFacilities, // TODO: implement drag-and-drop reordering
 } from '../api/DealService';
 
 const styles = `
@@ -910,6 +910,7 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     if (dealId && (!initialFacilities || initialFacilities.length === 0)) {
       fetchFacilities();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
   const handleAddFacility = () => {
