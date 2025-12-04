@@ -7,8 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// Base upload directory
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+// Base upload directory - use Render disk mount path in production, local path in development
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
