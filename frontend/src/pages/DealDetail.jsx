@@ -40,7 +40,9 @@ import { toast } from "react-toastify";
 import { formatDistanceToNow } from "date-fns";
 import { DealExtractionViewer } from "../components/DealExtractionViewer";
 import { unflattenExtractedData } from "../components/DealExtractionViewer/utils";
-import { BarChart2 } from "lucide-react";
+import { BarChart2, Building2 } from "lucide-react";
+import FacilitiesSection from "../components/FacilitiesSection";
+import { ExcelPreview, WordPreview } from "../components/DocumentPreviewers";
 
 // CSS Styles
 const styles = `
@@ -859,16 +861,16 @@ const DealDetailPage = () => {
     return ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
   };
 
-  // Check if document can be previewed via Google Docs Viewer
-  const canPreviewViaGoogleDocs = (doc) => {
+  // Check if document is an Excel file
+  const isExcelFile = (doc) => {
     const ext = getFileExtension(doc);
-    return ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext);
+    return ['xls', 'xlsx'].includes(ext);
   };
 
-  // Get Google Docs Viewer URL for Office files
-  const getGoogleDocsViewerUrl = (docUrl) => {
-    const fullUrl = getDocumentUrl(docUrl);
-    return `https://docs.google.com/gview?url=${encodeURIComponent(fullUrl)}&embedded=true`;
+  // Check if document is a Word file
+  const isWordFile = (doc) => {
+    const ext = getFileExtension(doc);
+    return ['doc', 'docx'].includes(ext);
   };
 
   const handleDocumentDownload = (docUrl) => {
@@ -1076,7 +1078,13 @@ const DealDetailPage = () => {
                 </div>
               )}
 
-              {/* Facility Information */}
+              {/* Multi-Facility Management Section (new) */}
+              <FacilitiesSection
+                dealId={deal.id}
+                facilities={deal.facilities || []}
+              />
+
+              {/* Legacy Facility Information (from flat deal structure - will be deprecated) */}
               {deal.deal_facility && deal.deal_facility.length > 0 &&
                 deal.deal_facility.map((facility, index) => (
                   <>
@@ -1826,11 +1834,15 @@ const DealDetailPage = () => {
                   src={getDocumentUrl(previewDocument.document_url || previewDocument.url)}
                   title={previewDocument.document_name || 'Document Preview'}
                 />
-              ) : canPreviewViaGoogleDocs(previewDocument) ? (
-                <iframe
-                  className="document-preview-iframe"
-                  src={getGoogleDocsViewerUrl(previewDocument.document_url || previewDocument.url)}
-                  title={previewDocument.document_name || 'Document Preview'}
+              ) : isExcelFile(previewDocument) ? (
+                <ExcelPreview
+                  url={getDocumentUrl(previewDocument.document_url || previewDocument.url)}
+                  fileName={previewDocument.document_name || previewDocument.name}
+                />
+              ) : isWordFile(previewDocument) ? (
+                <WordPreview
+                  url={getDocumentUrl(previewDocument.document_url || previewDocument.url)}
+                  fileName={previewDocument.document_name || previewDocument.name}
                 />
               ) : (
                 <div className="document-preview-fallback">
