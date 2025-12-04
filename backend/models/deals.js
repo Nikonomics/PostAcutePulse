@@ -40,7 +40,7 @@ module.exports = function (sequelize, DataTypes) {
       allowNull: true
     },
     no_of_beds: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.INTEGER,
       allowNull: true
     },
     street_address: {

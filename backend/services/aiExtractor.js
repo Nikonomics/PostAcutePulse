@@ -11,13 +11,19 @@ const XLSX = require('xlsx');
 // Dynamic import for pdf-parse (handles both ESM and CJS)
 let pdfParse;
 try {
-  pdfParse = require('pdf-parse');
-  // Check if it's a default export
-  if (pdfParse && pdfParse.default) {
-    pdfParse = pdfParse.default;
+  const pdfParseModule = require('pdf-parse');
+  // Handle different module formats
+  if (typeof pdfParseModule === 'function') {
+    pdfParse = pdfParseModule;
+  } else if (pdfParseModule && typeof pdfParseModule.default === 'function') {
+    pdfParse = pdfParseModule.default;
+  } else if (pdfParseModule && typeof pdfParseModule === 'object') {
+    // Try to find the function in the module
+    pdfParse = pdfParseModule.default || pdfParseModule;
   }
+  console.log('pdf-parse loaded, type:', typeof pdfParse);
 } catch (e) {
-  console.log('pdf-parse initial load failed, trying alternative...');
+  console.log('pdf-parse initial load failed:', e.message);
 }
 
 // pdf-to-img for vision-based PDF processing (loaded dynamically as ESM)
@@ -206,12 +212,27 @@ Example source formats:
 For calculated values, show the source as:
 - "Calculated | [formula description] | Based on: [source fields]"
 
-## STEP 4: OUTPUT FORMAT
+## STEP 4: MULTI-FACILITY DETECTION
+
+If the documents contain data for MULTIPLE FACILITIES:
+1. Look for multiple facility names, addresses, or distinct financial line items per facility
+2. CIMs often list multiple properties in a portfolio deal
+3. Separate P&L sheets per facility indicate multi-facility
+4. If detected, populate the "facilities" array with individual facility data
+
+If SINGLE FACILITY:
+- Leave "facilities" array empty or omit it
+- Populate the main facility_information section
+
+## STEP 5: OUTPUT FORMAT
 
 Return a JSON object with this structure. Use null for fields not found. Include confidence scores and detailed sources.
 
 {
   "document_types_identified": ["P&L", "Census Report", "Rate Schedule"],
+
+  "is_portfolio_deal": false,
+  "facility_count": 1,
 
   "deal_information": {
     "deal_name": {"value": null, "confidence": "not_found", "source": null, "derived_from": null},
@@ -359,7 +380,34 @@ Return a JSON object with this structure. Use null for fields not found. Include
 
   "data_quality_notes": [],
 
-  "key_observations": []
+  "key_observations": [],
+
+  "facilities": [
+    {
+      "facility_name": {"value": null, "confidence": "not_found", "source": null},
+      "facility_type": {"value": null, "confidence": "not_found", "source": null},
+      "street_address": {"value": null, "confidence": "not_found", "source": null},
+      "city": {"value": null, "confidence": "not_found", "source": null},
+      "state": {"value": null, "confidence": "not_found", "source": null},
+      "zip_code": {"value": null, "confidence": "not_found", "source": null},
+      "county": {"value": null, "confidence": "not_found", "source": null},
+      "total_beds": {"value": null, "confidence": "not_found", "source": null},
+      "licensed_beds": {"value": null, "confidence": "not_found", "source": null},
+      "certified_beds": {"value": null, "confidence": "not_found", "source": null},
+      "purchase_price": {"value": null, "confidence": "not_found", "source": null},
+      "annual_revenue": {"value": null, "confidence": "not_found", "source": null},
+      "ebitda": {"value": null, "confidence": "not_found", "source": null},
+      "ebitdar": {"value": null, "confidence": "not_found", "source": null},
+      "noi": {"value": null, "confidence": "not_found", "source": null},
+      "annual_rent": {"value": null, "confidence": "not_found", "source": null},
+      "occupancy_rate": {"value": null, "confidence": "not_found", "source": null},
+      "medicare_mix": {"value": null, "confidence": "not_found", "source": null},
+      "medicaid_mix": {"value": null, "confidence": "not_found", "source": null},
+      "private_pay_mix": {"value": null, "confidence": "not_found", "source": null},
+      "managed_care_mix": {"value": null, "confidence": "not_found", "source": null},
+      "notes": {"value": null, "confidence": "not_found", "source": null}
+    }
+  ]
 }
 
 ## CRITICAL RULES:
@@ -570,10 +618,48 @@ function getSource(obj) {
  * Flatten the nested AI response to a simple flat structure for the frontend
  * Updated to handle the new schema with value/confidence objects throughout
  */
+/**
+ * Helper to flatten a single facility object from the AI response
+ */
+function flattenFacility(facilityData) {
+  if (!facilityData) return null;
+
+  return {
+    facility_name: getValue(facilityData.facility_name),
+    facility_type: getValue(facilityData.facility_type),
+    address: getValue(facilityData.street_address),
+    city: getValue(facilityData.city),
+    state: getValue(facilityData.state),
+    zip_code: getValue(facilityData.zip_code),
+    county: getValue(facilityData.county),
+    total_beds: getValue(facilityData.total_beds),
+    licensed_beds: getValue(facilityData.licensed_beds),
+    certified_beds: getValue(facilityData.certified_beds),
+    purchase_price: getValue(facilityData.purchase_price),
+    annual_revenue: getValue(facilityData.annual_revenue),
+    ebitda: getValue(facilityData.ebitda),
+    ebitdar: getValue(facilityData.ebitdar),
+    noi: getValue(facilityData.noi),
+    annual_rent: getValue(facilityData.annual_rent),
+    occupancy_rate: getValue(facilityData.occupancy_rate),
+    medicare_mix: getValue(facilityData.medicare_mix),
+    medicaid_mix: getValue(facilityData.medicaid_mix),
+    private_pay_mix: getValue(facilityData.private_pay_mix),
+    managed_care_mix: getValue(facilityData.managed_care_mix),
+    notes: getValue(facilityData.notes),
+    // Store original extraction data for reference
+    extraction_data: facilityData,
+  };
+}
+
 function flattenExtractedData(data) {
   const flat = {
     // Document types identified
     document_types_identified: data.document_types_identified || [],
+
+    // Portfolio deal indicator
+    is_portfolio_deal: data.is_portfolio_deal || false,
+    facility_count: data.facility_count || 1,
 
     // Deal information
     deal_name: getValue(data.deal_information?.deal_name),
@@ -723,6 +809,15 @@ function flattenExtractedData(data) {
     // Set defaults
     country: 'USA'
   };
+
+  // Process facilities array for multi-facility deals
+  if (data.facilities && Array.isArray(data.facilities) && data.facilities.length > 0) {
+    flat.extracted_facilities = data.facilities
+      .map(f => flattenFacility(f))
+      .filter(f => f !== null && f.facility_name !== null);
+  } else {
+    flat.extracted_facilities = [];
+  }
 
   // Ensure rate arrays are actually arrays
   if (!Array.isArray(flat.private_pay_rates)) {
