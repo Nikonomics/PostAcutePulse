@@ -115,21 +115,81 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to normalize filename for comparison
+  const normalizeFilename = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '') // Remove all non-alphanumeric
+      .replace(/\s+/g, '');       // Remove spaces
+  };
+
+  // Extract base filename without extension
+  const getBaseName = (name: string): string => {
+    const parts = name.split('.');
+    if (parts.length > 1) {
+      parts.pop(); // Remove extension
+    }
+    return parts.join('.');
+  };
+
   // Find the matching document from the deal's documents
   const matchedDocument = useMemo(() => {
-    if (!sourceRef || !dealDocuments) return null;
+    if (!sourceRef || !dealDocuments || dealDocuments.length === 0) return null;
+
+    const sourceDocName = sourceRef.document;
+    const sourceNormalized = normalizeFilename(sourceDocName);
+    const sourceBase = normalizeFilename(getBaseName(sourceDocName));
 
     // Try to find exact match first
     let doc = dealDocuments.find(d =>
-      d.name.toLowerCase() === sourceRef.document.toLowerCase()
+      d.name.toLowerCase() === sourceDocName.toLowerCase()
     );
 
-    // If no exact match, try partial match
+    // Try normalized match
     if (!doc) {
       doc = dealDocuments.find(d =>
-        d.name.toLowerCase().includes(sourceRef.document.toLowerCase()) ||
-        sourceRef.document.toLowerCase().includes(d.name.toLowerCase())
+        normalizeFilename(d.name) === sourceNormalized
       );
+    }
+
+    // Try base name match (without extension)
+    if (!doc) {
+      doc = dealDocuments.find(d => {
+        const docBase = normalizeFilename(getBaseName(d.name));
+        return docBase === sourceBase;
+      });
+    }
+
+    // Try partial match - check if one contains the other
+    if (!doc) {
+      doc = dealDocuments.find(d => {
+        const docNormalized = normalizeFilename(d.name);
+        return docNormalized.includes(sourceNormalized) ||
+               sourceNormalized.includes(docNormalized);
+      });
+    }
+
+    // Try fuzzy match - significant overlap
+    if (!doc) {
+      doc = dealDocuments.find(d => {
+        const docBase = normalizeFilename(getBaseName(d.name));
+        // Check if they share at least 80% of characters
+        const shorter = sourceBase.length < docBase.length ? sourceBase : docBase;
+        const longer = sourceBase.length < docBase.length ? docBase : sourceBase;
+        return longer.includes(shorter) || shorter.length > 10 && longer.includes(shorter.substring(0, 10));
+      });
+    }
+
+    // Log for debugging
+    if (!doc) {
+      console.log('Document matching failed:', {
+        sourceDocument: sourceDocName,
+        sourceNormalized,
+        availableDocuments: dealDocuments.map(d => ({
+          name: d.name,
+          normalized: normalizeFilename(d.name)
+        }))
+      });
     }
 
     return doc;
