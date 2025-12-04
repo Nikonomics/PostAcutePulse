@@ -9,10 +9,11 @@ const path = require('path');
 const XLSX = require('xlsx');
 
 // pdf-parse v2 uses a class-based API
-let PDFParse;
+let PDFParse, VerbosityLevel;
 try {
   const pdfParseModule = require('pdf-parse');
   PDFParse = pdfParseModule.PDFParse;
+  VerbosityLevel = pdfParseModule.VerbosityLevel;
   console.log('pdf-parse PDFParse class loaded:', typeof PDFParse === 'function' ? 'success' : 'failed');
 } catch (e) {
   console.log('pdf-parse initial load failed:', e.message);
@@ -452,8 +453,10 @@ async function extractTextFromPDF(buffer) {
       throw new Error('PDF parser not properly loaded');
     }
 
-    // Create parser instance and load the PDF
-    const parser = new PDFParse();
+    // Create parser instance with required options and load the PDF
+    const parser = new PDFParse({
+      verbosity: VerbosityLevel ? VerbosityLevel.ERRORS : 0
+    });
     await parser.load(buffer);
 
     // Get text from all pages

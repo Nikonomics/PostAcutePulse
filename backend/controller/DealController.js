@@ -6,6 +6,18 @@ let helper = require("../config/helper");
 const db = require("../models");
 const sequelize = require("sequelize");
 const Op = sequelize.Op;
+
+// Helper function for cross-database date difference calculation
+const getDateDiffLiteral = (col1, col2) => {
+  const dialect = db.sequelize.getDialect();
+  if (dialect === 'postgres') {
+    // PostgreSQL: subtract dates and extract days
+    return sequelize.literal(`EXTRACT(DAY FROM "${col1}" - "${col2}")`);
+  } else {
+    // SQLite: use julianday
+    return sequelize.literal(`CAST(julianday("${col1}") - julianday("${col2}") AS INTEGER)`);
+  }
+};
 const { sendBrevoEmail } = require("../config/sendMail");
 const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
 const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
@@ -20,6 +32,7 @@ const CommentMentions = db.comment_mentions;
 const UserNotification = db.user_notifications;
 const DealDocuments = db.deal_documents;
 const MasterDeals = db.master_deals;
+const DealFacilities = db.deal_facilities;
 Deal.hasMany(DealTeamMembers, {
   foreignKey: "deal_id",
   as: "deal_team_members",
@@ -27,6 +40,15 @@ Deal.hasMany(DealTeamMembers, {
 Deal.hasMany(DealExternalAdvisors, {
   foreignKey: "deal_id",
   as: "deal_external_advisors",
+});
+Deal.hasMany(DealFacilities, {
+  foreignKey: "deal_id",
+  as: "facilities",
+  onDelete: 'CASCADE',
+});
+DealFacilities.belongsTo(Deal, {
+  foreignKey: "deal_id",
+  as: "deal",
 });
 Deal.belongsTo(MasterDeals, {
   foreignKey: "master_deal_id",
@@ -301,6 +323,42 @@ module.exports = {
               user_id: requiredData.user_id,
               document_url: doc.file_path || doc.url,
               document_name: doc.original_name || doc.filename,
+            });
+          })
+        );
+      }
+
+      // Save extracted facilities from AI extraction (if present)
+      if (req.body.extracted_facilities && req.body.extracted_facilities.length > 0 && dealData.length > 0) {
+        const firstDealId = dealData[0].id;
+        await Promise.all(
+          req.body.extracted_facilities.map(async (facility, index) => {
+            await DealFacilities.create({
+              deal_id: firstDealId,
+              facility_name: facility.facility_name,
+              facility_type: facility.facility_type,
+              address: facility.address,
+              city: facility.city,
+              state: facility.state,
+              zip_code: facility.zip_code,
+              county: facility.county,
+              total_beds: facility.total_beds,
+              licensed_beds: facility.licensed_beds,
+              certified_beds: facility.certified_beds,
+              purchase_price: facility.purchase_price,
+              annual_revenue: facility.annual_revenue,
+              ebitda: facility.ebitda,
+              ebitdar: facility.ebitdar,
+              noi: facility.noi,
+              annual_rent: facility.annual_rent,
+              occupancy_rate: facility.occupancy_rate,
+              medicare_mix: facility.medicare_mix,
+              medicaid_mix: facility.medicaid_mix,
+              private_pay_mix: facility.private_pay_mix,
+              managed_care_mix: facility.managed_care_mix,
+              notes: facility.notes,
+              extraction_data: JSON.stringify(facility.extraction_data || facility),
+              display_order: index,
             });
           })
         );
@@ -1065,11 +1123,7 @@ module.exports = {
             [
               sequelize.fn(
                 "AVG",
-                sequelize.fn(
-                  "DATEDIFF",
-                  sequelize.col("target_close_date"),
-                  sequelize.col("created_at")
-                )
+                getDateDiffLiteral("target_close_date", "created_at")
               ),
               "average_days",
             ],
@@ -1083,11 +1137,7 @@ module.exports = {
             [
               sequelize.fn(
                 "AVG",
-                sequelize.fn(
-                  "DATEDIFF",
-                  sequelize.col("target_close_date"),
-                  sequelize.col("created_at")
-                )
+                getDateDiffLiteral("target_close_date", "created_at")
               ),
               "average_days",
             ],
@@ -1110,11 +1160,7 @@ module.exports = {
             [
               sequelize.fn(
                 "AVG",
-                sequelize.fn(
-                  "DATEDIFF",
-                  sequelize.col("target_close_date"),
-                  sequelize.col("created_at")
-                )
+                getDateDiffLiteral("target_close_date", "created_at")
               ),
               "average_days",
             ],
@@ -1268,6 +1314,11 @@ module.exports = {
                 attributes: ["id", "first_name", "last_name", "profile_url"],
               },
             ],
+          },
+          {
+            model: DealFacilities,
+            as: "facilities",
+            order: [['display_order', 'ASC'], ['created_at', 'ASC']]
           },
         ],
       });
@@ -2218,15 +2269,91 @@ module.exports = {
     try {
       const { dealId } = req.params;
 
-      // Fetch the deal with all necessary data
-      const deal = await Deal.findByPk(dealId);
+      // Fetch the deal with all necessary data including facilities
+      const deal = await Deal.findByPk(dealId, {
+        include: [{
+          model: DealFacilities,
+          as: 'facilities',
+          order: [['display_order', 'ASC']]
+        }]
+      });
 
       if (!deal) {
         return helper.error(res, "Deal not found");
       }
 
-      // Calculate metrics using the service
-      const metrics = calcDealMetrics(deal);
+      // If deal has facilities, aggregate their data for calculation
+      const dealData = deal.toJSON();
+      if (dealData.facilities && dealData.facilities.length > 0) {
+        // Aggregate facility data for multi-facility deals
+        const aggregated = dealData.facilities.reduce((acc, facility) => {
+          acc.total_beds += parseFloat(facility.total_beds) || 0;
+          acc.total_revenue += parseFloat(facility.annual_revenue) || 0;
+          acc.total_ebitda += parseFloat(facility.ebitda) || 0;
+          acc.total_ebitdar += parseFloat(facility.ebitdar) || 0;
+          acc.total_noi += parseFloat(facility.noi) || 0;
+          acc.total_rent += parseFloat(facility.annual_rent) || 0;
+          acc.total_purchase_price += parseFloat(facility.purchase_price) || 0;
+          acc.facility_count += 1;
+          return acc;
+        }, {
+          total_beds: 0,
+          total_revenue: 0,
+          total_ebitda: 0,
+          total_ebitdar: 0,
+          total_noi: 0,
+          total_rent: 0,
+          total_purchase_price: 0,
+          facility_count: 0
+        });
+
+        // Override deal fields with aggregated values if not already set or if aggregated is higher
+        if (aggregated.total_beds > 0) {
+          dealData.no_of_beds = dealData.no_of_beds || aggregated.total_beds;
+        }
+        if (aggregated.total_revenue > 0) {
+          dealData.annual_revenue = dealData.annual_revenue || aggregated.total_revenue;
+        }
+        if (aggregated.total_ebitda !== 0) {
+          dealData.ebitda = dealData.ebitda || aggregated.total_ebitda;
+        }
+        if (aggregated.total_ebitdar !== 0) {
+          dealData.ebitdar = dealData.ebitdar || aggregated.total_ebitdar;
+        }
+        if (aggregated.total_noi !== 0) {
+          dealData.net_operating_income = dealData.net_operating_income || aggregated.total_noi;
+        }
+        if (aggregated.total_rent > 0) {
+          dealData.annual_rent = dealData.annual_rent || aggregated.total_rent;
+        }
+        // Use aggregated purchase price if deal total_deal_amount is not set
+        if (aggregated.total_purchase_price > 0 && !dealData.total_deal_amount) {
+          dealData.total_deal_amount = aggregated.total_purchase_price;
+        }
+
+        // Add facility metrics to the response
+        dealData.facility_metrics = {
+          facility_count: aggregated.facility_count,
+          aggregated_beds: aggregated.total_beds,
+          aggregated_revenue: aggregated.total_revenue,
+          aggregated_ebitda: aggregated.total_ebitda,
+          aggregated_ebitdar: aggregated.total_ebitdar,
+          aggregated_noi: aggregated.total_noi,
+          aggregated_rent: aggregated.total_rent,
+          aggregated_purchase_price: aggregated.total_purchase_price
+        };
+      }
+
+      // Calculate metrics using the service (with potentially aggregated data)
+      const metrics = calcDealMetrics(dealData);
+
+      // Add facility info to response
+      if (dealData.facility_metrics) {
+        metrics.facilityMetrics = dealData.facility_metrics;
+        metrics.hasFacilities = true;
+      } else {
+        metrics.hasFacilities = false;
+      }
 
       return helper.success(res, "Deal metrics calculated successfully", metrics);
     } catch (err) {
@@ -2259,6 +2386,310 @@ module.exports = {
     } catch (err) {
       console.error("Portfolio calculator error:", err);
       return helper.error(res, err.message || "Failed to calculate portfolio metrics");
+    }
+  },
+
+  // ============================================================================
+  // FACILITY CRUD OPERATIONS
+  // ============================================================================
+
+  /**
+   * Get all facilities for a deal
+   * GET /api/v1/deal/:dealId/facilities
+   */
+  getDealFacilities: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+
+      // Verify deal exists
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get all facilities for this deal
+      const facilities = await DealFacilities.findAll({
+        where: { deal_id: dealId },
+        order: [['display_order', 'ASC'], ['created_at', 'ASC']]
+      });
+
+      return helper.success(res, "Facilities fetched successfully", facilities);
+    } catch (err) {
+      console.error("Get facilities error:", err);
+      return helper.error(res, err.message || "Failed to fetch facilities");
+    }
+  },
+
+  /**
+   * Get a single facility by ID
+   * GET /api/v1/deal/facility/:facilityId
+   */
+  getFacilityById: async (req, res) => {
+    try {
+      const { facilityId } = req.params;
+
+      const facility = await DealFacilities.findByPk(facilityId, {
+        include: [{
+          model: Deal,
+          as: 'deal',
+          attributes: ['id', 'deal_name', 'deal_status']
+        }]
+      });
+
+      if (!facility) {
+        return helper.error(res, "Facility not found");
+      }
+
+      return helper.success(res, "Facility fetched successfully", facility);
+    } catch (err) {
+      console.error("Get facility error:", err);
+      return helper.error(res, err.message || "Failed to fetch facility");
+    }
+  },
+
+  /**
+   * Create a new facility for a deal
+   * POST /api/v1/deal/:dealId/facilities
+   */
+  createFacility: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const facilityData = req.body;
+
+      // Verify deal exists
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get the next display order
+      const maxOrder = await DealFacilities.max('display_order', {
+        where: { deal_id: dealId }
+      });
+
+      // Create the facility
+      const facility = await DealFacilities.create({
+        deal_id: dealId,
+        facility_name: facilityData.facility_name,
+        facility_type: facilityData.facility_type,
+        street_address: facilityData.street_address,
+        city: facilityData.city,
+        state: facilityData.state,
+        country: facilityData.country || 'USA',
+        zip_code: facilityData.zip_code,
+        latitude: facilityData.latitude,
+        longitude: facilityData.longitude,
+        no_of_beds: facilityData.no_of_beds,
+        total_beds: facilityData.total_beds,
+        purchase_price: facilityData.purchase_price,
+        price_per_bed: facilityData.price_per_bed,
+        annual_revenue: facilityData.annual_revenue,
+        revenue_multiple: facilityData.revenue_multiple,
+        ebitda: facilityData.ebitda,
+        ebitda_multiple: facilityData.ebitda_multiple,
+        ebitda_margin: facilityData.ebitda_margin,
+        ebitdar: facilityData.ebitdar,
+        ebitdar_margin: facilityData.ebitdar_margin,
+        net_operating_income: facilityData.net_operating_income,
+        current_occupancy: facilityData.current_occupancy,
+        average_daily_rate: facilityData.average_daily_rate,
+        average_daily_census: facilityData.average_daily_census,
+        medicare_percentage: facilityData.medicare_percentage,
+        medicaid_percentage: facilityData.medicaid_percentage,
+        private_pay_percentage: facilityData.private_pay_percentage,
+        other_payer_percentage: facilityData.other_payer_percentage,
+        medicare_revenue: facilityData.medicare_revenue,
+        medicaid_revenue: facilityData.medicaid_revenue,
+        private_pay_revenue: facilityData.private_pay_revenue,
+        other_revenue: facilityData.other_revenue,
+        total_expenses: facilityData.total_expenses,
+        operating_expenses: facilityData.operating_expenses,
+        rent_lease_expense: facilityData.rent_lease_expense,
+        property_taxes: facilityData.property_taxes,
+        property_insurance: facilityData.property_insurance,
+        depreciation: facilityData.depreciation,
+        amortization: facilityData.amortization,
+        interest_expense: facilityData.interest_expense,
+        rate_information: facilityData.rate_information,
+        pro_forma_projections: facilityData.pro_forma_projections,
+        extraction_data: facilityData.extraction_data,
+        notes: facilityData.notes,
+        display_order: (maxOrder || 0) + 1,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+
+      return helper.success(res, "Facility created successfully", facility);
+    } catch (err) {
+      console.error("Create facility error:", err);
+      return helper.error(res, err.message || "Failed to create facility");
+    }
+  },
+
+  /**
+   * Update a facility
+   * PUT /api/v1/deal/facility/:facilityId
+   */
+  updateFacility: async (req, res) => {
+    try {
+      const { facilityId } = req.params;
+      const facilityData = req.body;
+
+      const facility = await DealFacilities.findByPk(facilityId);
+      if (!facility) {
+        return helper.error(res, "Facility not found");
+      }
+
+      // Update the facility
+      await facility.update({
+        facility_name: facilityData.facility_name ?? facility.facility_name,
+        facility_type: facilityData.facility_type ?? facility.facility_type,
+        street_address: facilityData.street_address ?? facility.street_address,
+        city: facilityData.city ?? facility.city,
+        state: facilityData.state ?? facility.state,
+        country: facilityData.country ?? facility.country,
+        zip_code: facilityData.zip_code ?? facility.zip_code,
+        latitude: facilityData.latitude ?? facility.latitude,
+        longitude: facilityData.longitude ?? facility.longitude,
+        no_of_beds: facilityData.no_of_beds ?? facility.no_of_beds,
+        total_beds: facilityData.total_beds ?? facility.total_beds,
+        purchase_price: facilityData.purchase_price ?? facility.purchase_price,
+        price_per_bed: facilityData.price_per_bed ?? facility.price_per_bed,
+        annual_revenue: facilityData.annual_revenue ?? facility.annual_revenue,
+        revenue_multiple: facilityData.revenue_multiple ?? facility.revenue_multiple,
+        ebitda: facilityData.ebitda ?? facility.ebitda,
+        ebitda_multiple: facilityData.ebitda_multiple ?? facility.ebitda_multiple,
+        ebitda_margin: facilityData.ebitda_margin ?? facility.ebitda_margin,
+        ebitdar: facilityData.ebitdar ?? facility.ebitdar,
+        ebitdar_margin: facilityData.ebitdar_margin ?? facility.ebitdar_margin,
+        net_operating_income: facilityData.net_operating_income ?? facility.net_operating_income,
+        current_occupancy: facilityData.current_occupancy ?? facility.current_occupancy,
+        average_daily_rate: facilityData.average_daily_rate ?? facility.average_daily_rate,
+        average_daily_census: facilityData.average_daily_census ?? facility.average_daily_census,
+        medicare_percentage: facilityData.medicare_percentage ?? facility.medicare_percentage,
+        medicaid_percentage: facilityData.medicaid_percentage ?? facility.medicaid_percentage,
+        private_pay_percentage: facilityData.private_pay_percentage ?? facility.private_pay_percentage,
+        other_payer_percentage: facilityData.other_payer_percentage ?? facility.other_payer_percentage,
+        medicare_revenue: facilityData.medicare_revenue ?? facility.medicare_revenue,
+        medicaid_revenue: facilityData.medicaid_revenue ?? facility.medicaid_revenue,
+        private_pay_revenue: facilityData.private_pay_revenue ?? facility.private_pay_revenue,
+        other_revenue: facilityData.other_revenue ?? facility.other_revenue,
+        total_expenses: facilityData.total_expenses ?? facility.total_expenses,
+        operating_expenses: facilityData.operating_expenses ?? facility.operating_expenses,
+        rent_lease_expense: facilityData.rent_lease_expense ?? facility.rent_lease_expense,
+        property_taxes: facilityData.property_taxes ?? facility.property_taxes,
+        property_insurance: facilityData.property_insurance ?? facility.property_insurance,
+        depreciation: facilityData.depreciation ?? facility.depreciation,
+        amortization: facilityData.amortization ?? facility.amortization,
+        interest_expense: facilityData.interest_expense ?? facility.interest_expense,
+        rate_information: facilityData.rate_information ?? facility.rate_information,
+        pro_forma_projections: facilityData.pro_forma_projections ?? facility.pro_forma_projections,
+        extraction_data: facilityData.extraction_data ?? facility.extraction_data,
+        notes: facilityData.notes ?? facility.notes,
+        display_order: facilityData.display_order ?? facility.display_order,
+        updated_at: new Date()
+      });
+
+      return helper.success(res, "Facility updated successfully", facility);
+    } catch (err) {
+      console.error("Update facility error:", err);
+      return helper.error(res, err.message || "Failed to update facility");
+    }
+  },
+
+  /**
+   * Delete a facility
+   * DELETE /api/v1/deal/facility/:facilityId
+   */
+  deleteFacility: async (req, res) => {
+    try {
+      const { facilityId } = req.params;
+
+      const facility = await DealFacilities.findByPk(facilityId);
+      if (!facility) {
+        return helper.error(res, "Facility not found");
+      }
+
+      await facility.destroy();
+
+      return helper.success(res, "Facility deleted successfully");
+    } catch (err) {
+      console.error("Delete facility error:", err);
+      return helper.error(res, err.message || "Failed to delete facility");
+    }
+  },
+
+  /**
+   * Bulk create facilities for a deal (useful for AI extraction)
+   * POST /api/v1/deal/:dealId/facilities/bulk
+   */
+  createBulkFacilities: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const { facilities } = req.body;
+
+      if (!Array.isArray(facilities) || facilities.length === 0) {
+        return helper.error(res, "No facilities provided");
+      }
+
+      // Verify deal exists
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get the current max display order
+      const maxOrder = await DealFacilities.max('display_order', {
+        where: { deal_id: dealId }
+      }) || 0;
+
+      // Create facilities with sequential display order
+      const createdFacilities = await Promise.all(
+        facilities.map((facilityData, index) =>
+          DealFacilities.create({
+            deal_id: dealId,
+            ...facilityData,
+            display_order: maxOrder + index + 1,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+        )
+      );
+
+      return helper.success(res, `${createdFacilities.length} facilities created successfully`, createdFacilities);
+    } catch (err) {
+      console.error("Bulk create facilities error:", err);
+      return helper.error(res, err.message || "Failed to create facilities");
+    }
+  },
+
+  /**
+   * Update facility display order (for drag-and-drop reordering)
+   * PUT /api/v1/deal/:dealId/facilities/reorder
+   */
+  reorderFacilities: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const { facilityIds } = req.body; // Array of facility IDs in new order
+
+      if (!Array.isArray(facilityIds)) {
+        return helper.error(res, "facilityIds must be an array");
+      }
+
+      // Update display_order for each facility
+      await Promise.all(
+        facilityIds.map((facilityId, index) =>
+          DealFacilities.update(
+            { display_order: index + 1, updated_at: new Date() },
+            { where: { id: facilityId, deal_id: dealId } }
+          )
+        )
+      );
+
+      return helper.success(res, "Facilities reordered successfully");
+    } catch (err) {
+      console.error("Reorder facilities error:", err);
+      return helper.error(res, err.message || "Failed to reorder facilities");
     }
   },
 };
