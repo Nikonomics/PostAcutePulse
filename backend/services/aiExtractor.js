@@ -8,16 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-// pdf-parse v2 uses a class-based API
-let PDFParse, VerbosityLevel;
-try {
-  const pdfParseModule = require('pdf-parse');
-  PDFParse = pdfParseModule.PDFParse;
-  VerbosityLevel = pdfParseModule.VerbosityLevel;
-  console.log('pdf-parse PDFParse class loaded:', typeof PDFParse === 'function' ? 'success' : 'failed');
-} catch (e) {
-  console.log('pdf-parse initial load failed:', e.message);
-}
+// pdf-parse v1.x - simple function-based API that accepts buffers
+const pdfParse = require('pdf-parse');
+console.log('pdf-parse loaded:', typeof pdfParse === 'function' ? 'success' : 'failed');
 
 // pdf-to-img for vision-based PDF processing (loaded dynamically as ESM)
 let pdfToImg = null;
@@ -438,34 +431,17 @@ Return a JSON object with this structure. Use null for fields not found. Include
 
 /**
  * Extract text from PDF buffer
- * Uses pdf-parse v2 class-based API
+ * Uses pdf-parse v1.x simple function API
  */
 async function extractTextFromPDF(buffer) {
   try {
-    // Ensure PDFParse class is loaded
-    if (!PDFParse) {
-      const pdfParseModule = require('pdf-parse');
-      PDFParse = pdfParseModule.PDFParse;
-    }
-
-    if (typeof PDFParse !== 'function') {
-      console.error('PDFParse class not found, type:', typeof PDFParse);
+    if (typeof pdfParse !== 'function') {
+      console.error('pdfParse is not a function, type:', typeof pdfParse);
       throw new Error('PDF parser not properly loaded');
     }
 
-    // Create parser instance with required options and load the PDF
-    const parser = new PDFParse({
-      verbosity: VerbosityLevel ? VerbosityLevel.ERRORS : 0
-    });
-    await parser.load(buffer);
-
-    // Get text from all pages
-    const text = await parser.getText();
-
-    // Clean up
-    parser.destroy();
-
-    return text;
+    const data = await pdfParse(buffer);
+    return data.text;
   } catch (error) {
     console.error('PDF parsing error:', error);
     throw new Error('Failed to parse PDF document');
