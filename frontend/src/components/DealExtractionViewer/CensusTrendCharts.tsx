@@ -11,8 +11,8 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
-import { MonthlyTrendPoint, ExtractedField } from './types';
-import { formatPercent, formatNumber } from './utils';
+import { MonthlyTrendPoint, ExtractedField, SourceReference } from './types';
+import { formatPercent, formatNumber, parseSourceReference, getSourceDisplayText, isSourceClickable } from './utils';
 
 interface CensusTrendChartsProps {
   monthlyTrends: ExtractedField<MonthlyTrendPoint[]> | undefined;
@@ -24,6 +24,7 @@ interface CensusTrendChartsProps {
     private_pay_pct: ExtractedField<number>;
   };
   bedCount?: number;
+  onSourceClick?: (sourceRef: SourceReference) => void;
 }
 
 const COLORS = {
@@ -55,12 +56,14 @@ const noDataStyle: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  height: '180px',
+  height: '120px',
   color: '#9ca3af',
   fontSize: '0.875rem',
   backgroundColor: '#f9fafb',
   borderRadius: '0.5rem',
   border: '1px dashed #d1d5db',
+  textAlign: 'center',
+  padding: '1rem',
 };
 
 const currentValueStyle: React.CSSProperties = {
@@ -68,10 +71,22 @@ const currentValueStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: '0.5rem',
   marginBottom: '0.75rem',
-  padding: '0.5rem 0.75rem',
+  padding: '0.75rem 1rem',
   backgroundColor: '#f0fdf4',
   borderRadius: '0.375rem',
   border: '1px solid #bbf7d0',
+  flexWrap: 'wrap',
+};
+
+const sourceButtonStyle: React.CSSProperties = {
+  fontSize: '0.7rem',
+  color: '#6b7280',
+  backgroundColor: '#f3f4f6',
+  padding: '0.125rem 0.375rem',
+  borderRadius: '0.25rem',
+  border: 'none',
+  cursor: 'pointer',
+  marginLeft: 'auto',
 };
 
 /**
@@ -125,45 +140,33 @@ const CustomTooltip = ({ active, payload, label, valueFormatter }: any) => {
 };
 
 /**
- * Generate sample historical data for demonstration when no real data exists
+ * Source citation button component
  */
-const generateSampleData = (
-  currentOccupancy: number | null,
-  currentADC: number | null,
-  currentPayerMix: { medicaid: number | null; medicare: number | null; privatePay: number | null }
-): MonthlyTrendPoint[] => {
-  const months: MonthlyTrendPoint[] = [];
-  const now = new Date();
+const SourceButton: React.FC<{
+  source: string | undefined;
+  onSourceClick?: (sourceRef: SourceReference) => void;
+}> = ({ source, onSourceClick }) => {
+  if (!source) return null;
 
-  // Generate 12 months of sample data working backwards
-  for (let i = 11; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-    // Create variation around current values (±10% seasonal variation)
-    const seasonalFactor = 1 + Math.sin((date.getMonth() - 3) * Math.PI / 6) * 0.08;
-    const randomNoise = () => (Math.random() - 0.5) * 0.04;
-
-    const baseOccupancy = currentOccupancy ?? 85;
-    const baseADC = currentADC ?? 94;
-    const baseMedicaid = currentPayerMix.medicaid ?? 40;
-    const baseMedicare = currentPayerMix.medicare ?? 20;
-    const basePrivatePay = currentPayerMix.privatePay ?? 40;
-
-    // Slight upward trend over time for occupancy (improvement story)
-    const trendFactor = 1 + ((11 - i) / 11) * 0.05;
-
-    months.push({
-      month,
-      occupancy_pct: Math.round((baseOccupancy / trendFactor) * seasonalFactor * (1 + randomNoise()) * 10) / 10,
-      average_daily_census: Math.round((baseADC / trendFactor) * seasonalFactor * (1 + randomNoise())),
-      medicaid_pct: Math.round(baseMedicaid * (1 + randomNoise()) * 10) / 10,
-      medicare_pct: Math.round(baseMedicare * (1 + randomNoise()) * 10) / 10,
-      private_pay_pct: Math.round(basePrivatePay * (1 + randomNoise()) * 10) / 10,
-    });
+  const sourceRef = parseSourceReference(source);
+  if (!sourceRef || !isSourceClickable(sourceRef)) {
+    // Just show the source text without making it clickable
+    return (
+      <span style={{ ...sourceButtonStyle, cursor: 'default' }} title={source}>
+        {getSourceDisplayText(sourceRef) || source.substring(0, 20)}
+      </span>
+    );
   }
 
-  return months;
+  return (
+    <button
+      style={sourceButtonStyle}
+      onClick={() => onSourceClick?.(sourceRef)}
+      title={`View source: ${source}`}
+    >
+      {getSourceDisplayText(sourceRef)}
+    </button>
+  );
 };
 
 /**
@@ -175,37 +178,17 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
   currentADC,
   currentPayerMix,
   bedCount,
+  onSourceClick,
 }) => {
-  // Determine if we have actual trend data or need to show sample/no data state
+  // Check if we have actual trend data
   const trendData = useMemo(() => {
     const hasRealData = monthlyTrends?.value && Array.isArray(monthlyTrends.value) && monthlyTrends.value.length > 0;
-
     if (hasRealData) {
       return monthlyTrends!.value;
     }
-
-    // Check if we have current values to generate sample data
-    const hasCurrentValues =
-      currentOccupancy?.value !== null ||
-      currentADC?.value !== null ||
-      currentPayerMix?.medicaid_pct?.value !== null;
-
-    if (hasCurrentValues) {
-      return generateSampleData(
-        currentOccupancy?.value ?? null,
-        currentADC?.value ?? null,
-        {
-          medicaid: currentPayerMix?.medicaid_pct?.value ?? null,
-          medicare: currentPayerMix?.medicare_pct?.value ?? null,
-          privatePay: currentPayerMix?.private_pay_pct?.value ?? null,
-        }
-      );
-    }
-
     return [];
-  }, [monthlyTrends, currentOccupancy, currentADC, currentPayerMix]);
+  }, [monthlyTrends]);
 
-  const isUsingRealData = monthlyTrends?.value && Array.isArray(monthlyTrends.value) && monthlyTrends.value.length > 0;
   const hasData = trendData.length > 0;
 
   // Calculate trend direction (comparing first half to second half)
@@ -235,27 +218,12 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
 
   return (
     <div>
-      {/* Sample Data Notice */}
-      {!isUsingRealData && hasData && (
-        <div style={{
-          padding: '0.75rem 1rem',
-          backgroundColor: '#fef3c7',
-          borderRadius: '0.5rem',
-          border: '1px solid #fcd34d',
-          marginBottom: '1rem',
-          fontSize: '0.875rem',
-          color: '#92400e',
-        }}>
-          <strong>Note:</strong> Showing estimated trends based on current values. Monthly trend data will appear once census reports are processed.
-        </div>
-      )}
-
-      {/* Occupancy & ADC Trends - Side by Side */}
+      {/* Occupancy & ADC - Side by Side */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1rem' }}>
-        {/* Occupancy Trend */}
+        {/* Occupancy */}
         <div style={chartContainerStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={chartTitleStyle}>Occupancy Trend (T12)</h4>
+            <h4 style={chartTitleStyle}>Occupancy {hasData ? 'Trend (T12)' : ''}</h4>
             {hasData && (
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                 {trendIcon(occupancyTrend)} Trending {occupancyTrend}
@@ -263,12 +231,14 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
             )}
           </div>
 
+          {/* Current Value with Source */}
           {currentOccupancy?.value !== null && (
             <div style={currentValueStyle}>
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Current:</span>
-              <span style={{ fontWeight: 700, color: '#059669' }}>
+              <span style={{ fontWeight: 700, color: '#059669', fontSize: '1.25rem' }}>
                 {formatPercent(currentOccupancy.value)}
               </span>
+              <SourceButton source={currentOccupancy.source} onSourceClick={onSourceClick} />
             </div>
           )}
 
@@ -308,15 +278,15 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
             </ResponsiveContainer>
           ) : (
             <div style={noDataStyle}>
-              <span>No occupancy trend data available</span>
+              <span>Monthly trend data will appear once census reports with monthly breakdowns are processed</span>
             </div>
           )}
         </div>
 
-        {/* Average Daily Census Trend */}
+        {/* Average Daily Census */}
         <div style={chartContainerStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={chartTitleStyle}>Average Daily Census Trend (T12)</h4>
+            <h4 style={chartTitleStyle}>Average Daily Census {hasData ? '(T12)' : ''}</h4>
             {hasData && (
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                 {trendIcon(adcTrend)} Trending {adcTrend}
@@ -324,17 +294,19 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
             )}
           </div>
 
+          {/* Current Value with Source */}
           {currentADC?.value !== null && (
             <div style={currentValueStyle}>
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Current:</span>
-              <span style={{ fontWeight: 700, color: '#059669' }}>
-                {formatNumber(currentADC.value)} residents
+              <span style={{ fontWeight: 700, color: '#059669', fontSize: '1.25rem' }}>
+                {formatNumber(currentADC.value)}
               </span>
               {bedCount && (
-                <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
                   / {bedCount} beds
                 </span>
               )}
+              <SourceButton source={currentADC.source} onSourceClick={onSourceClick} />
             </div>
           )}
 
@@ -373,18 +345,18 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
             </ResponsiveContainer>
           ) : (
             <div style={noDataStyle}>
-              <span>No census trend data available</span>
+              <span>Monthly trend data will appear once census reports with monthly breakdowns are processed</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Payer Mix Trend - Full Width Stacked Area */}
+      {/* Payer Mix Trend */}
       <div style={chartContainerStyle}>
-        <h4 style={chartTitleStyle}>Payer Mix Trend (T12)</h4>
+        <h4 style={chartTitleStyle}>Payer Mix {hasData ? 'Trend (T12)' : ''}</h4>
 
-        {/* Current Payer Mix Summary */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        {/* Current Payer Mix Summary with Sources */}
+        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
           {currentPayerMix?.medicaid_pct?.value !== null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
               <span style={{ width: '10px', height: '10px', backgroundColor: COLORS.medicaid, borderRadius: '2px' }} />
@@ -411,6 +383,10 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
                 {formatPercent(currentPayerMix.private_pay_pct.value)}
               </span>
             </div>
+          )}
+          {/* Show source for payer mix - use medicaid source as representative */}
+          {currentPayerMix?.medicaid_pct?.source && (
+            <SourceButton source={currentPayerMix.medicaid_pct.source} onSourceClick={onSourceClick} />
           )}
         </div>
 
@@ -464,7 +440,7 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
           </ResponsiveContainer>
         ) : (
           <div style={noDataStyle}>
-            <span>No payer mix trend data available</span>
+            <span>Monthly trend data will appear once census reports with monthly breakdowns are processed</span>
           </div>
         )}
       </div>

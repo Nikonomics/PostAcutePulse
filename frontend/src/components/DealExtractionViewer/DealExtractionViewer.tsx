@@ -382,6 +382,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         currentADC={extractionData.census_and_occupancy.average_daily_census}
         currentPayerMix={extractionData.census_and_occupancy.payer_mix_by_census}
         bedCount={extractionData.facility_information.bed_count.value ?? undefined}
+        onSourceClick={handleSourceClick}
       />
 
       {/* Payer Mix Charts - Keep as summary view */}
