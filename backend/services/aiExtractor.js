@@ -1537,6 +1537,137 @@ function postProcessExtraction(data) {
     data.ebitda_multiple = Math.round((data.purchase_price / data.ebitda) * 100) / 100;
   }
 
+  // =========================================
+  // CALCULATE EXPENSE RATIOS FROM DEPARTMENTAL DATA
+  // =========================================
+  const revenue = data.annual_revenue || data.t12m_revenue;
+  const censusDays = data.total_census_days || data.ytd_census_days;
+
+  // Helper to get value from nested structure or flat field
+  const getVal = (obj, path) => {
+    if (!obj) return null;
+    const parts = path.split('.');
+    let val = obj;
+    for (const part of parts) {
+      if (val && typeof val === 'object') {
+        val = val[part];
+      } else {
+        return null;
+      }
+    }
+    // Handle {value: X} structure
+    if (val && typeof val === 'object' && 'value' in val) {
+      return val.value;
+    }
+    return val;
+  };
+
+  // Get expense department data (could be nested or flat)
+  const expenses = data.expense_breakdown || data.expenses || {};
+  const directCare = expenses.direct_care || {};
+  const culinary = expenses.culinary || {};
+  const housekeeping = expenses.housekeeping || {};
+  const maintenance = expenses.maintenance || {};
+  const admin = expenses.administration || {};
+  const activities = expenses.activities || {};
+
+  // Calculate total labor cost from all departments
+  if (!data.total_labor_cost) {
+    let totalLabor = 0;
+
+    // Direct Care labor
+    totalLabor += getVal(directCare, 'nursing_salaries_rcc') || 0;
+    totalLabor += getVal(directCare, 'nursing_salaries_rn') || 0;
+    totalLabor += getVal(directCare, 'nursing_salaries_lpn') || 0;
+    totalLabor += getVal(directCare, 'nursing_salaries_cma') || 0;
+    totalLabor += getVal(directCare, 'caregiver_salaries') || 0;
+    totalLabor += getVal(directCare, 'pto_wages') || 0;
+    totalLabor += getVal(directCare, 'payroll_taxes') || 0;
+    totalLabor += getVal(directCare, 'medical_insurance') || 0;
+
+    // Culinary labor
+    totalLabor += getVal(culinary, 'wages') || 0;
+    totalLabor += getVal(culinary, 'pto_wages') || 0;
+    totalLabor += getVal(culinary, 'payroll_taxes') || 0;
+    totalLabor += getVal(culinary, 'medical_insurance') || 0;
+
+    // Housekeeping labor
+    totalLabor += getVal(housekeeping, 'wages') || 0;
+    totalLabor += getVal(housekeeping, 'pto_wages') || 0;
+    totalLabor += getVal(housekeeping, 'payroll_taxes') || 0;
+
+    // Maintenance labor
+    totalLabor += getVal(maintenance, 'wages') || 0;
+    totalLabor += getVal(maintenance, 'pto_wages') || 0;
+    totalLabor += getVal(maintenance, 'payroll_taxes') || 0;
+
+    // Activities labor
+    totalLabor += getVal(activities, 'wages') || 0;
+    totalLabor += getVal(activities, 'pto_wages') || 0;
+    totalLabor += getVal(activities, 'payroll_taxes') || 0;
+
+    // Admin labor
+    totalLabor += getVal(admin, 'salaries') || 0;
+    totalLabor += getVal(admin, 'pto_wages') || 0;
+    totalLabor += getVal(admin, 'payroll_taxes') || 0;
+
+    if (totalLabor > 0) {
+      data.total_labor_cost = totalLabor;
+    }
+  }
+
+  // Calculate labor % of revenue
+  if (!data.labor_pct_of_revenue && data.total_labor_cost && revenue) {
+    data.labor_pct_of_revenue = Math.round((data.total_labor_cost / revenue) * 100 * 10) / 10;
+  }
+
+  // Calculate agency staffing percentages
+  const agencyStaffing = getVal(directCare, 'agency_staffing') || data.agency_staffing_cost || 0;
+  const directCareTotal = getVal(directCare, 'total') || 0;
+
+  if (!data.agency_pct_of_direct_care && agencyStaffing && directCareTotal) {
+    data.agency_pct_of_direct_care = Math.round((agencyStaffing / directCareTotal) * 100 * 10) / 10;
+  }
+
+  if (!data.agency_pct_of_labor && agencyStaffing && data.total_labor_cost) {
+    data.agency_pct_of_labor = Math.round((agencyStaffing / data.total_labor_cost) * 100 * 10) / 10;
+  }
+
+  // Calculate food cost per resident day
+  const rawFoodCost = getVal(culinary, 'raw_food_cost') || data.raw_food_cost || 0;
+  if (!data.food_cost_per_resident_day && rawFoodCost && censusDays) {
+    data.food_cost_per_resident_day = Math.round((rawFoodCost / censusDays) * 100) / 100;
+  }
+
+  // Calculate food % of revenue
+  if (!data.food_pct_of_revenue && rawFoodCost && revenue) {
+    data.food_pct_of_revenue = Math.round((rawFoodCost / revenue) * 100 * 10) / 10;
+  }
+
+  // Calculate management fee %
+  const managementFees = getVal(admin, 'management_fees') || data.management_fees || 0;
+  if (!data.management_fee_pct && managementFees && revenue) {
+    data.management_fee_pct = Math.round((managementFees / revenue) * 100 * 10) / 10;
+  }
+
+  // Calculate utilities % of revenue
+  const utilities = getVal(maintenance, 'utilities_total') || data.utilities_total || 0;
+  if (!data.utilities_pct_of_revenue && utilities && revenue) {
+    data.utilities_pct_of_revenue = Math.round((utilities / revenue) * 100 * 10) / 10;
+  }
+
+  // Calculate insurance % of revenue
+  const insurance = data.property_insurance || 0;
+  if (!data.insurance_pct_of_revenue && insurance && revenue) {
+    data.insurance_pct_of_revenue = Math.round((insurance / revenue) * 100 * 10) / 10;
+  }
+
+  // Calculate bad debt % (if available)
+  const badDebt = getVal(admin, 'bad_debt') || data.bad_debt || 0;
+  if (!data.bad_debt_pct && badDebt && revenue) {
+    data.bad_debt_pct = Math.round((badDebt / revenue) * 100 * 10) / 10;
+  }
+
   // Set defaults
   if (!data.country) data.country = 'USA';
   if (!data.deal_type) data.deal_type = 'Acquisition';
