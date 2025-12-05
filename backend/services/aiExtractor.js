@@ -135,6 +135,31 @@ From P&L Revenue:
 
 ALWAYS extract both census-based AND revenue-based payer mix when data is available.
 
+### Monthly Census Trends (T12 Trendlines):
+When census reports contain monthly data, extract the trailing 12 months of:
+1. Month (format: "YYYY-MM", e.g., "2024-06")
+2. Occupancy percentage for that month
+3. Average daily census for that month
+4. Payer mix percentages for that month (medicaid_pct, medicare_pct, private_pay_pct)
+
+Census reports often show monthly breakdowns with columns like:
+- "Month" or date headers (Jun 2024, Jul 2024, etc.)
+- "Census" or "ADC" (Average Daily Census) per month
+- "Occupancy" or "Occ %" per month
+- Payer type breakdowns per month (Medicaid Days, Private Pay Days, etc.)
+
+Format the data as an array of monthly data points:
+"monthly_trends": {
+  "value": [
+    {"month": "2024-06", "occupancy_pct": 92.1, "average_daily_census": 94, "medicaid_pct": 38.5, "medicare_pct": 18.2, "private_pay_pct": 43.3},
+    {"month": "2024-07", "occupancy_pct": 93.5, "average_daily_census": 95, "medicaid_pct": 39.1, "medicare_pct": 17.8, "private_pay_pct": 43.1}
+  ],
+  "confidence": "high",
+  "source": "Census Report | Monthly breakdown table"
+}
+
+If monthly data is not available (only annual/summary totals), leave monthly_trends as an empty array.
+
 ### Year-to-Date (YTD) Performance:
 If documents contain YTD or partial-year data SEPARATE from the T12:
 1. Extract the period covered (e.g., "March 2025 - September 2025")
@@ -591,6 +616,11 @@ Return a JSON object with this structure. Use null for fields not found. Include
       "medicare_pct": {"value": null, "confidence": "not_found"},
       "private_pay_pct": {"value": null, "confidence": "not_found"},
       "other_pct": {"value": null, "confidence": "not_found"},
+      "source": null
+    },
+    "monthly_trends": {
+      "value": [],
+      "confidence": "not_found",
       "source": null
     }
   },

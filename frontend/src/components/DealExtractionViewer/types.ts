@@ -34,6 +34,18 @@ export interface RateItem {
   monthly_rate: number;
 }
 
+// Monthly trend data point for T12 trendlines
+export interface MonthlyTrendPoint {
+  month: string;           // Format: "YYYY-MM" or "MMM YYYY"
+  occupancy_pct?: number;
+  average_daily_census?: number;
+  medicaid_pct?: number;
+  medicare_pct?: number;
+  private_pay_pct?: number;
+  total_revenue?: number;
+  ebitda?: number;
+}
+
 export interface ExtractedDealData {
   document_types_identified: string[];
   extraction_timestamp: string;
@@ -121,6 +133,7 @@ export interface ExtractedDealData {
       medicare_pct: ExtractedField<number>;
       private_pay_pct: ExtractedField<number>;
     };
+    monthly_trends?: ExtractedField<MonthlyTrendPoint[]>;
   };
 
   rate_information: {

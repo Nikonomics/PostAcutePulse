@@ -495,6 +495,7 @@ export const unflattenExtractedData = (flatData: any): any => {
         medicare_pct: createField<number>('medicare_percentage'),
         private_pay_pct: createField<number>('private_pay_percentage'),
       },
+      monthly_trends: createField<any[]>('monthly_trends'),
     },
 
     rate_information: {

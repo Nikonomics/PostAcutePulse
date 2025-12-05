@@ -27,6 +27,7 @@ import PayerMixChart from './PayerMixChart';
 import RatesTable from './RatesTable';
 import ProFormaTable from './ProFormaTable';
 import DocumentViewer from './DocumentViewer';
+import CensusTrendCharts from './CensusTrendCharts';
 
 // Tab configuration
 const TAB_CONFIGS = [
@@ -373,15 +374,18 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Census & Rates Tab
   const renderCensusTab = () => (
     <div>
-      {/* Census & Occupancy */}
-      <h3 style={sectionHeaderStyle}>Census & Occupancy</h3>
-      <div style={gridStyle}>
-        <FieldCell label="Average Daily Census" field={extractionData.census_and_occupancy.average_daily_census} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Occupancy Percentage" field={extractionData.census_and_occupancy.occupancy_percentage} format="percent" showComparison={showComparison} onSourceClick={handleSourceClick} />
-      </div>
+      {/* Census & Occupancy Trend Charts */}
+      <h3 style={sectionHeaderStyle}>Census & Occupancy Trends</h3>
+      <CensusTrendCharts
+        monthlyTrends={extractionData.census_and_occupancy.monthly_trends}
+        currentOccupancy={extractionData.census_and_occupancy.occupancy_percentage}
+        currentADC={extractionData.census_and_occupancy.average_daily_census}
+        currentPayerMix={extractionData.census_and_occupancy.payer_mix_by_census}
+        bedCount={extractionData.facility_information.bed_count.value ?? undefined}
+      />
 
-      {/* Payer Mix Charts */}
-      <h4 style={subsectionHeaderStyle}>Payer Mix</h4>
+      {/* Payer Mix Charts - Keep as summary view */}
+      <h4 style={subsectionHeaderStyle}>Payer Mix Summary</h4>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
         <PayerMixChart
           title="Payer Mix by Census"
