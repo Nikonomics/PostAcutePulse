@@ -5,7 +5,8 @@
   "scripts": {
     "start": "nodemon app_snfalyze.js",
     "seed": "node seed.js",
-    "db:sync": "node scripts/syncDatabase.js"
+    "db:sync": "node scripts/syncDatabase.js",
+    "test:proforma": "node scripts/testProforma.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
