@@ -199,11 +199,25 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const fileUrl = useMemo(() => {
     if (!matchedDocument) return null;
 
-    // Use the file_path or url from the document
-    if (matchedDocument.url) return matchedDocument.url;
+    // Get the API base URL from environment
+    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+
+    // Use the url field if already a complete path
+    if (matchedDocument.url) {
+      // If url already starts with /api or http, use it appropriately
+      if (matchedDocument.url.startsWith('http')) {
+        return matchedDocument.url;
+      }
+      // For relative URLs, prepend the API base URL (without /api/v1 since url already has it)
+      const baseWithoutApi = apiBaseUrl.replace(/\/api\/v1$/, '');
+      return `${baseWithoutApi}${matchedDocument.url}`;
+    }
+
     if (matchedDocument.file_path) {
-      // Construct URL from file path
-      return `/api/v1/files/${matchedDocument.file_path}`;
+      // file_path is the relative path like "deal_123/filename.pdf"
+      // Construct full URL using API base
+      const baseWithoutApi = apiBaseUrl.replace(/\/api\/v1$/, '');
+      return `${baseWithoutApi}/api/v1/files/${matchedDocument.file_path}`;
     }
     return null;
   }, [matchedDocument]);
