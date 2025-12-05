@@ -1095,6 +1095,11 @@ function flattenExtractedData(data) {
     payer_mix_census_source: data.census_and_occupancy?.payer_mix_by_census?.source || null,
     payer_mix_revenue_source: data.census_and_occupancy?.payer_mix_by_revenue?.source || null,
 
+    // Monthly trends for T12 charts - extract the array value
+    monthly_trends: getValue(data.census_and_occupancy?.monthly_trends) ||
+                    data.census_and_occupancy?.monthly_trends?.value || [],
+    monthly_trends_source: getSource(data.census_and_occupancy?.monthly_trends),
+
     // Rate information - handle new wrapped structure
     average_daily_rate: getValue(data.rate_information?.average_daily_rate),
     private_pay_rates: getValue(data.rate_information?.private_pay_rates) ||
@@ -1219,6 +1224,7 @@ function flattenExtractedData(data) {
     medicaid_percentage: getConfidence(data.census_and_occupancy?.payer_mix_by_census?.medicaid_pct),
     medicare_percentage: getConfidence(data.census_and_occupancy?.payer_mix_by_census?.medicare_pct),
     private_pay_percentage: getConfidence(data.census_and_occupancy?.payer_mix_by_census?.private_pay_pct),
+    monthly_trends: getConfidence(data.census_and_occupancy?.monthly_trends),
 
     // Rate information
     private_pay_rates: getConfidence(data.rate_information?.private_pay_rates),
@@ -1306,6 +1312,7 @@ function flattenExtractedData(data) {
     medicaid_percentage: getSource(data.census_and_occupancy?.payer_mix_by_census?.medicaid_pct),
     medicare_percentage: getSource(data.census_and_occupancy?.payer_mix_by_census?.medicare_pct),
     private_pay_percentage: getSource(data.census_and_occupancy?.payer_mix_by_census?.private_pay_pct),
+    monthly_trends: getSource(data.census_and_occupancy?.monthly_trends),
 
     // Rate information
     private_pay_rates: getSource(data.rate_information?.private_pay_rates),
