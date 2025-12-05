@@ -304,6 +304,16 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     const insurance_pct = getValue(expenseRatios.insurance_pct_of_revenue)
       || extractionData.insurance_pct_of_revenue;
 
+    // Get dollar amounts for expense categories
+    const total_labor_cost = getValue(expenseRatios.total_labor_cost)
+      || extractionData.total_labor_cost;
+    const raw_food_cost = getValue(fin.expense_breakdown?.culinary?.raw_food_cost)
+      || extractionData.raw_food_cost;
+    const management_fees = getValue(fin.expense_breakdown?.administration?.management_fees)
+      || extractionData.management_fees;
+    const utilities_total = getValue(fin.expense_breakdown?.maintenance?.utilities_total)
+      || extractionData.utilities_total;
+
     return {
       revenue,
       ebitda,
@@ -311,7 +321,13 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       occupancy,
       beds,
 
-      // Expense ratios
+      // Dollar amounts for expense categories
+      total_labor_cost,
+      raw_food_cost,
+      management_fees,
+      utilities_total,
+
+      // Expense ratios (percentages)
       labor_pct,
       agency_pct,
       food_cost,
@@ -958,7 +974,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               <SectionHeader title="Labor Costs" subtitle="Largest expense category" />
               <LineItemRow
                 label="Total Labor Cost"
-                actual={extractionData.total_labor_cost}
+                actual={currentFinancials.total_labor_cost}
                 actualPctOfRevenue={currentFinancials.labor_pct}
                 benchmark={currentFinancials.revenue ? (currentFinancials.revenue * benchmarks.labor_pct_target / 100) : null}
                 unit="$"
