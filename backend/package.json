@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "nodemon app_snfalyze.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "db:sync": "node scripts/syncDatabase.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",

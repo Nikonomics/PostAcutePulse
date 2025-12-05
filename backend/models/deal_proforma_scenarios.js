@@ -5,7 +5,7 @@ const Sequelize = require('sequelize');
  * Each deal can have multiple scenarios (Base Case, Upside, Downside)
  */
 module.exports = function (sequelize, DataTypes) {
-  return sequelize.define('deal_proforma_scenarios', {
+  const DealProformaScenario = sequelize.define('deal_proforma_scenarios', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -133,4 +133,18 @@ module.exports = function (sequelize, DataTypes) {
     tableName: 'deal_proforma_scenarios',
     timestamps: false
   });
+
+  // Define associations
+  DealProformaScenario.associate = function(models) {
+    DealProformaScenario.belongsTo(models.deals, {
+      foreignKey: 'deal_id',
+      as: 'deal'
+    });
+    DealProformaScenario.belongsTo(models.users, {
+      foreignKey: 'user_id',
+      as: 'user'
+    });
+  };
+
+  return DealProformaScenario;
 };

@@ -5,7 +5,7 @@ const Sequelize = require('sequelize');
  * Users can have multiple saved configurations (e.g., "Conservative", "Aggressive", "Default")
  */
 module.exports = function (sequelize, DataTypes) {
-  return sequelize.define('benchmark_configurations', {
+  const BenchmarkConfiguration = sequelize.define('benchmark_configurations', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -179,4 +179,14 @@ module.exports = function (sequelize, DataTypes) {
     tableName: 'benchmark_configurations',
     timestamps: false
   });
+
+  // Define associations
+  BenchmarkConfiguration.associate = function(models) {
+    BenchmarkConfiguration.belongsTo(models.users, {
+      foreignKey: 'user_id',
+      as: 'user'
+    });
+  };
+
+  return BenchmarkConfiguration;
 };
