@@ -40,6 +40,14 @@ const apiRoutes = {
     extractDealFromDocument: `${BASE_URL}/deal/extract`,
     calculateDealMetrics: `${BASE_URL}/deal/calculate`,
     calculatePortfolioMetrics: `${BASE_URL}/deal/calculate-portfolio`,
+    // Deal Facilities
+    getDealFacilities: `${BASE_URL}/deal`, // Usage: `${getDealFacilities}/${dealId}/facilities`
+    createFacility: `${BASE_URL}/deal`, // Usage: POST `${createFacility}/${dealId}/facilities`
+    createBulkFacilities: `${BASE_URL}/deal`, // Usage: POST `${createBulkFacilities}/${dealId}/facilities/bulk`
+    reorderFacilities: `${BASE_URL}/deal`, // Usage: PUT `${reorderFacilities}/${dealId}/facilities/reorder`
+    getFacilityById: `${BASE_URL}/deal/facility`, // Usage: `${getFacilityById}/${facilityId}`
+    updateFacility: `${BASE_URL}/deal/facility`, // Usage: PUT `${updateFacility}/${facilityId}`
+    deleteFacility: `${BASE_URL}/deal/facility`, // Usage: DELETE `${deleteFacility}/${facilityId}`
 };
 
 export default apiRoutes;

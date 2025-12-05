@@ -231,3 +231,99 @@ export const calculatePortfolioMetrics = async (masterDealId) => {
   );
   return response.data;
 };
+
+// ============================================
+// Deal Facilities CRUD Operations
+// ============================================
+
+/**
+ * Get all facilities for a deal
+ * @param {number} dealId - The deal ID
+ * @returns {Promise} - Array of facilities
+ */
+export const getDealFacilities = async (dealId) => {
+  const response = await apiService.get(
+    `${apiRoutes.getDealFacilities}/${dealId}/facilities`
+  );
+  return response.data;
+};
+
+/**
+ * Get a single facility by ID
+ * @param {number} facilityId - The facility ID
+ * @returns {Promise} - Facility data
+ */
+export const getFacilityById = async (facilityId) => {
+  const response = await apiService.get(
+    `${apiRoutes.getFacilityById}/${facilityId}`
+  );
+  return response.data;
+};
+
+/**
+ * Create a new facility for a deal
+ * @param {number} dealId - The deal ID
+ * @param {Object} facilityData - The facility data
+ * @returns {Promise} - Created facility
+ */
+export const createFacility = async (dealId, facilityData) => {
+  const response = await apiService.post(
+    `${apiRoutes.createFacility}/${dealId}/facilities`,
+    facilityData
+  );
+  return response.data;
+};
+
+/**
+ * Update an existing facility
+ * @param {number} facilityId - The facility ID
+ * @param {Object} facilityData - Updated facility data
+ * @returns {Promise} - Updated facility
+ */
+export const updateFacility = async (facilityId, facilityData) => {
+  const response = await apiService.put(
+    `${apiRoutes.updateFacility}/${facilityId}`,
+    facilityData
+  );
+  return response.data;
+};
+
+/**
+ * Delete a facility
+ * @param {number} facilityId - The facility ID
+ * @returns {Promise} - Deletion result
+ */
+export const deleteFacility = async (facilityId) => {
+  const response = await apiService.delete(
+    `${apiRoutes.deleteFacility}/${facilityId}`
+  );
+  return response.data;
+};
+
+/**
+ * Create multiple facilities for a deal at once
+ * @param {number} dealId - The deal ID
+ * @param {Array} facilities - Array of facility data objects
+ * @returns {Promise} - Created facilities
+ */
+export const createBulkFacilities = async (dealId, facilities) => {
+  const response = await apiService.post(
+    `${apiRoutes.createBulkFacilities}/${dealId}/facilities/bulk`,
+    { facilities }
+  );
+  return response.data;
+};
+
+/**
+ * Reorder facilities for a deal
+ * @param {number} dealId - The deal ID
+ * @param {Array} facilityIds - Array of facility IDs in the desired order
+ * @returns {Promise} - Reorder result
+ */
+export const reorderFacilities = async (dealId, facilityIds) => {
+  const response = await apiService.put(
+    `${apiRoutes.reorderFacilities}/${dealId}/facilities/reorder`,
+    { facilityIds }
+  );
+  return response.data;
+};
