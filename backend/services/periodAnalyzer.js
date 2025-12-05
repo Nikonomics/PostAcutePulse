@@ -1,17 +1,15 @@
 /**
  * Period Analyzer Service
  *
- * Pre-processes uploaded financial documents to detect time periods and build
- * an optimal T12 (trailing 12 months) analysis using the freshest available data.
+ * Analyzes uploaded financial documents to identify time periods and determine
+ * the optimal strategy for extracting the freshest possible trailing 12 months.
  *
- * Problem solved: Users upload multiple financial documents (T12 P&L, YTD P&L,
- * monthly reports) covering different periods. This service analyzes all documents
- * and determines which to use for each month to get the most current data.
+ * Solves the problem: User uploads T12 (May 2024 - April 2025) and YTD (Mar 2025 - Sept 2025)
+ * We should combine these to get Oct 2024 - Sept 2025 (the freshest T12 possible)
  *
  * @module services/periodAnalyzer
  */
 
-// Month name mappings for parsing
 const MONTH_NAMES = {
   'jan': 0, 'january': 0,
   'feb': 1, 'february': 1,
@@ -27,365 +25,453 @@ const MONTH_NAMES = {
   'dec': 11, 'december': 11
 };
 
-// Keywords that indicate financial documents
-const FINANCIAL_DOCUMENT_KEYWORDS = [
-  'p&l', 'p & l', 'profit and loss', 'profit & loss',
-  'income statement', 'i&e', 'i & e', 'income and expense',
-  'income & expense', 'operating statement', 'financial statement',
-  't12', 't-12', 'trailing twelve', 'trailing 12',
-  'ytd', 'year to date', 'year-to-date',
-  'mtd', 'month to date', 'monthly', 'quarterly',
-  'annual', 'revenue', 'expenses', 'ebitda'
+/**
+ * Keywords that indicate a document is a financial statement
+ */
+const FINANCIAL_DOC_KEYWORDS = [
+  'income statement', 'p&l', 'p & l', 'profit and loss', 'profit & loss',
+  'income expense', 'income & expense', 'i&e', 'i & e',
+  'operating statement', 'financial statement', 'trailing 12', 't12', 'ttm',
+  'year to date', 'ytd', 'monthly financial', 'rolling 12'
 ];
 
-// Period type patterns
+/**
+ * Keywords that indicate period type
+ */
 const PERIOD_TYPE_PATTERNS = {
-  T12: /t[-]?12|trailing\s*(12|twelve)/i,
-  YTD: /ytd|year[\s-]?to[\s-]?date/i,
-  MTD: /mtd|month[\s-]?to[\s-]?date/i,
-  ANNUAL: /annual|yearly|fy\d{2,4}|fiscal\s*year/i,
-  QUARTERLY: /q[1-4]|quarter|qtr/i
+  T12: [/t[-]?12/i, /trailing.*12/i, /ttm/i, /rolling.*12/i, /twelve.*month/i],
+  YTD: [/ytd/i, /year.*to.*date/i, /year-to-date/i],
+  MTD: [/mtd/i, /month.*to.*date/i],
+  QUARTERLY: [/q[1-4]/i, /quarter/i, /quarterly/i],
+  ANNUAL: [/annual/i, /yearly/i, /full.*year/i, /fiscal.*year/i]
 };
 
 /**
- * Parses various month/year string formats into a Date object
+ * Main entry point - analyzes all documents and returns period analysis
  *
- * Supported formats:
- * - "Mar 2025", "March 2025"
- * - "2025-03", "2025/03"
- * - "03/2025", "03-2025"
- * - "Mar2025", "March2025"
- * - "2025 Mar", "2025 March"
- *
- * @param {string} str - String containing month and year
- * @returns {Date|null} Date object set to first of month, or null if unparseable
+ * @param {Array<Object>} documents - Array of document objects
+ * @param {string} documents[].filename - Document filename
+ * @param {string} documents[].content - Document text content (optional)
+ * @param {string} documents[].fileType - File extension (xlsx, xls, pdf, etc.)
+ * @returns {Object} Period analysis results
  */
-function parseMonthYear(str) {
-  if (!str || typeof str !== 'string') return null;
-
-  const cleaned = str.trim().toLowerCase();
-
-  // Try ISO format: 2025-03 or 2025/03
-  const isoMatch = cleaned.match(/(\d{4})[-\/](\d{1,2})/);
-  if (isoMatch) {
-    const year = parseInt(isoMatch[1]);
-    const month = parseInt(isoMatch[2]) - 1; // 0-indexed
-    if (month >= 0 && month <= 11 && year >= 2000 && year <= 2100) {
-      return new Date(year, month, 1);
-    }
-  }
-
-  // Try reverse: 03/2025 or 03-2025
-  const reverseMatch = cleaned.match(/(\d{1,2})[-\/](\d{4})/);
-  if (reverseMatch) {
-    const month = parseInt(reverseMatch[1]) - 1;
-    const year = parseInt(reverseMatch[2]);
-    if (month >= 0 && month <= 11 && year >= 2000 && year <= 2100) {
-      return new Date(year, month, 1);
-    }
-  }
-
-  // Try month name + year: "Mar 2025", "March 2025", "Mar2025"
-  const monthNameFirst = cleaned.match(/([a-z]+)\s*(\d{4})/);
-  if (monthNameFirst) {
-    const monthName = monthNameFirst[1];
-    const year = parseInt(monthNameFirst[2]);
-    const month = MONTH_NAMES[monthName];
-    if (month !== undefined && year >= 2000 && year <= 2100) {
-      return new Date(year, month, 1);
-    }
-  }
-
-  // Try year + month name: "2025 Mar", "2025 March"
-  const yearFirst = cleaned.match(/(\d{4})\s*([a-z]+)/);
-  if (yearFirst) {
-    const year = parseInt(yearFirst[1]);
-    const monthName = yearFirst[2];
-    const month = MONTH_NAMES[monthName];
-    if (month !== undefined && year >= 2000 && year <= 2100) {
-      return new Date(year, month, 1);
-    }
-  }
-
-  return null;
-}
-
-/**
- * Detects the period type and date range from a filename
- *
- * Handles patterns like:
- * - "T12_PL_May2024_Apr2025.xlsx"
- * - "YTD_Income_Statement_Mar2025-Sept2025.pdf"
- * - "Monthly_PL_September_2025.xlsx"
- * - "2024_Annual_Report.pdf"
- *
- * @param {string} filename - The document filename
- * @returns {Object} Period info with type, startDate, endDate
- */
-function detectPeriodFromFilename(filename) {
-  if (!filename || typeof filename !== 'string') {
-    return { periodType: null, startDate: null, endDate: null, confidence: 'none' };
-  }
-
-  const result = {
-    periodType: null,
-    startDate: null,
-    endDate: null,
-    confidence: 'low'
+function analyzeFinancialPeriods(documents) {
+  const analysis = {
+    financial_documents: [],
+    non_financial_documents: [],
+    freshest_month_available: null,
+    recommended_t12: null,
+    combination_needed: false,
+    overlapping_months: [],
+    warnings: []
   };
 
-  // Detect period type from filename
-  for (const [type, pattern] of Object.entries(PERIOD_TYPE_PATTERNS)) {
-    if (pattern.test(filename)) {
-      result.periodType = type;
-      break;
-    }
-  }
+  // Step 1: Identify financial documents and extract their periods
+  for (const doc of documents) {
+    const isFinancial = isFinancialDocument(doc);
 
-  // Look for date range patterns: "May2024-Apr2025", "Mar2025_Sept2025", "May 2024 - April 2025"
-  const rangePatterns = [
-    // Month Year - Month Year (various separators)
-    /([a-z]+)\s*(\d{4})\s*[-_to]+\s*([a-z]+)\s*(\d{4})/i,
-    // Month-Year to Month-Year
-    /([a-z]+)[-]?(\d{4})\s*[-_to]+\s*([a-z]+)[-]?(\d{4})/i,
-    // Numeric: 2024-05 to 2025-04
-    /(\d{4})[-\/](\d{1,2})\s*[-_to]+\s*(\d{4})[-\/](\d{1,2})/i
-  ];
-
-  for (const pattern of rangePatterns) {
-    const match = filename.match(pattern);
-    if (match) {
-      // Check if it's month names or numeric
-      if (isNaN(parseInt(match[1]))) {
-        // Month name format
-        const startMonth = MONTH_NAMES[match[1].toLowerCase()];
-        const startYear = parseInt(match[2]);
-        const endMonth = MONTH_NAMES[match[3].toLowerCase()];
-        const endYear = parseInt(match[4]);
-
-        if (startMonth !== undefined && endMonth !== undefined) {
-          result.startDate = new Date(startYear, startMonth, 1);
-          result.endDate = new Date(endYear, endMonth + 1, 0); // Last day of month
-          result.confidence = 'high';
-          break;
-        }
-      } else {
-        // Numeric format
-        const startYear = parseInt(match[1]);
-        const startMonth = parseInt(match[2]) - 1;
-        const endYear = parseInt(match[3]);
-        const endMonth = parseInt(match[4]) - 1;
-
-        result.startDate = new Date(startYear, startMonth, 1);
-        result.endDate = new Date(endYear, endMonth + 1, 0);
-        result.confidence = 'high';
-        break;
-      }
-    }
-  }
-
-  // If no range found, look for single date (for monthly reports)
-  if (!result.startDate) {
-    const singleDate = parseMonthYear(filename);
-    if (singleDate) {
-      result.startDate = singleDate;
-      result.endDate = new Date(singleDate.getFullYear(), singleDate.getMonth() + 1, 0);
-      result.periodType = result.periodType || 'MTD';
-      result.confidence = 'medium';
-    }
-  }
-
-  // Infer period type if we have dates but no type
-  if (result.startDate && result.endDate && !result.periodType) {
-    const monthsDiff = getMonthsDifference(result.startDate, result.endDate);
-    if (monthsDiff === 12) {
-      result.periodType = 'T12';
-    } else if (monthsDiff >= 1 && monthsDiff <= 11) {
-      result.periodType = 'YTD';
-    } else if (monthsDiff === 1) {
-      result.periodType = 'MTD';
-    } else if (monthsDiff === 3) {
-      result.periodType = 'QUARTERLY';
-    }
-  }
-
-  return result;
-}
-
-/**
- * Scans document text content to detect period information
- *
- * Looks for:
- * - Column headers with month/year labels
- * - Date range headers ("For the period ending...", "January 2024 - December 2024")
- * - Fiscal year indicators
- *
- * @param {string} textContent - Extracted text from the document
- * @returns {Object} Period info with type, startDate, endDate, hasMonthlyDetail
- */
-function detectPeriodFromContent(textContent) {
-  if (!textContent || typeof textContent !== 'string') {
-    return { periodType: null, startDate: null, endDate: null, hasMonthlyDetail: false, confidence: 'none' };
-  }
-
-  const result = {
-    periodType: null,
-    startDate: null,
-    endDate: null,
-    hasMonthlyDetail: false,
-    detectedMonths: [],
-    confidence: 'low'
-  };
-
-  // Normalize whitespace
-  const content = textContent.replace(/\s+/g, ' ').toLowerCase();
-
-  // Detect period type from content
-  for (const [type, pattern] of Object.entries(PERIOD_TYPE_PATTERNS)) {
-    if (pattern.test(content)) {
-      result.periodType = type;
-      break;
-    }
-  }
-
-  // Look for "period ending" or "as of" patterns
-  const periodEndingPatterns = [
-    /(?:period|months?)\s+ending\s+([a-z]+)\s*(\d{1,2})?,?\s*(\d{4})/i,
-    /as\s+of\s+([a-z]+)\s*(\d{1,2})?,?\s*(\d{4})/i,
-    /through\s+([a-z]+)\s*(\d{1,2})?,?\s*(\d{4})/i,
-    /for\s+the\s+(?:twelve|12)\s+months\s+end(?:ing|ed)\s+([a-z]+)\s*(\d{1,2})?,?\s*(\d{4})/i
-  ];
-
-  for (const pattern of periodEndingPatterns) {
-    const match = content.match(pattern);
-    if (match) {
-      const monthName = match[1].toLowerCase();
-      const year = parseInt(match[3] || match[2]);
-      const month = MONTH_NAMES[monthName];
-
-      if (month !== undefined && year >= 2000 && year <= 2100) {
-        result.endDate = new Date(year, month + 1, 0); // Last day of month
-        result.confidence = 'high';
-
-        // If T12, calculate start date
-        if (result.periodType === 'T12' || /twelve|t12|trailing/i.test(content)) {
-          result.startDate = new Date(year, month - 11, 1);
-          result.periodType = 'T12';
-        }
-        break;
-      }
-    }
-  }
-
-  // Look for date ranges in content
-  const rangePattern = /([a-z]+)\s*(\d{4})\s*[-–—to]+\s*([a-z]+)\s*(\d{4})/gi;
-  let rangeMatch;
-  while ((rangeMatch = rangePattern.exec(content)) !== null) {
-    const startMonth = MONTH_NAMES[rangeMatch[1].toLowerCase()];
-    const startYear = parseInt(rangeMatch[2]);
-    const endMonth = MONTH_NAMES[rangeMatch[3].toLowerCase()];
-    const endYear = parseInt(rangeMatch[4]);
-
-    if (startMonth !== undefined && endMonth !== undefined) {
-      result.startDate = new Date(startYear, startMonth, 1);
-      result.endDate = new Date(endYear, endMonth + 1, 0);
-      result.confidence = 'high';
-      break;
-    }
-  }
-
-  // Scan for individual month columns (indicates monthly detail)
-  const monthColumnPattern = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*['"]?\d{2,4}/gi;
-  const foundMonths = [];
-  let monthMatch;
-
-  while ((monthMatch = monthColumnPattern.exec(content)) !== null) {
-    const parsed = parseMonthYear(monthMatch[0]);
-    if (parsed) {
-      foundMonths.push(parsed);
-    }
-  }
-
-  if (foundMonths.length > 1) {
-    result.hasMonthlyDetail = true;
-    result.detectedMonths = foundMonths.sort((a, b) => a - b);
-
-    // If we found monthly columns but no date range, derive from columns
-    if (!result.startDate && foundMonths.length >= 2) {
-      result.startDate = foundMonths[0];
-      result.endDate = new Date(
-        foundMonths[foundMonths.length - 1].getFullYear(),
-        foundMonths[foundMonths.length - 1].getMonth() + 1,
-        0
-      );
-      result.confidence = 'medium';
-    }
-  }
-
-  // Infer period type from duration if not already set
-  if (result.startDate && result.endDate && !result.periodType) {
-    const monthsDiff = getMonthsDifference(result.startDate, result.endDate);
-    if (monthsDiff >= 11 && monthsDiff <= 13) {
-      result.periodType = 'T12';
-    } else if (monthsDiff === 3) {
-      result.periodType = 'QUARTERLY';
-    } else if (monthsDiff === 1) {
-      result.periodType = 'MTD';
+    if (isFinancial) {
+      const periodInfo = extractPeriodInfo(doc);
+      analysis.financial_documents.push({
+        filename: doc.filename,
+        fileType: doc.fileType || getFileExtension(doc.filename),
+        ...periodInfo
+      });
     } else {
-      result.periodType = 'YTD';
+      analysis.non_financial_documents.push(doc.filename);
     }
   }
 
-  return result;
+  // Step 2: Sort by end date (most recent first)
+  analysis.financial_documents.sort((a, b) => {
+    if (!a.end_date || !b.end_date) return 0;
+    return new Date(b.end_date) - new Date(a.end_date);
+  });
+
+  // Step 3: Determine if combination is needed and build optimal T12
+  if (analysis.financial_documents.length > 0) {
+    const result = determineOptimalT12(analysis.financial_documents);
+    analysis.freshest_month_available = result.freshest_month;
+    analysis.recommended_t12 = result.recommended_t12;
+    analysis.combination_needed = result.combination_needed;
+    analysis.overlapping_months = result.overlapping_months;
+    analysis.warnings = result.warnings;
+  }
+
+  return analysis;
 }
 
 /**
- * Calculate the number of months between two dates
- * @param {Date} startDate
- * @param {Date} endDate
- * @returns {number} Number of months (inclusive)
- */
-function getMonthsDifference(startDate, endDate) {
-  return (endDate.getFullYear() - startDate.getFullYear()) * 12
-    + (endDate.getMonth() - startDate.getMonth()) + 1;
-}
-
-/**
- * Formats a Date object to "YYYY-MM" string
- * @param {Date} date
- * @returns {string}
- */
-function formatMonthKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-}
-
-/**
- * Checks if a document appears to be a financial document based on filename and content
+ * Determines if a document is a financial statement
  *
- * @param {Object} doc - Document object with filename and content
+ * @param {Object} doc - Document object with filename and optional content
  * @returns {boolean}
  */
 function isFinancialDocument(doc) {
-  const searchText = `${doc.filename || ''} ${doc.content || ''}`.toLowerCase();
-  return FINANCIAL_DOCUMENT_KEYWORDS.some(keyword => searchText.includes(keyword));
+  const filename = (doc.filename || '').toLowerCase();
+  const content = (doc.content || '').toLowerCase().substring(0, 2000); // Check first 2000 chars
+
+  // Check filename
+  for (const keyword of FINANCIAL_DOC_KEYWORDS) {
+    if (filename.includes(keyword.replace(/ /g, '')) ||
+        filename.includes(keyword.replace(/ /g, '_')) ||
+        filename.includes(keyword.replace(/ /g, '-'))) {
+      return true;
+    }
+  }
+
+  // Check content
+  for (const keyword of FINANCIAL_DOC_KEYWORDS) {
+    if (content.includes(keyword)) {
+      return true;
+    }
+  }
+
+  // Check for common P&L indicators in content
+  const plIndicators = ['total income', 'total revenue', 'total expenses', 'net income', 'ebitda'];
+  let matchCount = 0;
+  for (const indicator of plIndicators) {
+    if (content.includes(indicator)) matchCount++;
+  }
+
+  return matchCount >= 2;
 }
 
 /**
- * Generates a list of all months covered by a date range
+ * Extracts period information from a document
  *
- * @param {Date} startDate
- * @param {Date} endDate
- * @returns {string[]} Array of "YYYY-MM" strings
+ * @param {Object} doc - Document object
+ * @returns {Object} Period information
  */
-function getMonthsCovered(startDate, endDate) {
+function extractPeriodInfo(doc) {
+  const info = {
+    period_type: null,
+    start_date: null,
+    end_date: null,
+    months_covered: 0,
+    has_monthly_detail: false,
+    confidence: 'low',
+    detection_method: null
+  };
+
+  // Try filename first
+  const filenameResult = detectPeriodFromFilename(doc.filename);
+  if (filenameResult.confidence !== 'none') {
+    Object.assign(info, filenameResult);
+  }
+
+  // Try content if available and filename didn't give high confidence
+  if (doc.content && info.confidence !== 'high') {
+    const contentResult = detectPeriodFromContent(doc.content);
+    if (contentResult.confidence === 'high' ||
+        (contentResult.confidence === 'medium' && info.confidence === 'low')) {
+      Object.assign(info, contentResult);
+    }
+  }
+
+  // Calculate months covered if we have both dates
+  if (info.start_date && info.end_date) {
+    info.months_covered = calculateMonthsBetween(info.start_date, info.end_date);
+  }
+
+  return info;
+}
+
+/**
+ * Detects period information from filename
+ *
+ * @param {string} filename
+ * @returns {Object} Period info with confidence
+ */
+function detectPeriodFromFilename(filename) {
+  const result = {
+    period_type: null,
+    start_date: null,
+    end_date: null,
+    has_monthly_detail: false,
+    confidence: 'none',
+    detection_method: 'filename'
+  };
+
+  if (!filename) return result;
+
+  const fn = filename.toLowerCase();
+
+  // Detect period type
+  for (const [type, patterns] of Object.entries(PERIOD_TYPE_PATTERNS)) {
+    for (const pattern of patterns) {
+      if (pattern.test(fn)) {
+        result.period_type = type;
+        break;
+      }
+    }
+    if (result.period_type) break;
+  }
+
+  // Try to extract date range from filename
+  // Pattern: Month Year - Month Year or MonthYear-MonthYear
+  const dateRangePatterns = [
+    // "Mar2025-Sept2025" or "Mar_2025-Sept_2025"
+    /([a-z]{3,9})[\s_-]?(\d{4})[\s_-]+([a-z]{3,9})[\s_-]?(\d{4})/i,
+    // "March 2025 - September 2025"
+    /([a-z]{3,9})\s+(\d{4})\s*[-–—to]+\s*([a-z]{3,9})\s+(\d{4})/i,
+    // "2024-05 - 2025-04" or "2024_05_2025_04"
+    /(\d{4})[-_](\d{2}).*?(\d{4})[-_](\d{2})/,
+    // "April 2025" (single month, likely end date)
+    /([a-z]{3,9})[\s_-]?(\d{4})/i
+  ];
+
+  for (const pattern of dateRangePatterns) {
+    const match = fn.match(pattern);
+    if (match) {
+      if (match.length >= 5) {
+        // Full date range
+        const startDate = parseMonthYear(match[1], match[2]);
+        const endDate = parseMonthYear(match[3], match[4]);
+
+        if (startDate && endDate) {
+          result.start_date = startDate;
+          result.end_date = endDate;
+          result.confidence = 'high';
+          break;
+        }
+      } else if (match.length >= 3) {
+        // Single date - likely end date for T12
+        const date = parseMonthYear(match[1], match[2]);
+        if (date) {
+          result.end_date = date;
+
+          // If it's a T12, calculate start date
+          if (result.period_type === 'T12' || fn.includes('t12') || fn.includes('trailing')) {
+            result.start_date = subtractMonths(date, 11);
+            result.period_type = 'T12';
+          }
+
+          result.confidence = 'medium';
+          break;
+        }
+      }
+    }
+  }
+
+  // Check for monthly detail indicators
+  if (fn.includes('monthly') || fn.includes('by month') || fn.includes('detail')) {
+    result.has_monthly_detail = true;
+  }
+
+  return result;
+}
+
+/**
+ * Detects period information from document content
+ *
+ * @param {string} content - Document text content
+ * @returns {Object} Period info with confidence
+ */
+function detectPeriodFromContent(content) {
+  const result = {
+    period_type: null,
+    start_date: null,
+    end_date: null,
+    has_monthly_detail: false,
+    confidence: 'none',
+    detection_method: 'content'
+  };
+
+  if (!content) return result;
+
+  const text = content.toLowerCase();
+
+  // Detect period type from content
+  for (const [type, patterns] of Object.entries(PERIOD_TYPE_PATTERNS)) {
+    for (const pattern of patterns) {
+      if (pattern.test(text)) {
+        result.period_type = type;
+        break;
+      }
+    }
+    if (result.period_type) break;
+  }
+
+  // Look for date headers or period statements
+  const periodStatements = [
+    // "Year to Date - March 2025 - September 2025"
+    /year\s+to\s+date.*?([a-z]{3,9})\s+(\d{4}).*?([a-z]{3,9})\s+(\d{4})/i,
+    // "Rolling T-12" followed by dates
+    /rolling\s+t-?12.*?([a-z]{3,9})\s+(\d{4}).*?([a-z]{3,9})\s+(\d{4})/i,
+    // "Period: May 2024 - April 2025"
+    /period[:\s]+([a-z]{3,9})\s+(\d{4})\s*[-–—to]+\s*([a-z]{3,9})\s+(\d{4})/i,
+    // "For the twelve months ended April 2025"
+    /twelve\s+months\s+ended\s+([a-z]{3,9})\s+(\d{4})/i,
+    // Column headers with months - detect monthly detail
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\s\/\-]?\d{2,4}/gi
+  ];
+
+  for (const pattern of periodStatements) {
+    const match = text.match(pattern);
+    if (match) {
+      if (match.length >= 5) {
+        // Full date range
+        const startDate = parseMonthYear(match[1], match[2]);
+        const endDate = parseMonthYear(match[3], match[4]);
+
+        if (startDate && endDate) {
+          result.start_date = startDate;
+          result.end_date = endDate;
+          result.confidence = 'high';
+          result.has_monthly_detail = true;
+          break;
+        }
+      } else if (match.length >= 3) {
+        // Single end date (e.g., "twelve months ended April 2025")
+        const endDate = parseMonthYear(match[1], match[2]);
+        if (endDate) {
+          result.end_date = endDate;
+          result.start_date = subtractMonths(endDate, 11);
+          result.period_type = 'T12';
+          result.confidence = 'high';
+          break;
+        }
+      }
+    }
+  }
+
+  // Check for monthly column headers (indicates monthly detail)
+  const monthMatches = text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\s\/\-]?\d{2,4}/gi);
+  if (monthMatches && monthMatches.length >= 6) {
+    result.has_monthly_detail = true;
+
+    // Try to extract date range from column headers
+    if (!result.start_date || !result.end_date) {
+      const dates = monthMatches.map(m => {
+        const parts = m.match(/([a-z]{3})[\s\/\-]?(\d{2,4})/i);
+        if (parts) {
+          let year = parts[2];
+          if (year.length === 2) {
+            year = parseInt(year) > 50 ? '19' + year : '20' + year;
+          }
+          return parseMonthYear(parts[1], year);
+        }
+        return null;
+      }).filter(d => d);
+
+      if (dates.length >= 2) {
+        dates.sort((a, b) => new Date(a) - new Date(b));
+        result.start_date = dates[0];
+        result.end_date = dates[dates.length - 1];
+        result.confidence = result.confidence === 'none' ? 'medium' : result.confidence;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Parses month name and year into ISO date string
+ *
+ * @param {string} month - Month name or number
+ * @param {string|number} year - Four digit year
+ * @returns {string|null} ISO date string (YYYY-MM-DD) or null
+ */
+function parseMonthYear(month, year) {
+  if (!month || !year) return null;
+
+  let monthNum;
+
+  // Handle numeric month
+  if (/^\d+$/.test(month)) {
+    monthNum = parseInt(month) - 1;
+  } else {
+    // Handle month name
+    const monthLower = month.toLowerCase().substring(0, 3);
+    monthNum = MONTH_NAMES[monthLower];
+
+    // Also check full month names
+    if (monthNum === undefined) {
+      monthNum = MONTH_NAMES[month.toLowerCase()];
+    }
+  }
+
+  if (monthNum === undefined || monthNum < 0 || monthNum > 11) return null;
+
+  const yearNum = parseInt(year);
+  if (isNaN(yearNum)) return null;
+
+  // Return first day of month
+  const date = new Date(yearNum, monthNum, 1);
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Subtracts months from a date string
+ *
+ * @param {string} dateStr - ISO date string
+ * @param {number} months - Number of months to subtract
+ * @returns {string} New ISO date string
+ */
+function subtractMonths(dateStr, months) {
+  const date = new Date(dateStr);
+  date.setMonth(date.getMonth() - months);
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Adds months to a date string
+ *
+ * @param {string} dateStr - ISO date string
+ * @param {number} months - Number of months to add
+ * @returns {string} New ISO date string
+ */
+function addMonths(dateStr, months) {
+  const date = new Date(dateStr);
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Calculates the number of months between two dates (inclusive)
+ *
+ * @param {string} startDate - ISO date string
+ * @param {string} endDate - ISO date string
+ * @returns {number} Number of months
+ */
+function calculateMonthsBetween(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  return (end.getFullYear() - start.getFullYear()) * 12 +
+         (end.getMonth() - start.getMonth()) + 1;
+}
+
+/**
+ * Gets file extension from filename
+ *
+ * @param {string} filename
+ * @returns {string}
+ */
+function getFileExtension(filename) {
+  if (!filename) return '';
+  const parts = filename.split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+/**
+ * Generates a list of months between two dates
+ *
+ * @param {string} startDate - ISO date string
+ * @param {string} endDate - ISO date string
+ * @returns {Array<string>} Array of YYYY-MM strings
+ */
+function generateMonthList(startDate, endDate) {
   const months = [];
-  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  const current = new Date(startDate);
+  const end = new Date(endDate);
 
   while (current <= end) {
-    months.push(formatMonthKey(current));
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    months.push(`${year}-${month}`);
     current.setMonth(current.getMonth() + 1);
   }
 
@@ -393,281 +479,225 @@ function getMonthsCovered(startDate, endDate) {
 }
 
 /**
- * Builds the source map determining which document to use for each month
- * Prioritizes fresher data (later documents preferred for overlapping months)
+ * Determines the optimal T12 period by combining available documents
  *
- * @param {Array} analyzedDocs - Array of analyzed document objects
- * @returns {Object} Source map and analysis
+ * @param {Array<Object>} financialDocs - Sorted array of financial documents (most recent first)
+ * @returns {Object} Optimal T12 recommendation
  */
-function buildSourceMap(analyzedDocs) {
-  // Filter to only docs with valid date ranges
-  const validDocs = analyzedDocs.filter(doc => doc.startDate && doc.endDate);
-
-  if (validDocs.length === 0) {
-    return {
-      sourceMap: {},
-      freshestMonth: null,
-      allMonthsCovered: [],
-      gaps: []
-    };
-  }
-
-  // Create a map of all months and which docs cover them
-  const monthCoverage = new Map();
-
-  for (const doc of validDocs) {
-    const months = getMonthsCovered(doc.startDate, doc.endDate);
-    for (const month of months) {
-      if (!monthCoverage.has(month)) {
-        monthCoverage.set(month, []);
-      }
-      monthCoverage.get(month).push({
-        filename: doc.filename,
-        endDate: doc.endDate,
-        hasMonthlyDetail: doc.hasMonthlyDetail,
-        periodType: doc.periodType
-      });
-    }
-  }
-
-  // For each month, select the best source
-  // Priority: 1) Fresher end date, 2) Has monthly detail, 3) More specific period type
-  const sourceMap = {};
-  const overlappingMonths = [];
-
-  for (const [month, sources] of monthCoverage.entries()) {
-    if (sources.length > 1) {
-      overlappingMonths.push(month);
-    }
-
-    // Sort sources by preference
-    sources.sort((a, b) => {
-      // Prefer fresher end dates
-      const dateDiff = b.endDate - a.endDate;
-      if (dateDiff !== 0) return dateDiff;
-
-      // Prefer docs with monthly detail
-      if (a.hasMonthlyDetail !== b.hasMonthlyDetail) {
-        return a.hasMonthlyDetail ? -1 : 1;
-      }
-
-      // Prefer more specific period types (MTD > YTD > T12)
-      const typeOrder = { MTD: 0, QUARTERLY: 1, YTD: 2, T12: 3, ANNUAL: 4 };
-      return (typeOrder[a.periodType] || 5) - (typeOrder[b.periodType] || 5);
-    });
-
-    sourceMap[month] = sources[0].filename;
-  }
-
-  // Find freshest month
-  const allMonths = Array.from(monthCoverage.keys()).sort();
-  const freshestMonth = allMonths[allMonths.length - 1];
-
-  return {
-    sourceMap,
-    freshestMonth,
-    allMonthsCovered: allMonths,
-    overlappingMonths
-  };
-}
-
-/**
- * Calculates the recommended T12 period based on available data
- *
- * @param {string} freshestMonth - The most recent month with data ("YYYY-MM")
- * @param {string[]} allMonthsCovered - All months that have data
- * @returns {Object} Recommended T12 start/end and any gaps
- */
-function calculateRecommendedT12(freshestMonth, allMonthsCovered) {
-  if (!freshestMonth || !allMonthsCovered.length) {
-    return {
-      start: null,
-      end: null,
-      complete: false,
-      gaps: [],
-      monthsAvailable: 0
-    };
-  }
-
-  // Parse freshest month
-  const [endYear, endMonth] = freshestMonth.split('-').map(Number);
-  const endDate = new Date(endYear, endMonth - 1, 1);
-
-  // Calculate ideal T12 start (12 months back)
-  const startDate = new Date(endYear, endMonth - 12, 1);
-  const start = formatMonthKey(startDate);
-
-  // Check which months we have in the T12 range
-  const neededMonths = getMonthsCovered(startDate, endDate);
-  const availableSet = new Set(allMonthsCovered);
-
-  const gaps = neededMonths.filter(m => !availableSet.has(m));
-  const monthsAvailable = neededMonths.filter(m => availableSet.has(m)).length;
-
-  return {
-    start: `${start}-01`,
-    end: `${freshestMonth}-${new Date(endYear, endMonth, 0).getDate()}`,
-    complete: gaps.length === 0,
-    gaps,
-    monthsAvailable
-  };
-}
-
-/**
- * Main function: Analyzes an array of documents to determine time periods
- * and build an optimal T12 using the freshest available data.
- *
- * @param {Array<Object>} documents - Array of document objects
- * @param {string} documents[].filename - Document filename
- * @param {string} documents[].content - Extracted text content
- * @param {string} [documents[].fileType] - File type (pdf, xlsx, etc.)
- * @returns {Object} Analysis result with source map and recommendations
- *
- * @example
- * const result = analyzeDocumentPeriods([
- *   { filename: 'T12_PL_May2024_Apr2025.xlsx', content: '...', fileType: 'xlsx' },
- *   { filename: 'YTD_IE_Mar2025_Sept2025.xlsx', content: '...', fileType: 'xlsx' }
- * ]);
- *
- * // Result:
- * // {
- * //   financial_documents: [...],
- * //   freshest_month_available: "2025-09-30",
- * //   recommended_t12: { start: "2024-10-01", end: "2025-09-30", source_map: {...} },
- * //   combination_needed: true,
- * //   overlapping_months: ["2025-03", "2025-04"]
- * // }
- */
-function analyzeDocumentPeriods(documents) {
-  if (!Array.isArray(documents) || documents.length === 0) {
-    return {
-      financial_documents: [],
-      freshest_month_available: null,
-      recommended_t12: null,
-      combination_needed: false,
-      overlapping_months: [],
-      analysis_notes: ['No documents provided for analysis']
-    };
-  }
-
-  const analysisNotes = [];
-  const financialDocuments = [];
-
-  // Analyze each document
-  for (const doc of documents) {
-    // Check if it's a financial document
-    if (!isFinancialDocument(doc)) {
-      analysisNotes.push(`Skipped non-financial document: ${doc.filename}`);
-      continue;
-    }
-
-    // Extract period info from filename and content
-    const filenameAnalysis = detectPeriodFromFilename(doc.filename);
-    const contentAnalysis = detectPeriodFromContent(doc.content);
-
-    // Merge results, preferring higher confidence
-    const merged = {
-      filename: doc.filename,
-      fileType: doc.fileType || 'unknown',
-      periodType: null,
-      startDate: null,
-      endDate: null,
-      hasMonthlyDetail: contentAnalysis.hasMonthlyDetail,
-      confidence: 'low'
-    };
-
-    // Use filename analysis if it has better confidence
-    if (filenameAnalysis.confidence === 'high' ||
-        (filenameAnalysis.confidence === 'medium' && contentAnalysis.confidence !== 'high')) {
-      merged.startDate = filenameAnalysis.startDate;
-      merged.endDate = filenameAnalysis.endDate;
-      merged.periodType = filenameAnalysis.periodType;
-      merged.confidence = filenameAnalysis.confidence;
-    }
-
-    // Override with content analysis if it's better
-    if (contentAnalysis.confidence === 'high') {
-      merged.startDate = contentAnalysis.startDate || merged.startDate;
-      merged.endDate = contentAnalysis.endDate || merged.endDate;
-      merged.periodType = contentAnalysis.periodType || merged.periodType;
-      merged.confidence = contentAnalysis.confidence;
-    }
-
-    // Merge monthly detail from content
-    if (contentAnalysis.hasMonthlyDetail) {
-      merged.hasMonthlyDetail = true;
-    }
-
-    // Calculate months covered if we have dates
-    if (merged.startDate && merged.endDate) {
-      merged.monthsCovered = getMonthsCovered(merged.startDate, merged.endDate);
-    } else {
-      analysisNotes.push(`Could not determine date range for: ${doc.filename}`);
-      merged.monthsCovered = [];
-    }
-
-    financialDocuments.push(merged);
-  }
-
-  // Build the source map
-  const { sourceMap, freshestMonth, allMonthsCovered, overlappingMonths } = buildSourceMap(financialDocuments);
-
-  // Calculate recommended T12
-  const t12Analysis = calculateRecommendedT12(freshestMonth, allMonthsCovered);
-
-  // Build T12 source map (subset of full source map)
-  const t12SourceMap = {};
-  if (t12Analysis.start && t12Analysis.end) {
-    const startDate = new Date(t12Analysis.start);
-    const endDate = new Date(t12Analysis.end);
-    const t12Months = getMonthsCovered(startDate, endDate);
-
-    for (const month of t12Months) {
-      if (sourceMap[month]) {
-        t12SourceMap[month] = sourceMap[month];
-      }
-    }
-  }
-
-  // Determine if combination is needed
-  const uniqueSources = new Set(Object.values(t12SourceMap));
-  const combinationNeeded = uniqueSources.size > 1;
-
-  // Format output
+function determineOptimalT12(financialDocs) {
   const result = {
-    financial_documents: financialDocuments.map(doc => ({
-      filename: doc.filename,
-      file_type: doc.fileType,
-      period_type: doc.periodType,
-      start_date: doc.startDate ? doc.startDate.toISOString().split('T')[0] : null,
-      end_date: doc.endDate ? doc.endDate.toISOString().split('T')[0] : null,
-      months_covered: doc.monthsCovered.length,
-      has_monthly_detail: doc.hasMonthlyDetail,
-      confidence: doc.confidence
-    })),
-    freshest_month_available: freshestMonth ? `${freshestMonth}-${new Date(
-      parseInt(freshestMonth.split('-')[0]),
-      parseInt(freshestMonth.split('-')[1]),
-      0
-    ).getDate()}` : null,
-    recommended_t12: t12Analysis.start ? {
-      start: t12Analysis.start,
-      end: t12Analysis.end,
-      complete: t12Analysis.complete,
-      months_available: t12Analysis.monthsAvailable,
-      gaps: t12Analysis.gaps,
-      source_map: t12SourceMap
-    } : null,
-    combination_needed: combinationNeeded,
-    overlapping_months: overlappingMonths,
-    full_coverage: {
-      all_months: allMonthsCovered,
-      source_map: sourceMap
-    },
-    analysis_notes: analysisNotes
+    freshest_month: null,
+    recommended_t12: null,
+    combination_needed: false,
+    overlapping_months: [],
+    warnings: []
   };
+
+  if (financialDocs.length === 0) return result;
+
+  // Find the freshest end date across all documents
+  let freshestEndDate = null;
+  for (const doc of financialDocs) {
+    if (doc.end_date) {
+      if (!freshestEndDate || new Date(doc.end_date) > new Date(freshestEndDate)) {
+        freshestEndDate = doc.end_date;
+      }
+    }
+  }
+
+  if (!freshestEndDate) {
+    result.warnings.push('Could not determine end dates for any financial documents');
+    return result;
+  }
+
+  result.freshest_month = freshestEndDate;
+
+  // Calculate optimal T12 period
+  const optimalStart = subtractMonths(freshestEndDate, 11);
+  const optimalEnd = freshestEndDate;
+  const optimalMonths = generateMonthList(optimalStart, optimalEnd);
+
+  // Build source map - determine which document to use for each month
+  const sourceMap = {};
+  const monthCoverage = {};
+
+  for (const month of optimalMonths) {
+    monthCoverage[month] = [];
+  }
+
+  // Map each document's coverage
+  for (const doc of financialDocs) {
+    if (doc.start_date && doc.end_date) {
+      const docMonths = generateMonthList(doc.start_date, doc.end_date);
+      for (const month of docMonths) {
+        if (monthCoverage[month]) {
+          monthCoverage[month].push({
+            filename: doc.filename,
+            period_type: doc.period_type,
+            end_date: doc.end_date
+          });
+        }
+      }
+    }
+  }
+
+  // Assign source for each month (prefer more recent documents)
+  const overlappingMonths = [];
+  const uncoveredMonths = [];
+
+  for (const month of optimalMonths) {
+    const sources = monthCoverage[month];
+
+    if (sources.length === 0) {
+      uncoveredMonths.push(month);
+      sourceMap[month] = null;
+    } else if (sources.length === 1) {
+      sourceMap[month] = sources[0].filename;
+    } else {
+      // Multiple sources - prefer YTD over T12 for overlapping months
+      // (YTD is typically more recent even if end date is same)
+      overlappingMonths.push(month);
+
+      const ytdSource = sources.find(s => s.period_type === 'YTD');
+      const mostRecent = sources.sort((a, b) =>
+        new Date(b.end_date) - new Date(a.end_date)
+      )[0];
+
+      sourceMap[month] = ytdSource ? ytdSource.filename : mostRecent.filename;
+    }
+  }
+
+  result.overlapping_months = overlappingMonths;
+
+  // Check if combination is actually needed
+  const uniqueSources = [...new Set(Object.values(sourceMap).filter(v => v))];
+  result.combination_needed = uniqueSources.length > 1;
+
+  // Add warnings for uncovered months
+  if (uncoveredMonths.length > 0) {
+    result.warnings.push(`Missing data for months: ${uncoveredMonths.join(', ')}`);
+  }
+
+  // Build the recommendation
+  result.recommended_t12 = {
+    start: optimalStart,
+    end: optimalEnd,
+    months_count: 12,
+    source_map: sourceMap,
+    sources_used: uniqueSources,
+    coverage_complete: uncoveredMonths.length === 0
+  };
+
+  // Add summary of which months come from which document
+  if (result.combination_needed) {
+    const sourceBreakdown = {};
+    for (const [month, source] of Object.entries(sourceMap)) {
+      if (source) {
+        if (!sourceBreakdown[source]) {
+          sourceBreakdown[source] = [];
+        }
+        sourceBreakdown[source].push(month);
+      }
+    }
+    result.recommended_t12.source_breakdown = sourceBreakdown;
+  }
 
   return result;
+}
+
+/**
+ * Generates prompt text to include in Claude extraction prompt
+ *
+ * @param {Object} analysis - Output from analyzeFinancialPeriods()
+ * @returns {string} Prompt text
+ */
+function generatePromptSection(analysis) {
+  if (!analysis || analysis.financial_documents.length === 0) {
+    return `
+## FINANCIAL PERIOD ANALYSIS
+
+No financial documents were identified for period analysis.
+Extract financial data from available documents using standard procedures.
+`;
+  }
+
+  let prompt = `
+## FINANCIAL PERIOD ANALYSIS
+
+### Documents Identified
+${analysis.financial_documents.map(doc => `
+- **${doc.filename}**
+  - Type: ${doc.period_type || 'Unknown'}
+  - Period: ${doc.start_date || '?'} to ${doc.end_date || '?'}
+  - Monthly Detail: ${doc.has_monthly_detail ? 'Yes' : 'No'}
+  - Confidence: ${doc.confidence}
+`).join('')}
+`;
+
+  if (analysis.combination_needed && analysis.recommended_t12) {
+    const t12 = analysis.recommended_t12;
+
+    prompt += `
+### ⚠️ COMBINATION REQUIRED
+
+Multiple financial documents cover different periods. Combine them to extract the **freshest possible T12**.
+
+**Target Period**: ${t12.start} to ${t12.end}
+
+**Source Map** (which document to use for each month):
+${Object.entries(t12.source_map).map(([month, source]) =>
+  `- ${month}: ${source || '⚠️ NO DATA'}`
+).join('\n')}
+
+**Instructions**:
+1. For each month listed above, pull data from the specified document
+2. Sum monthly values to get T12 totals
+3. For overlapping months (${analysis.overlapping_months.join(', ')}), use the source specified above (more recent document preferred)
+4. If values in overlapping months differ by >5%, flag in data_quality_notes
+
+**Include in your output**:
+\`\`\`json
+"financial_period_analysis": {
+  "period_extracted": {
+    "start": "${t12.start}",
+    "end": "${t12.end}"
+  },
+  "is_combined": true,
+  "sources_used": ${JSON.stringify(t12.sources_used)},
+  "overlapping_months_handled": ${JSON.stringify(analysis.overlapping_months)}
+}
+\`\`\`
+`;
+  } else if (analysis.financial_documents.length > 0) {
+    const primaryDoc = analysis.financial_documents[0];
+
+    prompt += `
+### Single Document Period
+
+Extract financials for the period: ${primaryDoc.start_date || 'start'} to ${primaryDoc.end_date || 'end'}
+
+**Include in your output**:
+\`\`\`json
+"financial_period_analysis": {
+  "period_extracted": {
+    "start": "${primaryDoc.start_date}",
+    "end": "${primaryDoc.end_date}"
+  },
+  "is_combined": false,
+  "source_document": "${primaryDoc.filename}"
+}
+\`\`\`
+`;
+  }
+
+  if (analysis.warnings.length > 0) {
+    prompt += `
+### Warnings
+${analysis.warnings.map(w => `- ⚠️ ${w}`).join('\n')}
+`;
+  }
+
+  return prompt;
 }
 
 /**
@@ -686,15 +716,18 @@ function shouldAnalyzePeriods(documents) {
   return financialDocs.length >= 2;
 }
 
+// Export functions
 module.exports = {
-  analyzeDocumentPeriods,
+  analyzeFinancialPeriods,
+  generatePromptSection,
   shouldAnalyzePeriods,
-  // Export helpers for testing and potential reuse
+  isFinancialDocument,
   detectPeriodFromFilename,
   detectPeriodFromContent,
   parseMonthYear,
-  buildSourceMap,
-  isFinancialDocument,
-  getMonthsCovered,
-  formatMonthKey
+  subtractMonths,
+  addMonths,
+  calculateMonthsBetween,
+  generateMonthList,
+  determineOptimalT12
 };
