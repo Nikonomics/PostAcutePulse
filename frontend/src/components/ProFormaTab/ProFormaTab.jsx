@@ -75,13 +75,18 @@ const getVarianceStatus = (actual, benchmark, isReversed = false) => {
 };
 
 // Summary Card Component
-const SummaryCard = ({ title, value, subtitle, icon: Icon, trend, variant = 'primary' }) => (
+const SummaryCard = ({ title, value, subtitle, icon: Icon, trend, variant = 'primary', isLoading = false }) => (
   <Card className={`summary-card border-${variant}`}>
     <Card.Body>
       <div className="d-flex justify-content-between align-items-start">
         <div>
-          <div className="text-muted small">{title}</div>
-          <h3 className={`mb-1 text-${variant}`}>{value}</h3>
+          <div className="text-muted small d-flex align-items-center">
+            {title}
+            {isLoading && (
+              <Spinner animation="border" size="sm" className="ms-2" variant={variant} />
+            )}
+          </div>
+          <h3 className={`mb-1 text-${variant}`} style={{ opacity: isLoading ? 0.6 : 1 }}>{value}</h3>
           {subtitle && <div className="text-muted small">{subtitle}</div>}
         </div>
         <div className={`summary-icon bg-${variant} bg-opacity-10`}>
@@ -123,11 +128,13 @@ const LineItemRow = ({
   isReversed = false,
   indent = 0,
   isBold = false,
-  opportunity
+  opportunity,
+  isDisabled = false
 }) => {
   const variance = actual && benchmark ? actual - benchmark : null;
   const varianceStatus = getVarianceStatus(actual, benchmark, isReversed);
   const isActualMissing = actual === null || actual === undefined;
+  const inputDisabled = isActualMissing || isDisabled;
 
   const handleInputChange = (e) => {
     const value = parseFloat(e.target.value);
@@ -163,10 +170,10 @@ const LineItemRow = ({
               value={benchmark || ''}
               onChange={handleInputChange}
               className="text-end"
-              disabled={isActualMissing}
-              title={isActualMissing ? 'Actual value not available - benchmark editing disabled' : ''}
+              disabled={inputDisabled}
+              title={isActualMissing ? 'Actual value not available - benchmark editing disabled' : (isDisabled ? 'Calculation in progress...' : '')}
             />
-            <InputGroup.Text className={isActualMissing ? 'text-muted' : ''}>{unit}</InputGroup.Text>
+            <InputGroup.Text className={inputDisabled ? 'text-muted' : ''}>{unit}</InputGroup.Text>
           </InputGroup>
         ) : (
           <span>
@@ -200,7 +207,8 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   const [benchmarks, setBenchmarks] = useState(DEFAULT_BENCHMARKS);
   const [analysis, setAnalysis] = useState(null);
   const [scenarioName, setScenarioName] = useState('Base Case');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Initial data fetch
+  const [isCalculating, setIsCalculating] = useState(false); // Recalculation in progress
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -236,10 +244,15 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
 
   // Debounced calculation
   const calculateProforma = useCallback(
-    debounce(async (benchmarkValues) => {
+    debounce(async (benchmarkValues, isInitial = false) => {
       if (!deal?.id || !currentFinancials) return;
 
-      setIsLoading(true);
+      // Use isLoading for initial load, isCalculating for recalculations
+      if (isInitial) {
+        setIsLoading(true);
+      } else {
+        setIsCalculating(true);
+      }
       setError(null);
 
       try {
@@ -252,16 +265,24 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
         console.error('Pro forma calculation error:', error);
         setError('Failed to calculate pro forma. Please try again.');
       } finally {
-        setIsLoading(false);
+        if (isInitial) {
+          setIsLoading(false);
+        } else {
+          setIsCalculating(false);
+        }
       }
     }, 500),
     [deal?.id, currentFinancials]
   );
 
+  // Track if this is the first calculation
+  const isFirstCalculation = React.useRef(true);
+
   // Recalculate when benchmarks change
   useEffect(() => {
     if (currentFinancials) {
-      calculateProforma(benchmarks);
+      calculateProforma(benchmarks, isFirstCalculation.current);
+      isFirstCalculation.current = false;
     }
   }, [benchmarks, calculateProforma, currentFinancials]);
 
@@ -421,6 +442,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             size="sm"
             className="me-2"
             onClick={handleReset}
+            disabled={isCalculating}
           >
             <RotateCcw size={16} className="me-1" /> Reset
           </Button>
@@ -428,7 +450,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             variant="primary"
             size="sm"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isCalculating}
           >
             {isSaving ? (
               <Spinner animation="border" size="sm" className="me-1" />
@@ -449,6 +471,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             subtitle="Annual improvement potential"
             icon={TrendingUp}
             variant="success"
+            isLoading={isCalculating}
           />
         </Col>
         <Col md={3}>
@@ -458,6 +481,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             subtitle={`vs ${formatCurrency(currentFinancials.ebitda)} current`}
             icon={TrendingUp}
             variant="primary"
+            isLoading={isCalculating}
           />
         </Col>
         <Col md={3}>
@@ -467,6 +491,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             subtitle={`Target: ${formatPercent(benchmarks.ebitda_margin_target)}`}
             icon={TrendingUp}
             variant="info"
+            isLoading={isCalculating}
           />
         </Col>
         <Col md={3}>
@@ -476,6 +501,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             subtitle="Areas above target"
             icon={AlertTriangle}
             variant={summaryMetrics.issuesCount > 0 ? 'warning' : 'success'}
+            isLoading={isCalculating}
           />
         </Col>
       </Row>
@@ -500,16 +526,19 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
         </Alert>
       )}
 
+      {/* Initial Loading State */}
+      {isLoading && (
+        <div className="text-center py-5">
+          <Spinner animation="border" variant="primary" size="lg" />
+          <div className="mt-3 text-muted">Loading Pro Forma analysis...</div>
+        </div>
+      )}
+
       {/* Pro Forma Table */}
+      {!isLoading && (
       <Card className="proforma-table-card">
         <Card.Body>
-          {isLoading && (
-            <div className="text-center py-3">
-              <Spinner animation="border" variant="primary" />
-              <div className="mt-2 text-muted">Calculating pro forma...</div>
-            </div>
-          )}
-
+          <div style={{ opacity: isCalculating ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
           <Table hover responsive className="proforma-table">
             <thead>
               <tr>
@@ -538,6 +567,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="occupancy_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 indent={1}
               />
               <LineItemRow
@@ -568,6 +598,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="labor_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
                 indent={1}
               />
@@ -578,6 +609,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="agency_pct_of_labor_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
                 indent={1}
               />
@@ -592,6 +624,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 onBenchmarkChange={handleBenchmarkChange}
                 unit="$"
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
                 opportunity={analysis?.opportunities?.find(o => o.category === 'Food Cost')?.opportunity}
               />
@@ -602,6 +635,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="management_fee_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
                 opportunity={analysis?.opportunities?.find(o => o.category === 'Management Fees')?.opportunity}
               />
@@ -612,6 +646,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="bad_debt_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
               />
               <LineItemRow
@@ -621,6 +656,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="utilities_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
               />
               <LineItemRow
@@ -630,6 +666,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="insurance_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 isReversed={true}
               />
 
@@ -651,6 +688,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="ebitda_margin_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 indent={1}
               />
               <LineItemRow
@@ -668,6 +706,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 benchmarkKey="ebitdar_margin_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
+                isDisabled={isCalculating}
                 indent={1}
               />
             </tbody>
@@ -685,12 +724,14 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               </span>
             </div>
           )}
+          </div>
         </Card.Body>
       </Card>
+      )}
 
       {/* EBITDA Bridge Waterfall Chart */}
-      {currentFinancials?.ebitda && (
-        <Card className="mt-4">
+      {!isLoading && currentFinancials?.ebitda && (
+        <Card className="mt-4" style={{ opacity: isCalculating ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
           <Card.Header>
             <h5 className="mb-0">EBITDA Bridge to Stabilization</h5>
           </Card.Header>
@@ -736,8 +777,8 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       )}
 
       {/* Opportunities Detail */}
-      {analysis?.opportunities && analysis.opportunities.length > 0 && (
-        <Card className="mt-4">
+      {!isLoading && analysis?.opportunities && analysis.opportunities.length > 0 && (
+        <Card className="mt-4" style={{ opacity: isCalculating ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
           <Card.Header>
             <h5 className="mb-0">Opportunity Breakdown</h5>
           </Card.Header>
