@@ -250,32 +250,82 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
+  // Helper to extract value from nested extraction field
+  const getValue = (field) => {
+    if (!field) return null;
+    // Handle both nested {value, confidence} and flat values
+    return field?.value !== undefined ? field.value : field;
+  };
+
   // Extract current financials from extraction data
+  // Handles both nested structure (from AI extraction) and flat structure
   const currentFinancials = useMemo(() => {
     if (!extractionData) return null;
 
+    // Try nested structure first (financial_information_t12), then flat fields
+    const fin = extractionData.financial_information_t12 || {};
+    const census = extractionData.census_and_occupancy || {};
+    const facility = extractionData.facility_information || {};
+
+    // Get revenue - try nested, then flat
+    const revenue = getValue(fin.total_revenue)
+      || extractionData.annual_revenue
+      || extractionData.t12m_revenue;
+
+    // Get EBITDA/EBITDAR - try nested, then flat
+    const ebitda = getValue(fin.ebitda)
+      || extractionData.ebitda
+      || extractionData.t12m_ebitda;
+    const ebitdar = getValue(fin.ebitdar)
+      || extractionData.ebitdar
+      || extractionData.t12m_ebitdar;
+
+    // Get occupancy and beds
+    const occupancy = getValue(census.occupancy_percentage)
+      || extractionData.current_occupancy
+      || extractionData.t12m_occupancy;
+    const beds = getValue(facility.bed_count)
+      || extractionData.no_of_beds;
+
+    // Get expense ratios - try nested expense_ratios, then flat fields
+    const expenseRatios = fin.expense_ratios || {};
+    const labor_pct = getValue(expenseRatios.labor_pct_of_revenue)
+      || extractionData.labor_pct_of_revenue;
+    const agency_pct = getValue(expenseRatios.agency_pct_of_labor)
+      || extractionData.agency_pct_of_labor;
+    const food_cost = getValue(expenseRatios.food_cost_per_resident_day)
+      || extractionData.food_cost_per_resident_day;
+    const management_fee_pct = getValue(expenseRatios.management_fee_pct)
+      || extractionData.management_fee_pct;
+    const bad_debt_pct = getValue(expenseRatios.bad_debt_pct)
+      || extractionData.bad_debt_pct;
+    const utilities_pct = getValue(expenseRatios.utilities_pct_of_revenue)
+      || extractionData.utilities_pct_of_revenue;
+    const insurance_pct = getValue(expenseRatios.insurance_pct_of_revenue)
+      || extractionData.insurance_pct_of_revenue;
+
     return {
-      revenue: extractionData.annual_revenue || extractionData.t12m_revenue,
-      ebitda: extractionData.ebitda || extractionData.t12m_ebitda,
-      ebitdar: extractionData.ebitdar || extractionData.t12m_ebitdar,
-      occupancy: extractionData.current_occupancy || extractionData.t12m_occupancy,
-      beds: extractionData.no_of_beds,
+      revenue,
+      ebitda,
+      ebitdar,
+      occupancy,
+      beds,
 
       // Expense ratios
-      labor_pct: extractionData.labor_pct_of_revenue,
-      agency_pct: extractionData.agency_pct_of_labor,
-      food_cost: extractionData.food_cost_per_resident_day,
-      management_fee_pct: extractionData.management_fee_pct,
-      bad_debt_pct: extractionData.bad_debt_pct,
-      utilities_pct: extractionData.utilities_pct_of_revenue,
-      insurance_pct: extractionData.insurance_pct_of_revenue,
+      labor_pct,
+      agency_pct,
+      food_cost,
+      management_fee_pct,
+      bad_debt_pct,
+      utilities_pct,
+      insurance_pct,
 
-      // Margins
-      ebitda_margin: extractionData.ebitda && extractionData.annual_revenue
-        ? (extractionData.ebitda / extractionData.annual_revenue) * 100
+      // Margins (calculated)
+      ebitda_margin: ebitda && revenue
+        ? (ebitda / revenue) * 100
         : null,
-      ebitdar_margin: extractionData.ebitdar && extractionData.annual_revenue
-        ? (extractionData.ebitdar / extractionData.annual_revenue) * 100
+      ebitdar_margin: ebitdar && revenue
+        ? (ebitdar / revenue) * 100
         : null
     };
   }, [extractionData]);
