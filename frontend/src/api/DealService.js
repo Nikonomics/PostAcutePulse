@@ -400,7 +400,8 @@ export const getProformaScenarios = async (dealId) => {
   const response = await apiService.get(
     `${apiRoutes.proforma}/${dealId}/proforma`
   );
-  return response.data;
+  // API returns { data: { scenarios: [...] } }
+  return response.data?.data?.scenarios || response.data?.scenarios || [];
 };
 
 /**

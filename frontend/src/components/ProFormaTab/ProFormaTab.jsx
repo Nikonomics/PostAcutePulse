@@ -438,10 +438,11 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     setIsLoadingScenarios(true);
     try {
       const result = await getProformaScenarios(deal.id);
-      setScenarios(result || []);
+      // Ensure we always have an array
+      setScenarios(Array.isArray(result) ? result : []);
     } catch (err) {
       console.error('Failed to load scenarios:', err);
-      // Don't show error - scenarios are optional
+      setScenarios([]); // Reset to empty array on error
     } finally {
       setIsLoadingScenarios(false);
     }
@@ -1109,12 +1110,12 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
             <h5 className="mb-0">EBITDA Bridge to Stabilization</h5>
           </Card.Header>
           <Card.Body>
-            {analysis?.opportunities && analysis.opportunities.length > 0 ? (
+            {Array.isArray(analysis?.opportunities) && analysis.opportunities.length > 0 ? (
               <OpportunityWaterfall
                 currentEbitda={currentFinancials.ebitda}
                 opportunities={analysis.opportunities.map(opp => ({
-                  label: opp.category,
-                  value: opp.opportunity || 0,
+                  label: opp.category || opp.label || 'Opportunity',
+                  value: opp.opportunity || opp.value || 0,
                   priority: opp.priority || 'medium'
                 }))}
                 stabilizedEbitda={analysis.stabilized_ebitda || currentFinancials.ebitda + summaryMetrics.totalOpportunity}
@@ -1139,7 +1140,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 }
               />
             )}
-            {(!analysis?.opportunities || analysis.opportunities.length === 0) && (
+            {(!Array.isArray(analysis?.opportunities) || analysis.opportunities.length === 0) && (
               <div className="mt-2 text-center text-muted small">
                 <Info size={14} className="me-1" />
                 Detailed opportunity breakdown requires complete expense ratio data.
@@ -1150,7 +1151,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       )}
 
       {/* Opportunities Detail */}
-      {!isLoading && analysis?.opportunities && analysis.opportunities.length > 0 && (
+      {!isLoading && Array.isArray(analysis?.opportunities) && analysis.opportunities.length > 0 && (
         <Card className="mt-4" style={{ opacity: isCalculating ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
           <Card.Header>
             <h5 className="mb-0">Opportunity Breakdown</h5>
