@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, Table, Form, Row, Col, Badge, Button, Spinner, InputGroup, Alert } from 'react-bootstrap';
-import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileText, Info } from 'lucide-react';
+import { Card, Table, Form, Row, Col, Badge, Button, Spinner, InputGroup, Alert, Modal, Dropdown } from 'react-bootstrap';
+import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileText, Info, FolderOpen, Trash2, Calendar, CheckCircle } from 'lucide-react';
 import { debounce } from 'lodash';
-import DealService from '../../api/DealService';
+import {
+  calculateProforma,
+  getProformaScenarios,
+  createProformaScenario,
+  deleteProformaScenario
+} from '../../api/DealService';
 import OpportunityWaterfall from './OpportunityWaterfall';
 import { formatCurrency, formatPercent, formatNumber } from '../../utils/formatters';
 import './ProFormaTab.css';
@@ -235,6 +240,15 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   const [successMessage, setSuccessMessage] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Scenario management state
+  const [scenarios, setScenarios] = useState([]);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [selectedScenarioId, setSelectedScenarioId] = useState(null);
+  const [newScenarioName, setNewScenarioName] = useState('');
+  const [scenarioNotes, setScenarioNotes] = useState('');
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
   // Extract current financials from extraction data
   const currentFinancials = useMemo(() => {
     if (!extractionData) return null;
@@ -279,7 +293,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       setError(null);
 
       try {
-        const result = await DealService.calculateProforma(deal.id, {
+        const result = await calculateProforma(deal.id, {
           ...benchmarkValues,
           current_financials: currentFinancials
         });
@@ -351,6 +365,147 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Fetch saved scenarios on mount
+  const fetchScenarios = useCallback(async () => {
+    if (!deal?.id) return;
+
+    setIsLoadingScenarios(true);
+    try {
+      const result = await getProformaScenarios(deal.id);
+      setScenarios(result || []);
+    } catch (err) {
+      console.error('Failed to load scenarios:', err);
+      // Don't show error - scenarios are optional
+    } finally {
+      setIsLoadingScenarios(false);
+    }
+  }, [deal?.id]);
+
+  useEffect(() => {
+    fetchScenarios();
+  }, [fetchScenarios]);
+
+  // Load a saved scenario
+  const handleLoadScenario = useCallback((scenario) => {
+    if (!scenario) return;
+
+    // Apply the benchmark overrides from the saved scenario
+    const overrides = scenario.benchmark_overrides || {};
+    setBenchmarks(prev => ({
+      ...DEFAULT_BENCHMARKS,
+      ...overrides
+    }));
+
+    setSelectedScenarioId(scenario.id);
+    setScenarioName(scenario.scenario_name);
+    setSuccessMessage(`Loaded scenario: "${scenario.scenario_name}"`);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  }, []);
+
+  // Open save modal
+  const handleOpenSaveModal = () => {
+    setNewScenarioName(scenarioName || 'New Scenario');
+    setScenarioNotes('');
+    setShowSaveModal(true);
+  };
+
+  // Save scenario via modal
+  const handleSaveScenario = async () => {
+    if (!newScenarioName.trim()) {
+      setError('Please enter a scenario name');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // Calculate benchmark overrides (only non-default values)
+      const overrides = {};
+      Object.keys(benchmarks).forEach(key => {
+        if (benchmarks[key] !== DEFAULT_BENCHMARKS[key]) {
+          overrides[key] = benchmarks[key];
+        }
+      });
+
+      const scenarioData = {
+        scenario_name: newScenarioName,
+        benchmark_overrides: overrides,
+        notes: scenarioNotes || null,
+        // Include calculated outputs for quick display
+        stabilized_revenue: analysis?.stabilized_revenue,
+        stabilized_ebitda: analysis?.stabilized_ebitda,
+        stabilized_ebitdar: analysis?.stabilized_ebitdar,
+        total_opportunity: analysis?.total_opportunity,
+        opportunities: analysis?.opportunities
+      };
+
+      const result = await createProformaScenario(deal.id, scenarioData);
+
+      setShowSaveModal(false);
+      setSelectedScenarioId(result.id);
+      setScenarioName(newScenarioName);
+      setSuccessMessage(`Scenario "${newScenarioName}" saved successfully!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+
+      // Refresh scenarios list
+      fetchScenarios();
+    } catch (err) {
+      console.error('Save scenario error:', err);
+      const message = getErrorMessage(err, 'Failed to save scenario. Please try again.');
+      setError(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Delete a scenario
+  const handleDeleteScenario = async (scenarioId) => {
+    setError(null);
+
+    try {
+      await deleteProformaScenario(deal.id, scenarioId);
+
+      // If we deleted the currently loaded scenario, reset to defaults
+      if (selectedScenarioId === scenarioId) {
+        setSelectedScenarioId(null);
+        setScenarioName('Base Case');
+        setBenchmarks(DEFAULT_BENCHMARKS);
+      }
+
+      setDeleteConfirmId(null);
+      setSuccessMessage('Scenario deleted successfully');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
+      // Refresh scenarios list
+      fetchScenarios();
+    } catch (err) {
+      console.error('Delete scenario error:', err);
+      const message = getErrorMessage(err, 'Failed to delete scenario. Please try again.');
+      setError(message);
+    }
+  };
+
+  // Reset to base case (clear loaded scenario)
+  const handleResetToBase = () => {
+    setBenchmarks(DEFAULT_BENCHMARKS);
+    setSelectedScenarioId(null);
+    setScenarioName('Base Case');
+  };
+
+  // Get the currently loaded scenario object
+  const currentScenario = useMemo(() => {
+    if (!selectedScenarioId) return null;
+    return scenarios.find(s => s.id === selectedScenarioId);
+  }, [selectedScenarioId, scenarios]);
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   // Calculate summary metrics
@@ -452,44 +607,129 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     <div className="proforma-tab">
       {/* Header Section */}
       <Row className="mb-4">
-        <Col md={8}>
+        <Col md={6}>
           <h4>Pro Forma Analysis</h4>
-          <p className="text-muted">
+          <p className="text-muted mb-0">
             Adjust benchmark targets to calculate stabilization opportunity
           </p>
+          {/* Currently loaded scenario indicator */}
+          {currentScenario && (
+            <div className="mt-2 d-flex align-items-center">
+              <Badge bg="info" className="me-2">
+                <CheckCircle size={12} className="me-1" />
+                {currentScenario.scenario_name}
+              </Badge>
+              <span className="text-muted small">
+                Saved {formatDate(currentScenario.created_at)}
+              </span>
+              <Button
+                variant="link"
+                size="sm"
+                className="p-0 ms-2 text-muted"
+                onClick={handleResetToBase}
+                title="Clear and reset to Base Case"
+              >
+                <RotateCcw size={14} />
+              </Button>
+            </div>
+          )}
         </Col>
-        <Col md={4} className="text-end">
-          <InputGroup className="mb-2">
-            <InputGroup.Text>Scenario:</InputGroup.Text>
-            <Form.Control
-              type="text"
-              value={scenarioName}
-              onChange={(e) => setScenarioName(e.target.value)}
-              placeholder="Scenario name"
-            />
-          </InputGroup>
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            className="me-2"
-            onClick={handleReset}
-            disabled={isCalculating}
-          >
-            <RotateCcw size={16} className="me-1" /> Reset
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving || isCalculating}
-          >
-            {isSaving ? (
-              <Spinner animation="border" size="sm" className="me-1" />
-            ) : (
-              <Save size={16} className="me-1" />
-            )}
-            Save Scenario
-          </Button>
+        <Col md={6} className="text-end">
+          <div className="d-flex justify-content-end align-items-start gap-2 flex-wrap">
+            {/* Load Scenario Dropdown */}
+            <Dropdown>
+              <Dropdown.Toggle
+                variant="outline-secondary"
+                size="sm"
+                id="scenario-dropdown"
+                disabled={isLoadingScenarios}
+              >
+                {isLoadingScenarios ? (
+                  <Spinner animation="border" size="sm" className="me-1" />
+                ) : (
+                  <FolderOpen size={16} className="me-1" />
+                )}
+                Load Scenario
+              </Dropdown.Toggle>
+              <Dropdown.Menu align="end" style={{ minWidth: '280px' }}>
+                {scenarios.length === 0 ? (
+                  <Dropdown.ItemText className="text-muted small">
+                    No saved scenarios yet
+                  </Dropdown.ItemText>
+                ) : (
+                  <>
+                    {scenarios.map((scenario) => (
+                      <div key={scenario.id} className="d-flex align-items-center px-2 py-1">
+                        <Dropdown.Item
+                          onClick={() => handleLoadScenario(scenario)}
+                          className="flex-grow-1 py-2"
+                          active={selectedScenarioId === scenario.id}
+                        >
+                          <div className="d-flex justify-content-between align-items-center">
+                            <div>
+                              <strong>{scenario.scenario_name}</strong>
+                              <div className="text-muted small">
+                                <Calendar size={10} className="me-1" />
+                                {formatDate(scenario.created_at)}
+                              </div>
+                            </div>
+                            {scenario.stabilized_ebitda && (
+                              <span className="text-success small fw-bold ms-2">
+                                {formatCurrency(scenario.stabilized_ebitda)}
+                              </span>
+                            )}
+                          </div>
+                        </Dropdown.Item>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="text-danger p-1 ms-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmId(scenario.id);
+                          }}
+                          title="Delete scenario"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    ))}
+                    <Dropdown.Divider />
+                    <Dropdown.Item onClick={handleResetToBase} className="text-muted">
+                      <RotateCcw size={14} className="me-2" />
+                      Reset to Base Case
+                    </Dropdown.Item>
+                  </>
+                )}
+              </Dropdown.Menu>
+            </Dropdown>
+
+            {/* Reset Button */}
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={handleReset}
+              disabled={isCalculating}
+              title="Reset benchmarks to defaults"
+            >
+              <RotateCcw size={16} className="me-1" /> Reset
+            </Button>
+
+            {/* Save Scenario Button */}
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenSaveModal}
+              disabled={isSaving || isCalculating}
+            >
+              {isSaving ? (
+                <Spinner animation="border" size="sm" className="me-1" />
+              ) : (
+                <Save size={16} className="me-1" />
+              )}
+              Save Scenario
+            </Button>
+          </div>
         </Col>
       </Row>
 
@@ -852,6 +1092,89 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           </Card.Body>
         </Card>
       )}
+
+      {/* Save Scenario Modal */}
+      <Modal show={showSaveModal} onHide={() => setShowSaveModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Save Pro Forma Scenario</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-3">
+            <Form.Label>Scenario Name <span className="text-danger">*</span></Form.Label>
+            <Form.Control
+              type="text"
+              value={newScenarioName}
+              onChange={(e) => setNewScenarioName(e.target.value)}
+              placeholder="e.g., Conservative Case, Aggressive Turnaround"
+              autoFocus
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Notes (optional)</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={3}
+              value={scenarioNotes}
+              onChange={(e) => setScenarioNotes(e.target.value)}
+              placeholder="Assumptions, rationale, or comments about this scenario..."
+            />
+          </Form.Group>
+
+          {/* Summary of what will be saved */}
+          <div className="bg-light rounded p-3 small">
+            <strong className="d-block mb-2">Scenario Summary:</strong>
+            <div className="d-flex justify-content-between mb-1">
+              <span className="text-muted">Stabilized EBITDA:</span>
+              <span className="text-success fw-bold">{formatCurrency(analysis?.stabilized_ebitda)}</span>
+            </div>
+            <div className="d-flex justify-content-between mb-1">
+              <span className="text-muted">Total Opportunity:</span>
+              <span className="text-success fw-bold">{formatCurrency(summaryMetrics.totalOpportunity)}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+              <span className="text-muted">Benchmark Overrides:</span>
+              <span>{Object.keys(benchmarks).filter(k => benchmarks[k] !== DEFAULT_BENCHMARKS[k]).length} changes</span>
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setShowSaveModal(false)} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSaveScenario} disabled={isSaving || !newScenarioName.trim()}>
+            {isSaving ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} className="me-2" />
+                Save Scenario
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal show={!!deleteConfirmId} onHide={() => setDeleteConfirmId(null)} centered size="sm">
+        <Modal.Header closeButton>
+          <Modal.Title>Delete Scenario</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete this scenario? This action cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setDeleteConfirmId(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => handleDeleteScenario(deleteConfirmId)}>
+            <Trash2 size={16} className="me-1" />
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };
