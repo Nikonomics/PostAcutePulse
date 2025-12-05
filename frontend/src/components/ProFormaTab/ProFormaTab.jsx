@@ -3,6 +3,7 @@ import { Card, Table, Form, Row, Col, Badge, Button, Spinner, InputGroup, Alert 
 import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus } from 'lucide-react';
 import { debounce } from 'lodash';
 import DealService from '../../api/DealService';
+import OpportunityWaterfall from './OpportunityWaterfall';
 import './ProFormaTab.css';
 
 const DEFAULT_BENCHMARKS = {
@@ -585,6 +586,28 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           </Table>
         </Card.Body>
       </Card>
+
+      {/* EBITDA Bridge Waterfall Chart */}
+      {analysis?.opportunities && analysis.opportunities.length > 0 && (
+        <Card className="mt-4">
+          <Card.Header>
+            <h5 className="mb-0">EBITDA Bridge to Stabilization</h5>
+          </Card.Header>
+          <Card.Body>
+            <OpportunityWaterfall
+              currentEbitda={currentFinancials?.ebitda || 0}
+              opportunities={analysis.opportunities.map(opp => ({
+                label: opp.category,
+                value: opp.opportunity || 0,
+                priority: opp.priority || 'medium'
+              }))}
+              stabilizedEbitda={analysis.stabilized_ebitda || (currentFinancials?.ebitda || 0) + summaryMetrics.totalOpportunity}
+              height={350}
+              showLabels={true}
+            />
+          </Card.Body>
+        </Card>
+      )}
 
       {/* Opportunities Detail */}
       {analysis?.opportunities && analysis.opportunities.length > 0 && (
