@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Calculator,
   ClipboardList,
+  Target,
 } from 'lucide-react';
 import {
   DealExtractionViewerProps,
@@ -19,6 +20,7 @@ import {
   DealDocument,
 } from './types';
 import DealCalculatorTab from '../DealCalculatorTab';
+import ProFormaTab from '../ProFormaTab/ProFormaTab';
 import { formatTimestamp, formatPeriod, countExtractedFields } from './utils';
 import FieldCell from './FieldCell';
 import PayerMixChart from './PayerMixChart';
@@ -33,6 +35,7 @@ const TAB_CONFIGS = [
   { id: 'census', title: 'Census & Rates', icon: Users },
   { id: 'projections', title: 'Projections', icon: TrendingUp },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
+  { id: 'proforma', title: 'Pro Forma', icon: Target },
   { id: 'observations', title: 'Observations', icon: Lightbulb },
 ];
 
@@ -431,6 +434,32 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     </div>
   );
 
+  // Handle save scenario for ProFormaTab
+  const handleSaveScenario = useCallback(async (scenarioData: any) => {
+    if (!dealId) return;
+    // This will be wired up to the API - for now just log
+    console.log('Saving scenario:', scenarioData);
+    // TODO: Call DealService.createProformaScenario(dealId, scenarioData)
+  }, [dealId]);
+
+  // Render Pro Forma Tab
+  const renderProFormaTab = () => (
+    <div>
+      {dealId && extractionData ? (
+        <ProFormaTab
+          deal={deal}
+          extractionData={extractionData}
+          onSaveScenario={handleSaveScenario}
+        />
+      ) : (
+        <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+          <Target size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+          <p>Pro Forma analysis requires extraction data</p>
+        </div>
+      )}
+    </div>
+  );
+
   // Render Observations Tab
   const renderObservationsTab = () => (
     <div>
@@ -503,6 +532,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         return renderProjectionsTab();
       case 'calculator':
         return renderCalculatorTab();
+      case 'proforma':
+        return renderProFormaTab();
       case 'observations':
         return renderObservationsTab();
       default:
