@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   LabelList
 } from 'recharts';
+import { formatCurrency, formatCompactCurrency } from '../../utils/formatters';
 
 /**
  * OpportunityWaterfall - EBITDA Bridge/Waterfall Chart
@@ -157,30 +158,20 @@ const OpportunityWaterfall = ({
   }
 
   /**
-   * Format currency for display
+   * Format compact currency for bar labels with +/- prefix
    */
-  const formatCurrency = (value) => {
+  const formatBarLabel = (value) => {
     if (value === null || value === undefined) return '';
-    const absValue = Math.abs(value);
-    const formatted = absValue >= 1000000
-      ? `$${(absValue / 1000000).toFixed(1)}M`
-      : absValue >= 1000
-        ? `$${(absValue / 1000).toFixed(0)}K`
-        : `$${absValue.toFixed(0)}`;
+    const formatted = formatCompactCurrency(Math.abs(value), 1);
     return value < 0 ? `-${formatted}` : `+${formatted}`;
   };
 
   /**
-   * Format full currency for tooltip
+   * Format full currency for tooltip display
    */
-  const formatFullCurrency = (value) => {
+  const formatTooltipCurrency = (value) => {
     if (value === null || value === undefined) return '';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
+    return formatCurrency(value);
   };
 
   /**
@@ -217,7 +208,7 @@ const OpportunityWaterfall = ({
           fontWeight: 700
         }}>
           {data.type === 'opportunity' ? (data.displayValue >= 0 ? '+' : '') : ''}
-          {formatFullCurrency(data.displayValue)}
+          {formatTooltipCurrency(data.displayValue)}
         </p>
 
         {data.type === 'opportunity' && (
@@ -226,7 +217,7 @@ const OpportunityWaterfall = ({
             color: '#6b7280',
             fontSize: '0.75rem'
           }}>
-            Running Total: {formatFullCurrency(data.runningTotal)}
+            Running Total: {formatTooltipCurrency(data.runningTotal)}
           </p>
         )}
 
@@ -271,7 +262,7 @@ const OpportunityWaterfall = ({
         fontSize={11}
         fontWeight={600}
       >
-        {formatCurrency(data.displayValue)}
+        {formatBarLabel(data.displayValue)}
       </text>
     );
   };
@@ -299,15 +290,11 @@ const OpportunityWaterfall = ({
   }, [currentEbitda, opportunities, stabilizedEbitda]);
 
   /**
-   * Format Y-axis tick
+   * Format Y-axis tick using shared formatter
    */
   const formatYAxis = (value) => {
     if (value === 0) return '$0';
-    const absValue = Math.abs(value);
-    if (absValue >= 1000000) {
-      return `${value < 0 ? '-' : ''}$${(absValue / 1000000).toFixed(1)}M`;
-    }
-    return `${value < 0 ? '-' : ''}$${(absValue / 1000).toFixed(0)}K`;
+    return formatCompactCurrency(value, 1);
   };
 
   // Empty state
@@ -359,7 +346,7 @@ const OpportunityWaterfall = ({
             fontWeight: 700,
             color: currentEbitda >= 0 ? '#059669' : '#dc2626'
           }}>
-            {formatFullCurrency(currentEbitda)}
+            {formatTooltipCurrency(currentEbitda)}
           </p>
         </div>
         <div style={{ textAlign: 'center' }}>
@@ -370,7 +357,7 @@ const OpportunityWaterfall = ({
             fontWeight: 700,
             color: '#059669'
           }}>
-            +{formatFullCurrency(stabilizedEbitda - currentEbitda)}
+            +{formatTooltipCurrency(stabilizedEbitda - currentEbitda)}
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -381,7 +368,7 @@ const OpportunityWaterfall = ({
             fontWeight: 700,
             color: COLORS.stabilized
           }}>
-            {formatFullCurrency(stabilizedEbitda)}
+            {formatTooltipCurrency(stabilizedEbitda)}
           </p>
         </div>
       </div>

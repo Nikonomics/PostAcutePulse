@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileTex
 import { debounce } from 'lodash';
 import DealService from '../../api/DealService';
 import OpportunityWaterfall from './OpportunityWaterfall';
+import { formatCurrency, formatPercent, formatNumber } from '../../utils/formatters';
 import './ProFormaTab.css';
 
 const DEFAULT_BENCHMARKS = {
@@ -18,27 +19,6 @@ const DEFAULT_BENCHMARKS = {
   insurance_pct_target: 3,
   ebitda_margin_target: 9,
   ebitdar_margin_target: 23
-};
-
-// Formatting helpers
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '-';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value);
-};
-
-const formatPercent = (value, decimals = 1) => {
-  if (value === null || value === undefined) return '-';
-  return `${value.toFixed(decimals)}%`;
-};
-
-const formatNumber = (value, decimals = 2) => {
-  if (value === null || value === undefined) return '-';
-  return value.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
 
 // Status badge helper
