@@ -248,6 +248,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   const [scenarioNotes, setScenarioNotes] = useState('');
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Extract current financials from extraction data
   const currentFinancials = useMemo(() => {
@@ -333,9 +334,22 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     }));
   }, []);
 
-  // Reset to defaults
-  const handleReset = () => {
+  // Request reset to defaults (shows confirmation if there are changes)
+  const handleResetRequest = () => {
+    if (hasUnsavedChanges || isDifferentFromDefaults) {
+      setShowResetConfirm(true);
+    } else {
+      // No changes, just reset directly
+      handleResetDefaults();
+    }
+  };
+
+  // Actually reset to defaults
+  const handleResetDefaults = () => {
     setBenchmarks(DEFAULT_BENCHMARKS);
+    setSelectedScenarioId(null);
+    setScenarioName('Base Case');
+    setShowResetConfirm(false);
   };
 
   // Save scenario
@@ -488,18 +502,33 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     }
   };
 
-  // Reset to base case (clear loaded scenario)
-  const handleResetToBase = () => {
-    setBenchmarks(DEFAULT_BENCHMARKS);
-    setSelectedScenarioId(null);
-    setScenarioName('Base Case');
-  };
+  // Reset to base case (alias for handleResetDefaults, used in dropdown)
+  const handleResetToBase = handleResetDefaults;
 
   // Get the currently loaded scenario object
   const currentScenario = useMemo(() => {
     if (!selectedScenarioId) return null;
     return scenarios.find(s => s.id === selectedScenarioId);
   }, [selectedScenarioId, scenarios]);
+
+  // Check if benchmarks have been modified from defaults or loaded scenario
+  const hasUnsavedChanges = useMemo(() => {
+    // Compare current benchmarks to either loaded scenario or defaults
+    const compareTo = currentScenario?.benchmark_overrides
+      ? { ...DEFAULT_BENCHMARKS, ...currentScenario.benchmark_overrides }
+      : DEFAULT_BENCHMARKS;
+
+    return Object.keys(DEFAULT_BENCHMARKS).some(key => {
+      return benchmarks[key] !== compareTo[key];
+    });
+  }, [benchmarks, currentScenario]);
+
+  // Check if current benchmarks differ from defaults (for reset button state)
+  const isDifferentFromDefaults = useMemo(() => {
+    return Object.keys(DEFAULT_BENCHMARKS).some(key => {
+      return benchmarks[key] !== DEFAULT_BENCHMARKS[key];
+    });
+  }, [benchmarks]);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -615,12 +644,17 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           {/* Currently loaded scenario indicator */}
           {currentScenario && (
             <div className="mt-2 d-flex align-items-center">
-              <Badge bg="info" className="me-2">
+              <Badge bg={hasUnsavedChanges ? 'warning' : 'info'} className="me-2">
                 <CheckCircle size={12} className="me-1" />
                 {currentScenario.scenario_name}
+                {hasUnsavedChanges && <span className="ms-1">*</span>}
               </Badge>
               <span className="text-muted small">
-                Saved {formatDate(currentScenario.created_at)}
+                {hasUnsavedChanges ? (
+                  <span className="text-warning">Unsaved changes</span>
+                ) : (
+                  <>Saved {formatDate(currentScenario.created_at)}</>
+                )}
               </span>
               <Button
                 variant="link"
@@ -631,6 +665,17 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               >
                 <RotateCcw size={14} />
               </Button>
+            </div>
+          )}
+          {/* Show unsaved changes indicator when not using a loaded scenario */}
+          {!currentScenario && isDifferentFromDefaults && (
+            <div className="mt-2">
+              <Badge bg="warning" className="me-2">
+                Modified *
+              </Badge>
+              <span className="text-muted small text-warning">
+                Benchmarks modified from defaults
+              </span>
             </div>
           )}
         </Col>
@@ -704,15 +749,15 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               </Dropdown.Menu>
             </Dropdown>
 
-            {/* Reset Button */}
+            {/* Reset to Defaults Button */}
             <Button
               variant="outline-secondary"
               size="sm"
-              onClick={handleReset}
-              disabled={isCalculating}
-              title="Reset benchmarks to defaults"
+              onClick={handleResetRequest}
+              disabled={isCalculating || !isDifferentFromDefaults}
+              title="Reset benchmarks to Cascadia defaults"
             >
-              <RotateCcw size={16} className="me-1" /> Reset
+              <RotateCcw size={16} className="me-1" /> Reset to Defaults
             </Button>
 
             {/* Save Scenario Button */}
@@ -1172,6 +1217,25 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           <Button variant="danger" onClick={() => handleDeleteScenario(deleteConfirmId)}>
             <Trash2 size={16} className="me-1" />
             Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Reset Confirmation Modal */}
+      <Modal show={showResetConfirm} onHide={() => setShowResetConfirm(false)} centered size="sm">
+        <Modal.Header closeButton>
+          <Modal.Title>Reset to Defaults</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Reset all benchmarks to Cascadia defaults? Unsaved changes will be lost.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setShowResetConfirm(false)}>
+            Cancel
+          </Button>
+          <Button variant="warning" onClick={handleResetDefaults}>
+            <RotateCcw size={16} className="me-1" />
+            Reset to Defaults
           </Button>
         </Modal.Footer>
       </Modal>
