@@ -3,6 +3,61 @@ import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { FileText, AlertCircle, Loader } from 'lucide-react';
 
+// Helper function to convert Excel serial date to formatted date string
+const excelDateToFormatted = (serial) => {
+  // Excel's epoch is January 1, 1900 (but Excel incorrectly thinks 1900 was a leap year)
+  // Serial number 1 = January 1, 1900
+  // We need to subtract 1 because JavaScript Date starts from 0
+  const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
+  const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${date.getFullYear()}`;
+};
+
+// Helper function to check if a number looks like an Excel date serial
+// Excel dates for years 2020-2030 are roughly 43831 (Jan 1, 2020) to 47848 (Dec 31, 2030)
+const isLikelyExcelDate = (num) => {
+  return typeof num === 'number' && num >= 40000 && num <= 50000 && Number.isInteger(num);
+};
+
+// Helper function to format currency values
+const formatCurrency = (value) => {
+  if (typeof value !== 'number') return value;
+  // Format with commas and 2 decimal places
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+
+// Helper to detect if a column contains dates (check first few data rows)
+const detectDateColumns = (rows) => {
+  const dateColumns = new Set();
+  // Check rows 1-5 (skip header at row 0)
+  for (let rowIdx = 1; rowIdx < Math.min(6, rows.length); rowIdx++) {
+    const row = rows[rowIdx];
+    if (!row) continue;
+    row.forEach((cell, colIdx) => {
+      if (isLikelyExcelDate(cell)) {
+        dateColumns.add(colIdx);
+      }
+    });
+  }
+  return dateColumns;
+};
+
+// Helper to detect if a row is a header row (contains dates or date-like values)
+const isHeaderRowWithDates = (row, dateColumns) => {
+  if (!row) return false;
+  for (const colIdx of dateColumns) {
+    if (isLikelyExcelDate(row[colIdx])) {
+      return true;
+    }
+  }
+  return false;
+};
+
 // Excel Preview Component
 // eslint-disable-next-line no-unused-vars
 export const ExcelPreview = ({ url, fileName }) => {
@@ -35,9 +90,14 @@ export const ExcelPreview = ({ url, fileName }) => {
         const sheets = workbook.SheetNames.map(sheetName => {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          // Detect which columns contain dates
+          const dateColumns = detectDateColumns(jsonData);
+
           return {
             name: sheetName,
-            data: jsonData
+            data: jsonData,
+            dateColumns: dateColumns
           };
         });
 
@@ -108,21 +168,46 @@ export const ExcelPreview = ({ url, fileName }) => {
       <div style={styles.tableWrapper}>
         <table style={styles.table}>
           <tbody>
-            {currentSheet.data.slice(0, 100).map((row, rowIndex) => (
-              <tr key={rowIndex} style={rowIndex === 0 ? styles.headerRow : {}}>
-                {row.map((cell, cellIndex) => (
-                  rowIndex === 0 ? (
-                    <th key={cellIndex} style={styles.headerCell}>
-                      {cell !== undefined ? String(cell) : ''}
-                    </th>
-                  ) : (
-                    <td key={cellIndex} style={styles.cell}>
-                      {cell !== undefined ? String(cell) : ''}
-                    </td>
-                  )
-                ))}
-              </tr>
-            ))}
+            {currentSheet.data.slice(0, 100).map((row, rowIndex) => {
+              // Check if this row contains date values in date columns (could be a header row with dates)
+              const rowHasDates = isHeaderRowWithDates(row, currentSheet.dateColumns);
+
+              return (
+                <tr key={rowIndex} style={rowIndex === 0 || rowHasDates ? styles.headerRow : {}}>
+                  {row.map((cell, cellIndex) => {
+                    // Format the cell value
+                    let displayValue = '';
+                    if (cell !== undefined && cell !== null) {
+                      // Check if this is a date column and the value is an Excel date serial
+                      if (currentSheet.dateColumns.has(cellIndex) && isLikelyExcelDate(cell)) {
+                        displayValue = excelDateToFormatted(cell);
+                      } else if (typeof cell === 'number' && !isLikelyExcelDate(cell)) {
+                        // Format as currency/financial number
+                        displayValue = formatCurrency(cell);
+                      } else {
+                        displayValue = String(cell);
+                      }
+                    }
+
+                    // Determine if this is a header cell (first row or a row with dates)
+                    const isHeader = rowIndex === 0 || rowHasDates;
+
+                    return isHeader ? (
+                      <th key={cellIndex} style={styles.headerCell}>
+                        {displayValue}
+                      </th>
+                    ) : (
+                      <td key={cellIndex} style={{
+                        ...styles.cell,
+                        textAlign: typeof cell === 'number' ? 'right' : 'left'
+                      }}>
+                        {displayValue}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {currentSheet.data.length > 100 && (
