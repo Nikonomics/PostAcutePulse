@@ -21,6 +21,48 @@ const DEFAULT_BENCHMARKS = {
   ebitdar_margin_target: 23
 };
 
+/**
+ * Get user-friendly error message based on error type
+ * @param {Error} error - The error object
+ * @param {string} defaultMessage - Default message if error type not recognized
+ * @returns {string} User-friendly error message
+ */
+const getErrorMessage = (error, defaultMessage = 'An unexpected error occurred. Please try again.') => {
+  // Network errors (no response from server)
+  if (!error.response && error.message === 'Network Error') {
+    return 'Network error. Check your connection and try again.';
+  }
+
+  // Axios errors with response
+  if (error.response) {
+    const { status } = error.response;
+
+    switch (status) {
+      case 404:
+        return 'Pro Forma feature not available. Please contact support.';
+      case 401:
+        return 'Your session has expired. Please log in again.';
+      case 403:
+        return 'You do not have permission to perform this action.';
+      case 422:
+        return 'Invalid data provided. Please check your inputs and try again.';
+      case 500:
+      case 502:
+      case 503:
+        return 'Server error. Please try again later.';
+      default:
+        return defaultMessage;
+    }
+  }
+
+  // Timeout errors
+  if (error.code === 'ECONNABORTED') {
+    return 'Request timed out. Please check your connection and try again.';
+  }
+
+  return defaultMessage;
+};
+
 // Status badge helper
 const getStatusBadge = (status) => {
   const badges = {
@@ -190,6 +232,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   const [isLoading, setIsLoading] = useState(true); // Initial data fetch
   const [isCalculating, setIsCalculating] = useState(false); // Recalculation in progress
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Extract current financials from extraction data
@@ -241,9 +284,11 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           current_financials: currentFinancials
         });
         setAnalysis(result);
-      } catch (error) {
-        console.error('Pro forma calculation error:', error);
-        setError('Failed to calculate pro forma. Please try again.');
+      } catch (err) {
+        console.error('Pro forma calculation error:', err);
+        const message = getErrorMessage(err, 'Failed to calculate pro forma. Please try again.');
+        setError(message);
+        // Don't clear analysis - keep previous values for user reference
       } finally {
         if (isInitial) {
           setIsLoading(false);
@@ -282,21 +327,27 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   // Save scenario
   const handleSave = async () => {
     if (!scenarioName.trim()) {
-      alert('Please enter a scenario name');
+      setError('Please enter a scenario name');
       return;
     }
 
     setIsSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
     try {
       await onSaveScenario({
         scenario_name: scenarioName,
         benchmarks,
         analysis
       });
-      alert('Scenario saved successfully!');
-    } catch (error) {
-      console.error('Save error:', error);
-      alert('Failed to save scenario. Please try again.');
+      setSuccessMessage(`Scenario "${scenarioName}" saved successfully!`);
+      // Auto-dismiss success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      console.error('Save error:', err);
+      const message = getErrorMessage(err, 'Failed to save scenario. Please try again.');
+      setError(message);
     } finally {
       setIsSaving(false);
     }
@@ -485,6 +536,13 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           />
         </Col>
       </Row>
+
+      {/* Success Alert */}
+      {successMessage && (
+        <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)}>
+          {successMessage}
+        </Alert>
+      )}
 
       {/* Error Alert */}
       {error && (
