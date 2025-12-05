@@ -225,6 +225,14 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     return counts;
   }, [extractionData]);
 
+  // Handle save scenario for ProFormaTab - must be before early returns
+  const handleSaveScenario = useCallback(async (scenarioData: any) => {
+    if (!dealId) return;
+    // This will be wired up to the API - for now just log
+    console.log('Saving scenario:', scenarioData);
+    // TODO: Call DealService.createProformaScenario(dealId, scenarioData)
+  }, [dealId]);
+
   if (isLoading) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
@@ -433,14 +441,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
       )}
     </div>
   );
-
-  // Handle save scenario for ProFormaTab
-  const handleSaveScenario = useCallback(async (scenarioData: any) => {
-    if (!dealId) return;
-    // This will be wired up to the API - for now just log
-    console.log('Saving scenario:', scenarioData);
-    // TODO: Call DealService.createProformaScenario(dealId, scenarioData)
-  }, [dealId]);
 
   // Render Pro Forma Tab
   const renderProFormaTab = () => (
