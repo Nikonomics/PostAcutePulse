@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, FileText, ExternalLink, Download, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import { DocumentViewerProps, SourceReference, DealDocument } from './types';
+import { X, FileText, ExternalLink, Download, AlertCircle } from 'lucide-react';
+import { DocumentViewerProps } from './types';
+import { ExcelPreview, WordPreview } from '../DocumentPreviewers';
 
 // Styles
 const overlayStyle: React.CSSProperties = {
@@ -355,6 +356,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 />
               )}
             </div>
+          ) : fileType === 'excel' && fileUrl ? (
+            <div style={{ ...iframeContainerStyle, minHeight: '400px' }}>
+              <ExcelPreview url={fileUrl} fileName={matchedDocument.name} />
+            </div>
+          ) : fileType === 'word' && fileUrl ? (
+            <div style={{ ...iframeContainerStyle, minHeight: '400px' }}>
+              <WordPreview url={fileUrl} fileName={matchedDocument.name} />
+            </div>
           ) : (
             <div style={{
               display: 'flex',
@@ -371,8 +380,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 {matchedDocument.name}
               </h4>
               <p style={{ margin: 0, color: '#6b7280', fontSize: '0.875rem', textAlign: 'center' }}>
-                {fileType === 'excel' && 'Excel files cannot be previewed directly. Click "Open" or "Download" to view.'}
-                {fileType === 'word' && 'Word documents cannot be previewed directly. Click "Open" or "Download" to view.'}
                 {fileType === 'csv' && 'CSV files cannot be previewed directly. Click "Open" or "Download" to view.'}
                 {fileType === 'unknown' && 'This file type cannot be previewed. Click "Open" or "Download" to view.'}
               </p>
