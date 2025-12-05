@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, Table, Form, Row, Col, Badge, Button, Spinner, InputGroup, Alert } from 'react-bootstrap';
-import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileText, Info } from 'lucide-react';
 import { debounce } from 'lodash';
 import DealService from '../../api/DealService';
 import OpportunityWaterfall from './OpportunityWaterfall';
@@ -127,6 +127,7 @@ const LineItemRow = ({
 }) => {
   const variance = actual && benchmark ? actual - benchmark : null;
   const varianceStatus = getVarianceStatus(actual, benchmark, isReversed);
+  const isActualMissing = actual === null || actual === undefined;
 
   const handleInputChange = (e) => {
     const value = parseFloat(e.target.value);
@@ -136,14 +137,19 @@ const LineItemRow = ({
   };
 
   return (
-    <tr className={isBold ? 'font-weight-bold' : ''}>
+    <tr className={`${isBold ? 'font-weight-bold' : ''} ${isActualMissing ? 'text-muted' : ''}`}>
       <td style={{ paddingLeft: `${1 + indent * 1.5}rem` }}>
         {label}
+        {isActualMissing && <span className="ms-1 text-muted small">(N/A)</span>}
       </td>
       <td className="text-end">
-        {unit === '$' ? formatCurrency(actual) :
-         unit === '%' ? formatPercent(actual) :
-         formatNumber(actual)}
+        {isActualMissing ? (
+          <span className="text-muted">N/A</span>
+        ) : (
+          unit === '$' ? formatCurrency(actual) :
+          unit === '%' ? formatPercent(actual) :
+          formatNumber(actual)
+        )}
       </td>
       <td className="text-end text-muted">
         {actualPctOfRevenue ? formatPercent(actualPctOfRevenue) : '-'}
@@ -157,8 +163,10 @@ const LineItemRow = ({
               value={benchmark || ''}
               onChange={handleInputChange}
               className="text-end"
+              disabled={isActualMissing}
+              title={isActualMissing ? 'Actual value not available - benchmark editing disabled' : ''}
             />
-            <InputGroup.Text>{unit}</InputGroup.Text>
+            <InputGroup.Text className={isActualMissing ? 'text-muted' : ''}>{unit}</InputGroup.Text>
           </InputGroup>
         ) : (
           <span>
@@ -169,12 +177,14 @@ const LineItemRow = ({
         )}
       </td>
       <td className="text-end">
-        {variance !== null && (
+        {variance !== null ? (
           <span className={`variance variance-${varianceStatus}`}>
             {unit === '$' ? formatCurrency(variance) :
              unit === '%' ? formatPercent(variance) :
              formatNumber(variance)}
           </span>
+        ) : (
+          <span className="text-muted">-</span>
         )}
       </td>
       <td className="text-end">
@@ -312,12 +322,77 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     };
   }, [analysis, currentFinancials]);
 
-  if (!extractionData || !currentFinancials) {
+  // Check if expense ratio data is available
+  const hasExpenseRatios = useMemo(() => {
+    if (!currentFinancials) return false;
+    const expenseFields = [
+      currentFinancials.labor_pct,
+      currentFinancials.agency_pct,
+      currentFinancials.food_cost,
+      currentFinancials.management_fee_pct,
+      currentFinancials.bad_debt_pct,
+      currentFinancials.utilities_pct,
+      currentFinancials.insurance_pct
+    ];
+    // Count how many expense fields have values
+    const populatedCount = expenseFields.filter(v => v !== null && v !== undefined).length;
+    return populatedCount >= 2; // At least 2 expense metrics available
+  }, [currentFinancials]);
+
+  // Count missing expense metrics for the note
+  const missingExpenseCount = useMemo(() => {
+    if (!currentFinancials) return 7;
+    const expenseFields = [
+      currentFinancials.labor_pct,
+      currentFinancials.agency_pct,
+      currentFinancials.food_cost,
+      currentFinancials.management_fee_pct,
+      currentFinancials.bad_debt_pct,
+      currentFinancials.utilities_pct,
+      currentFinancials.insurance_pct
+    ];
+    return expenseFields.filter(v => v === null || v === undefined).length;
+  }, [currentFinancials]);
+
+  // Empty state: No extraction data at all
+  if (!extractionData) {
     return (
-      <Alert variant="info">
-        <AlertTriangle size={20} className="me-2" />
-        No financial data available. Please upload and extract documents first.
-      </Alert>
+      <div className="proforma-empty-state">
+        <Alert variant="info" className="d-flex align-items-start">
+          <FileText size={24} className="me-3 flex-shrink-0 mt-1" />
+          <div>
+            <Alert.Heading className="h5 mb-2">Run AI Extraction First</Alert.Heading>
+            <p className="mb-2">
+              Pro Forma analysis requires extracted financial data from your deal documents.
+            </p>
+            <p className="mb-0 text-muted small">
+              Upload financial statements (P&L, balance sheet, rent roll) and run the AI extraction
+              to populate the financial metrics needed for Pro Forma modeling.
+            </p>
+          </div>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Empty state: Extraction exists but no core financial data
+  if (!currentFinancials || (!currentFinancials.revenue && !currentFinancials.ebitda)) {
+    return (
+      <div className="proforma-empty-state">
+        <Alert variant="warning" className="d-flex align-items-start">
+          <AlertTriangle size={24} className="me-3 flex-shrink-0 mt-1" />
+          <div>
+            <Alert.Heading className="h5 mb-2">Financial Details Not Available</Alert.Heading>
+            <p className="mb-2">
+              The extracted data doesn't contain enough financial information for Pro Forma analysis.
+            </p>
+            <p className="mb-0 text-muted small">
+              Re-run extraction with updated documents that include detailed P&L statements
+              with revenue, expense breakdowns, and EBITDA figures.
+            </p>
+          </div>
+        </Alert>
+      </div>
     );
   }
 
@@ -409,6 +484,19 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       {error && (
         <Alert variant="danger" dismissible onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {/* Warning for missing expense ratios */}
+      {!hasExpenseRatios && (
+        <Alert variant="warning" className="d-flex align-items-start mb-4">
+          <Info size={20} className="me-2 flex-shrink-0 mt-1" />
+          <div>
+            <strong>Limited expense data available.</strong>{' '}
+            <span className="text-muted">
+              Re-run extraction with detailed P&L statements to enable full expense analysis and opportunity calculations.
+            </span>
+          </div>
         </Alert>
       )}
 
@@ -584,27 +672,65 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
             </tbody>
           </Table>
+
+          {/* Note about missing metrics */}
+          {missingExpenseCount > 0 && (
+            <div className="mt-3 p-2 bg-light rounded small text-muted d-flex align-items-center">
+              <Info size={14} className="me-2 flex-shrink-0" />
+              <span>
+                {missingExpenseCount === 7
+                  ? 'All expense metrics unavailable - source documents may not contain detailed expense breakdowns.'
+                  : `${missingExpenseCount} of 7 expense metrics unavailable - some opportunity calculations may be limited.`
+                }
+              </span>
+            </div>
+          )}
         </Card.Body>
       </Card>
 
       {/* EBITDA Bridge Waterfall Chart */}
-      {analysis?.opportunities && analysis.opportunities.length > 0 && (
+      {currentFinancials?.ebitda && (
         <Card className="mt-4">
           <Card.Header>
             <h5 className="mb-0">EBITDA Bridge to Stabilization</h5>
           </Card.Header>
           <Card.Body>
-            <OpportunityWaterfall
-              currentEbitda={currentFinancials?.ebitda || 0}
-              opportunities={analysis.opportunities.map(opp => ({
-                label: opp.category,
-                value: opp.opportunity || 0,
-                priority: opp.priority || 'medium'
-              }))}
-              stabilizedEbitda={analysis.stabilized_ebitda || (currentFinancials?.ebitda || 0) + summaryMetrics.totalOpportunity}
-              height={350}
-              showLabels={true}
-            />
+            {analysis?.opportunities && analysis.opportunities.length > 0 ? (
+              <OpportunityWaterfall
+                currentEbitda={currentFinancials.ebitda}
+                opportunities={analysis.opportunities.map(opp => ({
+                  label: opp.category,
+                  value: opp.opportunity || 0,
+                  priority: opp.priority || 'medium'
+                }))}
+                stabilizedEbitda={analysis.stabilized_ebitda || currentFinancials.ebitda + summaryMetrics.totalOpportunity}
+                height={350}
+                showLabels={true}
+              />
+            ) : (
+              // Simple fallback when no opportunities calculated
+              <OpportunityWaterfall
+                currentEbitda={currentFinancials.ebitda}
+                opportunities={[{
+                  label: 'Estimated Opportunity',
+                  value: summaryMetrics.totalOpportunity || 0,
+                  priority: 'medium'
+                }]}
+                stabilizedEbitda={summaryMetrics.stabilizedEbitda || currentFinancials.ebitda}
+                height={300}
+                showLabels={true}
+                title={summaryMetrics.totalOpportunity > 0
+                  ? 'EBITDA Bridge (Detailed breakdown unavailable)'
+                  : 'Current EBITDA Overview'
+                }
+              />
+            )}
+            {(!analysis?.opportunities || analysis.opportunities.length === 0) && (
+              <div className="mt-2 text-center text-muted small">
+                <Info size={14} className="me-1" />
+                Detailed opportunity breakdown requires complete expense ratio data.
+              </div>
+            )}
           </Card.Body>
         </Card>
       )}
