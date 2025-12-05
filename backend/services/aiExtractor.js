@@ -1562,14 +1562,21 @@ function postProcessExtraction(data) {
     return val;
   };
 
-  // Get expense department data (could be nested or flat)
-  const expenses = data.expense_breakdown || data.expenses || {};
+  // Get expense department data - check multiple possible locations
+  // The AI might return data in expense_detail, expense_breakdown, expenses, or financial_information_t12.expense_detail
+  const expenses = data.expense_detail
+    || data.expense_breakdown
+    || data.expenses
+    || data.financial_information_t12?.expense_detail
+    || {};
   const directCare = expenses.direct_care || {};
   const culinary = expenses.culinary || {};
   const housekeeping = expenses.housekeeping || {};
   const maintenance = expenses.maintenance || {};
-  const admin = expenses.administration || {};
+  const admin = expenses.administrative || expenses.administration || {};
   const activities = expenses.activities || {};
+  const utilities = expenses.utilities || {};
+  const property = expenses.property || {};
 
   // Calculate total labor cost from all departments
   if (!data.total_labor_cost) {
@@ -1580,21 +1587,22 @@ function postProcessExtraction(data) {
     totalLabor += getVal(directCare, 'nursing_salaries_rn') || 0;
     totalLabor += getVal(directCare, 'nursing_salaries_lpn') || 0;
     totalLabor += getVal(directCare, 'nursing_salaries_cma') || 0;
-    totalLabor += getVal(directCare, 'caregiver_salaries') || 0;
+    totalLabor += getVal(directCare, 'caregiver_wages') || getVal(directCare, 'caregiver_salaries') || 0;
     totalLabor += getVal(directCare, 'pto_wages') || 0;
     totalLabor += getVal(directCare, 'payroll_taxes') || 0;
-    totalLabor += getVal(directCare, 'medical_insurance') || 0;
+    totalLabor += getVal(directCare, 'benefits_medical') || getVal(directCare, 'medical_insurance') || 0;
 
     // Culinary labor
     totalLabor += getVal(culinary, 'wages') || 0;
     totalLabor += getVal(culinary, 'pto_wages') || 0;
     totalLabor += getVal(culinary, 'payroll_taxes') || 0;
-    totalLabor += getVal(culinary, 'medical_insurance') || 0;
+    totalLabor += getVal(culinary, 'benefits') || 0;
 
     // Housekeeping labor
     totalLabor += getVal(housekeeping, 'wages') || 0;
     totalLabor += getVal(housekeeping, 'pto_wages') || 0;
     totalLabor += getVal(housekeeping, 'payroll_taxes') || 0;
+    totalLabor += getVal(housekeeping, 'benefits') || 0;
 
     // Maintenance labor
     totalLabor += getVal(maintenance, 'wages') || 0;
@@ -1608,8 +1616,10 @@ function postProcessExtraction(data) {
 
     // Admin labor
     totalLabor += getVal(admin, 'salaries') || 0;
+    totalLabor += getVal(admin, 'allocated_overhead') || 0;
     totalLabor += getVal(admin, 'pto_wages') || 0;
     totalLabor += getVal(admin, 'payroll_taxes') || 0;
+    totalLabor += getVal(admin, 'benefits') || 0;
 
     if (totalLabor > 0) {
       data.total_labor_cost = totalLabor;
@@ -1639,6 +1649,11 @@ function postProcessExtraction(data) {
     data.food_cost_per_resident_day = Math.round((rawFoodCost / censusDays) * 100) / 100;
   }
 
+  // Store raw food cost for display
+  if (!data.raw_food_cost && rawFoodCost) {
+    data.raw_food_cost = rawFoodCost;
+  }
+
   // Calculate food % of revenue
   if (!data.food_pct_of_revenue && rawFoodCost && revenue) {
     data.food_pct_of_revenue = Math.round((rawFoodCost / revenue) * 100 * 10) / 10;
@@ -1649,15 +1664,23 @@ function postProcessExtraction(data) {
   if (!data.management_fee_pct && managementFees && revenue) {
     data.management_fee_pct = Math.round((managementFees / revenue) * 100 * 10) / 10;
   }
+  if (!data.management_fees && managementFees) {
+    data.management_fees = managementFees;
+  }
 
-  // Calculate utilities % of revenue
-  const utilities = getVal(maintenance, 'utilities_total') || data.utilities_total || 0;
-  if (!data.utilities_pct_of_revenue && utilities && revenue) {
-    data.utilities_pct_of_revenue = Math.round((utilities / revenue) * 100 * 10) / 10;
+  // Calculate utilities % of revenue - check dedicated utilities section
+  const utilitiesTotal = getVal(utilities, 'total')
+    || (getVal(utilities, 'electric') || 0) + (getVal(utilities, 'gas') || 0) + (getVal(utilities, 'water_sewer_garbage') || 0)
+    || data.utilities_total || 0;
+  if (!data.utilities_pct_of_revenue && utilitiesTotal && revenue) {
+    data.utilities_pct_of_revenue = Math.round((utilitiesTotal / revenue) * 100 * 10) / 10;
+  }
+  if (!data.utilities_total && utilitiesTotal) {
+    data.utilities_total = utilitiesTotal;
   }
 
   // Calculate insurance % of revenue
-  const insurance = data.property_insurance || 0;
+  const insurance = getVal(property, 'property_insurance') || getVal(property, 'liability_insurance') || data.property_insurance || 0;
   if (!data.insurance_pct_of_revenue && insurance && revenue) {
     data.insurance_pct_of_revenue = Math.round((insurance / revenue) * 100 * 10) / 10;
   }
