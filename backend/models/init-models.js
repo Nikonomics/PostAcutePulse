@@ -9,6 +9,10 @@ var _deal_documents = require("./deal_documents")
 var _comment_mentions = require("./comment_mentions")
 var _user_notifications = require("./user_notifications")
 var _master_deals = require("./master_deals")
+var _deal_facilities = require("./deal_facilities")
+var _benchmark_configurations = require("./benchmark_configurations")
+var _deal_proforma_scenarios = require("./deal_proforma_scenarios")
+
 function initModels(sequelize) {
   var users = _users(sequelize, DataTypes);
   var deals = _deals(sequelize, DataTypes);
@@ -20,6 +24,10 @@ function initModels(sequelize) {
   var comment_mentions = _comment_mentions(sequelize, DataTypes)
   var user_notifications = _user_notifications(sequelize, DataTypes)
   var master_deals = _master_deals(sequelize, DataTypes)
+  var deal_facilities = _deal_facilities(sequelize, DataTypes)
+  var benchmark_configurations = _benchmark_configurations(sequelize, DataTypes)
+  var deal_proforma_scenarios = _deal_proforma_scenarios(sequelize, DataTypes)
+
   return {
     users,
     deals,
@@ -30,7 +38,10 @@ function initModels(sequelize) {
     deal_documents,
     comment_mentions,
     user_notifications,
-    master_deals
+    master_deals,
+    deal_facilities,
+    benchmark_configurations,
+    deal_proforma_scenarios
   };
 }
 module.exports = initModels;

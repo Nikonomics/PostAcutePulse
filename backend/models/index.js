@@ -50,14 +50,24 @@ Object.keys(db).forEach(modelName => {
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
-// Run migrations before sync
+// Run migrations before and after sync
 const runMigrations = async () => {
   try {
-    // Run no_of_beds type migration for PostgreSQL
-    const { runMigration } = require('../migrations/fix-no-of-beds-type');
-    await runMigration(sequelize);
+    // Run no_of_beds type migration for PostgreSQL (before sync)
+    const { runMigration: runNoOfBedsMigration } = require('../migrations/fix-no-of-beds-type');
+    await runNoOfBedsMigration(sequelize);
   } catch (err) {
     console.log('Migration file not found or error:', err.message);
+  }
+};
+
+const runPostSyncMigrations = async () => {
+  try {
+    // Run benchmark and proforma tables migration (after sync)
+    const { runMigration: runBenchmarkMigration } = require('../migrations/add-benchmark-and-proforma-tables');
+    await runBenchmarkMigration(sequelize);
+  } catch (err) {
+    console.log('Post-sync migration file not found or error:', err.message);
   }
 };
 
@@ -67,6 +77,10 @@ runMigrations()
   .then(() => db.sequelize.sync({ alter: true, force: false }))
   .then(() => {
     console.log('Database synced successfully');
+    return runPostSyncMigrations();
+  })
+  .then(() => {
+    console.log('Post-sync migrations completed');
   })
   .catch((err) => {
     console.error('Database sync error:', err);

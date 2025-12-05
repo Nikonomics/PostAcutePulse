@@ -3,7 +3,7 @@
  * Computes underwriting metrics for SNF/ALF deals
  */
 
-const NormalizationService = require('./normalizationService');
+const { NormalizationService } = require('./normalizationService');
 
 /**
  * Calculate all deal metrics from extraction data
@@ -287,61 +287,102 @@ function calculatePortfolioMetrics(deals) {
 function calculateEnhancedMetrics(deal) {
   // Get base metrics
   const baseMetrics = calculateDealMetrics(deal);
+  const extractionData = deal.extraction_data || {};
 
-  // Calculate normalized metrics
-  const normalized = NormalizationService.calculateNormalizedMetrics(deal);
+  // Build raw metrics from base calculation
+  const rawMetrics = {
+    ebitda: baseMetrics.inputs.ebitda,
+    ebitda_margin: baseMetrics.computed.ebitdaMargin || null,
+    ebitdar: baseMetrics.inputs.ebitdar,
+    ebitdar_margin: baseMetrics.computed.ebitdarMargin || null,
+  };
 
-  // Get expense ratios
-  const expense_ratios = NormalizationService.formatExpenseRatios(deal);
+  // Check if we have extraction_data with expense_detail for normalization
+  const hasExpenseDetail = extractionData &&
+    (extractionData.expense_detail || extractionData.financial_information_t12?.expense_detail);
 
-  // Generate benchmark flags
-  const benchmark_flags = NormalizationService.generateBenchmarkFlags(deal);
+  let normalizedMetrics = null;
+  let normalizationDetails = null;
+
+  if (hasExpenseDetail || extractionData.t12m_ebitda || extractionData.ebitda) {
+    // Call NormalizationService.normalize() with extraction data and deal info
+    const normalizationResult = NormalizationService.normalize(extractionData, {
+      bed_count: baseMetrics.inputs.numberOfBeds,
+      total_revenue: baseMetrics.inputs.annualRevenue,
+      current_census: baseMetrics.inputs.currentOccupancy * baseMetrics.inputs.numberOfBeds / 100
+    });
+
+    // Build normalized metrics from result
+    if (normalizationResult && normalizationResult.summary) {
+      const purchasePrice = baseMetrics.inputs.purchasePrice;
+
+      normalizedMetrics = {
+        ebitda: normalizationResult.summary.normalized_ebitda,
+        ebitda_margin: normalizationResult.summary.normalized_ebitda_margin,
+        ebitdar: normalizationResult.summary.normalized_ebitdar,
+        ebitdar_margin: normalizationResult.summary.total_revenue > 0
+          ? parseFloat((normalizationResult.summary.normalized_ebitdar / normalizationResult.summary.total_revenue * 100).toFixed(2))
+          : null,
+        total_adjustments: normalizationResult.summary.total_adjustments,
+        // Calculated multiples based on normalized values
+        ebitda_multiple: normalizationResult.summary.normalized_ebitda > 0 && purchasePrice > 0
+          ? parseFloat((purchasePrice / normalizationResult.summary.normalized_ebitda).toFixed(2))
+          : null,
+        ebitdar_multiple: normalizationResult.summary.normalized_ebitdar > 0 && purchasePrice > 0
+          ? parseFloat((purchasePrice / normalizationResult.summary.normalized_ebitdar).toFixed(2))
+          : null,
+        cap_rate: normalizationResult.summary.normalized_ebitda > 0 && purchasePrice > 0
+          ? parseFloat((normalizationResult.summary.normalized_ebitda / purchasePrice * 100).toFixed(2))
+          : null,
+      };
+
+      normalizationDetails = {
+        adjustments: normalizationResult.adjustments || [],
+        flags: normalizationResult.flags || [],
+        summary: {
+          adjustment_count: normalizationResult.summary.adjustment_count,
+          related_party_adjustments: normalizationResult.summary.related_party_adjustments,
+          one_time_adjustments: normalizationResult.summary.one_time_adjustments,
+          other_adjustments: normalizationResult.summary.other_adjustments,
+          margin_improvement: normalizationResult.summary.margin_improvement,
+        },
+        details: normalizationResult.details || {}
+      };
+    }
+  }
 
   // Build enhanced response
   return {
     ...baseMetrics,
 
-    // Flat metrics for easy access (matches your requested format)
+    // Flat metrics for easy access
     price_per_bed: baseMetrics.computed.pricePerBed || null,
     revenue_multiple: baseMetrics.computed.revenueMultiple || null,
     ebitda_multiple: baseMetrics.computed.ebitdaMultiple || null,
     ebitdar_multiple: baseMetrics.computed.ebitdarMultiple || null,
     cap_rate: baseMetrics.computed.capRate || null,
-    ebitda_margin: baseMetrics.computed.ebitdaMargin || null,
 
-    // Normalized metrics
-    normalized: {
-      ebitda: normalized.ebitda,
-      ebitdar: normalized.ebitdar,
-      ebitda_margin: normalized.ebitda_margin,
-      ebitdar_margin: normalized.ebitdar_margin,
-      ebitda_multiple: normalized.ebitda_multiple,
-      ebitdar_multiple: normalized.ebitdar_multiple,
-      cap_rate: normalized.cap_rate,
-      adjustments: normalized.adjustments,
-      total_adjustment: normalized.total_adjustment,
-      adjustment_pct_of_revenue: normalized.adjustment_pct_of_revenue,
-      reported_ebitda: normalized.reported_ebitda,
-      reported_ebitdar: normalized.reported_ebitdar,
-    },
+    // Raw metrics (before normalization)
+    raw_metrics: rawMetrics,
 
-    // Expense ratios from extraction
-    expense_ratios,
+    // Normalized metrics (after adjustments)
+    normalized_metrics: normalizedMetrics,
 
-    // Benchmark comparison flags
-    benchmark_flags,
+    // Full normalization details
+    normalization_details: normalizationDetails,
 
     // Summary of normalization impact
-    normalization_summary: {
-      has_adjustments: normalized.adjustment_count > 0,
-      adjustment_count: normalized.adjustment_count,
-      total_adjustment: normalized.total_adjustment,
-      ebitda_uplift_pct: normalized.reported_ebitda > 0
-        ? parseFloat((((normalized.ebitda - normalized.reported_ebitda) / normalized.reported_ebitda) * 100).toFixed(1))
+    normalization_summary: normalizedMetrics ? {
+      has_adjustments: (normalizationDetails?.summary?.adjustment_count || 0) > 0,
+      adjustment_count: normalizationDetails?.summary?.adjustment_count || 0,
+      total_adjustments: normalizedMetrics.total_adjustments || 0,
+      ebitda_uplift_pct: rawMetrics.ebitda && rawMetrics.ebitda !== 0 && normalizedMetrics.ebitda
+        ? parseFloat((((normalizedMetrics.ebitda - rawMetrics.ebitda) / Math.abs(rawMetrics.ebitda)) * 100).toFixed(1))
         : null,
-      critical_flags: benchmark_flags.filter(f => f.status === 'critical').length,
-      warning_flags: benchmark_flags.filter(f => f.status === 'warning').length,
-    },
+      margin_improvement: normalizationDetails?.summary?.margin_improvement || 0,
+      critical_flags: (normalizationDetails?.flags || []).filter(f => f.severity === 'high').length,
+      warning_flags: (normalizationDetails?.flags || []).filter(f => f.severity === 'medium').length,
+    } : null,
   };
 }
 
@@ -361,46 +402,87 @@ function calculateEnhancedPortfolioMetrics(deals) {
   // Calculate enhanced metrics for each facility
   const enhancedFacilities = deals.map(deal => calculateEnhancedMetrics(deal));
 
+  // Aggregate raw totals
+  const rawTotals = {
+    totalEbitda: 0,
+    totalEbitdar: 0,
+  };
+
   // Aggregate normalized totals
   const normalizedTotals = {
     totalNormalizedEbitda: 0,
     totalNormalizedEbitdar: 0,
     totalAdjustment: 0,
-    allBenchmarkFlags: [],
+    allFlags: [],
+    adjustmentCount: 0,
   };
 
   enhancedFacilities.forEach(fm => {
-    normalizedTotals.totalNormalizedEbitda += fm.normalized?.ebitda || 0;
-    normalizedTotals.totalNormalizedEbitdar += fm.normalized?.ebitdar || 0;
-    normalizedTotals.totalAdjustment += fm.normalized?.total_adjustment || 0;
-    normalizedTotals.allBenchmarkFlags.push(...(fm.benchmark_flags || []));
+    // Raw totals
+    rawTotals.totalEbitda += fm.raw_metrics?.ebitda || 0;
+    rawTotals.totalEbitdar += fm.raw_metrics?.ebitdar || 0;
+
+    // Normalized totals
+    normalizedTotals.totalNormalizedEbitda += fm.normalized_metrics?.ebitda || 0;
+    normalizedTotals.totalNormalizedEbitdar += fm.normalized_metrics?.ebitdar || 0;
+    normalizedTotals.totalAdjustment += fm.normalized_metrics?.total_adjustments || 0;
+    normalizedTotals.adjustmentCount += fm.normalization_summary?.adjustment_count || 0;
+
+    // Collect all flags
+    if (fm.normalization_details?.flags) {
+      normalizedTotals.allFlags.push(...fm.normalization_details.flags);
+    }
   });
 
-  // Calculate portfolio-level normalized metrics
+  // Calculate portfolio-level metrics
   const portfolioPrice = basePortfolio.totals.purchasePrice;
+  const portfolioRevenue = basePortfolio.totals.annualRevenue;
 
   return {
     ...basePortfolio,
     facilities: enhancedFacilities,
 
+    // Portfolio raw metrics
+    portfolio_raw_metrics: {
+      ebitda: rawTotals.totalEbitda,
+      ebitda_margin: portfolioRevenue > 0
+        ? parseFloat((rawTotals.totalEbitda / portfolioRevenue * 100).toFixed(2))
+        : null,
+      ebitdar: rawTotals.totalEbitdar,
+      ebitdar_margin: portfolioRevenue > 0
+        ? parseFloat((rawTotals.totalEbitdar / portfolioRevenue * 100).toFixed(2))
+        : null,
+    },
+
     // Portfolio normalized metrics
-    portfolio_normalized: {
+    portfolio_normalized_metrics: normalizedTotals.totalNormalizedEbitda > 0 ? {
       ebitda: normalizedTotals.totalNormalizedEbitda,
+      ebitda_margin: portfolioRevenue > 0
+        ? parseFloat((normalizedTotals.totalNormalizedEbitda / portfolioRevenue * 100).toFixed(2))
+        : null,
       ebitdar: normalizedTotals.totalNormalizedEbitdar,
-      ebitda_multiple: normalizedTotals.totalNormalizedEbitda > 0 && portfolioPrice > 0
+      ebitdar_margin: portfolioRevenue > 0
+        ? parseFloat((normalizedTotals.totalNormalizedEbitdar / portfolioRevenue * 100).toFixed(2))
+        : null,
+      ebitda_multiple: portfolioPrice > 0
         ? parseFloat((portfolioPrice / normalizedTotals.totalNormalizedEbitda).toFixed(2))
         : null,
       ebitdar_multiple: normalizedTotals.totalNormalizedEbitdar > 0 && portfolioPrice > 0
         ? parseFloat((portfolioPrice / normalizedTotals.totalNormalizedEbitdar).toFixed(2))
         : null,
-      total_adjustment: normalizedTotals.totalAdjustment,
-    },
+      total_adjustments: normalizedTotals.totalAdjustment,
+    } : null,
 
-    // Aggregate benchmark summary
-    portfolio_benchmark_summary: {
-      critical_count: normalizedTotals.allBenchmarkFlags.filter(f => f.status === 'critical').length,
-      warning_count: normalizedTotals.allBenchmarkFlags.filter(f => f.status === 'warning').length,
-      good_count: normalizedTotals.allBenchmarkFlags.filter(f => f.status === 'good').length,
+    // Portfolio normalization summary
+    portfolio_normalization_summary: {
+      has_adjustments: normalizedTotals.adjustmentCount > 0,
+      total_adjustment_count: normalizedTotals.adjustmentCount,
+      total_adjustments: normalizedTotals.totalAdjustment,
+      critical_flags: normalizedTotals.allFlags.filter(f => f.severity === 'high').length,
+      warning_flags: normalizedTotals.allFlags.filter(f => f.severity === 'medium').length,
+      facilities_with_adjustments: enhancedFacilities.filter(f =>
+        f.normalization_summary?.has_adjustments
+      ).length,
     },
   };
 }
