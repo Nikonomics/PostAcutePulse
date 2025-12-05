@@ -6,13 +6,17 @@ import { ExcelPreview, WordPreview } from '../DocumentPreviewers';
 // Styles
 const overlayStyle: React.CSSProperties = {
   position: 'fixed',
-  inset: 0,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   backgroundColor: 'rgba(0, 0, 0, 0.5)',
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   justifyContent: 'center',
-  zIndex: 50,
-  padding: '1rem',
+  zIndex: 9999,
+  padding: '2rem 1rem',
+  overflowY: 'auto',
 };
 
 const modalStyle: React.CSSProperties = {
@@ -21,10 +25,12 @@ const modalStyle: React.CSSProperties = {
   boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
   width: '100%',
   maxWidth: '900px',
-  maxHeight: '90vh',
+  maxHeight: 'calc(100vh - 4rem)',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
+  marginTop: '1rem',
+  marginBottom: '1rem',
 };
 
 const headerStyle: React.CSSProperties = {
