@@ -31,4 +31,29 @@ router.post("/update-master-deal", requireAuthentication, DealController.updateM
 router.get('/calculate/:dealId', requireAuthentication, DealController.calculateDealMetrics);
 router.get('/calculate-portfolio/:masterDealId', requireAuthentication, DealController.calculatePortfolioMetrics);
 
+// Deal Facilities CRUD
+router.get('/:dealId/facilities', requireAuthentication, DealController.getDealFacilities);
+router.post('/:dealId/facilities', requireAuthentication, DealController.createFacility);
+router.post('/:dealId/facilities/bulk', requireAuthentication, DealController.createBulkFacilities);
+router.put('/:dealId/facilities/reorder', requireAuthentication, DealController.reorderFacilities);
+router.get('/facility/:facilityId', requireAuthentication, DealController.getFacilityById);
+router.put('/facility/:facilityId', requireAuthentication, DealController.updateFacility);
+router.delete('/facility/:facilityId', requireAuthentication, DealController.deleteFacility);
+
+// Benchmark Configurations
+router.get('/benchmarks', requireAuthentication, DealController.getBenchmarkConfigs);
+router.post('/benchmarks', requireAuthentication, DealController.createBenchmarkConfig);
+router.put('/benchmarks/:id', requireAuthentication, DealController.updateBenchmarkConfig);
+router.delete('/benchmarks/:id', requireAuthentication, DealController.deleteBenchmarkConfig);
+router.post('/benchmarks/:id/set-default', requireAuthentication, DealController.setDefaultBenchmarkConfig);
+
+// Pro Forma Scenarios
+// Note: /calculate route must come before /:scenarioId to avoid conflict
+router.post('/:dealId/proforma/calculate', requireAuthentication, DealController.calculateProformaPreview);
+router.get('/:dealId/proforma', requireAuthentication, DealController.getProformaScenarios);
+router.get('/:dealId/proforma/:scenarioId', requireAuthentication, DealController.getProformaScenarioById);
+router.post('/:dealId/proforma', requireAuthentication, DealController.createProformaScenario);
+router.put('/:dealId/proforma/:scenarioId', requireAuthentication, DealController.updateProformaScenario);
+router.delete('/:dealId/proforma/:scenarioId', requireAuthentication, DealController.deleteProformaScenario);
+
 module.exports = router

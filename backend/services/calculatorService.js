@@ -3,6 +3,8 @@
  * Computes underwriting metrics for SNF/ALF deals
  */
 
+const NormalizationService = require('./normalizationService');
+
 /**
  * Calculate all deal metrics from extraction data
  * @param {Object} deal - The deal object with extraction_data
@@ -276,8 +278,137 @@ function calculatePortfolioMetrics(deals) {
   return portfolioMetrics;
 }
 
+/**
+ * Calculate enhanced deal metrics including normalized values and benchmarks
+ * This is the main function to use for the /calculate endpoint
+ * @param {Object} deal - The deal object with extraction_data
+ * @returns {Object} Complete metrics with normalized values and benchmark flags
+ */
+function calculateEnhancedMetrics(deal) {
+  // Get base metrics
+  const baseMetrics = calculateDealMetrics(deal);
+
+  // Calculate normalized metrics
+  const normalized = NormalizationService.calculateNormalizedMetrics(deal);
+
+  // Get expense ratios
+  const expense_ratios = NormalizationService.formatExpenseRatios(deal);
+
+  // Generate benchmark flags
+  const benchmark_flags = NormalizationService.generateBenchmarkFlags(deal);
+
+  // Build enhanced response
+  return {
+    ...baseMetrics,
+
+    // Flat metrics for easy access (matches your requested format)
+    price_per_bed: baseMetrics.computed.pricePerBed || null,
+    revenue_multiple: baseMetrics.computed.revenueMultiple || null,
+    ebitda_multiple: baseMetrics.computed.ebitdaMultiple || null,
+    ebitdar_multiple: baseMetrics.computed.ebitdarMultiple || null,
+    cap_rate: baseMetrics.computed.capRate || null,
+    ebitda_margin: baseMetrics.computed.ebitdaMargin || null,
+
+    // Normalized metrics
+    normalized: {
+      ebitda: normalized.ebitda,
+      ebitdar: normalized.ebitdar,
+      ebitda_margin: normalized.ebitda_margin,
+      ebitdar_margin: normalized.ebitdar_margin,
+      ebitda_multiple: normalized.ebitda_multiple,
+      ebitdar_multiple: normalized.ebitdar_multiple,
+      cap_rate: normalized.cap_rate,
+      adjustments: normalized.adjustments,
+      total_adjustment: normalized.total_adjustment,
+      adjustment_pct_of_revenue: normalized.adjustment_pct_of_revenue,
+      reported_ebitda: normalized.reported_ebitda,
+      reported_ebitdar: normalized.reported_ebitdar,
+    },
+
+    // Expense ratios from extraction
+    expense_ratios,
+
+    // Benchmark comparison flags
+    benchmark_flags,
+
+    // Summary of normalization impact
+    normalization_summary: {
+      has_adjustments: normalized.adjustment_count > 0,
+      adjustment_count: normalized.adjustment_count,
+      total_adjustment: normalized.total_adjustment,
+      ebitda_uplift_pct: normalized.reported_ebitda > 0
+        ? parseFloat((((normalized.ebitda - normalized.reported_ebitda) / normalized.reported_ebitda) * 100).toFixed(1))
+        : null,
+      critical_flags: benchmark_flags.filter(f => f.status === 'critical').length,
+      warning_flags: benchmark_flags.filter(f => f.status === 'warning').length,
+    },
+  };
+}
+
+/**
+ * Calculate enhanced metrics for a portfolio
+ * @param {Array} deals - Array of deal objects
+ * @returns {Object} Portfolio metrics with normalized values
+ */
+function calculateEnhancedPortfolioMetrics(deals) {
+  if (!deals || deals.length === 0) {
+    return null;
+  }
+
+  // Get base portfolio metrics
+  const basePortfolio = calculatePortfolioMetrics(deals);
+
+  // Calculate enhanced metrics for each facility
+  const enhancedFacilities = deals.map(deal => calculateEnhancedMetrics(deal));
+
+  // Aggregate normalized totals
+  const normalizedTotals = {
+    totalNormalizedEbitda: 0,
+    totalNormalizedEbitdar: 0,
+    totalAdjustment: 0,
+    allBenchmarkFlags: [],
+  };
+
+  enhancedFacilities.forEach(fm => {
+    normalizedTotals.totalNormalizedEbitda += fm.normalized?.ebitda || 0;
+    normalizedTotals.totalNormalizedEbitdar += fm.normalized?.ebitdar || 0;
+    normalizedTotals.totalAdjustment += fm.normalized?.total_adjustment || 0;
+    normalizedTotals.allBenchmarkFlags.push(...(fm.benchmark_flags || []));
+  });
+
+  // Calculate portfolio-level normalized metrics
+  const portfolioPrice = basePortfolio.totals.purchasePrice;
+
+  return {
+    ...basePortfolio,
+    facilities: enhancedFacilities,
+
+    // Portfolio normalized metrics
+    portfolio_normalized: {
+      ebitda: normalizedTotals.totalNormalizedEbitda,
+      ebitdar: normalizedTotals.totalNormalizedEbitdar,
+      ebitda_multiple: normalizedTotals.totalNormalizedEbitda > 0 && portfolioPrice > 0
+        ? parseFloat((portfolioPrice / normalizedTotals.totalNormalizedEbitda).toFixed(2))
+        : null,
+      ebitdar_multiple: normalizedTotals.totalNormalizedEbitdar > 0 && portfolioPrice > 0
+        ? parseFloat((portfolioPrice / normalizedTotals.totalNormalizedEbitdar).toFixed(2))
+        : null,
+      total_adjustment: normalizedTotals.totalAdjustment,
+    },
+
+    // Aggregate benchmark summary
+    portfolio_benchmark_summary: {
+      critical_count: normalizedTotals.allBenchmarkFlags.filter(f => f.status === 'critical').length,
+      warning_count: normalizedTotals.allBenchmarkFlags.filter(f => f.status === 'warning').length,
+      good_count: normalizedTotals.allBenchmarkFlags.filter(f => f.status === 'good').length,
+    },
+  };
+}
+
 module.exports = {
   calculateDealMetrics,
   calculatePortfolioMetrics,
+  calculateEnhancedMetrics,
+  calculateEnhancedPortfolioMetrics,
   formatCurrency,
 };

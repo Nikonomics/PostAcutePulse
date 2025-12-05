@@ -327,3 +327,159 @@ export const reorderFacilities = async (dealId, facilityIds) => {
   );
   return response.data;
 };
+
+// ============================================
+// Benchmark Configuration API
+// ============================================
+
+/**
+ * Get all benchmark configurations for current user
+ * @returns {Promise} - Array of configurations
+ */
+export const getBenchmarkConfigs = async () => {
+  const response = await apiService.get(apiRoutes.benchmarks);
+  return response.data;
+};
+
+/**
+ * Create a new benchmark configuration
+ * @param {Object} config - Benchmark configuration data
+ * @returns {Promise} - Created configuration
+ */
+export const createBenchmarkConfig = async (config) => {
+  const response = await apiService.post(apiRoutes.benchmarks, config);
+  return response.data;
+};
+
+/**
+ * Update an existing benchmark configuration
+ * @param {number} id - Configuration ID
+ * @param {Object} config - Updated configuration data
+ * @returns {Promise} - Updated configuration
+ */
+export const updateBenchmarkConfig = async (id, config) => {
+  const response = await apiService.put(
+    `${apiRoutes.benchmarkById}/${id}`,
+    config
+  );
+  return response.data;
+};
+
+/**
+ * Delete a benchmark configuration
+ * @param {number} id - Configuration ID
+ * @returns {Promise} - Deletion result
+ */
+export const deleteBenchmarkConfig = async (id) => {
+  const response = await apiService.delete(`${apiRoutes.benchmarkById}/${id}`);
+  return response.data;
+};
+
+/**
+ * Set a benchmark configuration as user's default
+ * @param {number} id - Configuration ID to set as default
+ * @returns {Promise} - Updated configuration
+ */
+export const setDefaultBenchmarkConfig = async (id) => {
+  const response = await apiService.post(
+    `${apiRoutes.setDefaultBenchmark}/${id}/set-default`
+  );
+  return response.data;
+};
+
+// ============================================
+// Pro Forma Scenario API
+// ============================================
+
+/**
+ * Get all pro forma scenarios for a deal
+ * @param {number} dealId - The deal ID
+ * @returns {Promise} - Array of scenarios
+ */
+export const getProformaScenarios = async (dealId) => {
+  const response = await apiService.get(
+    `${apiRoutes.proforma}/${dealId}/proforma`
+  );
+  return response.data;
+};
+
+/**
+ * Get a specific pro forma scenario with full details
+ * @param {number} dealId - The deal ID
+ * @param {number} scenarioId - The scenario ID
+ * @returns {Promise} - Scenario with details
+ */
+export const getProformaScenario = async (dealId, scenarioId) => {
+  const response = await apiService.get(
+    `${apiRoutes.proforma}/${dealId}/proforma/${scenarioId}`
+  );
+  return response.data;
+};
+
+/**
+ * Create a new pro forma scenario
+ * @param {number} dealId - The deal ID
+ * @param {Object} scenario - Scenario data { scenario_name, benchmark_overrides, notes }
+ * @returns {Promise} - Created scenario with calculation results
+ */
+export const createProformaScenario = async (dealId, scenario) => {
+  const response = await apiService.post(
+    `${apiRoutes.proforma}/${dealId}/proforma`,
+    scenario
+  );
+  return response.data;
+};
+
+/**
+ * Update an existing pro forma scenario
+ * @param {number} dealId - The deal ID
+ * @param {number} scenarioId - The scenario ID
+ * @param {Object} scenario - Updated scenario data
+ * @returns {Promise} - Updated scenario with recalculated results
+ */
+export const updateProformaScenario = async (dealId, scenarioId, scenario) => {
+  const response = await apiService.put(
+    `${apiRoutes.proforma}/${dealId}/proforma/${scenarioId}`,
+    scenario
+  );
+  return response.data;
+};
+
+/**
+ * Delete a pro forma scenario
+ * @param {number} dealId - The deal ID
+ * @param {number} scenarioId - The scenario ID
+ * @returns {Promise} - Deletion result
+ */
+export const deleteProformaScenario = async (dealId, scenarioId) => {
+  const response = await apiService.delete(
+    `${apiRoutes.proforma}/${dealId}/proforma/${scenarioId}`
+  );
+  return response.data;
+};
+
+/**
+ * Calculate pro forma metrics WITHOUT saving (preview mode)
+ * This is the main calculation endpoint for the frontend
+ * @param {number} dealId - The deal ID
+ * @param {Object} benchmarkOverrides - Optional benchmark overrides
+ * @returns {Promise} - Calculated pro forma metrics
+ *
+ * Response structure:
+ * {
+ *   actuals: { revenue, ebitda, occupancy, labor_pct, agency_pct, ... },
+ *   benchmarks: { occupancy_target, labor_pct_target, ... },
+ *   variances: { occupancy, labor_pct, agency_pct, ... },
+ *   opportunities: [{ category, label, value, priority }, ...],
+ *   stabilized: { revenue, ebitda, ebitdar, ebitda_margin },
+ *   total_opportunity: NUMBER,
+ *   yearly_projections: [{ year, revenue, ebitda, progress_pct }, ...]
+ * }
+ */
+export const calculateProforma = async (dealId, benchmarkOverrides = {}) => {
+  const response = await apiService.post(
+    `${apiRoutes.proformaCalculate}/${dealId}/proforma/calculate`,
+    { benchmark_overrides: benchmarkOverrides }
+  );
+  return response.data;
+};

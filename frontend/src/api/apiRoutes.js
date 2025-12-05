@@ -48,6 +48,13 @@ const apiRoutes = {
     getFacilityById: `${BASE_URL}/deal/facility`, // Usage: `${getFacilityById}/${facilityId}`
     updateFacility: `${BASE_URL}/deal/facility`, // Usage: PUT `${updateFacility}/${facilityId}`
     deleteFacility: `${BASE_URL}/deal/facility`, // Usage: DELETE `${deleteFacility}/${facilityId}`
+    // Benchmark Configurations
+    benchmarks: `${BASE_URL}/deal/benchmarks`, // GET, POST
+    benchmarkById: `${BASE_URL}/deal/benchmarks`, // PUT, DELETE: `${benchmarkById}/${id}`
+    setDefaultBenchmark: `${BASE_URL}/deal/benchmarks`, // POST: `${setDefaultBenchmark}/${id}/set-default`
+    // Pro Forma Scenarios
+    proforma: `${BASE_URL}/deal`, // Usage: `${proforma}/${dealId}/proforma`
+    proformaCalculate: `${BASE_URL}/deal`, // Usage: POST `${proformaCalculate}/${dealId}/proforma/calculate`
 };
 
 export default apiRoutes;

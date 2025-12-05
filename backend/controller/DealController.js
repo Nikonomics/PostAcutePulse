@@ -21,7 +21,18 @@ const getDateDiffLiteral = (col1, col2) => {
 const { sendBrevoEmail } = require("../config/sendMail");
 const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
 const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
-const { calculateDealMetrics: calcDealMetrics, calculatePortfolioMetrics: calcPortfolioMetrics } = require("../services/calculatorService");
+const {
+  calculateDealMetrics: calcDealMetrics,
+  calculatePortfolioMetrics: calcPortfolioMetrics,
+  calculateEnhancedMetrics: calcEnhancedMetrics,
+  calculateEnhancedPortfolioMetrics: calcEnhancedPortfolioMetrics
+} = require("../services/calculatorService");
+const {
+  calculateProforma,
+  generateYearlyProjections,
+  normalizeBenchmarkConfig,
+  DEFAULT_BENCHMARKS
+} = require("../services/proformaService");
 const User = db.users;
 const Deal = db.deals;
 const DealTeamMembers = db.deal_team_members;
@@ -33,6 +44,8 @@ const UserNotification = db.user_notifications;
 const DealDocuments = db.deal_documents;
 const MasterDeals = db.master_deals;
 const DealFacilities = db.deal_facilities;
+const BenchmarkConfigurations = db.benchmark_configurations;
+const DealProformaScenarios = db.deal_proforma_scenarios;
 Deal.hasMany(DealTeamMembers, {
   foreignKey: "deal_id",
   as: "deal_team_members",
@@ -2344,8 +2357,8 @@ module.exports = {
         };
       }
 
-      // Calculate metrics using the service (with potentially aggregated data)
-      const metrics = calcDealMetrics(dealData);
+      // Calculate enhanced metrics using the service (includes normalized values and benchmarks)
+      const metrics = calcEnhancedMetrics(dealData);
 
       // Add facility info to response
       if (dealData.facility_metrics) {
@@ -2379,8 +2392,8 @@ module.exports = {
         return helper.error(res, "No deals found for this portfolio");
       }
 
-      // Calculate portfolio metrics using the service
-      const metrics = calcPortfolioMetrics(deals);
+      // Calculate enhanced portfolio metrics using the service (includes normalized values)
+      const metrics = calcEnhancedPortfolioMetrics(deals);
 
       return helper.success(res, "Portfolio metrics calculated successfully", metrics);
     } catch (err) {
@@ -2690,6 +2703,414 @@ module.exports = {
     } catch (err) {
       console.error("Reorder facilities error:", err);
       return helper.error(res, err.message || "Failed to reorder facilities");
+    }
+  },
+
+  // ============================================================================
+  // BENCHMARK CONFIGURATION ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get all benchmark configurations for current user
+   * GET /api/v1/deal/benchmarks
+   */
+  getBenchmarkConfigs: async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      const configs = await BenchmarkConfigurations.findAll({
+        where: { user_id: userId },
+        order: [['is_default', 'DESC'], ['created_at', 'DESC']]
+      });
+
+      // If no configs, return default benchmarks as a suggestion
+      if (configs.length === 0) {
+        return helper.success(res, "No saved configurations", {
+          configs: [],
+          default_benchmarks: DEFAULT_BENCHMARKS
+        });
+      }
+
+      return helper.success(res, "Benchmark configurations retrieved", { configs });
+    } catch (err) {
+      console.error("Get benchmark configs error:", err);
+      return helper.error(res, err.message || "Failed to get benchmark configurations");
+    }
+  },
+
+  /**
+   * Create a new benchmark configuration
+   * POST /api/v1/deal/benchmarks
+   */
+  createBenchmarkConfig: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { config_name, is_default, ...benchmarkValues } = req.body;
+
+      // If setting as default, unset other defaults
+      if (is_default) {
+        await BenchmarkConfigurations.update(
+          { is_default: false },
+          { where: { user_id: userId } }
+        );
+      }
+
+      const config = await BenchmarkConfigurations.create({
+        user_id: userId,
+        config_name: config_name || 'Custom',
+        is_default: is_default || false,
+        ...benchmarkValues,
+        created_at: new Date()
+      });
+
+      return helper.success(res, "Benchmark configuration created", config);
+    } catch (err) {
+      console.error("Create benchmark config error:", err);
+      return helper.error(res, err.message || "Failed to create benchmark configuration");
+    }
+  },
+
+  /**
+   * Update a benchmark configuration
+   * PUT /api/v1/deal/benchmarks/:id
+   */
+  updateBenchmarkConfig: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      const { config_name, is_default, ...benchmarkValues } = req.body;
+
+      const config = await BenchmarkConfigurations.findOne({
+        where: { id, user_id: userId }
+      });
+
+      if (!config) {
+        return helper.error(res, "Benchmark configuration not found");
+      }
+
+      // If setting as default, unset other defaults
+      if (is_default) {
+        await BenchmarkConfigurations.update(
+          { is_default: false },
+          { where: { user_id: userId, id: { [Op.ne]: id } } }
+        );
+      }
+
+      await config.update({
+        config_name: config_name !== undefined ? config_name : config.config_name,
+        is_default: is_default !== undefined ? is_default : config.is_default,
+        ...benchmarkValues,
+        updated_at: new Date()
+      });
+
+      return helper.success(res, "Benchmark configuration updated", config);
+    } catch (err) {
+      console.error("Update benchmark config error:", err);
+      return helper.error(res, err.message || "Failed to update benchmark configuration");
+    }
+  },
+
+  /**
+   * Delete a benchmark configuration
+   * DELETE /api/v1/deal/benchmarks/:id
+   */
+  deleteBenchmarkConfig: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const config = await BenchmarkConfigurations.findOne({
+        where: { id, user_id: userId }
+      });
+
+      if (!config) {
+        return helper.error(res, "Benchmark configuration not found");
+      }
+
+      await config.destroy();
+
+      return helper.success(res, "Benchmark configuration deleted");
+    } catch (err) {
+      console.error("Delete benchmark config error:", err);
+      return helper.error(res, err.message || "Failed to delete benchmark configuration");
+    }
+  },
+
+  /**
+   * Set a benchmark configuration as default
+   * POST /api/v1/deal/benchmarks/:id/set-default
+   */
+  setDefaultBenchmarkConfig: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const config = await BenchmarkConfigurations.findOne({
+        where: { id, user_id: userId }
+      });
+
+      if (!config) {
+        return helper.error(res, "Benchmark configuration not found");
+      }
+
+      // Unset all other defaults
+      await BenchmarkConfigurations.update(
+        { is_default: false },
+        { where: { user_id: userId } }
+      );
+
+      // Set this one as default
+      await config.update({ is_default: true, updated_at: new Date() });
+
+      return helper.success(res, "Default benchmark configuration set", config);
+    } catch (err) {
+      console.error("Set default benchmark config error:", err);
+      return helper.error(res, err.message || "Failed to set default benchmark configuration");
+    }
+  },
+
+  // ============================================================================
+  // PRO FORMA SCENARIO ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get all pro forma scenarios for a deal
+   * GET /api/v1/deal/:dealId/proforma
+   */
+  getProformaScenarios: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+
+      const scenarios = await DealProformaScenarios.findAll({
+        where: { deal_id: dealId },
+        order: [['created_at', 'DESC']]
+      });
+
+      return helper.success(res, "Pro forma scenarios retrieved", { scenarios });
+    } catch (err) {
+      console.error("Get proforma scenarios error:", err);
+      return helper.error(res, err.message || "Failed to get pro forma scenarios");
+    }
+  },
+
+  /**
+   * Get a specific pro forma scenario with full details
+   * GET /api/v1/deal/:dealId/proforma/:scenarioId
+   */
+  getProformaScenarioById: async (req, res) => {
+    try {
+      const { dealId, scenarioId } = req.params;
+
+      const scenario = await DealProformaScenarios.findOne({
+        where: { id: scenarioId, deal_id: dealId }
+      });
+
+      if (!scenario) {
+        return helper.error(res, "Pro forma scenario not found");
+      }
+
+      // Get deal data for recalculation if needed
+      const deal = await Deal.findByPk(dealId);
+
+      return helper.success(res, "Pro forma scenario retrieved", {
+        scenario,
+        deal_name: deal?.deal_name,
+        facility_name: deal?.facility_name
+      });
+    } catch (err) {
+      console.error("Get proforma scenario error:", err);
+      return helper.error(res, err.message || "Failed to get pro forma scenario");
+    }
+  },
+
+  /**
+   * Create a new pro forma scenario
+   * POST /api/v1/deal/:dealId/proforma
+   */
+  createProformaScenario: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { dealId } = req.params;
+      const { scenario_name, benchmark_overrides, notes } = req.body;
+
+      // Get the deal
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get user's default benchmark config
+      const defaultConfig = await BenchmarkConfigurations.findOne({
+        where: { user_id: userId, is_default: true }
+      });
+
+      // Normalize benchmarks and apply overrides
+      const benchmarks = normalizeBenchmarkConfig(defaultConfig);
+      const finalBenchmarks = { ...benchmarks, ...(benchmark_overrides || {}) };
+
+      // Calculate pro forma
+      const proformaResult = calculateProforma(deal.toJSON(), finalBenchmarks);
+      const yearlyProjections = generateYearlyProjections(proformaResult);
+
+      // Create scenario
+      const scenario = await DealProformaScenarios.create({
+        deal_id: dealId,
+        user_id: userId,
+        scenario_name: scenario_name || 'Base Case',
+        benchmark_overrides: benchmark_overrides || {},
+        stabilized_revenue: proformaResult.stabilized.revenue,
+        stabilized_ebitda: proformaResult.stabilized.ebitda,
+        stabilized_ebitdar: proformaResult.stabilized.ebitdar,
+        stabilized_noi: proformaResult.stabilized.ebitda, // Using EBITDA as proxy
+        total_opportunity: proformaResult.total_opportunity,
+        total_opportunity_pct: proformaResult.total_opportunity_pct,
+        stabilized_occupancy: proformaResult.stabilized.occupancy,
+        stabilized_labor_pct: finalBenchmarks.labor_pct_target,
+        opportunities: proformaResult.opportunities,
+        yearly_projections: yearlyProjections,
+        notes: notes || null,
+        created_at: new Date()
+      });
+
+      return helper.success(res, "Pro forma scenario created", {
+        scenario,
+        calculation: proformaResult
+      });
+    } catch (err) {
+      console.error("Create proforma scenario error:", err);
+      return helper.error(res, err.message || "Failed to create pro forma scenario");
+    }
+  },
+
+  /**
+   * Update a pro forma scenario
+   * PUT /api/v1/deal/:dealId/proforma/:scenarioId
+   */
+  updateProformaScenario: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { dealId, scenarioId } = req.params;
+      const { scenario_name, benchmark_overrides, notes } = req.body;
+
+      const scenario = await DealProformaScenarios.findOne({
+        where: { id: scenarioId, deal_id: dealId }
+      });
+
+      if (!scenario) {
+        return helper.error(res, "Pro forma scenario not found");
+      }
+
+      // Get the deal for recalculation
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get user's default benchmark config
+      const defaultConfig = await BenchmarkConfigurations.findOne({
+        where: { user_id: userId, is_default: true }
+      });
+
+      // Normalize benchmarks and apply new overrides
+      const benchmarks = normalizeBenchmarkConfig(defaultConfig);
+      const newOverrides = benchmark_overrides !== undefined ? benchmark_overrides : scenario.benchmark_overrides;
+      const finalBenchmarks = { ...benchmarks, ...newOverrides };
+
+      // Recalculate pro forma
+      const proformaResult = calculateProforma(deal.toJSON(), finalBenchmarks);
+      const yearlyProjections = generateYearlyProjections(proformaResult);
+
+      // Update scenario
+      await scenario.update({
+        scenario_name: scenario_name !== undefined ? scenario_name : scenario.scenario_name,
+        benchmark_overrides: newOverrides,
+        stabilized_revenue: proformaResult.stabilized.revenue,
+        stabilized_ebitda: proformaResult.stabilized.ebitda,
+        stabilized_ebitdar: proformaResult.stabilized.ebitdar,
+        stabilized_noi: proformaResult.stabilized.ebitda,
+        total_opportunity: proformaResult.total_opportunity,
+        total_opportunity_pct: proformaResult.total_opportunity_pct,
+        stabilized_occupancy: proformaResult.stabilized.occupancy,
+        stabilized_labor_pct: finalBenchmarks.labor_pct_target,
+        opportunities: proformaResult.opportunities,
+        yearly_projections: yearlyProjections,
+        notes: notes !== undefined ? notes : scenario.notes,
+        updated_at: new Date()
+      });
+
+      return helper.success(res, "Pro forma scenario updated", {
+        scenario,
+        calculation: proformaResult
+      });
+    } catch (err) {
+      console.error("Update proforma scenario error:", err);
+      return helper.error(res, err.message || "Failed to update pro forma scenario");
+    }
+  },
+
+  /**
+   * Delete a pro forma scenario
+   * DELETE /api/v1/deal/:dealId/proforma/:scenarioId
+   */
+  deleteProformaScenario: async (req, res) => {
+    try {
+      const { dealId, scenarioId } = req.params;
+
+      const scenario = await DealProformaScenarios.findOne({
+        where: { id: scenarioId, deal_id: dealId }
+      });
+
+      if (!scenario) {
+        return helper.error(res, "Pro forma scenario not found");
+      }
+
+      await scenario.destroy();
+
+      return helper.success(res, "Pro forma scenario deleted");
+    } catch (err) {
+      console.error("Delete proforma scenario error:", err);
+      return helper.error(res, err.message || "Failed to delete pro forma scenario");
+    }
+  },
+
+  /**
+   * Calculate pro forma metrics WITHOUT saving (preview mode)
+   * POST /api/v1/deal/:dealId/proforma/calculate
+   */
+  calculateProformaPreview: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { dealId } = req.params;
+      const { benchmark_overrides } = req.body;
+
+      // Get the deal
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get user's default benchmark config
+      const defaultConfig = await BenchmarkConfigurations.findOne({
+        where: { user_id: userId, is_default: true }
+      });
+
+      // Normalize benchmarks and apply overrides
+      const benchmarks = normalizeBenchmarkConfig(defaultConfig);
+      const finalBenchmarks = { ...benchmarks, ...(benchmark_overrides || {}) };
+
+      // Calculate pro forma
+      const proformaResult = calculateProforma(deal.toJSON(), finalBenchmarks);
+      const yearlyProjections = generateYearlyProjections(proformaResult);
+
+      return helper.success(res, "Pro forma calculated", {
+        ...proformaResult,
+        yearly_projections: yearlyProjections,
+        deal_name: deal.deal_name,
+        facility_name: deal.facility_name
+      });
+    } catch (err) {
+      console.error("Calculate proforma preview error:", err);
+      return helper.error(res, err.message || "Failed to calculate pro forma");
     }
   },
 };
