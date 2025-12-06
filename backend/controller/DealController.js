@@ -47,6 +47,12 @@ const MasterDeals = db.master_deals;
 const DealFacilities = db.deal_facilities;
 const BenchmarkConfigurations = db.benchmark_configurations;
 const DealProformaScenarios = db.deal_proforma_scenarios;
+// Time-series data models for enhanced extraction
+const DealMonthlyFinancials = db.deal_monthly_financials;
+const DealMonthlyCensus = db.deal_monthly_census;
+const DealMonthlyExpenses = db.deal_monthly_expenses;
+const DealRateSchedules = db.deal_rate_schedules;
+const DealExpenseRatios = db.deal_expense_ratios;
 Deal.hasMany(DealTeamMembers, {
   foreignKey: "deal_id",
   as: "deal_team_members",
@@ -92,6 +98,197 @@ DealComments.belongsToMany(User, {
   foreignKey: "comment_id",
   otherKey: "mentioned_user_id",
 });
+
+/**
+ * Helper function to store time-series data from enhanced extraction
+ * @param {number} dealId - The deal ID
+ * @param {Object} extractionData - The enhanced extraction data
+ */
+const storeTimeSeriesData = async (dealId, extractionData) => {
+  if (!extractionData) return;
+
+  const promises = [];
+
+  // Store monthly financials
+  if (extractionData.monthlyFinancials && Array.isArray(extractionData.monthlyFinancials)) {
+    for (const financial of extractionData.monthlyFinancials) {
+      if (financial.month) {
+        promises.push(
+          DealMonthlyFinancials.upsert({
+            deal_id: dealId,
+            month: financial.month,
+            source_document: financial.source_document,
+            source_location: financial.source_location,
+            total_revenue: financial.total_revenue,
+            medicaid_revenue: financial.medicaid_revenue,
+            medicare_revenue: financial.medicare_revenue,
+            private_pay_revenue: financial.private_pay_revenue,
+            other_revenue: financial.other_revenue,
+            room_and_board_revenue: financial.room_and_board_revenue,
+            care_level_revenue: financial.care_level_revenue,
+            ancillary_revenue: financial.ancillary_revenue,
+            total_expenses: financial.total_expenses,
+            operating_expenses: financial.operating_expenses,
+            depreciation: financial.depreciation,
+            amortization: financial.amortization,
+            interest_expense: financial.interest_expense,
+            rent_expense: financial.rent_expense,
+            property_taxes: financial.property_taxes,
+            property_insurance: financial.property_insurance,
+            net_income: financial.net_income,
+            ebit: financial.ebit,
+            ebitda: financial.ebitda,
+            ebitdar: financial.ebitdar,
+            extraction_confidence: financial.extraction_confidence,
+            updated_at: new Date()
+          })
+        );
+      }
+    }
+  }
+
+  // Store monthly census
+  if (extractionData.monthlyCensus && Array.isArray(extractionData.monthlyCensus)) {
+    for (const census of extractionData.monthlyCensus) {
+      if (census.month) {
+        promises.push(
+          DealMonthlyCensus.upsert({
+            deal_id: dealId,
+            month: census.month,
+            source_document: census.source_document,
+            source_location: census.source_location,
+            total_beds: census.total_beds,
+            average_daily_census: census.average_daily_census,
+            occupancy_percentage: census.occupancy_percentage,
+            total_census_days: census.total_census_days,
+            medicaid_days: census.medicaid_days,
+            medicare_days: census.medicare_days,
+            private_pay_days: census.private_pay_days,
+            other_payer_days: census.other_payer_days,
+            medicaid_percentage: census.medicaid_percentage,
+            medicare_percentage: census.medicare_percentage,
+            private_pay_percentage: census.private_pay_percentage,
+            other_payer_percentage: census.other_payer_percentage,
+            admissions: census.admissions,
+            discharges: census.discharges,
+            extraction_confidence: census.extraction_confidence,
+            updated_at: new Date()
+          })
+        );
+      }
+    }
+  }
+
+  // Store monthly expenses
+  if (extractionData.monthlyExpenses && Array.isArray(extractionData.monthlyExpenses)) {
+    for (const expense of extractionData.monthlyExpenses) {
+      if (expense.month && expense.department) {
+        promises.push(
+          DealMonthlyExpenses.upsert({
+            deal_id: dealId,
+            month: expense.month,
+            department: expense.department,
+            source_document: expense.source_document,
+            source_location: expense.source_location,
+            salaries_wages: expense.salaries_wages,
+            benefits: expense.benefits,
+            payroll_taxes: expense.payroll_taxes,
+            agency_labor: expense.agency_labor,
+            contract_labor: expense.contract_labor,
+            total_labor: expense.total_labor,
+            supplies: expense.supplies,
+            food_cost: expense.food_cost,
+            utilities: expense.utilities,
+            repairs_maintenance: expense.repairs_maintenance,
+            other_expenses: expense.other_expenses,
+            total_department_expense: expense.total_department_expense,
+            extraction_confidence: expense.extraction_confidence,
+            updated_at: new Date()
+          })
+        );
+      }
+    }
+  }
+
+  // Store rate schedules
+  if (extractionData.rates && Array.isArray(extractionData.rates)) {
+    for (const rate of extractionData.rates) {
+      if (rate.payer_type) {
+        promises.push(
+          DealRateSchedules.create({
+            deal_id: dealId,
+            payer_type: rate.payer_type,
+            rate_category: rate.rate_category,
+            care_level: rate.care_level,
+            source_document: rate.source_document,
+            source_location: rate.source_location,
+            daily_rate: rate.daily_rate,
+            monthly_rate: rate.monthly_rate,
+            annual_rate: rate.annual_rate,
+            care_level_addon: rate.care_level_addon,
+            second_person_fee: rate.second_person_fee,
+            ancillary_fee: rate.ancillary_fee,
+            effective_date: rate.effective_date,
+            expiration_date: rate.expiration_date,
+            is_current: rate.is_current !== false,
+            extraction_confidence: rate.extraction_confidence,
+            notes: rate.notes
+          })
+        );
+      }
+    }
+  }
+
+  // Store expense ratios
+  if (extractionData.ratios) {
+    const ratios = extractionData.ratios;
+    promises.push(
+      DealExpenseRatios.upsert({
+        deal_id: dealId,
+        period_end: ratios.period_end,
+        total_labor_cost: ratios.total_labor_cost,
+        labor_pct_of_revenue: ratios.labor_pct_of_revenue,
+        nursing_labor_pct_of_revenue: ratios.nursing_labor_pct_of_revenue,
+        agency_labor_total: ratios.agency_labor_total,
+        agency_pct_of_labor: ratios.agency_pct_of_labor,
+        agency_pct_of_direct_care: ratios.agency_pct_of_direct_care,
+        labor_cost_per_resident_day: ratios.labor_cost_per_resident_day,
+        total_cost_per_resident_day: ratios.total_cost_per_resident_day,
+        food_cost_total: ratios.food_cost_total,
+        food_cost_per_resident_day: ratios.food_cost_per_resident_day,
+        food_pct_of_revenue: ratios.food_pct_of_revenue,
+        dietary_labor_pct_of_revenue: ratios.dietary_labor_pct_of_revenue,
+        admin_pct_of_revenue: ratios.admin_pct_of_revenue,
+        management_fee_pct: ratios.management_fee_pct,
+        bad_debt_pct: ratios.bad_debt_pct,
+        utilities_pct_of_revenue: ratios.utilities_pct_of_revenue,
+        utilities_per_bed: ratios.utilities_per_bed,
+        property_cost_per_bed: ratios.property_cost_per_bed,
+        maintenance_pct_of_revenue: ratios.maintenance_pct_of_revenue,
+        insurance_pct_of_revenue: ratios.insurance_pct_of_revenue,
+        insurance_per_bed: ratios.insurance_per_bed,
+        housekeeping_pct_of_revenue: ratios.housekeeping_pct_of_revenue,
+        revenue_per_bed: ratios.revenue_per_bed,
+        revenue_per_resident_day: ratios.revenue_per_resident_day,
+        private_pay_rate_avg: ratios.private_pay_rate_avg,
+        medicaid_rate_avg: ratios.medicaid_rate_avg,
+        ebitdar_margin: ratios.ebitdar_margin,
+        ebitda_margin: ratios.ebitda_margin,
+        operating_margin: ratios.operating_margin,
+        benchmark_flags: extractionData.benchmarkFlags,
+        potential_savings: ratios.potential_savings,
+        calculated_at: new Date(),
+        updated_at: new Date()
+      })
+    );
+  }
+
+  // Execute all storage operations in parallel
+  if (promises.length > 0) {
+    await Promise.all(promises);
+    console.log(`Stored ${promises.length} time-series records for deal ${dealId}`);
+  }
+};
 
 module.exports = {
   createDeal: async (req, res) => {
@@ -242,6 +439,16 @@ module.exports = {
               // Only store extraction_data on the first deal
               extraction_data: dealIndex === 0 ? requiredData.extraction_data : null,
             });
+
+            // Store time-series data if present in extraction_data (for first deal only)
+            if (dealIndex === 0 && requiredData.extraction_data) {
+              try {
+                await storeTimeSeriesData(dealCreated.id, requiredData.extraction_data);
+              } catch (timeSeriesError) {
+                console.error('Error storing time-series data:', timeSeriesError);
+                // Don't fail deal creation if time-series storage fails
+              }
+            }
 
             // create recent activity for admin:
             const admin = await User.findByPk(1);

@@ -13,7 +13,7 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import { extractDealFromDocument, createBatchDeals, addDealDocument } from "../api/DealService";
+import { extractDealEnhanced, createBatchDeals, addDealDocument } from "../api/DealService";
 import { getActiveUsers } from "../api/authService";
 
 // Field display configuration
@@ -77,6 +77,8 @@ const UploadDeal = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [activeUsers, setActiveUsers] = useState([]);
   const [uploadedFileInfo, setUploadedFileInfo] = useState([]);
+  // Enhanced extraction data
+  const [enhancedData, setEnhancedData] = useState(null);
 
   // Check if we have pre-extracted data from Deals page
   useEffect(() => {
@@ -179,16 +181,43 @@ const UploadDeal = () => {
     setIsExtracting(true);
 
     try {
-      const response = await extractDealFromDocument(files);
+      const response = await extractDealEnhanced(files);
 
       if (response.success) {
+        // Set flat extracted data for backward compatibility
         setExtractedData(response.body.extractedData);
-        setConfidence(response.body.confidence);
+
+        // Store the full enhanced data (time-series, ratios, etc.)
+        setEnhancedData({
+          monthlyFinancials: response.body.monthlyFinancials || [],
+          monthlyCensus: response.body.monthlyCensus || [],
+          monthlyExpenses: response.body.monthlyExpenses || [],
+          rates: response.body.rates || {},
+          ttmFinancials: response.body.ttmFinancials || null,
+          censusSummary: response.body.censusSummary || null,
+          expensesByDepartment: response.body.expensesByDepartment || {},
+          ratios: response.body.ratios || {},
+          benchmarkFlags: response.body.benchmarkFlags || {},
+          potentialSavings: response.body.potentialSavings || {},
+          insights: response.body.insights || [],
+          facility: response.body.facility || {},
+          metadata: response.body.metadata || {},
+        });
+
+        // Calculate confidence based on extraction metadata
+        const successRate = response.body.metadata?.successCount || 5;
+        const calculatedConfidence = Math.round((successRate / 5) * 100);
+        setConfidence(calculatedConfidence);
+
         // Store uploaded file info for linking to deal later
         if (response.body.uploadedFiles) {
           setUploadedFileInfo(response.body.uploadedFiles);
         }
-        toast.success(`Extracted data with ${response.body.confidence}% confidence`);
+
+        const duration = response.body.metadata?.totalDuration
+          ? `${(response.body.metadata.totalDuration / 1000).toFixed(1)}s`
+          : '';
+        toast.success(`Data extracted successfully${duration ? ` in ${duration}` : ''}`);
       } else {
         toast.error(response.message || "Failed to extract data");
       }
@@ -284,6 +313,20 @@ const UploadDeal = () => {
           ...extractedData,
           extraction_timestamp: new Date().toISOString(),
           confidence: confidence,
+          // Include enhanced extraction data for time-series storage
+          ...(enhancedData && {
+            monthly_financials: enhancedData.monthlyFinancials,
+            monthly_census: enhancedData.monthlyCensus,
+            monthly_expenses: enhancedData.monthlyExpenses,
+            rates: enhancedData.rates,
+            ttm_financials: enhancedData.ttmFinancials,
+            census_summary: enhancedData.censusSummary,
+            expenses_by_department: enhancedData.expensesByDepartment,
+            ratios: enhancedData.ratios,
+            benchmark_flags: enhancedData.benchmarkFlags,
+            potential_savings: enhancedData.potentialSavings,
+            insights: enhancedData.insights,
+          }),
         },
         // Include uploaded documents
         documents: uploadedFileInfo,

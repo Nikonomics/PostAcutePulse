@@ -38,6 +38,7 @@ const apiRoutes = {
     getSampleLocations: `${BASE_URL}/deal/get-deal-facilities-coordinates`,
     generateAccessToKen: `${BASE_URL}/auth/generate-access-token`,
     extractDealFromDocument: `${BASE_URL}/deal/extract`,
+    extractDealEnhanced: `${BASE_URL}/deal/extract-enhanced`,
     calculateDealMetrics: `${BASE_URL}/deal/calculate`,
     calculatePortfolioMetrics: `${BASE_URL}/deal/calculate-portfolio`,
     // Deal Facilities

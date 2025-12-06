@@ -209,6 +209,43 @@ export const extractDealFromDocument = async (files) => {
 };
 
 /**
+ * Extract deal information using enhanced parallel extraction
+ * Runs 5 focused AI calls in parallel for faster, more comprehensive extraction
+ * @param {File|File[]} files - Single file or array of files to process
+ * @returns {Promise} - Extracted data including:
+ *   - extractedData: Flat summary for backward compatibility
+ *   - monthlyFinancials: Time-series financial data
+ *   - monthlyCensus: Time-series census data
+ *   - monthlyExpenses: Expense breakdown by department
+ *   - rates: Rate schedules by payer type
+ *   - ratios: Calculated expense ratios
+ *   - benchmarkFlags: Comparison to industry benchmarks
+ *   - insights: AI-identified opportunities
+ */
+export const extractDealEnhanced = async (files) => {
+  const formData = new FormData();
+
+  if (Array.isArray(files)) {
+    files.forEach((file) => {
+      formData.append('document', file);
+    });
+  } else {
+    formData.append('document', files);
+  }
+
+  const response = await apiService.post(
+    `${apiRoutes.extractDealEnhanced}`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+/**
  * Calculate underwriting metrics for a single deal
  * @param {number} dealId - The deal ID
  * @returns {Promise} - Calculated metrics
