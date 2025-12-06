@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
+// Period analyzer for detecting financial document time periods
+const { analyzeFinancialPeriods, generatePromptSection, shouldAnalyzePeriods } = require('./periodAnalyzer');
+
 // pdf-parse v1.x - simple function-based API that accepts buffers
 const pdfParse = require('pdf-parse');
 console.log('pdf-parse loaded:', typeof pdfParse === 'function' ? 'success' : 'failed');
@@ -430,6 +433,26 @@ Return a JSON object with this structure. Use null for fields not found. Include
 }
 
 /**
+ * Build the period analysis section to inject into the extraction prompt
+ * This provides Claude with pre-analyzed period information to guide T12 extraction
+ *
+ * @param {Object} periodAnalysis - Result from analyzeDocumentPeriods()
+ * @returns {string} Formatted prompt section for period analysis
+ */
+/**
+ * Build the period analysis prompt section using the periodAnalyzer's generatePromptSection
+ * This integrates the enhanced period detection and source mapping into Claude's prompt
+ */
+function buildPeriodAnalysisPrompt(periodAnalysis) {
+  if (!periodAnalysis) {
+    return '';
+  }
+
+  // Use the new generatePromptSection from periodAnalyzer for richer prompts
+  return generatePromptSection(periodAnalysis);
+}
+
+/**
  * Extract text from PDF buffer
  * Uses pdf-parse v1.x simple function API
  */
@@ -712,6 +735,28 @@ function flattenExtractedData(data) {
 
     // Calculation details for verification
     calculation_details: data.financial_information_t12?.calculation_details || null,
+
+    // Expense ratios - NEW
+    expense_ratios: data.financial_information_t12?.expense_ratios || null,
+    total_labor_cost: getValue(data.financial_information_t12?.expense_ratios?.total_labor_cost),
+    labor_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.labor_pct_of_revenue),
+    agency_pct_of_direct_care: getValue(data.financial_information_t12?.expense_ratios?.agency_pct_of_direct_care),
+    agency_pct_of_labor: getValue(data.financial_information_t12?.expense_ratios?.agency_pct_of_labor),
+    food_cost_per_resident_day: getValue(data.financial_information_t12?.expense_ratios?.food_cost_per_resident_day),
+    food_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.food_pct_of_revenue),
+    management_fee_pct: getValue(data.financial_information_t12?.expense_ratios?.management_fee_pct),
+    admin_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.admin_pct_of_revenue),
+    bad_debt_pct: getValue(data.financial_information_t12?.expense_ratios?.bad_debt_pct),
+    utilities_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.utilities_pct_of_revenue),
+    property_cost_per_bed: getValue(data.financial_information_t12?.expense_ratios?.property_cost_per_bed),
+    insurance_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.insurance_pct_of_revenue),
+    insurance_per_bed: getValue(data.financial_information_t12?.expense_ratios?.insurance_per_bed),
+
+    // Benchmark comparison - NEW
+    benchmark_comparison: data.financial_information_t12?.benchmark_comparison || null,
+
+    // Expense detail - NEW (store the entire structured object)
+    expense_detail: data.financial_information_t12?.expense_detail || null,
 
     // YTD Performance - NEW
     ytd_period_start: data.ytd_performance?.period?.start || null,
@@ -1242,7 +1287,13 @@ function postProcessExtraction(data) {
     'proforma_year2_annual_ebit', 'proforma_year2_average_occupancy',
     'proforma_year3_annual_revenue', 'proforma_year3_annual_ebitdar',
     'proforma_year3_annual_rent', 'proforma_year3_annual_ebitda',
-    'proforma_year3_annual_ebit', 'proforma_year3_average_occupancy'
+    'proforma_year3_annual_ebit', 'proforma_year3_average_occupancy',
+    // Expense ratios
+    'total_labor_cost', 'labor_pct_of_revenue', 'agency_pct_of_direct_care',
+    'agency_pct_of_labor', 'food_cost_per_resident_day', 'food_pct_of_revenue',
+    'management_fee_pct', 'admin_pct_of_revenue', 'bad_debt_pct',
+    'utilities_pct_of_revenue', 'property_cost_per_bed', 'insurance_pct_of_revenue',
+    'insurance_per_bed'
   ];
 
   for (const field of numericFields) {
@@ -1374,6 +1425,27 @@ async function extractFromMultipleDocuments(files) {
       return await extractFromMultipleDocumentsSequential(files);
     }
 
+    // Step 2.5: Run period analysis on documents that have text content
+    let periodAnalysis = null;
+    const docsForPeriodAnalysis = processedFiles
+      .filter(f => !f.error && f.contentType === 'text' && f.textContent)
+      .map(f => ({
+        filename: f.name,
+        content: f.textContent,
+        fileType: f.mimeType?.includes('spreadsheet') || f.name?.match(/\.xlsx?$/i) ? 'xlsx' : 'other'
+      }));
+
+    if (shouldAnalyzePeriods(docsForPeriodAnalysis)) {
+      console.log(`Running period analysis on ${docsForPeriodAnalysis.length} text documents...`);
+      periodAnalysis = analyzeFinancialPeriods(docsForPeriodAnalysis);
+      console.log(`Period analysis complete: combination_needed=${periodAnalysis.combination_needed}, ` +
+        `overlapping_months=${periodAnalysis.overlapping_months?.length || 0}`);
+
+      if (periodAnalysis.combination_needed) {
+        console.log(`  Recommended T12: ${periodAnalysis.recommended_t12?.start} to ${periodAnalysis.recommended_t12?.end}`);
+      }
+    }
+
     // Step 3: Build combined content array for single API call
     const content = [];
     const systemPrompt = buildExtractionPrompt();
@@ -1416,13 +1488,16 @@ async function extractFromMultipleDocuments(files) {
       }
     }
 
+    // Build period analysis prompt section if analysis was performed
+    const periodAnalysisPrompt = buildPeriodAnalysisPrompt(periodAnalysis);
+
     // Add the extraction instruction at the end
     content.push({
       type: 'text',
       text: `\n\n========== EXTRACTION INSTRUCTIONS ==========
 
 You have been provided ${successfulFiles.length} documents above. Please extract deal information by analyzing ALL documents together.
-
+${periodAnalysisPrompt}
 **CRITICAL - FLOOR PLAN ADDRESS EXTRACTION:**
 
 **IMPORTANT: DISTINGUISH BETWEEN ARCHITECT ADDRESS vs FACILITY ADDRESS**
@@ -1470,14 +1545,15 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
       }]
     });
 
-    // Step 5: Parse the response with robust repair logic
+    // Step 5: Parse the response with robust JSON repair
     const responseText = response.content[0].text;
 
     let extractedData;
     try {
+      // Try direct parse first
       extractedData = JSON.parse(responseText);
     } catch (parseError) {
-      console.log('Initial JSON parse failed, attempting repair...');
+      console.log('Initial JSON parse failed in multi-doc extraction, attempting repair...');
 
       // Try to extract JSON from markdown code blocks
       const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -1487,15 +1563,20 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
         let jsonStr = jsonMatch[1] || jsonMatch[0];
 
         // Common JSON repair patterns
+        // 1. Remove trailing commas before } or ]
         jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+        // 2. Fix unquoted property names (simple cases)
         jsonStr = jsonStr.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+        // 3. Remove control characters
         jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, ' ');
+        // 4. Fix single quotes to double quotes
         jsonStr = jsonStr.replace(/'/g, '"');
 
         try {
           extractedData = JSON.parse(jsonStr);
-          console.log('JSON repair successful');
+          console.log('JSON repair successful in multi-doc extraction');
         } catch (repairError) {
+          // Last resort: try to find the largest valid JSON object
           console.log('JSON repair failed, trying partial extraction...');
           const partialMatch = responseText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
           if (partialMatch) {
@@ -1528,6 +1609,16 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
     processedData._extractionMethod = 'combined-multi-doc';
     processedData._documentsProcessed = successfulFiles.map(f => f.name);
 
+    // Add period analysis metadata if available
+    if (periodAnalysis) {
+      processedData._periodAnalysis = {
+        combination_needed: periodAnalysis.combination_needed,
+        overlapping_months: periodAnalysis.overlapping_months,
+        recommended_t12: periodAnalysis.recommended_t12,
+        documents_analyzed: periodAnalysis.financial_documents?.length || 0
+      };
+    }
+
     return {
       success: true,
       mergedData: processedData,
@@ -1538,7 +1629,8 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
         contentType: f.contentType
       })),
       confidence: calculateConfidence(processedData),
-      extractionMethod: 'combined'
+      extractionMethod: 'combined',
+      periodAnalysis: periodAnalysis // Include full period analysis for verification
     };
 
   } catch (error) {
