@@ -8,9 +8,6 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-// Period analyzer for detecting financial document time periods
-const { analyzeFinancialPeriods, generatePromptSection, shouldAnalyzePeriods } = require('./periodAnalyzer');
-
 // pdf-parse v1.x - simple function-based API that accepts buffers
 const pdfParse = require('pdf-parse');
 console.log('pdf-parse loaded:', typeof pdfParse === 'function' ? 'success' : 'failed');
@@ -135,31 +132,6 @@ From P&L Revenue:
 
 ALWAYS extract both census-based AND revenue-based payer mix when data is available.
 
-### Monthly Census Trends (T12 Trendlines):
-When census reports contain monthly data, extract the trailing 12 months of:
-1. Month (format: "YYYY-MM", e.g., "2024-06")
-2. Occupancy percentage for that month
-3. Average daily census for that month
-4. Payer mix percentages for that month (medicaid_pct, medicare_pct, private_pay_pct)
-
-Census reports often show monthly breakdowns with columns like:
-- "Month" or date headers (Jun 2024, Jul 2024, etc.)
-- "Census" or "ADC" (Average Daily Census) per month
-- "Occupancy" or "Occ %" per month
-- Payer type breakdowns per month (Medicaid Days, Private Pay Days, etc.)
-
-Format the data as an array of monthly data points:
-"monthly_trends": {
-  "value": [
-    {"month": "2024-06", "occupancy_pct": 92.1, "average_daily_census": 94, "medicaid_pct": 38.5, "medicare_pct": 18.2, "private_pay_pct": 43.3},
-    {"month": "2024-07", "occupancy_pct": 93.5, "average_daily_census": 95, "medicaid_pct": 39.1, "medicare_pct": 17.8, "private_pay_pct": 43.1}
-  ],
-  "confidence": "high",
-  "source": "Census Report | Monthly breakdown table"
-}
-
-If monthly data is not available (only annual/summary totals), leave monthly_trends as an empty array.
-
 ### Year-to-Date (YTD) Performance:
 If documents contain YTD or partial-year data SEPARATE from the T12:
 1. Extract the period covered (e.g., "March 2025 - September 2025")
@@ -171,33 +143,6 @@ YTD data is often found in:
 - I&E statements with "YTD" in the title
 - Census reports showing current year totals
 - Monthly reports that show cumulative figures
-
-### P&L LINE ITEM EXTRACTION (REQUIRED)
-
-Extract ALL expense line items into the detailed structure shown in the OUTPUT FORMAT section. Do not skip categories - if a line item is not found, set value to null.
-
-LINE ITEM MAPPING GUIDE:
-- "Salary & Wages - RCC" → direct_care.nursing_salaries_rcc
-- "Salary & Wage - RN" → direct_care.nursing_salaries_rn
-- "Outside Services Agency - CNA" → direct_care.agency_staffing (FLAG THIS)
-- "Salary & Wages - Dietary" → culinary.wages
-- "FOOD" → culinary.raw_food_cost
-- "Salary & Wage - Housekeeping" → housekeeping.wages
-- "Salary & Wage - Maintenance" → maintenance.wages
-- "Salary & Wage - Activities" → activities.wages
-- "Salary & Wage - Administration" → administrative.salaries
-- "Admin/Allocated" → administrative.allocated_overhead (mark is_related_party: true)
-- "Outside Services" in Admin section → Check if management fee
-- "Bond Interest Expense" → non_operating.interest_expense
-- "Other Interest" → non_operating.interest_expense (add to bond interest)
-- "Land Lease" → non_operating.rent_lease
-- "Depreciation" → non_operating.depreciation
-
-AUTOMATIC FLAGS TO APPLY:
-1. agency_staffing: Flag if value > 5% of direct_care.total
-2. management_fees: Flag if value > 5% of total_revenue
-3. bad_debt: Flag if value > 2% of total_revenue
-4. allocated_overhead: Mark is_related_party: true if contains "allocated", "intercompany"
 
 ### Rate Schedule Extraction (REQUIRED):
 Extract ALL rate information found:
@@ -221,77 +166,6 @@ Format as arrays:
 {"care_level": "Level 1", "monthly_rate": 1980},
 {"care_level": "Level 2", "monthly_rate": 2454}
 ]
-
-### EXPENSE RATIO CALCULATIONS (REQUIRED)
-
-After extracting line items, calculate these ratios and include in your output:
-
-expense_ratios: {
-  // Labor metrics
-  total_labor_cost: NUMBER,  // Sum of all wages + PTO + payroll taxes + benefits across all departments
-  labor_pct_of_revenue: NUMBER,  // total_labor_cost / total_revenue * 100
-  agency_pct_of_direct_care: NUMBER,  // agency_staffing / direct_care.total * 100
-  agency_pct_of_labor: NUMBER,  // agency_staffing / total_labor_cost * 100
-
-  // Food metrics
-  food_cost_per_resident_day: NUMBER,  // raw_food_cost / total_census_days
-  food_pct_of_revenue: NUMBER,  // raw_food_cost / total_revenue * 100
-
-  // Admin metrics
-  management_fee_pct: NUMBER,  // management_fees / total_revenue * 100
-  admin_pct_of_revenue: NUMBER,  // administrative.total / total_revenue * 100
-  bad_debt_pct: NUMBER,  // bad_debt / total_revenue * 100
-
-  // Facility metrics
-  utilities_pct_of_revenue: NUMBER,  // utilities.total / total_revenue * 100
-  property_cost_per_bed: NUMBER,  // property.total / bed_count
-
-  // Insurance
-  insurance_pct_of_revenue: NUMBER,  // (property_insurance + liability_insurance) / total_revenue * 100
-  insurance_per_bed: NUMBER  // (property_insurance + liability_insurance) / bed_count
-}
-
-BENCHMARK FLAGS (include in output):
-For each ratio, compare against these benchmarks and flag if outside range:
-
-benchmark_comparison: {
-  labor_pct: {
-    actual: NUMBER,
-    benchmark: 55,
-    max_acceptable: 62,
-    status: "on_target" | "above_target" | "critical"  // critical if > 68%
-  },
-  agency_pct_of_labor: {
-    actual: NUMBER,
-    benchmark: 2,
-    max_acceptable: 5,
-    status: "on_target" | "above_target" | "critical"  // critical if > 10%
-  },
-  food_cost_per_day: {
-    actual: NUMBER,
-    benchmark: 10.50,
-    max_acceptable: 13.00,
-    status: "on_target" | "above_target" | "critical"  // critical if > 16.00
-  },
-  management_fee_pct: {
-    actual: NUMBER,
-    benchmark: 4,
-    max_acceptable: 5,
-    status: "on_target" | "above_target" | "critical"  // critical if > 6%
-  },
-  bad_debt_pct: {
-    actual: NUMBER,
-    benchmark: 0.5,
-    max_acceptable: 1.0,
-    status: "on_target" | "above_target" | "critical"  // critical if > 2%
-  },
-  utilities_pct: {
-    actual: NUMBER,
-    benchmark: 2.5,
-    max_acceptable: 3.5,
-    status: "on_target" | "above_target" | "critical"  // critical if > 4.5%
-  }
-}
 
 ### Contact Information Extraction:
 - Look for "User:", "Prepared by:", "Generated by:" in report headers
@@ -408,185 +282,6 @@ Return a JSON object with this structure. Use null for fields not found. Include
       "ebit_formula": "net_income + interest_expense",
       "ebitda_formula": "ebit + depreciation",
       "ebitdar_formula": "ebitda + rent_expense"
-    },
-    "expense_detail": {
-      "direct_care": {
-        "nursing_salaries_rcc": {"value": null, "confidence": "not_found", "source": null},
-        "nursing_salaries_rn": {"value": null, "confidence": "not_found", "source": null},
-        "nursing_salaries_lpn": {"value": null, "confidence": "not_found", "source": null},
-        "nursing_salaries_cma": {"value": null, "confidence": "not_found", "source": null},
-        "caregiver_wages": {"value": null, "confidence": "not_found", "source": null},
-        "agency_staffing": {
-          "value": null,
-          "confidence": "not_found",
-          "source": null,
-          "is_flagged": false,
-          "flag_reason": null
-        },
-        "pto_wages": {"value": null, "confidence": "not_found", "source": null},
-        "payroll_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "benefits_medical": {"value": null, "confidence": "not_found", "source": null},
-        "training": {"value": null, "confidence": "not_found", "source": null},
-        "supplies": {"value": null, "confidence": "not_found", "source": null},
-        "pharmacy_otc": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "culinary": {
-        "wages": {"value": null, "confidence": "not_found", "source": null},
-        "pto_wages": {"value": null, "confidence": "not_found", "source": null},
-        "payroll_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "benefits": {"value": null, "confidence": "not_found", "source": null},
-        "raw_food_cost": {"value": null, "confidence": "not_found", "source": null},
-        "dietary_supplies": {"value": null, "confidence": "not_found", "source": null},
-        "equipment_repair": {"value": null, "confidence": "not_found", "source": null},
-        "equipment_rental": {"value": null, "confidence": "not_found", "source": null},
-        "outside_services": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "housekeeping": {
-        "wages": {"value": null, "confidence": "not_found", "source": null},
-        "pto_wages": {"value": null, "confidence": "not_found", "source": null},
-        "payroll_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "benefits": {"value": null, "confidence": "not_found", "source": null},
-        "supplies": {"value": null, "confidence": "not_found", "source": null},
-        "laundry_supplies": {"value": null, "confidence": "not_found", "source": null},
-        "linen": {"value": null, "confidence": "not_found", "source": null},
-        "equipment_rental": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "maintenance": {
-        "wages": {"value": null, "confidence": "not_found", "source": null},
-        "pto_wages": {"value": null, "confidence": "not_found", "source": null},
-        "payroll_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "supplies": {"value": null, "confidence": "not_found", "source": null},
-        "outside_services": {"value": null, "confidence": "not_found", "source": null},
-        "equipment_repair": {"value": null, "confidence": "not_found", "source": null},
-        "building_repair": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "activities": {
-        "wages": {"value": null, "confidence": "not_found", "source": null},
-        "pto_wages": {"value": null, "confidence": "not_found", "source": null},
-        "payroll_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "supplies": {"value": null, "confidence": "not_found", "source": null},
-        "entertainment": {"value": null, "confidence": "not_found", "source": null},
-        "food_activities": {"value": null, "confidence": "not_found", "source": null},
-        "transportation": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "administrative": {
-        "salaries": {"value": null, "confidence": "not_found", "source": null},
-        "allocated_overhead": {
-          "value": null,
-          "confidence": "not_found",
-          "source": null,
-          "is_related_party": false
-        },
-        "pto_wages": {"value": null, "confidence": "not_found", "source": null},
-        "payroll_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "benefits": {"value": null, "confidence": "not_found", "source": null},
-        "management_fees": {
-          "value": null,
-          "confidence": "not_found",
-          "source": null,
-          "is_related_party": false,
-          "pct_of_revenue": null
-        },
-        "professional_fees": {"value": null, "confidence": "not_found", "source": null},
-        "accounting": {"value": null, "confidence": "not_found", "source": null},
-        "legal": {"value": null, "confidence": "not_found", "source": null},
-        "office_supplies": {"value": null, "confidence": "not_found", "source": null},
-        "it_computer": {"value": null, "confidence": "not_found", "source": null},
-        "telephone": {"value": null, "confidence": "not_found", "source": null},
-        "marketing": {"value": null, "confidence": "not_found", "source": null},
-        "bad_debt": {
-          "value": null,
-          "confidence": "not_found",
-          "source": null,
-          "is_flagged": false,
-          "pct_of_revenue": null
-        },
-        "licenses_permits": {"value": null, "confidence": "not_found", "source": null},
-        "travel": {"value": null, "confidence": "not_found", "source": null},
-        "dues_subscriptions": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "utilities": {
-        "electric": {"value": null, "confidence": "not_found", "source": null},
-        "gas": {"value": null, "confidence": "not_found", "source": null},
-        "water_sewer_garbage": {"value": null, "confidence": "not_found", "source": null},
-        "cable_tv": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "property": {
-        "property_taxes": {"value": null, "confidence": "not_found", "source": null},
-        "property_insurance": {"value": null, "confidence": "not_found", "source": null},
-        "liability_insurance": {"value": null, "confidence": "not_found", "source": null},
-        "grounds_maintenance": {"value": null, "confidence": "not_found", "source": null},
-        "elevator_maintenance": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      },
-      "non_operating": {
-        "depreciation": {"value": null, "confidence": "not_found", "source": null},
-        "amortization": {"value": null, "confidence": "not_found", "source": null},
-        "interest_expense": {"value": null, "confidence": "not_found", "source": null},
-        "rent_lease": {"value": null, "confidence": "not_found", "source": null},
-        "disposition_of_assets": {"value": null, "confidence": "not_found", "source": null},
-        "total": {"value": null, "calculated": true}
-      }
-    },
-    "expense_ratios": {
-      "total_labor_cost": {"value": null, "calculated": true},
-      "labor_pct_of_revenue": {"value": null, "calculated": true},
-      "agency_pct_of_direct_care": {"value": null, "calculated": true},
-      "agency_pct_of_labor": {"value": null, "calculated": true},
-      "food_cost_per_resident_day": {"value": null, "calculated": true},
-      "food_pct_of_revenue": {"value": null, "calculated": true},
-      "management_fee_pct": {"value": null, "calculated": true},
-      "admin_pct_of_revenue": {"value": null, "calculated": true},
-      "bad_debt_pct": {"value": null, "calculated": true},
-      "utilities_pct_of_revenue": {"value": null, "calculated": true},
-      "property_cost_per_bed": {"value": null, "calculated": true},
-      "insurance_pct_of_revenue": {"value": null, "calculated": true},
-      "insurance_per_bed": {"value": null, "calculated": true}
-    },
-    "benchmark_comparison": {
-      "labor_pct": {
-        "actual": null,
-        "benchmark": 55,
-        "max_acceptable": 62,
-        "status": null
-      },
-      "agency_pct_of_labor": {
-        "actual": null,
-        "benchmark": 2,
-        "max_acceptable": 5,
-        "status": null
-      },
-      "food_cost_per_day": {
-        "actual": null,
-        "benchmark": 10.50,
-        "max_acceptable": 13.00,
-        "status": null
-      },
-      "management_fee_pct": {
-        "actual": null,
-        "benchmark": 4,
-        "max_acceptable": 5,
-        "status": null
-      },
-      "bad_debt_pct": {
-        "actual": null,
-        "benchmark": 0.5,
-        "max_acceptable": 1.0,
-        "status": null
-      },
-      "utilities_pct": {
-        "actual": null,
-        "benchmark": 2.5,
-        "max_acceptable": 3.5,
-        "status": null
-      }
     }
   },
 
@@ -616,11 +311,6 @@ Return a JSON object with this structure. Use null for fields not found. Include
       "medicare_pct": {"value": null, "confidence": "not_found"},
       "private_pay_pct": {"value": null, "confidence": "not_found"},
       "other_pct": {"value": null, "confidence": "not_found"},
-      "source": null
-    },
-    "monthly_trends": {
-      "value": [],
-      "confidence": "not_found",
       "source": null
     }
   },
@@ -737,26 +427,6 @@ Return a JSON object with this structure. Use null for fields not found. Include
 11. **Source attribution**: Include source document name for key fields to enable verification.
 
 12. **Return ONLY valid JSON**, no markdown code blocks, no explanatory text before or after.`;
-}
-
-/**
- * Build the period analysis section to inject into the extraction prompt
- * This provides Claude with pre-analyzed period information to guide T12 extraction
- *
- * @param {Object} periodAnalysis - Result from analyzeDocumentPeriods()
- * @returns {string} Formatted prompt section for period analysis
- */
-/**
- * Build the period analysis prompt section using the periodAnalyzer's generatePromptSection
- * This integrates the enhanced period detection and source mapping into Claude's prompt
- */
-function buildPeriodAnalysisPrompt(periodAnalysis) {
-  if (!periodAnalysis) {
-    return '';
-  }
-
-  // Use the new generatePromptSection from periodAnalyzer for richer prompts
-  return generatePromptSection(periodAnalysis);
 }
 
 /**
@@ -1043,28 +713,6 @@ function flattenExtractedData(data) {
     // Calculation details for verification
     calculation_details: data.financial_information_t12?.calculation_details || null,
 
-    // Expense ratios - NEW
-    expense_ratios: data.financial_information_t12?.expense_ratios || null,
-    total_labor_cost: getValue(data.financial_information_t12?.expense_ratios?.total_labor_cost),
-    labor_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.labor_pct_of_revenue),
-    agency_pct_of_direct_care: getValue(data.financial_information_t12?.expense_ratios?.agency_pct_of_direct_care),
-    agency_pct_of_labor: getValue(data.financial_information_t12?.expense_ratios?.agency_pct_of_labor),
-    food_cost_per_resident_day: getValue(data.financial_information_t12?.expense_ratios?.food_cost_per_resident_day),
-    food_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.food_pct_of_revenue),
-    management_fee_pct: getValue(data.financial_information_t12?.expense_ratios?.management_fee_pct),
-    admin_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.admin_pct_of_revenue),
-    bad_debt_pct: getValue(data.financial_information_t12?.expense_ratios?.bad_debt_pct),
-    utilities_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.utilities_pct_of_revenue),
-    property_cost_per_bed: getValue(data.financial_information_t12?.expense_ratios?.property_cost_per_bed),
-    insurance_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.insurance_pct_of_revenue),
-    insurance_per_bed: getValue(data.financial_information_t12?.expense_ratios?.insurance_per_bed),
-
-    // Benchmark comparison - NEW
-    benchmark_comparison: data.financial_information_t12?.benchmark_comparison || null,
-
-    // Expense detail - NEW (store the entire structured object)
-    expense_detail: data.financial_information_t12?.expense_detail || null,
-
     // YTD Performance - NEW
     ytd_period_start: data.ytd_performance?.period?.start || null,
     ytd_period_end: data.ytd_performance?.period?.end || null,
@@ -1094,11 +742,6 @@ function flattenExtractedData(data) {
     // Payer mix sources
     payer_mix_census_source: data.census_and_occupancy?.payer_mix_by_census?.source || null,
     payer_mix_revenue_source: data.census_and_occupancy?.payer_mix_by_revenue?.source || null,
-
-    // Monthly trends for T12 charts - extract the array value
-    monthly_trends: getValue(data.census_and_occupancy?.monthly_trends) ||
-                    data.census_and_occupancy?.monthly_trends?.value || [],
-    monthly_trends_source: getSource(data.census_and_occupancy?.monthly_trends),
 
     // Rate information - handle new wrapped structure
     average_daily_rate: getValue(data.rate_information?.average_daily_rate),
@@ -1224,7 +867,6 @@ function flattenExtractedData(data) {
     medicaid_percentage: getConfidence(data.census_and_occupancy?.payer_mix_by_census?.medicaid_pct),
     medicare_percentage: getConfidence(data.census_and_occupancy?.payer_mix_by_census?.medicare_pct),
     private_pay_percentage: getConfidence(data.census_and_occupancy?.payer_mix_by_census?.private_pay_pct),
-    monthly_trends: getConfidence(data.census_and_occupancy?.monthly_trends),
 
     // Rate information
     private_pay_rates: getConfidence(data.rate_information?.private_pay_rates),
@@ -1312,7 +954,6 @@ function flattenExtractedData(data) {
     medicaid_percentage: getSource(data.census_and_occupancy?.payer_mix_by_census?.medicaid_pct),
     medicare_percentage: getSource(data.census_and_occupancy?.payer_mix_by_census?.medicare_pct),
     private_pay_percentage: getSource(data.census_and_occupancy?.payer_mix_by_census?.private_pay_pct),
-    monthly_trends: getSource(data.census_and_occupancy?.monthly_trends),
 
     // Rate information
     private_pay_rates: getSource(data.rate_information?.private_pay_rates),
@@ -1576,160 +1217,6 @@ function postProcessExtraction(data) {
     data.ebitda_multiple = Math.round((data.purchase_price / data.ebitda) * 100) / 100;
   }
 
-  // =========================================
-  // CALCULATE EXPENSE RATIOS FROM DEPARTMENTAL DATA
-  // =========================================
-  const revenue = data.annual_revenue || data.t12m_revenue;
-  const censusDays = data.total_census_days || data.ytd_census_days;
-
-  // Helper to get value from nested structure or flat field
-  const getVal = (obj, path) => {
-    if (!obj) return null;
-    const parts = path.split('.');
-    let val = obj;
-    for (const part of parts) {
-      if (val && typeof val === 'object') {
-        val = val[part];
-      } else {
-        return null;
-      }
-    }
-    // Handle {value: X} structure
-    if (val && typeof val === 'object' && 'value' in val) {
-      return val.value;
-    }
-    return val;
-  };
-
-  // Get expense department data - check multiple possible locations
-  // The AI might return data in expense_detail, expense_breakdown, expenses, or financial_information_t12.expense_detail
-  const expenses = data.expense_detail
-    || data.expense_breakdown
-    || data.expenses
-    || data.financial_information_t12?.expense_detail
-    || {};
-  const directCare = expenses.direct_care || {};
-  const culinary = expenses.culinary || {};
-  const housekeeping = expenses.housekeeping || {};
-  const maintenance = expenses.maintenance || {};
-  const admin = expenses.administrative || expenses.administration || {};
-  const activities = expenses.activities || {};
-  const utilities = expenses.utilities || {};
-  const property = expenses.property || {};
-
-  // Calculate total labor cost from all departments
-  if (!data.total_labor_cost) {
-    let totalLabor = 0;
-
-    // Direct Care labor
-    totalLabor += getVal(directCare, 'nursing_salaries_rcc') || 0;
-    totalLabor += getVal(directCare, 'nursing_salaries_rn') || 0;
-    totalLabor += getVal(directCare, 'nursing_salaries_lpn') || 0;
-    totalLabor += getVal(directCare, 'nursing_salaries_cma') || 0;
-    totalLabor += getVal(directCare, 'caregiver_wages') || getVal(directCare, 'caregiver_salaries') || 0;
-    totalLabor += getVal(directCare, 'pto_wages') || 0;
-    totalLabor += getVal(directCare, 'payroll_taxes') || 0;
-    totalLabor += getVal(directCare, 'benefits_medical') || getVal(directCare, 'medical_insurance') || 0;
-
-    // Culinary labor
-    totalLabor += getVal(culinary, 'wages') || 0;
-    totalLabor += getVal(culinary, 'pto_wages') || 0;
-    totalLabor += getVal(culinary, 'payroll_taxes') || 0;
-    totalLabor += getVal(culinary, 'benefits') || 0;
-
-    // Housekeeping labor
-    totalLabor += getVal(housekeeping, 'wages') || 0;
-    totalLabor += getVal(housekeeping, 'pto_wages') || 0;
-    totalLabor += getVal(housekeeping, 'payroll_taxes') || 0;
-    totalLabor += getVal(housekeeping, 'benefits') || 0;
-
-    // Maintenance labor
-    totalLabor += getVal(maintenance, 'wages') || 0;
-    totalLabor += getVal(maintenance, 'pto_wages') || 0;
-    totalLabor += getVal(maintenance, 'payroll_taxes') || 0;
-
-    // Activities labor
-    totalLabor += getVal(activities, 'wages') || 0;
-    totalLabor += getVal(activities, 'pto_wages') || 0;
-    totalLabor += getVal(activities, 'payroll_taxes') || 0;
-
-    // Admin labor
-    totalLabor += getVal(admin, 'salaries') || 0;
-    totalLabor += getVal(admin, 'allocated_overhead') || 0;
-    totalLabor += getVal(admin, 'pto_wages') || 0;
-    totalLabor += getVal(admin, 'payroll_taxes') || 0;
-    totalLabor += getVal(admin, 'benefits') || 0;
-
-    if (totalLabor > 0) {
-      data.total_labor_cost = totalLabor;
-    }
-  }
-
-  // Calculate labor % of revenue
-  if (!data.labor_pct_of_revenue && data.total_labor_cost && revenue) {
-    data.labor_pct_of_revenue = Math.round((data.total_labor_cost / revenue) * 100 * 10) / 10;
-  }
-
-  // Calculate agency staffing percentages
-  const agencyStaffing = getVal(directCare, 'agency_staffing') || data.agency_staffing_cost || 0;
-  const directCareTotal = getVal(directCare, 'total') || 0;
-
-  if (!data.agency_pct_of_direct_care && agencyStaffing && directCareTotal) {
-    data.agency_pct_of_direct_care = Math.round((agencyStaffing / directCareTotal) * 100 * 10) / 10;
-  }
-
-  if (!data.agency_pct_of_labor && agencyStaffing && data.total_labor_cost) {
-    data.agency_pct_of_labor = Math.round((agencyStaffing / data.total_labor_cost) * 100 * 10) / 10;
-  }
-
-  // Calculate food cost per resident day
-  const rawFoodCost = getVal(culinary, 'raw_food_cost') || data.raw_food_cost || 0;
-  if (!data.food_cost_per_resident_day && rawFoodCost && censusDays) {
-    data.food_cost_per_resident_day = Math.round((rawFoodCost / censusDays) * 100) / 100;
-  }
-
-  // Store raw food cost for display
-  if (!data.raw_food_cost && rawFoodCost) {
-    data.raw_food_cost = rawFoodCost;
-  }
-
-  // Calculate food % of revenue
-  if (!data.food_pct_of_revenue && rawFoodCost && revenue) {
-    data.food_pct_of_revenue = Math.round((rawFoodCost / revenue) * 100 * 10) / 10;
-  }
-
-  // Calculate management fee %
-  const managementFees = getVal(admin, 'management_fees') || data.management_fees || 0;
-  if (!data.management_fee_pct && managementFees && revenue) {
-    data.management_fee_pct = Math.round((managementFees / revenue) * 100 * 10) / 10;
-  }
-  if (!data.management_fees && managementFees) {
-    data.management_fees = managementFees;
-  }
-
-  // Calculate utilities % of revenue - check dedicated utilities section
-  const utilitiesTotal = getVal(utilities, 'total')
-    || (getVal(utilities, 'electric') || 0) + (getVal(utilities, 'gas') || 0) + (getVal(utilities, 'water_sewer_garbage') || 0)
-    || data.utilities_total || 0;
-  if (!data.utilities_pct_of_revenue && utilitiesTotal && revenue) {
-    data.utilities_pct_of_revenue = Math.round((utilitiesTotal / revenue) * 100 * 10) / 10;
-  }
-  if (!data.utilities_total && utilitiesTotal) {
-    data.utilities_total = utilitiesTotal;
-  }
-
-  // Calculate insurance % of revenue
-  const insurance = getVal(property, 'property_insurance') || getVal(property, 'liability_insurance') || data.property_insurance || 0;
-  if (!data.insurance_pct_of_revenue && insurance && revenue) {
-    data.insurance_pct_of_revenue = Math.round((insurance / revenue) * 100 * 10) / 10;
-  }
-
-  // Calculate bad debt % (if available)
-  const badDebt = getVal(admin, 'bad_debt') || data.bad_debt || 0;
-  if (!data.bad_debt_pct && badDebt && revenue) {
-    data.bad_debt_pct = Math.round((badDebt / revenue) * 100 * 10) / 10;
-  }
-
   // Set defaults
   if (!data.country) data.country = 'USA';
   if (!data.deal_type) data.deal_type = 'Acquisition';
@@ -1755,13 +1242,7 @@ function postProcessExtraction(data) {
     'proforma_year2_annual_ebit', 'proforma_year2_average_occupancy',
     'proforma_year3_annual_revenue', 'proforma_year3_annual_ebitdar',
     'proforma_year3_annual_rent', 'proforma_year3_annual_ebitda',
-    'proforma_year3_annual_ebit', 'proforma_year3_average_occupancy',
-    // Expense ratios
-    'total_labor_cost', 'labor_pct_of_revenue', 'agency_pct_of_direct_care',
-    'agency_pct_of_labor', 'food_cost_per_resident_day', 'food_pct_of_revenue',
-    'management_fee_pct', 'admin_pct_of_revenue', 'bad_debt_pct',
-    'utilities_pct_of_revenue', 'property_cost_per_bed', 'insurance_pct_of_revenue',
-    'insurance_per_bed'
+    'proforma_year3_annual_ebit', 'proforma_year3_average_occupancy'
   ];
 
   for (const field of numericFields) {
@@ -1893,27 +1374,6 @@ async function extractFromMultipleDocuments(files) {
       return await extractFromMultipleDocumentsSequential(files);
     }
 
-    // Step 2.5: Run period analysis on documents that have text content
-    let periodAnalysis = null;
-    const docsForPeriodAnalysis = processedFiles
-      .filter(f => !f.error && f.contentType === 'text' && f.textContent)
-      .map(f => ({
-        filename: f.name,
-        content: f.textContent,
-        fileType: f.mimeType?.includes('spreadsheet') || f.name?.match(/\.xlsx?$/i) ? 'xlsx' : 'other'
-      }));
-
-    if (shouldAnalyzePeriods(docsForPeriodAnalysis)) {
-      console.log(`Running period analysis on ${docsForPeriodAnalysis.length} text documents...`);
-      periodAnalysis = analyzeFinancialPeriods(docsForPeriodAnalysis);
-      console.log(`Period analysis complete: combination_needed=${periodAnalysis.combination_needed}, ` +
-        `overlapping_months=${periodAnalysis.overlapping_months?.length || 0}`);
-
-      if (periodAnalysis.combination_needed) {
-        console.log(`  Recommended T12: ${periodAnalysis.recommended_t12?.start} to ${periodAnalysis.recommended_t12?.end}`);
-      }
-    }
-
     // Step 3: Build combined content array for single API call
     const content = [];
     const systemPrompt = buildExtractionPrompt();
@@ -1956,16 +1416,13 @@ async function extractFromMultipleDocuments(files) {
       }
     }
 
-    // Build period analysis prompt section if analysis was performed
-    const periodAnalysisPrompt = buildPeriodAnalysisPrompt(periodAnalysis);
-
     // Add the extraction instruction at the end
     content.push({
       type: 'text',
       text: `\n\n========== EXTRACTION INSTRUCTIONS ==========
 
 You have been provided ${successfulFiles.length} documents above. Please extract deal information by analyzing ALL documents together.
-${periodAnalysisPrompt}
+
 **CRITICAL - FLOOR PLAN ADDRESS EXTRACTION:**
 
 **IMPORTANT: DISTINGUISH BETWEEN ARCHITECT ADDRESS vs FACILITY ADDRESS**
@@ -2013,7 +1470,7 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
       }]
     });
 
-    // Step 5: Parse the response
+    // Step 5: Parse the response with robust repair logic
     const responseText = response.content[0].text;
 
     let extractedData;
@@ -2030,24 +1487,18 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
         let jsonStr = jsonMatch[1] || jsonMatch[0];
 
         // Common JSON repair patterns
-        // 1. Remove trailing commas before } or ]
         jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
-        // 2. Fix unquoted property names (simple cases)
         jsonStr = jsonStr.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
-        // 3. Remove control characters
         jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, ' ');
-        // 4. Fix single quotes to double quotes
         jsonStr = jsonStr.replace(/'/g, '"');
 
         try {
           extractedData = JSON.parse(jsonStr);
           console.log('JSON repair successful');
         } catch (repairError) {
-          // Last resort: try to find the largest valid JSON object
           console.log('JSON repair failed, trying partial extraction...');
           const partialMatch = responseText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
           if (partialMatch) {
-            // Sort by length and try largest first
             const sorted = partialMatch.sort((a, b) => b.length - a.length);
             for (const candidate of sorted) {
               try {
@@ -2077,16 +1528,6 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
     processedData._extractionMethod = 'combined-multi-doc';
     processedData._documentsProcessed = successfulFiles.map(f => f.name);
 
-    // Add period analysis metadata if available
-    if (periodAnalysis) {
-      processedData._periodAnalysis = {
-        combination_needed: periodAnalysis.combination_needed,
-        overlapping_months: periodAnalysis.overlapping_months,
-        recommended_t12: periodAnalysis.recommended_t12,
-        documents_analyzed: periodAnalysis.financial_documents?.length || 0
-      };
-    }
-
     return {
       success: true,
       mergedData: processedData,
@@ -2097,8 +1538,7 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
         contentType: f.contentType
       })),
       confidence: calculateConfidence(processedData),
-      extractionMethod: 'combined',
-      periodAnalysis: periodAnalysis // Include full period analysis for verification
+      extractionMethod: 'combined'
     };
 
   } catch (error) {
