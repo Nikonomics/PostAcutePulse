@@ -12,7 +12,9 @@ import {
   Calculator,
   ClipboardList,
   Target,
+  Brain,
 } from 'lucide-react';
+import SNFalyzePanel from '../SNFalyzePanel';
 import {
   DealExtractionViewerProps,
   ExtractedDealData,
@@ -119,6 +121,9 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // State for document viewer modal
   const [documentViewerOpen, setDocumentViewerOpen] = useState(false);
   const [selectedSourceRef, setSelectedSourceRef] = useState<SourceReference | null>(null);
+
+  // State for SNFalyze panel
+  const [snfalyzePanelOpen, setSnfalyzePanelOpen] = useState(false);
 
   // Handle source click to open document viewer
   const handleSourceClick = useCallback((sourceRef: SourceReference) => {
@@ -253,6 +258,56 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Overview Tab
   const renderOverviewTab = () => (
     <div>
+      {/* Ask SNFalyze Button */}
+      <div style={{
+        marginBottom: '1.5rem',
+        padding: '1rem',
+        background: 'linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)',
+        borderRadius: '0.75rem',
+        border: '1px solid #c4b5fd',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div>
+          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#5b21b6' }}>
+            Get AI-Powered Deal Insights
+          </h4>
+          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#7c3aed' }}>
+            Ask SNFalyze to analyze this deal's financial health, risks, and opportunities
+          </p>
+        </div>
+        <button
+          onClick={() => setSnfalyzePanelOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.625rem 1.25rem',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+            border: 'none',
+            borderRadius: '0.5rem',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            color: 'white',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.3)';
+          }}
+        >
+          <Brain size={18} />
+          Ask SNFalyze
+        </button>
+      </div>
+
       {/* Deal Information */}
       <h3 style={sectionHeaderStyle}>Deal Information</h3>
       <div style={gridStyle}>
@@ -608,6 +663,15 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         onClose={() => setDocumentViewerOpen(false)}
         sourceRef={selectedSourceRef}
         dealDocuments={dealDocuments}
+      />
+
+      {/* SNFalyze AI Panel */}
+      <SNFalyzePanel
+        isOpen={snfalyzePanelOpen}
+        onClose={() => setSnfalyzePanelOpen(false)}
+        dealId={dealId}
+        deal={deal}
+        autoAnalyze={false}
       />
     </div>
   );

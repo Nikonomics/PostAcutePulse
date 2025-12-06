@@ -13,15 +13,10 @@ import {
   XCircle,
   Brain,
   X,
-  Send,
-  Sparkles,
   Edit3,
   RotateCcw,
 } from 'lucide-react';
-
-// Gemini API configuration (same as ChatInterfaceAI)
-const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+import SNFalyzePanel from './SNFalyzePanel';
 
 // =============================================================================
 // VALUATION DRIVER OPTIONS
@@ -205,257 +200,6 @@ const computeScenarioValuation = (editableMetrics, driverType, driverValue) => {
 };
 
 // =============================================================================
-// MARKDOWN RENDERING FOR SNFALYZE RESPONSE
-// =============================================================================
-
-/**
- * Simple markdown to HTML converter for SNFalyze response
- * Handles headers, bullet points, numbered lists, and bold text
- */
-const renderMarkdown = (text) => {
-  if (!text) return '';
-
-  // Process line by line
-  const lines = text.split('\n');
-  let html = '';
-  let inList = false;
-  let inOrderedList = false;
-
-  lines.forEach((line, index) => {
-    // Close lists if we hit an empty line or non-list item
-    if (inList && !line.trim().startsWith('-') && !line.trim().startsWith('*')) {
-      html += '</ul>';
-      inList = false;
-    }
-    if (inOrderedList && !/^\d+\./.test(line.trim())) {
-      html += '</ol>';
-      inOrderedList = false;
-    }
-
-    // Headers
-    if (line.startsWith('## ')) {
-      html += `<h3 class="snf-header">${line.substring(3)}</h3>`;
-    } else if (line.startsWith('# ')) {
-      html += `<h2 class="snf-header-main">${line.substring(2)}</h2>`;
-    } else if (line.startsWith('**') && line.endsWith('**')) {
-      // Bold headers
-      html += `<h4 class="snf-subheader">${line.slice(2, -2)}</h4>`;
-    } else if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-      // Bullet points
-      if (!inList) {
-        html += '<ul class="snf-list">';
-        inList = true;
-      }
-      const content = line.trim().substring(2);
-      html += `<li>${formatInlineMarkdown(content)}</li>`;
-    } else if (/^\d+\.\s/.test(line.trim())) {
-      // Numbered list
-      if (!inOrderedList) {
-        html += '<ol class="snf-ordered-list">';
-        inOrderedList = true;
-      }
-      const content = line.trim().replace(/^\d+\.\s/, '');
-      html += `<li>${formatInlineMarkdown(content)}</li>`;
-    } else if (line.trim() === '') {
-      // Empty line - add spacing
-      html += '<div class="snf-spacer"></div>';
-    } else {
-      // Regular paragraph
-      html += `<p class="snf-paragraph">${formatInlineMarkdown(line)}</p>`;
-    }
-  });
-
-  // Close any open lists
-  if (inList) html += '</ul>';
-  if (inOrderedList) html += '</ol>';
-
-  return html;
-};
-
-/**
- * Format inline markdown (bold, italic)
- */
-const formatInlineMarkdown = (text) => {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/__(.+?)__/g, '<strong>$1</strong>')
-    .replace(/_(.+?)_/g, '<em>$1</em>');
-};
-
-/**
- * Build a readable text summary from calculator metrics
- * IMPORTANT: Uses exact values with NO rounding, NO formatting, NO abbreviation
- * @param {Object} metrics - The calculator API response
- * @param {Object} deal - The deal object for context
- * @returns {string} - Human-readable summary text
- */
-const buildCalculatorSummary = (metrics, deal) => {
-  if (!metrics) return '';
-
-  const { inputs, computed, summary, dataQuality } = metrics;
-
-  // Helper to output value or 'N/A' - NO rounding, NO formatting
-  const val = (v) => (v !== null && v !== undefined) ? String(v) : 'N/A';
-
-  let text = `DEAL CALCULATOR METRICS SUMMARY
-================================
-
-DEAL: ${deal?.deal_name || deal?.name || 'Unknown Deal'}
-
-DATA QUALITY
-------------
-Completeness Score: ${val(dataQuality?.completenessScore)}%
-Has Revenue Data: ${dataQuality?.hasRevenueData ? 'Yes' : 'No'}
-Has EBITDA Data: ${dataQuality?.hasEBITDAData ? 'Yes' : 'No'}
-Has Occupancy Data: ${dataQuality?.hasOccupancyData ? 'Yes' : 'No'}
-Has Payer Mix Data: ${dataQuality?.hasPayerMixData ? 'Yes' : 'No'}
-
-INPUT VALUES (from deal data)
------------------------------
-Purchase Price: ${val(inputs?.purchasePrice)}
-Annual Revenue: ${val(inputs?.annualRevenue)}
-EBITDA: ${val(inputs?.ebitda)}
-EBITDAR: ${val(inputs?.ebitdar)}
-Number of Beds: ${val(inputs?.numberOfBeds)}
-Current Occupancy: ${val(inputs?.currentOccupancy)}
-Average Daily Rate: ${val(inputs?.averageDailyRate)}
-Annual Rent: ${val(inputs?.annualRent)}
-Target IRR: ${val(inputs?.targetIRR)}
-Target Hold Period: ${val(inputs?.targetHoldPeriod)}
-Exit Multiple: ${val(inputs?.exitMultiple)}
-Target Cap Rate: ${val(inputs?.targetCapRate)}
-
-COMPUTED METRICS
-----------------
-Price Per Bed: ${val(computed?.pricePerBed)}
-Revenue Multiple: ${val(computed?.revenueMultiple)}
-EBITDA Multiple: ${val(computed?.ebitdaMultiple)}
-EBITDAR Multiple: ${val(computed?.ebitdarMultiple)}
-Cap Rate: ${val(computed?.capRate)}
-EBITDA Margin: ${val(computed?.ebitdaMargin)}
-Revenue Per Bed: ${val(computed?.revenuePerBed)}
-EBITDA Per Bed: ${val(computed?.ebitdaPerBed)}
-Rent Coverage Ratio: ${val(computed?.rentCoverageRatio)}
-Stabilized Cap Rate: ${val(computed?.stabilizedCapRate)}
-Exit Value at Multiple: ${val(computed?.exitValueAtMultiple)}
-Implied Value at Target Cap: ${val(computed?.impliedValueAtTargetCap)}`;
-
-  // Add payer mix if available
-  if (computed?.payerMix) {
-    text += `
-
-PAYER MIX
----------
-Medicare: ${val(computed.payerMix.medicare)}
-Medicaid: ${val(computed.payerMix.medicaid)}
-Private Pay: ${val(computed.payerMix.privatePay)}
-Other: ${val(computed.payerMix.other)}`;
-  }
-
-  // Add summary flags if available
-  if (summary) {
-    text += `
-
-SUMMARY FLAGS
--------------`;
-    if (summary.isUndervalued !== undefined) text += `\nIs Undervalued: ${summary.isUndervalued ? 'Yes' : 'No'}`;
-    if (summary.hasStrongCashFlow !== undefined) text += `\nHas Strong Cash Flow: ${summary.hasStrongCashFlow ? 'Yes' : 'No'}`;
-    if (summary.meetsBenchmarks !== undefined) text += `\nMeets Benchmarks: ${summary.meetsBenchmarks ? 'Yes' : 'No'}`;
-    if (summary.recommendation) text += `\nRecommendation: ${summary.recommendation}`;
-  }
-
-  return text;
-};
-
-/**
- * Call Gemini API with the calculator summary
- * Uses the SAME prompt structure as ChatInterfaceAI - does NOT modify the analysis prompt
- */
-const callSNFalyzeAPI = async (summaryText, deal) => {
-  const dealContext = `
-Deal Name: ${deal?.deal_name || deal?.name || 'Unknown'}
-Type: ${deal?.deal_type || '-'}
-Total Deal Amount: ${deal?.total_deal_amount || '-'}
-Status: ${deal?.deal_status || deal?.status || '-'}
-Priority: ${deal?.priority_level || '-'}
-`;
-
-  const prompt = `You are SNFalyze.ai, an advanced M&A deal analysis assistant specializing in Skilled Nursing Facility (SNF) deals. You use Cascadia Healthcare's proprietary SNF Deal Evaluation Algorithm to provide sophisticated analysis.
-
-Here is the deal context:
-${dealContext}
-
-Here are the calculated underwriting metrics from the Deal Calculator:
-
-${summaryText}
-
-Please analyze these metrics and provide a well-formatted analysis with the following sections. Use clear headers, spacing, and bullet points for readability:
-
-## 1. Financial Health Assessment
-Provide a concise 2-3 sentence assessment of the deal's overall financial health.
-
-## 2. Key Strengths
-List 2-4 strengths as bullet points, each with a brief explanation.
-
-## 3. Key Concerns & Red Flags
-List 2-4 concerns as bullet points, each with a brief explanation of why it matters.
-
-## 4. Benchmark Comparison
-Compare key metrics to Cascadia benchmarks in a clear format:
-- EBITDA Margin: [deal value] vs 9% benchmark
-- EBITDAR Margin: [deal value] vs 23% benchmark
-- Occupancy: [deal value] vs 85% benchmark
-
-## 5. Recommended Next Steps
-Provide 4-6 actionable next steps as numbered items, each on its own line.
-
-## Summary
-End with a 2-3 sentence overall recommendation.
-
-Format your response with proper markdown using ## for headers, bullet points (-) for lists, and numbered lists (1. 2. 3.) for sequential steps. Include blank lines between sections for readability.`;
-
-  const response = await fetch(
-    `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt }
-            ]
-          }
-        ]
-      })
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error('Failed to get AI response');
-  }
-
-  const data = await response.json();
-
-  if (
-    data &&
-    data.candidates &&
-    data.candidates[0] &&
-    data.candidates[0].content &&
-    data.candidates[0].content.parts &&
-    data.candidates[0].content.parts[0] &&
-    data.candidates[0].content.parts[0].text
-  ) {
-    return data.candidates[0].content.parts[0].text;
-  }
-
-  throw new Error('Invalid response format from Gemini API');
-};
-
-// =============================================================================
 // FORMATTED INPUT COMPONENT
 // =============================================================================
 
@@ -546,11 +290,8 @@ const DealCalculatorTab = ({ dealId, deal }) => {
     scenario: null,
   });
 
-  // SNFalyze panel state
+  // SNFalyze panel state (using unified component)
   const [showSNFalyzePanel, setShowSNFalyzePanel] = useState(false);
-  const [snfalyzeLoading, setSnfalyzeLoading] = useState(false);
-  const [snfalyzeResponse, setSnfalyzeResponse] = useState(null);
-  const [snfalyzeError, setSnfalyzeError] = useState(null);
 
   // ==========================================================================
   // FETCH METRICS FROM API
@@ -711,35 +452,6 @@ const DealCalculatorTab = ({ dealId, deal }) => {
       driverValue: '',
       scenario: null,
     });
-  };
-
-  // ==========================================================================
-  // SNFALYZE HANDLERS
-  // ==========================================================================
-
-  const handleAskSNFalyze = async () => {
-    if (!metrics) return;
-
-    setShowSNFalyzePanel(true);
-    setSnfalyzeLoading(true);
-    setSnfalyzeError(null);
-    setSnfalyzeResponse(null);
-
-    try {
-      const summaryText = buildCalculatorSummary(metrics, deal);
-      const response = await callSNFalyzeAPI(summaryText, deal);
-      setSnfalyzeResponse(response);
-    } catch (err) {
-      setSnfalyzeError(err.message || 'Failed to get SNFalyze analysis');
-    } finally {
-      setSnfalyzeLoading(false);
-    }
-  };
-
-  const closeSNFalyzePanel = () => {
-    setShowSNFalyzePanel(false);
-    setSnfalyzeResponse(null);
-    setSnfalyzeError(null);
   };
 
   // ==========================================================================
@@ -1539,9 +1251,9 @@ const DealCalculatorTab = ({ dealId, deal }) => {
             </button>
           )}
           <button
-            onClick={handleAskSNFalyze}
+            onClick={() => setShowSNFalyzePanel(true)}
             className="snfalyze-btn"
-            disabled={!metrics || snfalyzeLoading}
+            disabled={!metrics}
           >
             <Brain size={18} />
             Ask SNFalyze about this deal
@@ -2057,58 +1769,14 @@ const DealCalculatorTab = ({ dealId, deal }) => {
         </div>
       </div>
 
-      {/* SNFalyze Side Panel */}
-      {showSNFalyzePanel && (
-        <div className="snfalyze-panel-overlay" onClick={closeSNFalyzePanel}>
-          <div className="snfalyze-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="snfalyze-panel-header">
-              <h3>
-                <Brain size={20} />
-                SNFalyze Analysis
-              </h3>
-              <button className="snfalyze-panel-close" onClick={closeSNFalyzePanel}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="snfalyze-panel-content">
-              {snfalyzeLoading && (
-                <div className="snfalyze-loading">
-                  <div className="snfalyze-loading-dots">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                  <p>SNFalyze.ai is analyzing your deal metrics...</p>
-                </div>
-              )}
-
-              {snfalyzeError && (
-                <div className="snfalyze-error">
-                  <AlertCircle size={32} />
-                  <p>{snfalyzeError}</p>
-                  <button onClick={handleAskSNFalyze} className="refresh-btn" style={{ marginTop: '1rem' }}>
-                    <RefreshCw size={16} />
-                    Retry
-                  </button>
-                </div>
-              )}
-
-              {snfalyzeResponse && (
-                <div
-                  className="snfalyze-response"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(snfalyzeResponse) }}
-                />
-              )}
-            </div>
-
-            <div className="snfalyze-panel-footer">
-              <Sparkles size={14} />
-              Powered by SNFalyze.ai
-            </div>
-          </div>
-        </div>
-      )}
+      {/* SNFalyze Panel (Unified Component) */}
+      <SNFalyzePanel
+        isOpen={showSNFalyzePanel}
+        onClose={() => setShowSNFalyzePanel(false)}
+        dealId={dealId}
+        deal={deal}
+        autoAnalyze={true}
+      />
     </div>
   );
 };
