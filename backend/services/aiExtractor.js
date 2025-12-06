@@ -1468,18 +1468,57 @@ If only city/state shown (no street address):
     // Parse the response
     const responseText = response.content[0].text;
 
-    // Try to extract JSON from the response
+    // Try to extract JSON from the response with robust repair logic
     let extractedData;
     try {
       // Try direct parse first
       extractedData = JSON.parse(responseText);
-    } catch {
-      // Try to find JSON in the response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    } catch (parseError) {
+      console.log('Initial JSON parse failed, attempting repair...');
+
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
+        || responseText.match(/\{[\s\S]*\}/);
+
       if (jsonMatch) {
-        extractedData = JSON.parse(jsonMatch[0]);
+        let jsonStr = jsonMatch[1] || jsonMatch[0];
+
+        // Common JSON repair patterns
+        // 1. Remove trailing commas before } or ]
+        jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+        // 2. Fix unquoted property names (simple cases)
+        jsonStr = jsonStr.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+        // 3. Remove control characters
+        jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, ' ');
+        // 4. Fix single quotes to double quotes
+        jsonStr = jsonStr.replace(/'/g, '"');
+
+        try {
+          extractedData = JSON.parse(jsonStr);
+          console.log('JSON repair successful');
+        } catch (repairError) {
+          // Last resort: try to find the largest valid JSON object
+          console.log('JSON repair failed, trying partial extraction...');
+          const partialMatch = responseText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+          if (partialMatch) {
+            const sorted = partialMatch.sort((a, b) => b.length - a.length);
+            for (const candidate of sorted) {
+              try {
+                extractedData = JSON.parse(candidate);
+                console.log('Partial JSON extraction successful');
+                break;
+              } catch {
+                continue;
+              }
+            }
+          }
+
+          if (!extractedData) {
+            throw new Error(`Could not parse AI response as JSON: ${parseError.message}`);
+          }
+        }
       } else {
-        throw new Error('Could not parse AI response as JSON');
+        throw new Error('Could not find JSON in AI response');
       }
     }
 
@@ -1980,12 +2019,53 @@ Documents analyzed: ${successfulFiles.map(f => f.name).join(', ')}`
     let extractedData;
     try {
       extractedData = JSON.parse(responseText);
-    } catch {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    } catch (parseError) {
+      console.log('Initial JSON parse failed, attempting repair...');
+
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
+        || responseText.match(/\{[\s\S]*\}/);
+
       if (jsonMatch) {
-        extractedData = JSON.parse(jsonMatch[0]);
+        let jsonStr = jsonMatch[1] || jsonMatch[0];
+
+        // Common JSON repair patterns
+        // 1. Remove trailing commas before } or ]
+        jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+        // 2. Fix unquoted property names (simple cases)
+        jsonStr = jsonStr.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+        // 3. Remove control characters
+        jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, ' ');
+        // 4. Fix single quotes to double quotes
+        jsonStr = jsonStr.replace(/'/g, '"');
+
+        try {
+          extractedData = JSON.parse(jsonStr);
+          console.log('JSON repair successful');
+        } catch (repairError) {
+          // Last resort: try to find the largest valid JSON object
+          console.log('JSON repair failed, trying partial extraction...');
+          const partialMatch = responseText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+          if (partialMatch) {
+            // Sort by length and try largest first
+            const sorted = partialMatch.sort((a, b) => b.length - a.length);
+            for (const candidate of sorted) {
+              try {
+                extractedData = JSON.parse(candidate);
+                console.log('Partial JSON extraction successful');
+                break;
+              } catch {
+                continue;
+              }
+            }
+          }
+
+          if (!extractedData) {
+            throw new Error(`Could not parse AI response as JSON: ${parseError.message}`);
+          }
+        }
       } else {
-        throw new Error('Could not parse AI response as JSON');
+        throw new Error('Could not find JSON in AI response');
       }
     }
 
