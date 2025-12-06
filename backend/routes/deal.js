@@ -9,6 +9,9 @@ router.post('/extract', requireAuthentication, DealController.extractDealFromDoc
 // Enhanced parallel extraction (new - faster, more comprehensive)
 router.post('/extract-enhanced', requireAuthentication, DealController.extractDealEnhanced);
 
+// Re-extract existing deal and store time-series data
+router.post('/:dealId/reextract', requireAuthentication, DealController.reExtractDeal);
+
 router.post('/create-deals', requireAuthentication, DealController.createDeal);
 router.get('/get-deals', requireAuthentication, DealController.getDeal);
 router.get('/get-deal-stats', requireAuthentication, DealController.getDealStats);

@@ -345,7 +345,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Financials Tab
   const renderFinancialsTab = () => {
     const fin = extractionData.financial_information_t12;
-    const ytd = extractionData.ytd_performance;
 
     return (
       <div>
@@ -398,30 +397,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           <FieldCell label="EBIT" field={fin.ebit} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
         </div>
 
-        {/* YTD Performance */}
-        {ytd && (
-          <>
-            <h3 style={{ ...sectionHeaderStyle, marginTop: '2.5rem' }}>Year-to-Date Performance</h3>
-            {(ytd.period?.start || ytd.period?.end) && (
-              <div style={periodBadgeStyle}>
-                Period: {formatPeriod(ytd.period.start, ytd.period.end)}
-              </div>
-            )}
-            <div style={gridStyle}>
-              <FieldCell label="YTD Revenue" field={ytd.total_revenue} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-              <FieldCell label="YTD Expenses" field={ytd.total_expenses} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-              <FieldCell label="YTD Net Income" field={ytd.net_income} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-              <FieldCell label="YTD Avg Daily Census" field={ytd.average_daily_census} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-            </div>
-
-            <h4 style={subsectionHeaderStyle}>Census Days Breakdown</h4>
-            <div style={gridStyle}>
-              <FieldCell label="Medicaid Days" field={ytd.medicaid_days} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-              <FieldCell label="Private Pay Days" field={ytd.private_pay_days} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-              <FieldCell label="Total Census Days" field={ytd.total_census_days} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-            </div>
-          </>
-        )}
       </div>
     );
   };

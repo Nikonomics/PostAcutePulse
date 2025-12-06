@@ -363,8 +363,21 @@ export const isSourceClickable = (sourceRef: SourceReference | null): boolean =>
   if (!sourceRef) return false;
   if (sourceRef.isCalculated) return false;
 
-  // Check if document has a recognizable file extension
-  return /\.(xlsx?|pdf|docx?|csv)$/i.test(sourceRef.document);
+  // Accept any source with a document name that:
+  // 1. Has a recognizable file extension (xlsx, pdf, docx, csv)
+  // 2. OR has a meaningful document name (at least 3 chars, not just generic)
+  const doc = sourceRef.document.trim();
+  if (/\.(xlsx?|pdf|docx?|csv)$/i.test(doc)) {
+    return true;
+  }
+
+  // Allow clicking on document references even without extension
+  // (AI might output "P&L" or "Census Report" without the file extension)
+  // Exclude very short or generic names
+  const genericNames = ['file', 'document', 'source', 'data', 'input', 'unknown'];
+  const isGeneric = genericNames.includes(doc.toLowerCase());
+
+  return doc.length >= 3 && !isGeneric;
 };
 
 /**

@@ -105,136 +105,137 @@ DealComments.belongsToMany(User, {
  * @param {Object} extractionData - The enhanced extraction data
  */
 const storeTimeSeriesData = async (dealId, extractionData) => {
-  if (!extractionData) return;
+  console.log('[storeTimeSeriesData] Starting for deal', dealId);
+  console.log('[storeTimeSeriesData] extractionData keys:', extractionData ? Object.keys(extractionData) : 'null');
+  if (!extractionData) {
+    console.log('[storeTimeSeriesData] No extraction data provided');
+    return;
+  }
 
-  const promises = [];
+  let recordCount = 0;
 
-  // Store monthly financials
+  // Store monthly financials (sequential for SQLite compatibility)
   if (extractionData.monthlyFinancials && Array.isArray(extractionData.monthlyFinancials)) {
     for (const financial of extractionData.monthlyFinancials) {
       if (financial.month) {
-        promises.push(
-          DealMonthlyFinancials.upsert({
-            deal_id: dealId,
-            month: financial.month,
-            source_document: financial.source_document,
-            source_location: financial.source_location,
-            total_revenue: financial.total_revenue,
-            medicaid_revenue: financial.medicaid_revenue,
-            medicare_revenue: financial.medicare_revenue,
-            private_pay_revenue: financial.private_pay_revenue,
-            other_revenue: financial.other_revenue,
-            room_and_board_revenue: financial.room_and_board_revenue,
-            care_level_revenue: financial.care_level_revenue,
-            ancillary_revenue: financial.ancillary_revenue,
-            total_expenses: financial.total_expenses,
-            operating_expenses: financial.operating_expenses,
-            depreciation: financial.depreciation,
-            amortization: financial.amortization,
-            interest_expense: financial.interest_expense,
-            rent_expense: financial.rent_expense,
-            property_taxes: financial.property_taxes,
-            property_insurance: financial.property_insurance,
-            net_income: financial.net_income,
-            ebit: financial.ebit,
-            ebitda: financial.ebitda,
-            ebitdar: financial.ebitdar,
-            extraction_confidence: financial.extraction_confidence,
-            updated_at: new Date()
-          })
-        );
+        await DealMonthlyFinancials.upsert({
+          deal_id: dealId,
+          month: financial.month,
+          source_document: financial.source_document,
+          source_location: financial.source_location,
+          total_revenue: financial.total_revenue,
+          medicaid_revenue: financial.medicaid_revenue,
+          medicare_revenue: financial.medicare_revenue,
+          private_pay_revenue: financial.private_pay_revenue,
+          other_revenue: financial.other_revenue,
+          room_and_board_revenue: financial.room_and_board_revenue,
+          care_level_revenue: financial.care_level_revenue,
+          ancillary_revenue: financial.ancillary_revenue,
+          total_expenses: financial.total_expenses,
+          operating_expenses: financial.operating_expenses,
+          depreciation: financial.depreciation,
+          amortization: financial.amortization,
+          interest_expense: financial.interest_expense,
+          rent_expense: financial.rent_expense,
+          property_taxes: financial.property_taxes,
+          property_insurance: financial.property_insurance,
+          net_income: financial.net_income,
+          ebit: financial.ebit,
+          ebitda: financial.ebitda,
+          ebitdar: financial.ebitdar,
+          extraction_confidence: financial.extraction_confidence,
+          updated_at: new Date()
+        });
+        recordCount++;
       }
     }
   }
 
-  // Store monthly census
+  // Store monthly census (sequential for SQLite compatibility)
   if (extractionData.monthlyCensus && Array.isArray(extractionData.monthlyCensus)) {
     for (const census of extractionData.monthlyCensus) {
       if (census.month) {
-        promises.push(
-          DealMonthlyCensus.upsert({
-            deal_id: dealId,
-            month: census.month,
-            source_document: census.source_document,
-            source_location: census.source_location,
-            total_beds: census.total_beds,
-            average_daily_census: census.average_daily_census,
-            occupancy_percentage: census.occupancy_percentage,
-            total_census_days: census.total_census_days,
-            medicaid_days: census.medicaid_days,
-            medicare_days: census.medicare_days,
-            private_pay_days: census.private_pay_days,
-            other_payer_days: census.other_payer_days,
-            medicaid_percentage: census.medicaid_percentage,
-            medicare_percentage: census.medicare_percentage,
-            private_pay_percentage: census.private_pay_percentage,
-            other_payer_percentage: census.other_payer_percentage,
-            admissions: census.admissions,
-            discharges: census.discharges,
-            extraction_confidence: census.extraction_confidence,
-            updated_at: new Date()
-          })
-        );
+        await DealMonthlyCensus.upsert({
+          deal_id: dealId,
+          month: census.month,
+          source_document: census.source_document,
+          source_location: census.source_location,
+          total_beds: census.total_beds,
+          average_daily_census: census.average_daily_census,
+          occupancy_percentage: census.occupancy_percentage,
+          total_census_days: census.total_census_days,
+          medicaid_days: census.medicaid_days,
+          medicare_days: census.medicare_days,
+          private_pay_days: census.private_pay_days,
+          other_payer_days: census.other_payer_days,
+          medicaid_percentage: census.medicaid_percentage,
+          medicare_percentage: census.medicare_percentage,
+          private_pay_percentage: census.private_pay_percentage,
+          other_payer_percentage: census.other_payer_percentage,
+          admissions: census.admissions,
+          discharges: census.discharges,
+          extraction_confidence: census.extraction_confidence,
+          updated_at: new Date()
+        });
+        recordCount++;
       }
     }
   }
 
-  // Store monthly expenses
+  // Store monthly expenses (sequential for SQLite compatibility)
   if (extractionData.monthlyExpenses && Array.isArray(extractionData.monthlyExpenses)) {
     for (const expense of extractionData.monthlyExpenses) {
       if (expense.month && expense.department) {
-        promises.push(
-          DealMonthlyExpenses.upsert({
-            deal_id: dealId,
-            month: expense.month,
-            department: expense.department,
-            source_document: expense.source_document,
-            source_location: expense.source_location,
-            salaries_wages: expense.salaries_wages,
-            benefits: expense.benefits,
-            payroll_taxes: expense.payroll_taxes,
-            agency_labor: expense.agency_labor,
-            contract_labor: expense.contract_labor,
-            total_labor: expense.total_labor,
-            supplies: expense.supplies,
-            food_cost: expense.food_cost,
-            utilities: expense.utilities,
-            repairs_maintenance: expense.repairs_maintenance,
-            other_expenses: expense.other_expenses,
-            total_department_expense: expense.total_department_expense,
-            extraction_confidence: expense.extraction_confidence,
-            updated_at: new Date()
-          })
-        );
+        await DealMonthlyExpenses.upsert({
+          deal_id: dealId,
+          month: expense.month,
+          department: expense.department,
+          source_document: expense.source_document,
+          source_location: expense.source_location,
+          salaries_wages: expense.salaries_wages,
+          benefits: expense.benefits,
+          payroll_taxes: expense.payroll_taxes,
+          agency_labor: expense.agency_labor,
+          contract_labor: expense.contract_labor,
+          total_labor: expense.total_labor,
+          supplies: expense.supplies,
+          food_cost: expense.food_cost,
+          utilities: expense.utilities,
+          repairs_maintenance: expense.repairs_maintenance,
+          other_expenses: expense.other_expenses,
+          total_department_expense: expense.total_department_expense,
+          extraction_confidence: expense.extraction_confidence,
+          updated_at: new Date()
+        });
+        recordCount++;
       }
     }
   }
 
-  // Store rate schedules
+  // Store rate schedules (sequential for SQLite compatibility)
   if (extractionData.rates && Array.isArray(extractionData.rates)) {
     for (const rate of extractionData.rates) {
       if (rate.payer_type) {
-        promises.push(
-          DealRateSchedules.create({
-            deal_id: dealId,
-            payer_type: rate.payer_type,
-            rate_category: rate.rate_category,
-            care_level: rate.care_level,
-            source_document: rate.source_document,
-            source_location: rate.source_location,
-            daily_rate: rate.daily_rate,
-            monthly_rate: rate.monthly_rate,
-            annual_rate: rate.annual_rate,
-            care_level_addon: rate.care_level_addon,
-            second_person_fee: rate.second_person_fee,
-            ancillary_fee: rate.ancillary_fee,
-            effective_date: rate.effective_date,
-            expiration_date: rate.expiration_date,
-            is_current: rate.is_current !== false,
-            extraction_confidence: rate.extraction_confidence,
-            notes: rate.notes
-          })
-        );
+        await DealRateSchedules.create({
+          deal_id: dealId,
+          payer_type: rate.payer_type,
+          rate_category: rate.rate_category,
+          care_level: rate.care_level,
+          source_document: rate.source_document,
+          source_location: rate.source_location,
+          daily_rate: rate.daily_rate,
+          monthly_rate: rate.monthly_rate,
+          annual_rate: rate.annual_rate,
+          care_level_addon: rate.care_level_addon,
+          second_person_fee: rate.second_person_fee,
+          ancillary_fee: rate.ancillary_fee,
+          effective_date: rate.effective_date,
+          expiration_date: rate.expiration_date,
+          is_current: rate.is_current !== false,
+          extraction_confidence: rate.extraction_confidence,
+          notes: rate.notes
+        });
+        recordCount++;
       }
     }
   }
@@ -242,51 +243,48 @@ const storeTimeSeriesData = async (dealId, extractionData) => {
   // Store expense ratios
   if (extractionData.ratios) {
     const ratios = extractionData.ratios;
-    promises.push(
-      DealExpenseRatios.upsert({
-        deal_id: dealId,
-        period_end: ratios.period_end,
-        total_labor_cost: ratios.total_labor_cost,
-        labor_pct_of_revenue: ratios.labor_pct_of_revenue,
-        nursing_labor_pct_of_revenue: ratios.nursing_labor_pct_of_revenue,
-        agency_labor_total: ratios.agency_labor_total,
-        agency_pct_of_labor: ratios.agency_pct_of_labor,
-        agency_pct_of_direct_care: ratios.agency_pct_of_direct_care,
-        labor_cost_per_resident_day: ratios.labor_cost_per_resident_day,
-        total_cost_per_resident_day: ratios.total_cost_per_resident_day,
-        food_cost_total: ratios.food_cost_total,
-        food_cost_per_resident_day: ratios.food_cost_per_resident_day,
-        food_pct_of_revenue: ratios.food_pct_of_revenue,
-        dietary_labor_pct_of_revenue: ratios.dietary_labor_pct_of_revenue,
-        admin_pct_of_revenue: ratios.admin_pct_of_revenue,
-        management_fee_pct: ratios.management_fee_pct,
-        bad_debt_pct: ratios.bad_debt_pct,
-        utilities_pct_of_revenue: ratios.utilities_pct_of_revenue,
-        utilities_per_bed: ratios.utilities_per_bed,
-        property_cost_per_bed: ratios.property_cost_per_bed,
-        maintenance_pct_of_revenue: ratios.maintenance_pct_of_revenue,
-        insurance_pct_of_revenue: ratios.insurance_pct_of_revenue,
-        insurance_per_bed: ratios.insurance_per_bed,
-        housekeeping_pct_of_revenue: ratios.housekeeping_pct_of_revenue,
-        revenue_per_bed: ratios.revenue_per_bed,
-        revenue_per_resident_day: ratios.revenue_per_resident_day,
-        private_pay_rate_avg: ratios.private_pay_rate_avg,
-        medicaid_rate_avg: ratios.medicaid_rate_avg,
-        ebitdar_margin: ratios.ebitdar_margin,
-        ebitda_margin: ratios.ebitda_margin,
-        operating_margin: ratios.operating_margin,
-        benchmark_flags: extractionData.benchmarkFlags,
-        potential_savings: ratios.potential_savings,
-        calculated_at: new Date(),
-        updated_at: new Date()
-      })
-    );
+    await DealExpenseRatios.upsert({
+      deal_id: dealId,
+      period_end: ratios.period_end,
+      total_labor_cost: ratios.total_labor_cost,
+      labor_pct_of_revenue: ratios.labor_pct_of_revenue,
+      nursing_labor_pct_of_revenue: ratios.nursing_labor_pct_of_revenue,
+      agency_labor_total: ratios.agency_labor_total,
+      agency_pct_of_labor: ratios.agency_pct_of_labor,
+      agency_pct_of_direct_care: ratios.agency_pct_of_direct_care,
+      labor_cost_per_resident_day: ratios.labor_cost_per_resident_day,
+      total_cost_per_resident_day: ratios.total_cost_per_resident_day,
+      food_cost_total: ratios.food_cost_total,
+      food_cost_per_resident_day: ratios.food_cost_per_resident_day,
+      food_pct_of_revenue: ratios.food_pct_of_revenue,
+      dietary_labor_pct_of_revenue: ratios.dietary_labor_pct_of_revenue,
+      admin_pct_of_revenue: ratios.admin_pct_of_revenue,
+      management_fee_pct: ratios.management_fee_pct,
+      bad_debt_pct: ratios.bad_debt_pct,
+      utilities_pct_of_revenue: ratios.utilities_pct_of_revenue,
+      utilities_per_bed: ratios.utilities_per_bed,
+      property_cost_per_bed: ratios.property_cost_per_bed,
+      maintenance_pct_of_revenue: ratios.maintenance_pct_of_revenue,
+      insurance_pct_of_revenue: ratios.insurance_pct_of_revenue,
+      insurance_per_bed: ratios.insurance_per_bed,
+      housekeeping_pct_of_revenue: ratios.housekeeping_pct_of_revenue,
+      revenue_per_bed: ratios.revenue_per_bed,
+      revenue_per_resident_day: ratios.revenue_per_resident_day,
+      private_pay_rate_avg: ratios.private_pay_rate_avg,
+      medicaid_rate_avg: ratios.medicaid_rate_avg,
+      ebitdar_margin: ratios.ebitdar_margin,
+      ebitda_margin: ratios.ebitda_margin,
+      operating_margin: ratios.operating_margin,
+      benchmark_flags: extractionData.benchmarkFlags,
+      potential_savings: ratios.potential_savings,
+      calculated_at: new Date(),
+      updated_at: new Date()
+    });
+    recordCount++;
   }
 
-  // Execute all storage operations in parallel
-  if (promises.length > 0) {
-    await Promise.all(promises);
-    console.log(`Stored ${promises.length} time-series records for deal ${dealId}`);
+  if (recordCount > 0) {
+    console.log(`Stored ${recordCount} time-series records for deal ${dealId}`);
   }
 };
 
@@ -351,6 +349,7 @@ module.exports = {
         deal_status: req.body.deal_status,
         documents: req.body.documents, // Array of uploaded documents from extraction
         extraction_data: req.body.extraction_data, // Raw AI extraction data for analysis view
+        enhanced_extraction_data: req.body.enhanced_extraction_data, // Time-series data from enhanced extraction
       };
       const requiredData = await helper.validateObject(required, nonrequired);
 
@@ -440,13 +439,28 @@ module.exports = {
               extraction_data: dealIndex === 0 ? requiredData.extraction_data : null,
             });
 
-            // Store time-series data if present in extraction_data (for first deal only)
-            if (dealIndex === 0 && requiredData.extraction_data) {
-              try {
-                await storeTimeSeriesData(dealCreated.id, requiredData.extraction_data);
-              } catch (timeSeriesError) {
-                console.error('Error storing time-series data:', timeSeriesError);
-                // Don't fail deal creation if time-series storage fails
+            // Store time-series data if present (for first deal only)
+            // Prefer enhanced_extraction_data if available (from parallel extraction)
+            if (dealIndex === 0) {
+              const timeSeriesSource = requiredData.enhanced_extraction_data || requiredData.extraction_data;
+              console.log('[createDeal] Time-series data check:',
+                'enhanced_extraction_data exists:', !!requiredData.enhanced_extraction_data,
+                'extraction_data exists:', !!requiredData.extraction_data);
+              if (timeSeriesSource) {
+                console.log('[createDeal] Time-series source has:',
+                  'monthlyFinancials:', Array.isArray(timeSeriesSource.monthlyFinancials) ? timeSeriesSource.monthlyFinancials.length : 'none',
+                  'monthlyCensus:', Array.isArray(timeSeriesSource.monthlyCensus) ? timeSeriesSource.monthlyCensus.length : 'none',
+                  'monthlyExpenses:', Array.isArray(timeSeriesSource.monthlyExpenses) ? timeSeriesSource.monthlyExpenses.length : 'none');
+                try {
+                  console.log('[createDeal] Storing time-series data from:',
+                    requiredData.enhanced_extraction_data ? 'enhanced_extraction_data' : 'extraction_data');
+                  await storeTimeSeriesData(dealCreated.id, timeSeriesSource);
+                } catch (timeSeriesError) {
+                  console.error('Error storing time-series data:', timeSeriesError);
+                  // Don't fail deal creation if time-series storage fails
+                }
+              } else {
+                console.log('[createDeal] No time-series data source available');
               }
             }
 
@@ -1548,6 +1562,115 @@ module.exports = {
           },
         ],
       });
+
+      // Fetch time-series data and merge into extraction_data for frontend
+      if (deal && deal.extraction_data) {
+        try {
+          // Fetch monthly census data for trends chart
+          const monthlyCensus = await DealMonthlyCensus.findAll({
+            where: { deal_id: requiredData.id },
+            order: [['month', 'ASC']]
+          });
+
+          if (monthlyCensus && monthlyCensus.length > 0) {
+            // Transform to frontend format for CensusTrendCharts
+            const monthlyTrendsArray = monthlyCensus.map(c => ({
+              month: c.month,
+              average_daily_census: c.average_daily_census,
+              occupancy_pct: c.occupancy_percentage,
+              medicaid_pct: c.medicaid_percentage,
+              medicare_pct: c.medicare_percentage,
+              private_pay_pct: c.private_pay_percentage
+            }));
+
+            // Parse existing extraction_data and add monthly_trends
+            let extractionData = typeof deal.extraction_data === 'string'
+              ? JSON.parse(deal.extraction_data)
+              : deal.extraction_data;
+
+            // Wrap in ExtractedField format that frontend expects: { value: [...], source: "..." }
+            extractionData.monthly_trends = {
+              value: monthlyTrendsArray,
+              source: "Monthly census data from time-series database",
+              confidence: "high"
+            };
+
+            // Update the deal object with enhanced extraction_data
+            deal.extraction_data = extractionData;
+            console.log(`[getDealById] Added ${monthlyTrendsArray.length} monthly trend records for deal ${requiredData.id}`);
+          }
+
+          // Fetch monthly financials for proforma
+          const monthlyFinancials = await DealMonthlyFinancials.findAll({
+            where: { deal_id: requiredData.id },
+            order: [['month', 'ASC']]
+          });
+
+          if (monthlyFinancials && monthlyFinancials.length > 0) {
+            let extractionData = typeof deal.extraction_data === 'string'
+              ? JSON.parse(deal.extraction_data)
+              : deal.extraction_data;
+
+            extractionData.monthly_financials = monthlyFinancials.map(f => ({
+              month: f.month,
+              total_revenue: f.total_revenue,
+              medicaid_revenue: f.medicaid_revenue,
+              medicare_revenue: f.medicare_revenue,
+              private_pay_revenue: f.private_pay_revenue,
+              total_expenses: f.total_expenses,
+              operating_expenses: f.operating_expenses,
+              net_income: f.net_income,
+              ebitda: f.ebitda,
+              ebitdar: f.ebitdar
+            }));
+
+            deal.extraction_data = extractionData;
+          }
+
+          // Fetch expense ratios for ProForma tab
+          const expenseRatios = await DealExpenseRatios.findOne({
+            where: { deal_id: requiredData.id }
+          });
+
+          if (expenseRatios) {
+            let extractionData = typeof deal.extraction_data === 'string'
+              ? JSON.parse(deal.extraction_data)
+              : deal.extraction_data;
+
+            // Add expense ratios as flat fields that ProFormaTab expects
+            // These fields map to currentFinancials in ProFormaTab.jsx
+            extractionData.labor_pct_of_revenue = expenseRatios.labor_pct_of_revenue;
+            extractionData.agency_pct_of_labor = expenseRatios.agency_pct_of_labor;
+            extractionData.food_cost_per_resident_day = expenseRatios.food_cost_per_resident_day;
+            extractionData.management_fee_pct = expenseRatios.management_fee_pct;
+            extractionData.bad_debt_pct = expenseRatios.bad_debt_pct;
+            extractionData.utilities_pct_of_revenue = expenseRatios.utilities_pct_of_revenue;
+            extractionData.insurance_pct_of_revenue = expenseRatios.insurance_pct_of_revenue;
+            extractionData.total_labor_cost = expenseRatios.total_labor_cost;
+
+            // Also store as nested structure for backward compatibility
+            extractionData.expense_ratios = {
+              labor_pct_of_revenue: expenseRatios.labor_pct_of_revenue,
+              agency_pct_of_labor: expenseRatios.agency_pct_of_labor,
+              food_cost_per_resident_day: expenseRatios.food_cost_per_resident_day,
+              management_fee_pct: expenseRatios.management_fee_pct,
+              bad_debt_pct: expenseRatios.bad_debt_pct,
+              utilities_pct_of_revenue: expenseRatios.utilities_pct_of_revenue,
+              insurance_pct_of_revenue: expenseRatios.insurance_pct_of_revenue,
+              total_labor_cost: expenseRatios.total_labor_cost,
+              ebitda_margin: expenseRatios.ebitda_margin,
+              ebitdar_margin: expenseRatios.ebitdar_margin
+            };
+
+            deal.extraction_data = extractionData;
+            console.log(`[getDealById] Added expense ratios for deal ${requiredData.id}`);
+          }
+        } catch (timeSeriesError) {
+          console.error('Error fetching time-series data for deal:', timeSeriesError);
+          // Don't fail the request if time-series fetch fails
+        }
+      }
+
       return helper.success(res, "Deal fetched successfully", deal);
     } catch (err) {
       return helper.error(res, err);
@@ -3424,6 +3547,72 @@ module.exports = {
     } catch (err) {
       console.error("Calculate proforma preview error:", err);
       return helper.error(res, err.message || "Failed to calculate pro forma");
+    }
+  },
+
+  /**
+   * Re-run extraction for existing deal using uploaded documents
+   * Stores time-series data to the database
+   * POST /api/v1/deal/:dealId/reextract
+   */
+  reExtractDeal: async (req, res) => {
+    try {
+      const { dealId } = req.params;
+
+      // Find the deal
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Get uploaded files for this deal
+      const files = getDealFiles(dealId);
+      if (!files || files.length === 0) {
+        return helper.error(res, "No uploaded files found for this deal. Please upload documents first.");
+      }
+
+      console.log(`[reExtractDeal] Re-extracting deal ${dealId} with ${files.length} files...`);
+
+      // Convert stored files to the format expected by runFullExtraction
+      const fileBuffers = files.map(f => ({
+        name: f.name,
+        mimetype: f.mimetype,
+        size: f.size,
+        data: f.buffer
+      }));
+
+      // Run extraction
+      const result = await runFullExtraction(fileBuffers);
+
+      if (!result.success) {
+        return helper.error(res, result.error || "Extraction failed");
+      }
+
+      // Store time-series data
+      console.log(`[reExtractDeal] Storing time-series data...`);
+      await storeTimeSeriesData(dealId, result);
+
+      // Update deal's extraction_data
+      await Deal.update(
+        {
+          extraction_data: JSON.stringify(result.extractedData),
+          updated_at: new Date()
+        },
+        { where: { id: dealId } }
+      );
+
+      console.log(`[reExtractDeal] Re-extraction complete for deal ${dealId}`);
+
+      return helper.success(res, "Deal re-extracted successfully", {
+        monthlyFinancials: result.monthlyFinancials?.length || 0,
+        monthlyCensus: result.monthlyCensus?.length || 0,
+        monthlyExpenses: result.monthlyExpenses?.length || 0,
+        extractedData: result.extractedData
+      });
+
+    } catch (err) {
+      console.error("Re-extract deal error:", err);
+      return helper.error(res, err.message || "Failed to re-extract deal");
     }
   },
 };

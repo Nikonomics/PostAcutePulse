@@ -20,7 +20,9 @@ const EventMatchesScore = db.event_matches_score;
 const EventMatches = db.event_matches;
 
 // Sync database tables on startup and seed if empty
-db.sequelize.sync({ alter: true }).then(async () => {
+// Note: Using sync() without alter for SQLite compatibility
+// alter: true causes issues with SQLite backup table creation
+db.sequelize.sync().then(async () => {
   console.log('Database synced successfully');
 
   // Check if database is empty and seed if needed

@@ -72,9 +72,13 @@ const runPostSyncMigrations = async () => {
 };
 
 // Sync database - creates new tables if they don't exist
-// Note: alter:true will modify existing tables to match models
+// Note: alter:true causes issues with SQLite due to backup tables and foreign keys
+// Only use alter:true for PostgreSQL in production
+const isPostgres = !!process.env.DATABASE_URL;
+const syncOptions = isPostgres ? { alter: true, force: false } : {};
+
 runMigrations()
-  .then(() => db.sequelize.sync({ alter: true, force: false }))
+  .then(() => db.sequelize.sync(syncOptions))
   .then(() => {
     console.log('Database synced successfully');
     return runPostSyncMigrations();

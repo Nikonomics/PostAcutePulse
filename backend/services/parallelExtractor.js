@@ -12,7 +12,7 @@ const anthropic = new Anthropic({
 
 // Model configuration
 const MODEL = 'claude-sonnet-4-20250514';
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 16384; // Large enough for 12+ months of detailed financial data
 
 /**
  * ===========================================
@@ -175,18 +175,24 @@ Return ONLY valid JSON, no markdown.`;
 const CENSUS_PROMPT = `You are extracting monthly census and occupancy data from census reports.
 
 EXTRACT FOR EACH MONTH:
-- Total beds/units available
-- Average daily census
-- Occupancy percentage
-- Census days by payer type (Medicaid, Medicare, Private Pay, Other)
-- Payer mix percentages
-- Admissions and discharges (if available)
+1. total_beds: Total beds/units available (typically 30-200 for SNF/ALF)
+2. average_daily_census: Average number of residents per day (must be <= total_beds)
+3. occupancy_percentage: (average_daily_census / total_beds) * 100 - ALWAYS calculate this
+4. Census days by payer type (Medicaid, Medicare, Private Pay, Other)
+5. Payer mix percentages
+6. Admissions and discharges (if available)
+
+CRITICAL DISTINCTIONS:
+- average_daily_census is the NUMBER of residents (e.g., 85 residents)
+- occupancy_percentage is the PERCENTAGE (e.g., 85% = 85.0)
+- If you only have census numbers, calculate: occupancy_percentage = (census / beds) * 100
+- If you only have percentages like "85%", that's occupancy_percentage not census
 
 IMPORTANT:
 - Extract ALL months found
 - Census days should be actual resident days for the month
 - Calculate payer mix as: (payer_days / total_days) * 100
-- If bed count varies, note it
+- ALWAYS provide occupancy_percentage - calculate it if not directly stated
 
 Return JSON:
 {
@@ -293,6 +299,152 @@ Return ONLY valid JSON, no markdown.`;
 
 
 /**
+ * Repair truncated JSON by finding the last valid array element and properly closing
+ * @param {string} jsonStr - Potentially truncated JSON string
+ * @returns {string} Repaired JSON string
+ */
+function repairTruncatedJson(jsonStr) {
+  let trimmed = jsonStr.trimEnd();
+
+  // Strategy: Find the last complete object in the main array
+  // Pattern for financial/expense/census data: {"monthly_xxx": [{...}, {...}, ...]}
+
+  // First, check if we're in the middle of a string
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+    if (escape) { escape = false; continue; }
+    if (char === '\\' && inString) { escape = true; continue; }
+    if (char === '"') { inString = !inString; }
+  }
+
+  // If truncated inside a string, cut back to last complete object
+  if (inString) {
+    console.log('[JSON Repair] Truncation inside string, finding last complete object...');
+  }
+
+  // Try progressively more aggressive truncation until valid JSON
+  // Start from the end and find each "}," backwards
+  let attempts = 0;
+  const maxAttempts = 50;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+
+    // Find the last "}," which marks end of a complete array element
+    let cutPoint = -1;
+    let searchStart = trimmed.length;
+
+    // Look for last "}," not inside a string
+    for (let pos = trimmed.length - 1; pos > 0; pos--) {
+      if (trimmed[pos] === ',' && trimmed[pos - 1] === '}') {
+        // Check if this } is inside a string
+        let insideStr = false;
+        let esc = false;
+        for (let j = 0; j < pos - 1; j++) {
+          const c = trimmed[j];
+          if (esc) { esc = false; continue; }
+          if (c === '\\' && insideStr) { esc = true; continue; }
+          if (c === '"') { insideStr = !insideStr; }
+        }
+        if (!insideStr) {
+          cutPoint = pos - 1; // Position of the }
+          break;
+        }
+      }
+    }
+
+    if (cutPoint <= 0) {
+      // No more "}," found, try to just close what we have
+      break;
+    }
+
+    // Cut at this point (keep the })
+    let candidate = trimmed.slice(0, cutPoint + 1);
+
+    // Count open/close to determine what closers we need
+    let openBraces = 0, openBrackets = 0;
+    inString = false;
+    escape = false;
+
+    for (let i = 0; i < candidate.length; i++) {
+      const char = candidate[i];
+      if (escape) { escape = false; continue; }
+      if (char === '\\' && inString) { escape = true; continue; }
+      if (char === '"') { inString = !inString; continue; }
+      if (!inString) {
+        if (char === '{') openBraces++;
+        else if (char === '}') openBraces--;
+        else if (char === '[') openBrackets++;
+        else if (char === ']') openBrackets--;
+      }
+    }
+
+    // If we're still inside a string after processing, this cut point isn't valid
+    if (inString) {
+      // Try an earlier cut point
+      trimmed = candidate.slice(0, -1); // Remove this } and try again
+      continue;
+    }
+
+    // Close remaining open structures
+    let closers = '';
+    for (let i = 0; i < openBrackets; i++) closers += ']';
+    for (let i = 0; i < openBraces; i++) closers += '}';
+
+    const repaired = candidate + closers;
+
+    // Test if it parses
+    try {
+      JSON.parse(repaired);
+      console.log(`[JSON Repair] Success after ${attempts} attempts, cut ${trimmed.length - cutPoint} chars`);
+      return repaired;
+    } catch (e) {
+      // This cut point didn't work, try earlier
+      trimmed = candidate.slice(0, -1);
+    }
+  }
+
+  // Fallback: aggressive repair - just close everything
+  console.log('[JSON Repair] Using fallback repair strategy...');
+
+  // Count current state
+  let openBraces = 0, openBrackets = 0;
+  inString = false;
+  escape = false;
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+    if (escape) { escape = false; continue; }
+    if (char === '\\' && inString) { escape = true; continue; }
+    if (char === '"') { inString = !inString; continue; }
+    if (!inString) {
+      if (char === '{') openBraces++;
+      else if (char === '}') openBraces--;
+      else if (char === '[') openBrackets++;
+      else if (char === ']') openBrackets--;
+    }
+  }
+
+  // If stuck in string, close it
+  if (inString) {
+    trimmed += '"';
+  }
+
+  // Remove trailing junk
+  trimmed = trimmed.replace(/,\s*$/, '');
+  trimmed = trimmed.replace(/:\s*$/, ':null');
+
+  // Add closers
+  for (let i = 0; i < openBrackets; i++) trimmed += ']';
+  for (let i = 0; i < openBraces; i++) trimmed += '}';
+
+  return trimmed;
+}
+
+
+/**
  * Run a single focused extraction
  * @param {string} documentText - Combined text from all documents
  * @param {string} systemPrompt - The focused extraction prompt
@@ -330,15 +482,24 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType) 
 
       if (jsonMatch) {
         let jsonStr = jsonMatch[1] || jsonMatch[0];
+
         // Repair common JSON issues
-        jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
-        jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, ' ');
+        jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+        jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, ' '); // Remove control chars
+
+        // Try to repair truncated JSON
+        jsonStr = repairTruncatedJson(jsonStr);
 
         try {
           extractedData = JSON.parse(jsonStr);
           console.log(`[${extractionType}] JSON repair successful`);
         } catch (repairError) {
           console.error(`[${extractionType}] JSON repair failed:`, repairError.message);
+          // Log the problematic section for debugging
+          const errorPos = parseInt(repairError.message.match(/position (\d+)/)?.[1] || 0);
+          if (errorPos > 0) {
+            console.error(`[${extractionType}] Context around error: ...${jsonStr.slice(Math.max(0, errorPos - 50), errorPos + 50)}...`);
+          }
           return { success: false, error: `JSON parse error: ${repairError.message}`, type: extractionType };
         }
       } else {

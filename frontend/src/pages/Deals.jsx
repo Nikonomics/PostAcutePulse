@@ -21,7 +21,7 @@ import {
   updateDealStatus,
   deleteDeal,
   formatSimpleDate,
-  extractDealFromDocument,
+  extractDealEnhanced,
 } from "../api/DealService";
 import { toast } from "react-toastify";
 
@@ -423,15 +423,35 @@ const DealsList = () => {
   const handleExtractAndNavigate = async (files) => {
     setIsExtracting(true);
     try {
-      const response = await extractDealFromDocument(files);
+      const response = await extractDealEnhanced(files);
       if (response.success) {
+        // Calculate confidence from extraction metadata
+        const successRate = response.body.metadata?.successCount || 5;
+        const calculatedConfidence = Math.round((successRate / 5) * 100);
+
         // Navigate to the combined deal form with AI-extracted data
         navigate('/deals/combined-deal-form', {
           state: {
             extractedData: response.body.extractedData,
-            confidence: response.body.confidence,
+            confidence: calculatedConfidence,
             uploadedFiles: response.body.uploadedFiles,
-            files: files
+            files: files,
+            // Pass enhanced time-series data
+            enhancedData: {
+              monthlyFinancials: response.body.monthlyFinancials || [],
+              monthlyCensus: response.body.monthlyCensus || [],
+              monthlyExpenses: response.body.monthlyExpenses || [],
+              rates: response.body.rates || {},
+              ttmFinancials: response.body.ttmFinancials || null,
+              censusSummary: response.body.censusSummary || null,
+              expensesByDepartment: response.body.expensesByDepartment || {},
+              ratios: response.body.ratios || {},
+              benchmarkFlags: response.body.benchmarkFlags || {},
+              potentialSavings: response.body.potentialSavings || {},
+              insights: response.body.insights || [],
+              facility: response.body.facility || {},
+              metadata: response.body.metadata || {},
+            }
           }
         });
       } else {

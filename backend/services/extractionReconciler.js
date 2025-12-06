@@ -202,6 +202,42 @@ function reconcileCensus(monthlyCensus) {
   // Sort by month
   reconciled.sort((a, b) => a.month.localeCompare(b.month));
 
+  // Post-process: Calculate missing occupancy_percentage
+  // Also handle cases where AI confused census and occupancy values
+  let detectedBedCount = null;
+  for (const record of reconciled) {
+    if (record.total_beds && record.total_beds > 0) {
+      detectedBedCount = record.total_beds;
+      break;
+    }
+  }
+
+  for (const record of reconciled) {
+    // If occupancy_percentage is missing but we have census and beds, calculate it
+    if ((record.occupancy_percentage === null || record.occupancy_percentage === undefined)
+        && record.average_daily_census !== null && record.average_daily_census !== undefined) {
+      const beds = record.total_beds || detectedBedCount;
+      if (beds && beds > 0) {
+        record.occupancy_percentage = Math.round((record.average_daily_census / beds) * 10000) / 100;
+      }
+    }
+
+    // Heuristic: If average_daily_census looks like a percentage (>100 or close to typical occupancy range 80-100)
+    // and occupancy_percentage is null, the AI likely put occupancy in the wrong field
+    if ((record.occupancy_percentage === null || record.occupancy_percentage === undefined)
+        && record.average_daily_census !== null
+        && record.average_daily_census > 0 && record.average_daily_census <= 100) {
+      // Check if this looks more like a percentage than a census count
+      // If beds are known and census > beds, it's likely a percentage
+      const beds = record.total_beds || detectedBedCount;
+      if (beds && record.average_daily_census > beds) {
+        // This is likely occupancy percentage mistakenly in census field
+        record.occupancy_percentage = record.average_daily_census;
+        record.average_daily_census = null; // Clear the incorrect value
+      }
+    }
+  }
+
   // Calculate summary
   const summary = calculateCensusSummary(reconciled);
 
@@ -255,12 +291,12 @@ function calculateCensusSummary(monthlyData) {
   const medicareDays = sumField(recent12, 'medicare_days');
   const privateDays = sumField(recent12, 'private_pay_days');
 
-  // Calculate payer mix
+  // Calculate payer mix (rounded to 2 decimal places)
   let medicaidPct = null, medicarePct = null, privatePct = null;
   if (totalDays && totalDays > 0) {
-    medicaidPct = medicaidDays ? (medicaidDays / totalDays) * 100 : null;
-    medicarePct = medicareDays ? (medicareDays / totalDays) * 100 : null;
-    privatePct = privateDays ? (privateDays / totalDays) * 100 : null;
+    medicaidPct = medicaidDays ? Math.round((medicaidDays / totalDays) * 10000) / 100 : null;
+    medicarePct = medicareDays ? Math.round((medicareDays / totalDays) * 10000) / 100 : null;
+    privatePct = privateDays ? Math.round((privateDays / totalDays) * 10000) / 100 : null;
   }
 
   return {

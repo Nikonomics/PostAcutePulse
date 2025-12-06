@@ -1171,6 +1171,11 @@ const CombinedDealForm = () => {
           key_observations: keyObservations,
           document_types_identified: documentTypes,
         };
+
+        // Include enhanced time-series data if available
+        if (location.state?.enhancedData) {
+          payload.enhanced_extraction_data = location.state.enhancedData;
+        }
       }
 
       try {
