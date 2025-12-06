@@ -225,6 +225,11 @@ module.exports = {
                 : 0;
             deal.exit_multiple = deal.exit_multiple ? deal.exit_multiple : 0;
 
+            // Sanitize integer fields - convert empty strings to null
+            deal.no_of_beds = deal.no_of_beds === '' || deal.no_of_beds === undefined ? null : (parseInt(deal.no_of_beds) || null);
+            deal.deal_lead_id = deal.deal_lead_id === '' || deal.deal_lead_id === undefined ? null : (parseInt(deal.deal_lead_id) || null);
+            deal.assistant_deal_lead_id = deal.assistant_deal_lead_id === '' || deal.assistant_deal_lead_id === undefined ? null : (parseInt(deal.assistant_deal_lead_id) || null);
+
             // create deal:
             // Get index to check if this is the first deal (for extraction_data)
             const dealIndex = requiredData.deals.indexOf(deal);
