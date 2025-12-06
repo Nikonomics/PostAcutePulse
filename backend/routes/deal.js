@@ -6,6 +6,9 @@ var router = express.Router();
 // AI Document Extraction (unified endpoint)
 router.post('/extract', requireAuthentication, DealController.extractDealFromDocument);
 
+// Enhanced parallel extraction (new - faster, more comprehensive)
+router.post('/extract-enhanced', requireAuthentication, DealController.extractDealEnhanced);
+
 router.post('/create-deals', requireAuthentication, DealController.createDeal);
 router.get('/get-deals', requireAuthentication, DealController.getDeal);
 router.get('/get-deal-stats', requireAuthentication, DealController.getDealStats);

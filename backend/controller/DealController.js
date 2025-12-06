@@ -20,6 +20,7 @@ const getDateDiffLiteral = (col1, col2) => {
 };
 const { sendBrevoEmail } = require("../config/sendMail");
 const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
+const { runFullExtraction, storeExtractionResults } = require("../services/extractionOrchestrator");
 const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
 const {
   calculateDealMetrics: calcDealMetrics,
@@ -2224,6 +2225,106 @@ module.exports = {
     } catch (err) {
       console.error("Document extraction error:", err);
       return helper.error(res, err.message || "Failed to process document");
+    }
+  },
+
+  /**
+   * Extract deal information using parallel extraction (new enhanced method)
+   * Runs 5 focused extractions in parallel for faster, more comprehensive data
+   * POST /api/v1/deal/extract-enhanced
+   */
+  extractDealEnhanced: async (req, res) => {
+    try {
+      // Check if files were uploaded
+      if (!req.files || !req.files.document) {
+        return helper.error(res, "No document uploaded. Please upload PDF, Excel, or text files.");
+      }
+
+      const uploadedFiles = req.files.document;
+      const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+
+      // Validate file types
+      const allowedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'text/plain',
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword'
+      ];
+
+      for (const file of files) {
+        if (!allowedTypes.includes(file.mimetype) && !file.mimetype.startsWith('image/')) {
+          return helper.error(res, `Unsupported file type: ${file.mimetype}`);
+        }
+      }
+
+      // Check file size (max 20MB per file)
+      const maxSize = 20 * 1024 * 1024;
+      for (const file of files) {
+        if (file.size > maxSize) {
+          return helper.error(res, `File ${file.name} exceeds maximum size of 20MB`);
+        }
+      }
+
+      console.log(`[Enhanced Extraction] Processing ${files.length} files...`);
+
+      // Save files to local storage
+      const savedFiles = await saveFiles(files);
+      const successfullySavedFiles = savedFiles.filter(f => f.success);
+
+      // Run the full parallel extraction pipeline
+      const result = await runFullExtraction(files);
+
+      if (!result.success) {
+        return helper.error(res, result.error || "Failed to extract data from documents");
+      }
+
+      // Return comprehensive extraction result
+      return helper.success(res, "Deal data extracted successfully using enhanced extraction", {
+        // Backward compatible flat data
+        extractedData: result.extractedData,
+
+        // Time-series data
+        monthlyFinancials: result.monthlyFinancials,
+        monthlyCensus: result.monthlyCensus,
+        monthlyExpenses: result.monthlyExpenses,
+        rates: result.rates,
+
+        // TTM summaries
+        ttmFinancials: result.ttmFinancials,
+        censusSummary: result.censusSummary,
+        expensesByDepartment: result.expensesByDepartment,
+
+        // Analysis
+        ratios: result.ratios,
+        benchmarkFlags: result.benchmarkFlags,
+        potentialSavings: result.potentialSavings,
+        insights: result.insights,
+
+        // Facility info
+        facility: result.facility,
+
+        // Metadata
+        metadata: result.metadata,
+
+        // File info
+        uploadedFiles: successfullySavedFiles.map(f => ({
+          filename: f.filename,
+          originalName: f.originalName,
+          url: f.url,
+          mimeType: f.mimeType,
+          size: f.size
+        })),
+        processedFiles: result.processedFiles
+      });
+
+    } catch (err) {
+      console.error("Enhanced extraction error:", err);
+      return helper.error(res, err.message || "Failed to process documents");
     }
   },
 
