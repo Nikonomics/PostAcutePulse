@@ -181,7 +181,7 @@ function removeCommas(value) {
 const CombinedDealForm = () => {
   const [showLocationForm, setShowLocationForm] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
+  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(true); // Temporarily disabled Google Maps
 
   const [dealData, setDealData] = useState(getInitialDealData());
   const [validationErrors, setValidationErrors] = useState({});
@@ -208,41 +208,42 @@ const CombinedDealForm = () => {
   const location = useLocation();
 
   // Load Google Maps script if not already loaded
-  useEffect(() => {
-    const loadGoogleMapsScript = () => {
-      // Check if Google Maps is already loaded
-      if (window.google && window.google.maps && window.google.maps.places) {
-        setIsGoogleMapsLoaded(true);
-        return;
-      }
+  // TEMPORARILY DISABLED - Google Maps autocomplete not needed for now
+  // useEffect(() => {
+  //   const loadGoogleMapsScript = () => {
+  //     // Check if Google Maps is already loaded
+  //     if (window.google && window.google.maps && window.google.maps.places) {
+  //       setIsGoogleMapsLoaded(true);
+  //       return;
+  //     }
 
-      // Check if script is already being loaded
-      if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-        // Script is loading, wait for it
-        const checkLoaded = setInterval(() => {
-          if (window.google && window.google.maps && window.google.maps.places) {
-            setIsGoogleMapsLoaded(true);
-            clearInterval(checkLoaded);
-          }
-        }, 100);
-        return;
-      }
+  //     // Check if script is already being loaded
+  //     if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+  //       // Script is loading, wait for it
+  //       const checkLoaded = setInterval(() => {
+  //         if (window.google && window.google.maps && window.google.maps.places) {
+  //           setIsGoogleMapsLoaded(true);
+  //           clearInterval(checkLoaded);
+  //         }
+  //       }, 100);
+  //       return;
+  //     }
 
-      // Load the script
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      script.onload = () => setIsGoogleMapsLoaded(true);
-      script.onerror = () => {
-        console.error('Failed to load Google Maps script');
-        toast.error('Failed to load Google Maps. Please refresh the page.');
-      };
-      document.head.appendChild(script);
-    };
+  //     // Load the script
+  //     const script = document.createElement('script');
+  //     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
+  //     script.async = true;
+  //     script.defer = true;
+  //     script.onload = () => setIsGoogleMapsLoaded(true);
+  //     script.onerror = () => {
+  //       console.error('Failed to load Google Maps script');
+  //       toast.error('Failed to load Google Maps. Please refresh the page.');
+  //     };
+  //     document.head.appendChild(script);
+  //   };
 
-    loadGoogleMapsScript();
-  }, []);
+  //   loadGoogleMapsScript();
+  // }, []);
 
   useEffect(() => {
     fetchUsers();
