@@ -1305,6 +1305,8 @@ const CombinedDealForm = () => {
       if (isFromAiExtraction && extractedData) {
         payload.extraction_data = {
           ...extractedData,
+          // Include deal_overview from the enhanced extraction response
+          deal_overview: extractionResponseData?.extractedData?.deal_overview || location.state?.extractedData?.deal_overview,
           extraction_timestamp: new Date().toISOString(),
           confidence: aiExtractionConfidence,
           data_quality_notes: dataQualityNotes,
