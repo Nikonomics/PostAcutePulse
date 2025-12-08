@@ -31,8 +31,6 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  ChevronDown,
-  ChevronUp,
   Download as DownloadIcon,
 } from 'lucide-react';
 import SNFalyzePanel from '../SNFalyzePanel';
@@ -54,8 +52,8 @@ import CensusTrendCharts from './CensusTrendCharts';
 
 // Tab configuration
 const TAB_CONFIGS = [
-  { id: 'deal_overview', title: 'Deal Overview', icon: Lightbulb },
   { id: 'overview', title: 'General Info', icon: Building2 },
+  { id: 'deal_overview', title: 'Deal Overview', icon: Lightbulb },
   { id: 'financials', title: 'Financials', icon: DollarSign },
   { id: 'census', title: 'Census & Rates', icon: Users },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
@@ -144,7 +142,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   onDocumentDownload,
   deleteLoadingId,
 }) => {
-  const [activeTab, setActiveTab] = useState('deal_overview');
+  const [activeTab, setActiveTab] = useState('overview');
   const [showComparison] = useState(initialShowComparison);
 
   // State for document viewer modal
@@ -164,9 +162,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   const [isReExtracting, setIsReExtracting] = useState(false);
   const [reExtractionStatus, setReExtractionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [reExtractionMessage, setReExtractionMessage] = useState('');
-
-  // Collapsible section state for Deal Overview detailed analysis
-  const [detailedAnalysisExpanded, setDetailedAnalysisExpanded] = useState(false);
 
   // Handle source click to open document viewer
   const handleSourceClick = useCallback((sourceRef: SourceReference) => {
@@ -607,66 +602,19 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
 
     return (
       <div>
-        {/* Detailed Markdown Narrative - Collapsible Section */}
+        {/* Full Markdown Narrative - Show if available */}
         {overview.detailed_narrative_markdown && (
           <div style={{
             marginBottom: '2rem',
+            padding: '2rem',
+            backgroundColor: 'white',
             borderRadius: '0.75rem',
             border: '1px solid #e5e7eb',
-            overflow: 'hidden',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            lineHeight: '1.6'
           }}>
-            {/* Collapsible Header */}
-            <button
-              onClick={() => setDetailedAnalysisExpanded(!detailedAnalysisExpanded)}
-              style={{
-                width: '100%',
-                padding: '1rem 1.5rem',
-                backgroundColor: '#f9fafb',
-                border: 'none',
-                borderBottom: detailedAnalysisExpanded ? '1px solid #e5e7eb' : 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-            >
-              <h3 style={{
-                fontSize: '1rem',
-                fontWeight: 600,
-                color: '#1e293b',
-                margin: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem'
-              }}>
-                <BarChart3 size={20} style={{ color: '#3b82f6' }} />
-                Detailed Analysis Report
-              </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
-                  {detailedAnalysisExpanded ? 'Hide Details' : 'Show Details'}
-                </span>
-                {detailedAnalysisExpanded ? (
-                  <ChevronUp size={20} style={{ color: '#6b7280' }} />
-                ) : (
-                  <ChevronDown size={20} style={{ color: '#6b7280' }} />
-                )}
-              </div>
-            </button>
-
-            {/* Collapsible Content */}
-            {detailedAnalysisExpanded && (
-              <div style={{
-                padding: '2rem',
-                backgroundColor: 'white',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                lineHeight: '1.6'
-              }}>
-                <ReactMarkdown
+            <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
                 table: ({node, ...props}) => (
@@ -764,14 +712,9 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             >
               {overview.detailed_narrative_markdown}
             </ReactMarkdown>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Structured Sections - Only show if markdown is NOT available */}
-        {!overview.detailed_narrative_markdown && (
-          <>
         {/* Recommendation Badge - Top Priority */}
         {overview.recommendation && (
           <div style={{
@@ -836,25 +779,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         )}
 
         {/* Key Metrics Cards */}
-        {overview.ttm_financials?.summary_metrics && (() => {
-          // Use ebitdar_calculation.equals_ebitdar if available (more accurate), fallback to summary_metrics
-          const ebitdarCalc = overview.ttm_financials.ebitdar_calculation;
-          const summaryMetrics = overview.ttm_financials.summary_metrics;
-
-          // EBITDAR: prefer the detailed calculation which is more accurate
-          const ebitdar = ebitdarCalc?.equals_ebitdar ?? summaryMetrics.ebitdar;
-          const revenue = summaryMetrics.total_revenue;
-
-          // Calculate EBITDAR margin from actual EBITDAR value
-          const ebitdarMargin = (ebitdar && revenue)
-            ? (ebitdar / revenue) * 100
-            : summaryMetrics.ebitdar_margin_pct;
-
-          // Occupancy: try facility_snapshot first, then summary_metrics
-          const occupancy = overview.facility_snapshot?.current_occupancy_pct
-            ?? summaryMetrics.occupancy_pct;
-
-          return (
+        {overview.ttm_financials?.summary_metrics && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -870,8 +795,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             }}>
               <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                ${revenue
-                  ? (revenue / 1000000).toFixed(2) + 'M'
+                ${overview.ttm_financials.summary_metrics.total_revenue
+                  ? (overview.ttm_financials.summary_metrics.total_revenue / 1000000).toFixed(2) + 'M'
                   : 'N/A'}
               </div>
             </div>
@@ -886,10 +811,10 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               <div style={{
                 fontSize: '1.5rem',
                 fontWeight: 700,
-                color: (ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
+                color: (overview.ttm_financials.summary_metrics.ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
               }}>
-                {ebitdar != null
-                  ? (ebitdar < 0 ? '-' : '') + '$' + (Math.abs(ebitdar) / 1000).toFixed(0) + 'K'
+                ${overview.ttm_financials.summary_metrics.ebitdar
+                  ? (overview.ttm_financials.summary_metrics.ebitdar / 1000).toFixed(0) + 'K'
                   : 'N/A'}
               </div>
             </div>
@@ -904,9 +829,9 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               <div style={{
                 fontSize: '1.5rem',
                 fontWeight: 700,
-                color: (ebitdarMargin || 0) >= 15 ? '#10b981' : '#ef4444'
+                color: (overview.ttm_financials.summary_metrics.ebitdar_margin_pct || 0) >= 15 ? '#10b981' : '#ef4444'
               }}>
-                {ebitdarMargin != null ? ebitdarMargin.toFixed(1) : 'N/A'}%
+                {overview.ttm_financials.summary_metrics.ebitdar_margin_pct?.toFixed(1) || 'N/A'}%
               </div>
             </div>
             <div style={{
@@ -918,12 +843,11 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             }}>
               <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                {occupancy != null ? occupancy.toFixed(1) : 'N/A'}%
+                {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
               </div>
             </div>
           </div>
-          );
-        })()}
+        )}
 
         {/* Red Flags & Strengths Side by Side */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -1137,8 +1061,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               {overview.recommendation.rationale}
             </p>
           </div>
-        )}
-          </>
         )}
 
         {/* SNFalyze AI Assistant Button */}

@@ -760,10 +760,6 @@ Generate a comprehensive markdown-formatted Stage 1 deal analysis report (8000-1
 # STAGE 1 DEAL EVALUATION
 ## [Facility Name] Acquisition
 
-**Analysis Date:** [Date]
-**Analyst:** SNFalyze Deal Evaluation System
-**Data Sources:** [List source documents]
-
 ---
 
 ## DATA COMPLETENESS CHECK
