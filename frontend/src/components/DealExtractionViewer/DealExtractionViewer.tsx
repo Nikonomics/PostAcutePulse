@@ -1,6 +1,4 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   Download,
   FileText,
@@ -31,6 +29,8 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  ChevronUp,
+  ChevronDown,
   Download as DownloadIcon,
 } from 'lucide-react';
 import SNFalyzePanel from '../SNFalyzePanel';
@@ -78,13 +78,11 @@ const getTabStyle = (isActive: boolean): React.CSSProperties => ({
   fontWeight: isActive ? 600 : 500,
   color: isActive ? '#1e40af' : '#6b7280',
   backgroundColor: isActive ? 'white' : 'transparent',
-  borderTop: 'none',
-  borderLeft: 'none',
-  borderRight: 'none',
   borderBottom: isActive ? '2px solid #1e40af' : '2px solid transparent',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   transition: 'all 0.15s',
+  border: 'none',
 });
 
 const contentStyle: React.CSSProperties = {
@@ -162,6 +160,9 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   const [isReExtracting, setIsReExtracting] = useState(false);
   const [reExtractionStatus, setReExtractionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [reExtractionMessage, setReExtractionMessage] = useState('');
+
+  // State for collapsible sections in Deal Overview
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   // Handle source click to open document viewer
   const handleSourceClick = useCallback((sourceRef: SourceReference) => {
@@ -296,6 +297,56 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Overview Tab
   const renderOverviewTab = () => (
     <div>
+      {/* Ask SNFalyze Button */}
+      <div style={{
+        marginBottom: '1.5rem',
+        padding: '1rem',
+        background: 'linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)',
+        borderRadius: '0.75rem',
+        border: '1px solid #c4b5fd',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div>
+          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#5b21b6' }}>
+            Get AI-Powered Deal Insights
+          </h4>
+          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#7c3aed' }}>
+            Ask SNFalyze to analyze this deal's financial health, risks, and opportunities
+          </p>
+        </div>
+        <button
+          onClick={() => setSnfalyzePanelOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.625rem 1.25rem',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+            border: 'none',
+            borderRadius: '0.5rem',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            color: 'white',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.3)';
+          }}
+        >
+          <Brain size={18} />
+          Ask SNFalyze
+        </button>
+      </div>
+
       {/* Deal Information */}
       <h3 style={sectionHeaderStyle}>Deal Information</h3>
       <div style={gridStyle}>
@@ -562,6 +613,38 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     </div>
   );
 
+  // Helper function to parse markdown into individual sections
+  const parseMarkdownSections = (markdown: string) => {
+    const sections: Array<{ title: string; content: string }> = [];
+    const lines = markdown.split('\n');
+    let currentSection: { title: string; content: string } | null = null;
+
+    for (const line of lines) {
+      // Match ## headers (but not # or ###)
+      if (line.match(/^## [^#]/)) {
+        // Save previous section if it exists
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+        // Start new section
+        currentSection = {
+          title: line.replace(/^## /, '').trim(),
+          content: ''
+        };
+      } else if (currentSection) {
+        // Add line to current section
+        currentSection.content += line + '\n';
+      }
+    }
+
+    // Don't forget the last section
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+
+    return sections;
+  };
+
   // Render Deal Overview Tab (Stage 1 Screening)
   const renderDealOverviewTab = () => {
     const overview = extractionData?.deal_overview;
@@ -573,148 +656,15 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
             No deal screening data available.
           </p>
-          <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
+          <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
             Re-extract documents to generate Stage 1 deal screening analysis.
           </p>
-          <button
-            onClick={() => setSnfalyzePanelOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.75rem 1.5rem',
-              background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            <Brain size={18} />
-            Ask SNFalyze AI
-          </button>
         </div>
       );
     }
 
     return (
       <div>
-        {/* Full Markdown Narrative - Show if available */}
-        {overview.detailed_narrative_markdown && (
-          <div style={{
-            marginBottom: '2rem',
-            padding: '2rem',
-            backgroundColor: 'white',
-            borderRadius: '0.75rem',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-            lineHeight: '1.6'
-          }}>
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                table: ({node, ...props}) => (
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    marginBottom: '1rem',
-                    fontSize: '0.875rem'
-                  }} {...props} />
-                ),
-                thead: ({node, ...props}) => (
-                  <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }} {...props} />
-                ),
-                th: ({node, ...props}) => (
-                  <th style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    fontWeight: 600,
-                    borderBottom: '1px solid #e5e7eb'
-                  }} {...props} />
-                ),
-                td: ({node, ...props}) => (
-                  <td style={{
-                    padding: '0.75rem',
-                    borderBottom: '1px solid #f3f4f6'
-                  }} {...props} />
-                ),
-                h1: ({node, ...props}) => (
-                  <h1 style={{
-                    fontSize: '2rem',
-                    fontWeight: 700,
-                    marginTop: '2rem',
-                    marginBottom: '1rem',
-                    color: '#111827'
-                  }} {...props} />
-                ),
-                h2: ({node, ...props}) => (
-                  <h2 style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 600,
-                    marginTop: '1.5rem',
-                    marginBottom: '0.75rem',
-                    color: '#1f2937'
-                  }} {...props} />
-                ),
-                h3: ({node, ...props}) => (
-                  <h3 style={{
-                    fontSize: '1.25rem',
-                    fontWeight: 600,
-                    marginTop: '1rem',
-                    marginBottom: '0.5rem',
-                    color: '#374151'
-                  }} {...props} />
-                ),
-                blockquote: ({node, ...props}) => (
-                  <blockquote style={{
-                    borderLeft: '4px solid #3b82f6',
-                    paddingLeft: '1rem',
-                    marginLeft: 0,
-                    marginBottom: '1rem',
-                    color: '#4b5563',
-                    fontStyle: 'italic'
-                  }} {...props} />
-                ),
-                code: ({node, inline, ...props}: any) =>
-                  inline ? (
-                    <code style={{
-                      backgroundColor: '#f3f4f6',
-                      padding: '0.2rem 0.4rem',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.875em',
-                      fontFamily: 'monospace'
-                    }} {...props} />
-                  ) : (
-                    <code style={{
-                      display: 'block',
-                      backgroundColor: '#1f2937',
-                      color: '#f9fafb',
-                      padding: '1rem',
-                      borderRadius: '0.5rem',
-                      overflowX: 'auto',
-                      marginBottom: '1rem',
-                      fontFamily: 'monospace',
-                      fontSize: '0.875rem'
-                    }} {...props} />
-                  ),
-                hr: ({node, ...props}) => (
-                  <hr style={{
-                    border: 'none',
-                    borderTop: '1px solid #e5e7eb',
-                    margin: '2rem 0'
-                  }} {...props} />
-                ),
-              }}
-            >
-              {overview.detailed_narrative_markdown}
-            </ReactMarkdown>
-          </div>
-        )}
-
         {/* Recommendation Badge - Top Priority */}
         {overview.recommendation && (
           <div style={{
@@ -1063,46 +1013,168 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           </div>
         )}
 
-        {/* SNFalyze AI Assistant Button */}
-        <div style={{
-          marginTop: '2rem',
-          padding: '1.5rem',
-          background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-          borderRadius: '0.75rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{ color: 'white' }}>
-            <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-              Need deeper analysis?
-            </div>
-            <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>
-              Ask SNFalyze AI about this deal's metrics, risks, and opportunities
-            </div>
-          </div>
-          <button
-            onClick={() => setSnfalyzePanelOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.75rem 1.5rem',
-              backgroundColor: 'white',
-              color: '#7c3aed',
-              border: 'none',
-              borderRadius: '0.5rem',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            <Brain size={18} />
-            Ask SNFalyze AI
-          </button>
-        </div>
+        {/* Individual Collapsible Sections for Markdown Content */}
+        {overview.detailed_narrative_markdown && (
+          <>
+            {parseMarkdownSections(overview.detailed_narrative_markdown).map((section, index) => {
+              const sectionKey = section.title.replace(/\s+/g, '-');
+              const isExpanded = expandedSections[sectionKey] || false;
+
+              return (
+                <div key={sectionKey} style={{
+                  marginBottom: '1rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #e5e7eb',
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                }}>
+                  {/* Collapsible Header */}
+                  <button
+                    onClick={() => setExpandedSections(prev => ({ ...prev, [sectionKey]: !isExpanded }))}
+                    style={{
+                      width: '100%',
+                      padding: '1rem 1.5rem',
+                      backgroundColor: isExpanded ? '#f9fafb' : 'white',
+                      border: 'none',
+                      borderBottom: isExpanded ? '1px solid #e5e7eb' : 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'background-color 0.2s',
+                      textAlign: 'left'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? '#f9fafb' : 'white'}
+                  >
+                    <h3 style={{
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      color: '#1e293b',
+                      margin: 0
+                    }}>
+                      {section.title}
+                    </h3>
+                    {isExpanded ? (
+                      <ChevronUp size={20} style={{ color: '#6b7280', flexShrink: 0 }} />
+                    ) : (
+                      <ChevronDown size={20} style={{ color: '#6b7280', flexShrink: 0 }} />
+                    )}
+                  </button>
+
+                  {/* Collapsible Content */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: '1.5rem',
+                      backgroundColor: 'white',
+                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                      lineHeight: '1.6'
+                    }}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          table: ({node, ...props}) => (
+                            <table style={{
+                              width: '100%',
+                              borderCollapse: 'collapse',
+                              marginBottom: '1rem',
+                              fontSize: '0.875rem'
+                            }} {...props} />
+                          ),
+                          thead: ({node, ...props}) => (
+                            <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }} {...props} />
+                          ),
+                          th: ({node, ...props}) => (
+                            <th style={{
+                              padding: '0.75rem',
+                              textAlign: 'left',
+                              fontWeight: 600,
+                              borderBottom: '1px solid #e5e7eb'
+                            }} {...props} />
+                          ),
+                          td: ({node, ...props}) => (
+                            <td style={{
+                              padding: '0.75rem',
+                              borderBottom: '1px solid #f3f4f6'
+                            }} {...props} />
+                          ),
+                          h1: ({node, ...props}) => (
+                            <h1 style={{
+                              fontSize: '1.75rem',
+                              fontWeight: 700,
+                              marginTop: '1.5rem',
+                              marginBottom: '0.75rem',
+                              color: '#111827'
+                            }} {...props} />
+                          ),
+                          h2: ({node, ...props}) => (
+                            <h2 style={{
+                              fontSize: '1.35rem',
+                              fontWeight: 600,
+                              marginTop: '1.25rem',
+                              marginBottom: '0.5rem',
+                              color: '#1f2937'
+                            }} {...props} />
+                          ),
+                          h3: ({node, ...props}) => (
+                            <h3 style={{
+                              fontSize: '1.1rem',
+                              fontWeight: 600,
+                              marginTop: '1rem',
+                              marginBottom: '0.5rem',
+                              color: '#374151'
+                            }} {...props} />
+                          ),
+                          blockquote: ({node, ...props}) => (
+                            <blockquote style={{
+                              borderLeft: '4px solid #3b82f6',
+                              paddingLeft: '1rem',
+                              marginLeft: 0,
+                              marginBottom: '1rem',
+                              color: '#4b5563',
+                              fontStyle: 'italic'
+                            }} {...props} />
+                          ),
+                          code: ({node, inline, ...props}: any) =>
+                            inline ? (
+                              <code style={{
+                                backgroundColor: '#f3f4f6',
+                                padding: '0.2rem 0.4rem',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.875em',
+                                fontFamily: 'monospace'
+                              }} {...props} />
+                            ) : (
+                              <code style={{
+                                display: 'block',
+                                backgroundColor: '#1f2937',
+                                color: '#f9fafb',
+                                padding: '1rem',
+                                borderRadius: '0.5rem',
+                                overflowX: 'auto',
+                                marginBottom: '1rem',
+                                fontFamily: 'monospace',
+                                fontSize: '0.875rem'
+                              }} {...props} />
+                            ),
+                          hr: ({node, ...props}) => (
+                            <hr style={{
+                              border: 'none',
+                              borderTop: '1px solid #e5e7eb',
+                              margin: '1.5rem 0'
+                            }} {...props} />
+                          ),
+                        }}
+                      >
+                        {section.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     );
   };
