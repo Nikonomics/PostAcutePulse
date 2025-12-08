@@ -13,7 +13,7 @@ const anthropic = new Anthropic({
 // Model configuration
 const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 16384; // Large enough for 12+ months of detailed financial data
-const MAX_TOKENS_OVERVIEW = 65000; // Maximum for overview extraction (detailed markdown + 1000-char summary)
+const MAX_TOKENS_OVERVIEW = 64000; // Maximum for claude-sonnet-4 (detailed markdown + 1000-char summary)
 
 /**
  * ===========================================
