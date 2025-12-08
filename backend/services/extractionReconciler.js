@@ -997,14 +997,7 @@ function buildFlatSummary(reconciled) {
 
     // DEAL OVERVIEW (Stage 1 Screening Analysis from 6th parallel extraction)
     // This is the full JSON object from the OVERVIEW_PROMPT extraction
-    deal_overview: (() => {
-      console.log('[Reconciler] reconciled.overview exists?', !!reconciled.overview);
-      console.log('[Reconciler] reconciled.overview type:', typeof reconciled.overview);
-      if (reconciled.overview) {
-        console.log('[Reconciler] reconciled.overview keys:', Object.keys(reconciled.overview).slice(0, 10));
-      }
-      return reconciled.overview || null;
-    })(),
+    deal_overview: reconciled.overview || null,
 
     // SOURCE AND CONFIDENCE METADATA MAPS
     // These allow the frontend to display citations for each field

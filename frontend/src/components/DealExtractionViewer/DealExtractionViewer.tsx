@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Download,
   FileText,
@@ -600,6 +602,119 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
 
     return (
       <div>
+        {/* Full Markdown Narrative - Show if available */}
+        {overview.detailed_narrative_markdown && (
+          <div style={{
+            marginBottom: '2rem',
+            padding: '2rem',
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            lineHeight: '1.6'
+          }}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({node, ...props}) => (
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    marginBottom: '1rem',
+                    fontSize: '0.875rem'
+                  }} {...props} />
+                ),
+                thead: ({node, ...props}) => (
+                  <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }} {...props} />
+                ),
+                th: ({node, ...props}) => (
+                  <th style={{
+                    padding: '0.75rem',
+                    textAlign: 'left',
+                    fontWeight: 600,
+                    borderBottom: '1px solid #e5e7eb'
+                  }} {...props} />
+                ),
+                td: ({node, ...props}) => (
+                  <td style={{
+                    padding: '0.75rem',
+                    borderBottom: '1px solid #f3f4f6'
+                  }} {...props} />
+                ),
+                h1: ({node, ...props}) => (
+                  <h1 style={{
+                    fontSize: '2rem',
+                    fontWeight: 700,
+                    marginTop: '2rem',
+                    marginBottom: '1rem',
+                    color: '#111827'
+                  }} {...props} />
+                ),
+                h2: ({node, ...props}) => (
+                  <h2 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 600,
+                    marginTop: '1.5rem',
+                    marginBottom: '0.75rem',
+                    color: '#1f2937'
+                  }} {...props} />
+                ),
+                h3: ({node, ...props}) => (
+                  <h3 style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 600,
+                    marginTop: '1rem',
+                    marginBottom: '0.5rem',
+                    color: '#374151'
+                  }} {...props} />
+                ),
+                blockquote: ({node, ...props}) => (
+                  <blockquote style={{
+                    borderLeft: '4px solid #3b82f6',
+                    paddingLeft: '1rem',
+                    marginLeft: 0,
+                    marginBottom: '1rem',
+                    color: '#4b5563',
+                    fontStyle: 'italic'
+                  }} {...props} />
+                ),
+                code: ({node, inline, ...props}: any) =>
+                  inline ? (
+                    <code style={{
+                      backgroundColor: '#f3f4f6',
+                      padding: '0.2rem 0.4rem',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.875em',
+                      fontFamily: 'monospace'
+                    }} {...props} />
+                  ) : (
+                    <code style={{
+                      display: 'block',
+                      backgroundColor: '#1f2937',
+                      color: '#f9fafb',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      overflowX: 'auto',
+                      marginBottom: '1rem',
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem'
+                    }} {...props} />
+                  ),
+                hr: ({node, ...props}) => (
+                  <hr style={{
+                    border: 'none',
+                    borderTop: '1px solid #e5e7eb',
+                    margin: '2rem 0'
+                  }} {...props} />
+                ),
+              }}
+            >
+              {overview.detailed_narrative_markdown}
+            </ReactMarkdown>
+          </div>
+        )}
+
         {/* Recommendation Badge - Top Priority */}
         {overview.recommendation && (
           <div style={{
