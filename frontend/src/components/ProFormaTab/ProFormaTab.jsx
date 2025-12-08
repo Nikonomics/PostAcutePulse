@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, Table, Form, Row, Col, Badge, Button, Spinner, InputGroup, Alert, Modal, Dropdown } from 'react-bootstrap';
-import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileText, Info, FolderOpen, Trash2, Calendar, CheckCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileText, Info, FolderOpen, Trash2, Calendar, CheckCircle, Pencil } from 'lucide-react';
 import { debounce } from 'lodash';
 import {
   calculateProforma as calculateProformaAPI,
@@ -167,7 +167,12 @@ const LineItemRow = ({
   indent = 0,
   isBold = false,
   opportunity,
-  isDisabled = false
+  isDisabled = false,
+  // New props for editable actuals
+  actualKey = null,  // Key for identifying this actual value in overrides
+  originalActual = null,  // Original AI-extracted value (before override)
+  onActualChange = null,  // Callback when actual value is changed
+  isActualEditable = false  // Whether the actual column can be edited
 }) => {
   // Use benchmarkUnit for benchmark/variance display if provided, otherwise use unit
   const displayBenchmarkUnit = benchmarkUnit || unit;
@@ -183,6 +188,9 @@ const LineItemRow = ({
   const isActualMissing = actual === null || actual === undefined;
   const inputDisabled = isActualMissing || isDisabled;
 
+  // Check if actual has been overridden from original
+  const isOverridden = originalActual !== null && actual !== originalActual;
+
   const handleInputChange = (e) => {
     const value = parseFloat(e.target.value);
     if (!isNaN(value) && onBenchmarkChange) {
@@ -190,19 +198,63 @@ const LineItemRow = ({
     }
   };
 
+  const handleActualChange = (e) => {
+    const value = e.target.value === '' ? null : parseFloat(e.target.value);
+    if (onActualChange && actualKey) {
+      onActualChange(actualKey, isNaN(value) ? null : value);
+    }
+  };
+
   return (
-    <tr className={`${isBold ? 'font-weight-bold' : ''} ${isActualMissing ? 'text-muted' : ''}`}>
+    <tr className={`${isBold ? 'font-weight-bold' : ''} ${isActualMissing && !isActualEditable ? 'text-muted' : ''}`}>
       <td style={{ paddingLeft: `${1 + indent * 1.5}rem` }}>
         {label}
-        {isActualMissing && <span className="ms-1 text-muted small">(N/A)</span>}
+        {isActualMissing && !isActualEditable && <span className="ms-1 text-muted small">(N/A)</span>}
       </td>
       <td className="text-end">
-        {isActualMissing ? (
-          <span className="text-muted">N/A</span>
+        {isActualEditable && onActualChange ? (
+          <div className="d-flex align-items-center justify-content-end">
+            {isOverridden && (
+              <Pencil
+                size={12}
+                className="text-warning me-1"
+                title={`Overridden from AI value: ${
+                  unit === '$' ? formatCurrency(originalActual) :
+                  unit === '%' ? formatPercent(originalActual) :
+                  formatNumber(originalActual)
+                }`}
+              />
+            )}
+            <InputGroup size="sm" style={{ width: '120px' }}>
+              <Form.Control
+                type="number"
+                step={unit === '$' ? '0.01' : '0.1'}
+                value={actual ?? ''}
+                onChange={handleActualChange}
+                className={`text-end ${isOverridden ? 'border-warning' : ''}`}
+                disabled={isDisabled}
+                title={isOverridden ? `Original AI value: ${
+                  unit === '$' ? formatCurrency(originalActual) :
+                  unit === '%' ? formatPercent(originalActual) :
+                  formatNumber(originalActual)
+                }` : 'Edit actual value'}
+                placeholder={originalActual !== null ? (
+                  unit === '$' ? formatCurrency(originalActual) :
+                  unit === '%' ? String(originalActual) :
+                  String(originalActual)
+                ) : 'N/A'}
+              />
+              <InputGroup.Text className={isDisabled ? 'text-muted' : ''}>{unit}</InputGroup.Text>
+            </InputGroup>
+          </div>
         ) : (
-          unit === '$' ? formatCurrency(actual) :
-          unit === '%' ? formatPercent(actual) :
-          formatNumber(actual)
+          isActualMissing ? (
+            <span className="text-muted">N/A</span>
+          ) : (
+            unit === '$' ? formatCurrency(actual) :
+            unit === '%' ? formatPercent(actual) :
+            formatNumber(actual)
+          )
         )}
       </td>
       <td className="text-end text-muted">
@@ -259,6 +311,9 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Actual value overrides - allows users to correct AI-extracted values
+  const [actualOverrides, setActualOverrides] = useState({});
 
   // Scenario management state
   const [scenarios, setScenarios] = useState([]);
@@ -493,6 +548,30 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     }));
   }, []);
 
+  // Handle actual value override
+  const handleActualChange = useCallback((key, value) => {
+    setActualOverrides(prev => {
+      const newOverrides = { ...prev };
+      if (value === null) {
+        // Remove override to revert to original
+        delete newOverrides[key];
+      } else {
+        newOverrides[key] = value;
+      }
+      return newOverrides;
+    });
+  }, []);
+
+  // Get actual value with override applied
+  const getActualValue = useCallback((key, originalValue) => {
+    return actualOverrides.hasOwnProperty(key) ? actualOverrides[key] : originalValue;
+  }, [actualOverrides]);
+
+  // Check if there are any actual overrides
+  const hasActualOverrides = useMemo(() => {
+    return Object.keys(actualOverrides).length > 0;
+  }, [actualOverrides]);
+
   // Request reset to defaults (shows confirmation if there are changes)
   const handleResetRequest = () => {
     if (hasUnsavedChanges || isDifferentFromDefaults) {
@@ -506,6 +585,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
   // Actually reset to defaults
   const handleResetDefaults = () => {
     setBenchmarks(DEFAULT_BENCHMARKS);
+    setActualOverrides({});  // Clear any actual value overrides
     setSelectedScenarioId(null);
     setScenarioName('Base Case');
     setShowResetConfirm(false);
@@ -678,17 +758,21 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       ? { ...DEFAULT_BENCHMARKS, ...currentScenario.benchmark_overrides }
       : DEFAULT_BENCHMARKS;
 
-    return Object.keys(DEFAULT_BENCHMARKS).some(key => {
+    const benchmarksChanged = Object.keys(DEFAULT_BENCHMARKS).some(key => {
       return benchmarks[key] !== compareTo[key];
     });
-  }, [benchmarks, currentScenario]);
+
+    // Also check if there are any actual value overrides
+    return benchmarksChanged || hasActualOverrides;
+  }, [benchmarks, currentScenario, hasActualOverrides]);
 
   // Check if current benchmarks differ from defaults (for reset button state)
   const isDifferentFromDefaults = useMemo(() => {
-    return Object.keys(DEFAULT_BENCHMARKS).some(key => {
+    const benchmarksChanged = Object.keys(DEFAULT_BENCHMARKS).some(key => {
       return benchmarks[key] !== DEFAULT_BENCHMARKS[key];
     });
-  }, [benchmarks]);
+    return benchmarksChanged || hasActualOverrides;
+  }, [benchmarks, hasActualOverrides]);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -1042,14 +1126,23 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               <SectionHeader title="Revenue & Occupancy" />
               <LineItemRow
                 label="Annual Revenue"
-                actual={currentFinancials.revenue}
+                actual={getActualValue('revenue', currentFinancials.revenue)}
+                originalActual={currentFinancials.revenue}
+                actualKey="revenue"
+                onActualChange={handleActualChange}
+                isActualEditable={true}
                 unit="$"
                 benchmark={analysis?.stabilized_revenue}
                 opportunity={analysis?.opportunities?.find(o => o.category === 'Revenue Growth')?.opportunity}
+                isDisabled={isCalculating}
               />
               <LineItemRow
                 label="Occupancy"
-                actual={currentFinancials.occupancy}
+                actual={getActualValue('occupancy', currentFinancials.occupancy)}
+                originalActual={currentFinancials.occupancy}
+                actualKey="occupancy"
+                onActualChange={handleActualChange}
+                isActualEditable={true}
                 benchmark={benchmarks.occupancy_target}
                 benchmarkKey="occupancy_target"
                 onBenchmarkChange={handleBenchmarkChange}
@@ -1075,7 +1168,11 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               <SectionHeader title="Labor Costs" subtitle="Largest expense category (benchmark = % of revenue)" />
               <LineItemRow
                 label="Total Labor Cost"
-                actual={displayFinancials?.total_labor_cost ?? currentFinancials.total_labor_cost}
+                actual={getActualValue('total_labor_cost', displayFinancials?.total_labor_cost ?? currentFinancials.total_labor_cost)}
+                originalActual={displayFinancials?.total_labor_cost ?? currentFinancials.total_labor_cost}
+                actualKey="total_labor_cost"
+                onActualChange={handleActualChange}
+                isActualEditable={true}
                 actualPctOfRevenue={displayFinancials?.labor_pct ?? currentFinancials.labor_pct}
                 benchmark={benchmarks.labor_pct_target}
                 benchmarkKey="labor_pct_target"
@@ -1093,7 +1190,11 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
               <LineItemRow
                 label="Agency Staffing Cost"
-                actual={displayFinancials?.agency_labor_total ?? currentFinancials.agency_labor_total}
+                actual={getActualValue('agency_labor_total', displayFinancials?.agency_labor_total ?? currentFinancials.agency_labor_total)}
+                originalActual={displayFinancials?.agency_labor_total ?? currentFinancials.agency_labor_total}
+                actualKey="agency_labor_total"
+                onActualChange={handleActualChange}
+                isActualEditable={true}
                 actualPctOfRevenue={displayFinancials?.agency_pct ?? currentFinancials.agency_pct}
                 benchmark={benchmarks.agency_pct_of_labor_target}
                 benchmarkKey="agency_pct_of_labor_target"
@@ -1320,7 +1421,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                 isReversed={true}
               />
               <LineItemRow
-                label="Insurance % of Revenue"
+                label="Insurance"
                 actual={displayFinancials?.insurance_pct ?? currentFinancials.insurance_pct}
                 benchmark={benchmarks.insurance_pct_target}
                 benchmarkKey="insurance_pct_target"
@@ -1334,12 +1435,17 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               <SectionHeader title="Profitability Metrics" />
               <LineItemRow
                 label="EBITDA"
-                actual={currentFinancials.ebitda}
+                actual={getActualValue('ebitda', currentFinancials.ebitda)}
+                originalActual={currentFinancials.ebitda}
+                actualKey="ebitda"
+                onActualChange={handleActualChange}
+                isActualEditable={true}
                 actualPctOfRevenue={currentFinancials.ebitda_margin}
                 benchmark={analysis?.stabilized_ebitda}
                 unit="$"
                 isBold={true}
                 opportunity={summaryMetrics.totalOpportunity}
+                isDisabled={isCalculating}
               />
               <LineItemRow
                 label="EBITDA Margin %"
@@ -1353,11 +1459,16 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
               <LineItemRow
                 label="EBITDAR"
-                actual={currentFinancials.ebitdar}
+                actual={getActualValue('ebitdar', currentFinancials.ebitdar)}
+                originalActual={currentFinancials.ebitdar}
+                actualKey="ebitdar"
+                onActualChange={handleActualChange}
+                isActualEditable={true}
                 actualPctOfRevenue={currentFinancials.ebitdar_margin}
                 benchmark={analysis?.stabilized_ebitdar}
                 unit="$"
                 isBold={true}
+                isDisabled={isCalculating}
               />
               <LineItemRow
                 label="EBITDAR Margin %"
