@@ -718,6 +718,78 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               <FileText size={20} style={{ color: '#3b82f6' }} />
               Executive Summary
             </h3>
+
+            {/* Key Metrics Cards - at top of Executive Summary */}
+            {overview.ttm_financials?.summary_metrics && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'white',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                    ${overview.ttm_financials.summary_metrics.total_revenue
+                      ? (overview.ttm_financials.summary_metrics.total_revenue / 1000000).toFixed(2) + 'M'
+                      : 'N/A'}
+                  </div>
+                </div>
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'white',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR</div>
+                  <div style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    color: (overview.ttm_financials.summary_metrics.ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
+                  }}>
+                    ${overview.ttm_financials.summary_metrics.ebitdar
+                      ? (overview.ttm_financials.summary_metrics.ebitdar / 1000).toFixed(0) + 'K'
+                      : 'N/A'}
+                  </div>
+                </div>
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'white',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR Margin</div>
+                  <div style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    color: (overview.ttm_financials.summary_metrics.ebitdar_margin_pct || 0) >= 15 ? '#10b981' : '#ef4444'
+                  }}>
+                    {overview.ttm_financials.summary_metrics.ebitdar_margin_pct?.toFixed(1) || 'N/A'}%
+                  </div>
+                </div>
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'white',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                    {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{
               fontSize: '0.875rem',
               lineHeight: '1.6',
@@ -727,291 +799,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             }}>
               {overview.summary_1000_chars}
             </div>
-          </div>
-        )}
-
-        {/* Key Metrics Cards */}
-        {overview.ttm_financials?.summary_metrics && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '1rem',
-            marginBottom: '2rem'
-          }}>
-            <div style={{
-              padding: '1rem',
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              border: '1px solid #e5e7eb',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-            }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                ${overview.ttm_financials.summary_metrics.total_revenue
-                  ? (overview.ttm_financials.summary_metrics.total_revenue / 1000000).toFixed(2) + 'M'
-                  : 'N/A'}
-              </div>
-            </div>
-            <div style={{
-              padding: '1rem',
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              border: '1px solid #e5e7eb',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-            }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR</div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                color: (overview.ttm_financials.summary_metrics.ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
-              }}>
-                ${overview.ttm_financials.summary_metrics.ebitdar
-                  ? (overview.ttm_financials.summary_metrics.ebitdar / 1000).toFixed(0) + 'K'
-                  : 'N/A'}
-              </div>
-            </div>
-            <div style={{
-              padding: '1rem',
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              border: '1px solid #e5e7eb',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-            }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR Margin</div>
-              <div style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                color: (overview.ttm_financials.summary_metrics.ebitdar_margin_pct || 0) >= 15 ? '#10b981' : '#ef4444'
-              }}>
-                {overview.ttm_financials.summary_metrics.ebitdar_margin_pct?.toFixed(1) || 'N/A'}%
-              </div>
-            </div>
-            <div style={{
-              padding: '1rem',
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              border: '1px solid #e5e7eb',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-            }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Red Flags & Strengths Side by Side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-          {/* Red Flags */}
-          <div style={{
-            padding: '1.25rem',
-            backgroundColor: '#fef2f2',
-            borderRadius: '0.75rem',
-            border: '1px solid #fecaca'
-          }}>
-            <h3 style={{
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: '#991b1b',
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <AlertTriangle size={20} style={{ color: '#ef4444' }} />
-              Red Flags
-            </h3>
-            {overview.red_flags && overview.red_flags.length > 0 ? (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {overview.red_flags.map((flag, index) => (
-                  <li key={index} style={{
-                    padding: '0.75rem',
-                    backgroundColor: 'white',
-                    borderRadius: '0.5rem',
-                    marginBottom: '0.5rem',
-                    fontSize: '0.875rem',
-                    border: '1px solid #fecaca'
-                  }}>
-                    <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
-                      {flag.issue}
-                      <span style={{
-                        marginLeft: '0.5rem',
-                        padding: '0.125rem 0.5rem',
-                        backgroundColor: '#fee2e2',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 500
-                      }}>
-                        {flag.severity}
-                      </span>
-                    </div>
-                    <div style={{ color: '#7f1d1d' }}>{flag.impact}</div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ color: '#991b1b', fontSize: '0.875rem', fontStyle: 'italic' }}>No critical red flags identified</p>
-            )}
-          </div>
-
-          {/* Strengths */}
-          <div style={{
-            padding: '1.25rem',
-            backgroundColor: '#ecfdf5',
-            borderRadius: '0.75rem',
-            border: '1px solid #a7f3d0'
-          }}>
-            <h3 style={{
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: '#065f46',
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <TrendingUp size={20} style={{ color: '#10b981' }} />
-              Strengths
-            </h3>
-            {overview.strengths && overview.strengths.length > 0 ? (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {overview.strengths.map((strength, index) => (
-                  <li key={index} style={{
-                    padding: '0.75rem',
-                    backgroundColor: 'white',
-                    borderRadius: '0.5rem',
-                    marginBottom: '0.5rem',
-                    fontSize: '0.875rem',
-                    border: '1px solid #a7f3d0'
-                  }}>
-                    <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
-                      {strength.strength}
-                    </div>
-                    <div style={{ color: '#047857' }}>{strength.value}</div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ color: '#065f46', fontSize: '0.875rem', fontStyle: 'italic' }}>No strengths identified</p>
-            )}
-          </div>
-        </div>
-
-        {/* Valuation Summary */}
-        {overview.valuation && (
-          <div style={{
-            marginBottom: '2rem',
-            padding: '1.25rem',
-            backgroundColor: 'white',
-            borderRadius: '0.75rem',
-            border: '1px solid #e5e7eb'
-          }}>
-            <h3 style={{
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <DollarSign size={20} style={{ color: '#3b82f6' }} />
-              Valuation Analysis
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              {/* As-Is Value */}
-              {overview.valuation.as_is_value && (
-                <div style={{ padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>As-Is Value</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
-                    ${overview.valuation.as_is_value.income_approach_low
-                      ? (overview.valuation.as_is_value.income_approach_low / 1000000).toFixed(2)
-                      : '?'}M - ${overview.valuation.as_is_value.income_approach_high
-                      ? (overview.valuation.as_is_value.income_approach_high / 1000000).toFixed(2)
-                      : '?'}M
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    ${overview.valuation.as_is_value.per_bed_low
-                      ? (overview.valuation.as_is_value.per_bed_low / 1000).toFixed(0)
-                      : '?'}K - ${overview.valuation.as_is_value.per_bed_high
-                      ? (overview.valuation.as_is_value.per_bed_high / 1000).toFixed(0)
-                      : '?'}K per bed
-                  </div>
-                </div>
-              )}
-
-              {/* Stabilized Value */}
-              {overview.valuation.stabilized_value && (
-                <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '0.5rem' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>Stabilized Value</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginBottom: '0.25rem' }}>
-                    ${overview.valuation.stabilized_value.value_at_9pct_cap
-                      ? (overview.valuation.stabilized_value.value_at_9pct_cap / 1000000).toFixed(2) + 'M'
-                      : 'N/A'}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    At {overview.valuation.stabilized_value.target_occupancy_pct || '?'}% occupancy, 9% cap
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Max Purchase Price */}
-            {overview.valuation.max_purchase_price && (
-              <div style={{
-                marginTop: '1rem',
-                padding: '1rem',
-                backgroundColor: '#eff6ff',
-                borderRadius: '0.5rem',
-                border: '1px solid #93c5fd'
-              }}>
-                <div style={{ fontSize: '0.75rem', color: '#1e40af', marginBottom: '0.25rem', fontWeight: 600 }}>
-                  MAX PURCHASE PRICE
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e40af' }}>
-                  ${overview.valuation.max_purchase_price.max_price
-                    ? (overview.valuation.max_purchase_price.max_price / 1000000).toFixed(2) + 'M'
-                    : 'N/A'}
-                  <span style={{ fontSize: '0.875rem', fontWeight: 500, marginLeft: '0.5rem' }}>
-                    (${overview.valuation.max_purchase_price.max_price_per_bed
-                      ? (overview.valuation.max_purchase_price.max_price_per_bed / 1000).toFixed(0) + 'K/bed'
-                      : 'N/A'})
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Recommendation Rationale */}
-        {overview.recommendation?.rationale && (
-          <div style={{
-            padding: '1.25rem',
-            backgroundColor: '#f8fafc',
-            borderRadius: '0.75rem',
-            border: '1px solid #e2e8f0'
-          }}>
-            <h3 style={{
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: '#1e293b',
-              marginBottom: '0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <MessageSquare size={20} style={{ color: '#3b82f6' }} />
-              Rationale
-            </h3>
-            <p style={{
-              fontSize: '0.875rem',
-              lineHeight: '1.6',
-              color: '#334155',
-              margin: 0
-            }}>
-              {overview.recommendation.rationale}
-            </p>
           </div>
         )}
 

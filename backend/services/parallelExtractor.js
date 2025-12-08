@@ -908,20 +908,6 @@ Example format: Show monthly data with visual bar indicators using block charact
 
 ---
 
-## RECOMMENDATION
-
-### **[PURSUE / PURSUE WITH CAUTION / PASS]** [with warning icons if caution/pass]
-
-**Rationale:** [2-3 paragraphs explaining the decision with specific quantified reasoning]
-
----
-
-## 1000-CHARACTER SUMMARY
-
-[Same format as summary_1000_chars field - include for completeness]
-
----
-
 **FORMATTING REQUIREMENTS:**
 - Use markdown tables extensively (with | separators and --- headers)
 - Use > blockquotes for red flags and strengths
