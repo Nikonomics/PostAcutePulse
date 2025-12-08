@@ -80,6 +80,15 @@ IMPORTANT:
 - Include which document each value came from
 - If a document covers multiple months, extract each month separately
 
+CRITICAL MULTI-DOCUMENT HANDLING:
+- Extract financial data from EVERY document that contains it (P&Ls, I&E reports, financial summaries)
+- Include ALL months found across ALL documents (even if some overlap)
+- Track which document each month's data came from via source_document field
+- If a month appears in multiple documents, include BOTH records - they will be merged later
+- Example: T12 P&L has Jun 2024-May 2025, YTD I&E has Mar 2025-Sep 2025 = extract all 16 months
+- NEVER skip months from a newer document just because an older document covers the same period
+- The reconciliation layer will intelligently merge overlapping data, so extract everything
+
 Return JSON:
 {
   "monthly_financials": [
@@ -221,6 +230,15 @@ Return JSON:
     "has_agency_detail": true|false
   }
 }
+
+CRITICAL MULTI-DOCUMENT HANDLING:
+- Extract expense data from EVERY document that contains it (P&Ls, I&E reports, expense breakdowns)
+- Include ALL months found across ALL documents (even if some overlap)
+- Track which document each month's data came from via source_document field
+- If a month appears in multiple documents, include BOTH records - they will be merged later
+- Example: T12 P&L has Jun 2024-May 2025, YTD I&E has Mar 2025-Sep 2025 = extract all 16 months
+- NEVER skip months from a newer document just because an older document covers the same period
+- The reconciliation layer will intelligently merge overlapping data, so extract everything
 
 IMPORTANT: Extract ALL months found in the documents. If a P&L covers Mar 2025 to Sep 2025, extract data for all 7 months.
 
