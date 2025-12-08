@@ -111,13 +111,25 @@ function isFinancialDocument(doc) {
   const filename = (doc.filename || '').toLowerCase();
   const content = (doc.content || '').toLowerCase().substring(0, 2000); // Check first 2000 chars
 
-  // Check filename
+  // Normalize filename: remove all spaces, special chars for comparison
+  const normalizedFilename = filename.replace(/[\s&_\-\.]+/g, '');
+
+  // Check filename against keywords
   for (const keyword of FINANCIAL_DOC_KEYWORDS) {
-    if (filename.includes(keyword.replace(/ /g, '')) ||
+    const normalizedKeyword = keyword.replace(/[\s&_\-\.]+/g, '');
+    // Check both normalized and original forms
+    if (normalizedFilename.includes(normalizedKeyword) ||
+        filename.includes(keyword) ||
         filename.includes(keyword.replace(/ /g, '_')) ||
         filename.includes(keyword.replace(/ /g, '-'))) {
       return true;
     }
+  }
+
+  // Also check for common abbreviations that might not match exactly
+  // e.g., "I & E" = "Income & Expense" or "I&E" = "Income and Expense"
+  if (/i\s*[&]\s*e/i.test(filename) || /income.*expense/i.test(filename)) {
+    return true;
   }
 
   // Check content
