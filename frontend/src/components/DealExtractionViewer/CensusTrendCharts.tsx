@@ -238,6 +238,11 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
               <span style={{ fontWeight: 700, color: '#059669', fontSize: '1.25rem' }}>
                 {formatPercent(currentOccupancy.value)}
               </span>
+              {bedCount && (
+                <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  / {bedCount} beds
+                </span>
+              )}
               <SourceButton source={currentOccupancy.source} onSourceClick={onSourceClick} />
             </div>
           )}

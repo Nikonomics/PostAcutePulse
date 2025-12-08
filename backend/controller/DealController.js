@@ -241,6 +241,7 @@ const storeTimeSeriesData = async (dealId, extractionData) => {
   }
 
   // Store expense ratios
+  console.log('[storeTimeSeriesData] ratios check:', !!extractionData.ratios, 'ratios content:', extractionData.ratios ? Object.keys(extractionData.ratios) : 'null');
   if (extractionData.ratios) {
     const ratios = extractionData.ratios;
     await DealExpenseRatios.upsert({
@@ -277,14 +278,59 @@ const storeTimeSeriesData = async (dealId, extractionData) => {
       operating_margin: ratios.operating_margin,
       benchmark_flags: extractionData.benchmarkFlags,
       potential_savings: ratios.potential_savings,
+      // Department expense totals
+      total_direct_care: ratios.total_direct_care,
+      total_activities: ratios.total_activities,
+      total_culinary: ratios.total_culinary,
+      total_housekeeping: ratios.total_housekeeping,
+      total_maintenance: ratios.total_maintenance,
+      total_administration: ratios.total_administration,
+      total_general: ratios.total_general,
+      total_property: ratios.total_property,
       calculated_at: new Date(),
       updated_at: new Date()
     });
     recordCount++;
+    console.log('[storeTimeSeriesData] Stored expense ratios successfully');
   }
 
   if (recordCount > 0) {
     console.log(`Stored ${recordCount} time-series records for deal ${dealId}`);
+  }
+
+  // Sync flat deal fields from extraction data
+  // This ensures deal-level fields like current_occupancy are populated from extraction
+  try {
+    const flatFieldUpdates = {};
+
+    // Sync occupancy from extraction_data (canonical: occupancy_pct)
+    if (extractionData.occupancy_pct !== undefined && extractionData.occupancy_pct !== null) {
+      flatFieldUpdates.current_occupancy = parseFloat(extractionData.occupancy_pct) || 0;
+      console.log(`[storeTimeSeriesData] Syncing current_occupancy: ${flatFieldUpdates.current_occupancy}`);
+    }
+
+    // Sync private pay percentage (canonical: private_pay_pct)
+    if (extractionData.private_pay_pct !== undefined && extractionData.private_pay_pct !== null) {
+      flatFieldUpdates.private_pay_percentage = parseFloat(extractionData.private_pay_pct) || 0;
+      console.log(`[storeTimeSeriesData] Syncing private_pay_percentage: ${flatFieldUpdates.private_pay_percentage}`);
+    }
+
+    // Sync revenue and EBITDA
+    if (extractionData.t12m_revenue !== undefined && extractionData.t12m_revenue !== null) {
+      flatFieldUpdates.revenue = parseFloat(extractionData.t12m_revenue) || 0;
+    }
+    if (extractionData.t12m_ebitda !== undefined && extractionData.t12m_ebitda !== null) {
+      flatFieldUpdates.ebitda = parseFloat(extractionData.t12m_ebitda) || 0;
+    }
+
+    // Only update if we have fields to sync
+    if (Object.keys(flatFieldUpdates).length > 0) {
+      await Deal.update(flatFieldUpdates, { where: { id: dealId } });
+      console.log(`[storeTimeSeriesData] Synced flat fields to deal ${dealId}:`, Object.keys(flatFieldUpdates));
+    }
+  } catch (syncError) {
+    console.error('[storeTimeSeriesData] Error syncing flat fields:', syncError);
+    // Don't fail the overall operation if sync fails
   }
 };
 
@@ -1563,9 +1609,21 @@ module.exports = {
         ],
       });
 
+      // Convert to plain object FIRST to allow modifications to be serialized properly
+      // Sequelize model instances don't serialize modified properties correctly
+      let dealResponse = deal ? deal.toJSON() : null;
+
       // Fetch time-series data and merge into extraction_data for frontend
-      if (deal && deal.extraction_data) {
+      if (dealResponse && dealResponse.extraction_data) {
         try {
+          // Parse extraction_data early to get bed_count for ADC calculation
+          let extractionData = typeof dealResponse.extraction_data === 'string'
+            ? JSON.parse(dealResponse.extraction_data)
+            : dealResponse.extraction_data;
+
+          // Get bed_count for calculating ADC from occupancy
+          const bedCount = extractionData.bed_count || extractionData.no_of_beds || null;
+
           // Fetch monthly census data for trends chart
           const monthlyCensus = await DealMonthlyCensus.findAll({
             where: { deal_id: requiredData.id },
@@ -1574,19 +1632,41 @@ module.exports = {
 
           if (monthlyCensus && monthlyCensus.length > 0) {
             // Transform to frontend format for CensusTrendCharts
-            const monthlyTrendsArray = monthlyCensus.map(c => ({
-              month: c.month,
-              average_daily_census: c.average_daily_census,
-              occupancy_pct: c.occupancy_percentage,
-              medicaid_pct: c.medicaid_percentage,
-              medicare_pct: c.medicare_percentage,
-              private_pay_pct: c.private_pay_percentage
-            }));
+            // Apply same heuristic as extractionReconciler to fix misplaced occupancy data
+            const monthlyTrendsArray = monthlyCensus.map(c => {
+              let occupancy = c.occupancy_percentage;
+              let census = c.average_daily_census;
 
-            // Parse existing extraction_data and add monthly_trends
-            let extractionData = typeof deal.extraction_data === 'string'
-              ? JSON.parse(deal.extraction_data)
-              : deal.extraction_data;
+              // SMART HEURISTIC: Determine if we should swap ADC<->occupancy or calculate occupancy from ADC
+              // If bedCount is known AND average_daily_census makes sense as actual census (near or below bed count),
+              // then calculate occupancy from ADC. Only swap if no bedCount and value looks like percentage.
+              if ((occupancy === null || occupancy === undefined) && census !== null && census > 0) {
+                if (bedCount && census <= bedCount * 1.1) {
+                  // ADC makes sense as census (at or below 110% of bed count), calculate occupancy
+                  occupancy = Math.round((census / bedCount) * 100 * 100) / 100;
+                } else if (!bedCount && census >= 60 && census <= 100) {
+                  // No bedCount and value is in typical occupancy percentage range (60-100%)
+                  // Assume AI put occupancy in wrong field
+                  occupancy = census;
+                  census = null;
+                }
+              }
+
+              // Calculate ADC from occupancy and bed_count when ADC is missing
+              // ADC = (occupancy_pct / 100) * bed_count
+              if ((census === null || census === undefined) && occupancy !== null && bedCount) {
+                census = Math.round((occupancy / 100) * bedCount * 100) / 100;
+              }
+
+              return {
+                month: c.month,
+                average_daily_census: census,
+                occupancy_pct: occupancy,
+                medicaid_pct: c.medicaid_percentage,
+                medicare_pct: c.medicare_percentage,
+                private_pay_pct: c.private_pay_percentage
+              };
+            });
 
             // Wrap in ExtractedField format that frontend expects: { value: [...], source: "..." }
             extractionData.monthly_trends = {
@@ -1595,9 +1675,89 @@ module.exports = {
               confidence: "high"
             };
 
-            // Update the deal object with enhanced extraction_data
-            deal.extraction_data = extractionData;
+            // CRITICAL: Also add to census_and_occupancy for frontend CensusTrendCharts
+            // Frontend reads from extractionData.census_and_occupancy.monthly_trends
+            if (!extractionData.census_and_occupancy) {
+              extractionData.census_and_occupancy = {};
+            }
+            extractionData.census_and_occupancy.monthly_trends = monthlyTrendsArray;
+
+            // Calculate and fix current_occupancy if it's missing but we have monthly data
+            const validOccupancies = monthlyTrendsArray
+              .filter(m => m.occupancy_pct !== null && m.occupancy_pct !== undefined)
+              .map(m => m.occupancy_pct);
+
+            if (validOccupancies.length > 0) {
+              const avgOccupancy = validOccupancies.reduce((a, b) => a + b, 0) / validOccupancies.length;
+
+              // If current_occupancy is null or zero, use the calculated average
+              if (!extractionData.current_occupancy) {
+                extractionData.current_occupancy = Math.round(avgOccupancy * 100) / 100;
+                console.log(`[getDealById] Fixed current_occupancy to ${extractionData.current_occupancy}% from ${validOccupancies.length} monthly records`);
+              }
+            }
+
+            // Update the response object with enhanced extraction_data
+            dealResponse.extraction_data = extractionData;
             console.log(`[getDealById] Added ${monthlyTrendsArray.length} monthly trend records for deal ${requiredData.id}`);
+          } else {
+            // FALLBACK: Time-series table is empty, but extraction_data.monthly_trends may exist
+            // Calculate ADC from occupancy for the existing monthly_trends data
+            const existingTrends = extractionData.monthly_trends;
+            if (existingTrends) {
+              // Handle both { value: [...] } format and raw array format
+              const trendsArray = existingTrends.value || (Array.isArray(existingTrends) ? existingTrends : null);
+
+              if (trendsArray && Array.isArray(trendsArray) && trendsArray.length > 0) {
+                console.log(`[getDealById] Processing ${trendsArray.length} existing monthly_trends records for ADC calculation`);
+
+                const enhancedTrends = trendsArray.map(item => {
+                  let occupancy = item.occupancy_pct;
+                  let census = item.average_daily_census;
+
+                  // Calculate ADC from occupancy and bed_count when ADC is missing
+                  // ADC = (occupancy_pct / 100) * bed_count
+                  if ((census === null || census === undefined) && occupancy !== null && bedCount) {
+                    census = Math.round((occupancy / 100) * bedCount * 100) / 100;
+                  }
+
+                  // Calculate occupancy from ADC and bed_count when occupancy is missing
+                  // occupancy_pct = (ADC / bed_count) * 100
+                  if ((occupancy === null || occupancy === undefined) && census !== null && bedCount) {
+                    occupancy = Math.round((census / bedCount) * 100 * 100) / 100;
+                  }
+
+                  return {
+                    ...item,
+                    average_daily_census: census,
+                    occupancy_pct: occupancy
+                  };
+                });
+
+                // Update monthly_trends with calculated ADC values
+                if (existingTrends.value) {
+                  extractionData.monthly_trends = {
+                    ...existingTrends,
+                    value: enhancedTrends
+                  };
+                } else {
+                  extractionData.monthly_trends = {
+                    value: enhancedTrends,
+                    source: "Monthly census data from extraction",
+                    confidence: "high"
+                  };
+                }
+
+                // Also update census_and_occupancy.monthly_trends for frontend
+                if (!extractionData.census_and_occupancy) {
+                  extractionData.census_and_occupancy = {};
+                }
+                extractionData.census_and_occupancy.monthly_trends = enhancedTrends;
+
+                dealResponse.extraction_data = extractionData;
+                console.log(`[getDealById] Enhanced ${enhancedTrends.length} monthly_trends records with calculated ADC`);
+              }
+            }
           }
 
           // Fetch monthly financials for proforma
@@ -1607,9 +1767,12 @@ module.exports = {
           });
 
           if (monthlyFinancials && monthlyFinancials.length > 0) {
-            let extractionData = typeof deal.extraction_data === 'string'
-              ? JSON.parse(deal.extraction_data)
-              : deal.extraction_data;
+            // Use the same extractionData we parsed earlier (or parse if not yet parsed)
+            if (!extractionData) {
+              extractionData = typeof dealResponse.extraction_data === 'string'
+                ? JSON.parse(dealResponse.extraction_data)
+                : dealResponse.extraction_data;
+            }
 
             extractionData.monthly_financials = monthlyFinancials.map(f => ({
               month: f.month,
@@ -1624,7 +1787,7 @@ module.exports = {
               ebitdar: f.ebitdar
             }));
 
-            deal.extraction_data = extractionData;
+            dealResponse.extraction_data = extractionData;
           }
 
           // Fetch expense ratios for ProForma tab
@@ -1633,9 +1796,12 @@ module.exports = {
           });
 
           if (expenseRatios) {
-            let extractionData = typeof deal.extraction_data === 'string'
-              ? JSON.parse(deal.extraction_data)
-              : deal.extraction_data;
+            // Use the same extractionData we parsed earlier (or parse if not yet parsed)
+            if (!extractionData) {
+              extractionData = typeof dealResponse.extraction_data === 'string'
+                ? JSON.parse(dealResponse.extraction_data)
+                : dealResponse.extraction_data;
+            }
 
             // Add expense ratios as flat fields that ProFormaTab expects
             // These fields map to currentFinancials in ProFormaTab.jsx
@@ -1647,6 +1813,7 @@ module.exports = {
             extractionData.utilities_pct_of_revenue = expenseRatios.utilities_pct_of_revenue;
             extractionData.insurance_pct_of_revenue = expenseRatios.insurance_pct_of_revenue;
             extractionData.total_labor_cost = expenseRatios.total_labor_cost;
+            extractionData.revenue_per_resident_day = expenseRatios.revenue_per_resident_day;
 
             // Also store as nested structure for backward compatibility
             extractionData.expense_ratios = {
@@ -1659,10 +1826,12 @@ module.exports = {
               insurance_pct_of_revenue: expenseRatios.insurance_pct_of_revenue,
               total_labor_cost: expenseRatios.total_labor_cost,
               ebitda_margin: expenseRatios.ebitda_margin,
-              ebitdar_margin: expenseRatios.ebitdar_margin
+              ebitdar_margin: expenseRatios.ebitdar_margin,
+              revenue_per_resident_day: expenseRatios.revenue_per_resident_day,
+              occupancy: expenseRatios.occupancy
             };
 
-            deal.extraction_data = extractionData;
+            dealResponse.extraction_data = extractionData;
             console.log(`[getDealById] Added expense ratios for deal ${requiredData.id}`);
           }
         } catch (timeSeriesError) {
@@ -1671,7 +1840,7 @@ module.exports = {
         }
       }
 
-      return helper.success(res, "Deal fetched successfully", deal);
+      return helper.success(res, "Deal fetched successfully", dealResponse);
     } catch (err) {
       return helper.error(res, err);
     }
@@ -1714,6 +1883,24 @@ module.exports = {
         where: { deal_id: requiredData.id },
       });
 
+      // delete the deal facilities:
+      await DealFacilities.destroy({ where: { deal_id: requiredData.id } });
+
+      // delete the time-series extraction data:
+      await DealMonthlyFinancials.destroy({ where: { deal_id: requiredData.id } });
+      await DealMonthlyCensus.destroy({ where: { deal_id: requiredData.id } });
+      await DealMonthlyExpenses.destroy({ where: { deal_id: requiredData.id } });
+      await DealRateSchedules.destroy({ where: { deal_id: requiredData.id } });
+      await DealExpenseRatios.destroy({ where: { deal_id: requiredData.id } });
+
+      // delete pro forma scenarios:
+      await DealProformaScenarios.destroy({ where: { deal_id: requiredData.id } });
+
+      // delete extracted text (if exists):
+      if (db.deal_extracted_text) {
+        await db.deal_extracted_text.destroy({ where: { deal_id: requiredData.id } });
+      }
+
       // delete the deal:
       await deal.destroy();
 
@@ -1722,6 +1909,7 @@ module.exports = {
         id: requiredData.id,
       });
     } catch (err) {
+      console.error('[deleteDeal] Error:', err);
       return helper.error(res, err);
     }
   },
@@ -3525,6 +3713,12 @@ module.exports = {
         return helper.error(res, "Deal not found");
       }
 
+      // Get the latest expense ratios from the database (calculated during extraction)
+      const expenseRatiosRecord = await DealExpenseRatios.findOne({
+        where: { deal_id: dealId },
+        order: [['period_end', 'DESC']]
+      });
+
       // Get user's default benchmark config
       const defaultConfig = await BenchmarkConfigurations.findOne({
         where: { user_id: userId, is_default: true }
@@ -3538,8 +3732,48 @@ module.exports = {
       const proformaResult = calculateProforma(deal.toJSON(), finalBenchmarks);
       const yearlyProjections = generateYearlyProjections(proformaResult);
 
+      // Extract expense data from DB record to supplement the proforma result
+      const expenseData = expenseRatiosRecord ? {
+        // Labor metrics from database
+        total_labor_cost: expenseRatiosRecord.total_labor_cost,
+        labor_pct_of_revenue: expenseRatiosRecord.labor_pct_of_revenue,
+        agency_pct_of_labor: expenseRatiosRecord.agency_pct_of_labor,
+        agency_labor_total: expenseRatiosRecord.agency_labor_total,
+        // Department expense totals
+        total_direct_care: expenseRatiosRecord.total_direct_care,
+        total_activities: expenseRatiosRecord.total_activities,
+        total_culinary: expenseRatiosRecord.total_culinary,
+        total_housekeeping: expenseRatiosRecord.total_housekeeping,
+        total_maintenance: expenseRatiosRecord.total_maintenance,
+        total_administration: expenseRatiosRecord.total_administration,
+        total_general: expenseRatiosRecord.total_general,
+        total_property: expenseRatiosRecord.total_property,
+        // Other expense metrics
+        food_cost_total: expenseRatiosRecord.food_cost_total,
+        food_cost_per_resident_day: expenseRatiosRecord.food_cost_per_resident_day,
+        food_pct_of_revenue: expenseRatiosRecord.food_pct_of_revenue,
+        admin_pct_of_revenue: expenseRatiosRecord.admin_pct_of_revenue,
+        maintenance_pct_of_revenue: expenseRatiosRecord.maintenance_pct_of_revenue,
+        housekeeping_pct_of_revenue: expenseRatiosRecord.housekeeping_pct_of_revenue,
+        insurance_pct_of_revenue: expenseRatiosRecord.insurance_pct_of_revenue,
+        insurance_per_bed: expenseRatiosRecord.insurance_per_bed,
+        utilities_pct_of_revenue: expenseRatiosRecord.utilities_pct_of_revenue,
+        utilities_per_bed: expenseRatiosRecord.utilities_per_bed,
+        // Revenue metrics
+        revenue_per_bed: expenseRatiosRecord.revenue_per_bed,
+        revenue_per_resident_day: expenseRatiosRecord.revenue_per_resident_day,
+        // Margins
+        ebitda_margin: expenseRatiosRecord.ebitda_margin,
+        ebitdar_margin: expenseRatiosRecord.ebitdar_margin,
+        operating_margin: expenseRatiosRecord.operating_margin,
+        // Benchmark flags (JSON from extraction)
+        benchmark_flags: expenseRatiosRecord.benchmark_flags,
+        period_end: expenseRatiosRecord.period_end
+      } : null;
+
       return helper.success(res, "Pro forma calculated", {
         ...proformaResult,
+        expense_data: expenseData,
         yearly_projections: yearlyProjections,
         deal_name: deal.deal_name,
         facility_name: deal.facility_name
@@ -3613,6 +3847,58 @@ module.exports = {
     } catch (err) {
       console.error("Re-extract deal error:", err);
       return helper.error(res, err.message || "Failed to re-extract deal");
+    }
+  },
+
+  /**
+   * Get all deals with their facilities and coordinates for map display
+   * Used by Dashboard to show deal locations on map
+   */
+  getDealFacilitiesCoordinates: async (req, res) => {
+    try {
+      // Get optional deal_status filter(s) from query params
+      const dealStatuses = req.query.deal_status;
+
+      // Build where clause for deals
+      const dealWhere = {};
+      if (dealStatuses) {
+        // Handle both single value and array
+        const statuses = Array.isArray(dealStatuses) ? dealStatuses : [dealStatuses];
+        dealWhere.deal_status = { [Op.in]: statuses };
+      }
+
+      // Get all deals with their facilities
+      const deals = await Deal.findAll({
+        where: dealWhere,
+        attributes: ['id', 'deal_name', 'deal_status'],
+        include: [{
+          model: DealFacilities,
+          as: 'facilities',
+          attributes: ['id', 'facility_name', 'address', 'city', 'state', 'latitude', 'longitude'],
+          where: {
+            [Op.or]: [
+              { latitude: { [Op.ne]: null } },
+              { longitude: { [Op.ne]: null } }
+            ]
+          },
+          required: false
+        }],
+        order: [['id', 'DESC']]
+      });
+
+      // Transform to match frontend expected format
+      const result = deals.map(deal => ({
+        id: deal.id,
+        deal_name: deal.deal_name,
+        deal_status: deal.deal_status,
+        deal_facility: deal.facilities || []
+      }));
+
+      return helper.success(res, "Deal facilities coordinates fetched successfully", result);
+
+    } catch (err) {
+      console.error("Get deal facilities coordinates error:", err);
+      return helper.error(res, err.message || "Failed to fetch deal facilities coordinates");
     }
   },
 };

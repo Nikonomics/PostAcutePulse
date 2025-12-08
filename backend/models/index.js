@@ -69,6 +69,14 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('Post-sync migration file not found or error:', err.message);
   }
+
+  try {
+    // Fix deal_expense_ratios unique constraint issue
+    const { runMigration: runExpenseRatiosFix } = require('../migrations/fix-expense-ratios-unique-constraint');
+    await runExpenseRatiosFix(sequelize);
+  } catch (err) {
+    console.log('Expense ratios constraint fix migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist

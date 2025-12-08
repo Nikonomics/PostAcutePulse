@@ -180,6 +180,32 @@ Format as arrays:
 occupancy_pct = (average_daily_census / bed_count) * 100
 Mark as calculated: true
 
+### KEY OBSERVATIONS & INSIGHTS (REQUIRED):
+Based on your analysis of the extracted data, generate actionable insights in these categories:
+
+**deal_strengths** - Positive aspects that make this deal attractive:
+- High occupancy (>90%), strong private pay mix (>30%), favorable payer mix trends
+- Growing revenue or census, improving margins
+- Premium rate structure, low agency staffing reliance
+- Well-maintained facility indicators, good location market
+
+**deal_risks** - Concerns or red flags:
+- Low occupancy (<85%), high Medicaid concentration (>70%)
+- Declining census trends, negative EBITDA, high agency staffing costs
+- Missing critical data, inconsistent financials
+- Regulatory concerns, market challenges
+
+**missing_data** - Important information not found in documents:
+- Which key fields couldn't be extracted
+- What additional documents would help complete the analysis
+
+**calculation_notes** - How key metrics were derived:
+- EBITDA calculation methodology
+- Assumptions made for derived values
+- Data quality issues affecting calculations
+
+Format each observation as a complete sentence. Be specific with numbers and cite the data. Prioritize the most important 3-5 observations per category.
+
 ## STEP 3: SOURCE CITATION FORMAT (CRITICAL)
 
 For EVERY extracted value, provide detailed source citations that allow users to find the exact location in the original document:
@@ -369,7 +395,24 @@ Return a JSON object with this structure. Use null for fields not found. Include
 
   "data_quality_notes": [],
 
-  "key_observations": [],
+  "key_observations": {
+    "deal_strengths": [
+      "Strong occupancy at 94% with positive trending over the past 6 months",
+      "Private pay mix of 35% provides revenue stability and upside potential"
+    ],
+    "deal_risks": [
+      "Medicaid concentration at 62% creates reimbursement rate dependency",
+      "Agency staffing costs represent 15% of total labor, above industry average"
+    ],
+    "missing_data": [
+      "No purchase price provided - unable to calculate acquisition multiples",
+      "Rate schedule not included - private pay rates estimated from revenue"
+    ],
+    "calculation_notes": [
+      "EBITDA calculated as Net Income + Interest + Depreciation using T12 P&L data",
+      "Occupancy derived from average daily census of 94 divided by 100 beds"
+    ]
+  },
 
   "facilities": [
     {
@@ -656,6 +699,49 @@ function flattenFacility(facilityData) {
   };
 }
 
+/**
+ * Normalize key_observations to the new structured format
+ * Handles both legacy array format and new structured object format
+ * @param {Array|Object} observations - The key_observations from extraction
+ * @returns {Object} Normalized structured observations
+ */
+function normalizeKeyObservations(observations) {
+  const defaultStructure = {
+    deal_strengths: [],
+    deal_risks: [],
+    missing_data: [],
+    calculation_notes: []
+  };
+
+  if (!observations) {
+    return defaultStructure;
+  }
+
+  // If it's already the new structured format, return it
+  if (typeof observations === 'object' && !Array.isArray(observations)) {
+    return {
+      deal_strengths: observations.deal_strengths || [],
+      deal_risks: observations.deal_risks || [],
+      missing_data: observations.missing_data || [],
+      calculation_notes: observations.calculation_notes || []
+    };
+  }
+
+  // If it's the legacy array format, put all items in a general category
+  // (treat them as observations that need to be categorized)
+  if (Array.isArray(observations)) {
+    // For legacy data, put all observations in deal_risks as they were typically warnings
+    return {
+      deal_strengths: [],
+      deal_risks: observations,
+      missing_data: [],
+      calculation_notes: []
+    };
+  }
+
+  return defaultStructure;
+}
+
 function flattenExtractedData(data) {
   const flat = {
     // Document types identified
@@ -830,7 +916,8 @@ function flattenExtractedData(data) {
 
     // Data quality and observations
     data_quality_notes: data.data_quality_notes || [],
-    key_observations: data.key_observations || [],
+    // key_observations can be either the new structured format or legacy array format
+    key_observations: normalizeKeyObservations(data.key_observations),
 
     // Set defaults
     country: 'USA'

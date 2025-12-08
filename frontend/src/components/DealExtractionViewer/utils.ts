@@ -1,6 +1,12 @@
 // Utility functions for DealExtractionViewer
 
-import { ConfidenceLevel, ExtractedField, SourceReference } from './types';
+import {
+  ConfidenceLevel,
+  ExtractedField,
+  SourceReference,
+  normalizeMonthlyTrends,
+  LEGACY_TO_CANONICAL
+} from './types';
 
 /**
  * Format a number as currency with proper handling of negatives
@@ -383,26 +389,62 @@ export const isSourceClickable = (sourceRef: SourceReference | null): boolean =>
 /**
  * Convert flattened extraction data back to the nested structure expected by DealExtractionViewer
  * This handles data that was flattened by the backend's flattenExtractedData() function
+ *
+ * IMPORTANT: This function now uses CANONICAL field names from extraction-schema.ts
+ * Legacy field names are supported for backward compatibility but will be mapped to canonical names
  */
 export const unflattenExtractedData = (flatData: any): any => {
   if (!flatData) return null;
 
+  // Helper to get value from either canonical or legacy field name
+  const getFieldValue = (canonicalKey: string, ...legacyKeys: string[]): any => {
+    // Try canonical first
+    if (canonicalKey in flatData) {
+      return flatData[canonicalKey];
+    }
+    // Try legacy names
+    for (const legacyKey of legacyKeys) {
+      if (legacyKey in flatData) {
+        return flatData[legacyKey];
+      }
+    }
+    return undefined;
+  };
+
   // Helper to create an ExtractedField from flattened data
-  // Now properly detects if a value exists (even if null from AI) vs truly not found
-  const createField = <T>(key: string): ExtractedField<T> => {
+  // Supports both canonical and legacy field names
+  const createField = <T>(canonicalKey: string, ...legacyKeys: string[]): ExtractedField<T> => {
     const confidenceMap = flatData._confidenceMap || {};
     const sourceMap = flatData._sourceMap || {};
-    const hasKey = key in flatData;
-    const value = flatData[key];
+
+    // Try to get value from canonical or legacy keys
+    const value = getFieldValue(canonicalKey, ...legacyKeys);
+    const hasKey = canonicalKey in flatData || legacyKeys.some(k => k in flatData);
+
+    // Find the key that was actually used for confidence/source lookup
+    let usedKey = canonicalKey;
+    if (!(canonicalKey in flatData)) {
+      for (const legacyKey of legacyKeys) {
+        if (legacyKey in flatData) {
+          usedKey = legacyKey;
+          break;
+        }
+      }
+    }
+
+    // Check if value is already in ExtractedField format (from backend time-series data)
+    if (value && typeof value === 'object' && 'value' in value && ('confidence' in value || 'source' in value)) {
+      return value as ExtractedField<T>;
+    }
 
     // Determine confidence: use map if available, otherwise infer from value
     let confidence: ConfidenceLevel;
-    if (confidenceMap[key]) {
-      confidence = confidenceMap[key] as ConfidenceLevel;
+    if (confidenceMap[usedKey] || confidenceMap[canonicalKey]) {
+      confidence = (confidenceMap[usedKey] || confidenceMap[canonicalKey]) as ConfidenceLevel;
     } else if (value !== null && value !== undefined) {
-      confidence = 'high'; // If we have a value, assume high confidence
+      confidence = 'high';
     } else if (hasKey) {
-      confidence = 'not_found'; // Key exists but value is null
+      confidence = 'not_found';
     } else {
       confidence = 'not_found';
     }
@@ -410,11 +452,49 @@ export const unflattenExtractedData = (flatData: any): any => {
     return {
       value: value !== undefined ? value : null,
       confidence,
-      source: sourceMap[key] || undefined,
+      source: sourceMap[usedKey] || sourceMap[canonicalKey] || undefined,
     };
   };
 
-  // Build the nested structure
+  // Helper to create monthly_trends field with normalization
+  const createMonthlyTrendsField = (): ExtractedField<any[]> => {
+    const rawTrends = flatData.monthly_trends;
+    const confidenceMap = flatData._confidenceMap || {};
+    const sourceMap = flatData._sourceMap || {};
+
+    if (!rawTrends) {
+      return {
+        value: null,
+        confidence: 'not_found',
+      };
+    }
+
+    // Check if already in ExtractedField format
+    if (rawTrends && typeof rawTrends === 'object' && 'value' in rawTrends) {
+      // Normalize the value array if present
+      const normalizedValue = rawTrends.value && Array.isArray(rawTrends.value)
+        ? normalizeMonthlyTrends(rawTrends.value)
+        : rawTrends.value;
+      return {
+        ...rawTrends,
+        value: normalizedValue,
+      };
+    }
+
+    // Raw array - normalize field names inside each item
+    // This is the KEY FIX for the empty Occupancy Trend chart
+    const normalizedTrends = Array.isArray(rawTrends)
+      ? normalizeMonthlyTrends(rawTrends)
+      : rawTrends;
+
+    return {
+      value: normalizedTrends,
+      confidence: confidenceMap['monthly_trends'] || 'high',
+      source: sourceMap['monthly_trends'] || undefined,
+    };
+  };
+
+  // Build the nested structure using CANONICAL field names
   return {
     document_types_identified: flatData.document_types_identified || [],
     extraction_timestamp: flatData.extraction_timestamp || new Date().toISOString(),
@@ -435,15 +515,19 @@ export const unflattenExtractedData = (flatData: any): any => {
       city: createField<string>('city'),
       state: createField<string>('state'),
       zip_code: createField<string>('zip_code'),
-      bed_count: createField<number>('no_of_beds'),
+      // CANONICAL: bed_count (legacy: no_of_beds, number_of_beds, total_beds)
+      bed_count: createField<number>('bed_count', 'no_of_beds', 'number_of_beds', 'total_beds'),
       unit_mix: createField<Record<string, number>>('unit_mix'),
     },
 
     contact_information: {
       primary_contact_name: createField<string>('primary_contact_name'),
-      title: createField<string>('title'),
-      phone: createField<string>('phone_number'),
-      email: createField<string>('email'),
+      // CANONICAL: contact_title (legacy: title)
+      title: createField<string>('contact_title', 'title'),
+      // CANONICAL: contact_phone (legacy: phone_number)
+      phone: createField<string>('contact_phone', 'phone_number'),
+      // CANONICAL: contact_email (legacy: email)
+      email: createField<string>('contact_email', 'email'),
     },
 
     financial_information_t12: {
@@ -451,7 +535,7 @@ export const unflattenExtractedData = (flatData: any): any => {
         start: flatData.financial_period_start || null,
         end: flatData.financial_period_end || null,
       },
-      total_revenue: createField<number>('annual_revenue'),
+      total_revenue: createField<number>('annual_revenue', 't12m_revenue', 'total_revenue'),
       // Revenue by payer source
       revenue_by_payer: {
         medicaid_revenue: createField<number>('medicaid_revenue'),
@@ -461,16 +545,20 @@ export const unflattenExtractedData = (flatData: any): any => {
       },
       // Revenue by type
       revenue_breakdown: {
-        room_and_board: createField<number>('revenue_room_and_board'),
-        care_level_revenue: createField<number>('revenue_care_level'),
-        ancillary_revenue: createField<number>('revenue_ancillary'),
-        other_income: createField<number>('revenue_other_income'),
+        room_and_board: createField<number>('room_and_board_revenue', 'revenue_room_and_board'),
+        care_level_revenue: createField<number>('care_level_revenue', 'revenue_care_level'),
+        ancillary_revenue: createField<number>('ancillary_revenue', 'revenue_ancillary'),
+        other_income: createField<number>('other_income', 'revenue_other_income'),
       },
       total_expenses: createField<number>('total_expenses'),
       operating_expenses: createField<number>('operating_expenses'),
-      ebitdar: createField<number>('ebitdar'),
-      rent_lease_expense: createField<number>('current_rent_lease_expense'),
-      ebitda: createField<number>('ebitda'),
+      // Labor costs (needed for ProForma)
+      total_labor_cost: createField<number>('total_labor_cost'),
+      agency_labor_cost: createField<number>('agency_labor_cost'),
+      ebitdar: createField<number>('ebitdar', 't12m_ebitdar'),
+      // CANONICAL: rent_lease_expense (legacy: current_rent_lease_expense)
+      rent_lease_expense: createField<number>('rent_lease_expense', 'current_rent_lease_expense'),
+      ebitda: createField<number>('ebitda', 't12m_ebitda'),
       depreciation: createField<number>('depreciation'),
       amortization: createField<number>('amortization'),
       interest_expense: createField<number>('interest_expense'),
@@ -497,18 +585,21 @@ export const unflattenExtractedData = (flatData: any): any => {
 
     census_and_occupancy: {
       average_daily_census: createField<number>('average_daily_census'),
-      occupancy_percentage: createField<number>('current_occupancy'),
+      // CANONICAL: occupancy_pct (legacy: current_occupancy, occupancy_percentage, occupancy_rate)
+      occupancy_pct: createField<number>('occupancy_pct', 'current_occupancy', 'occupancy_percentage', 'occupancy_rate'),
       payer_mix_by_census: {
-        medicaid_pct: createField<number>('medicaid_percentage'),
-        medicare_pct: createField<number>('medicare_percentage'),
-        private_pay_pct: createField<number>('private_pay_percentage'),
+        // CANONICAL: medicaid_pct (legacy: medicaid_percentage)
+        medicaid_pct: createField<number>('medicaid_pct', 'medicaid_percentage'),
+        medicare_pct: createField<number>('medicare_pct', 'medicare_percentage'),
+        private_pay_pct: createField<number>('private_pay_pct', 'private_pay_percentage'),
       },
       payer_mix_by_revenue: {
-        medicaid_pct: createField<number>('medicaid_percentage'),
-        medicare_pct: createField<number>('medicare_percentage'),
-        private_pay_pct: createField<number>('private_pay_percentage'),
+        medicaid_pct: createField<number>('medicaid_pct', 'medicaid_percentage'),
+        medicare_pct: createField<number>('medicare_pct', 'medicare_percentage'),
+        private_pay_pct: createField<number>('private_pay_pct', 'private_pay_percentage'),
       },
-      monthly_trends: createField<any[]>('monthly_trends'),
+      // Monthly trends with normalized field names
+      monthly_trends: createMonthlyTrendsField(),
     },
 
     rate_information: {
@@ -519,34 +610,37 @@ export const unflattenExtractedData = (flatData: any): any => {
 
     pro_forma_projections: {
       year_1: {
-        revenue: createField<number>('proforma_year1_annual_revenue'),
-        ebitdar: createField<number>('proforma_year1_annual_ebitdar'),
-        ebitda: createField<number>('proforma_year1_annual_ebitda'),
-        ebit: createField<number>('proforma_year1_annual_ebit'),
-        occupancy_pct: createField<number>('proforma_year1_average_occupancy'),
+        // CANONICAL: proforma_year1_revenue (legacy: proforma_year1_annual_revenue)
+        revenue: createField<number>('proforma_year1_revenue', 'proforma_year1_annual_revenue'),
+        ebitdar: createField<number>('proforma_year1_ebitdar', 'proforma_year1_annual_ebitdar'),
+        ebitda: createField<number>('proforma_year1_ebitda', 'proforma_year1_annual_ebitda'),
+        ebit: createField<number>('proforma_year1_ebit', 'proforma_year1_annual_ebit'),
+        occupancy_pct: createField<number>('proforma_year1_occupancy_pct', 'proforma_year1_average_occupancy'),
       },
       year_2: {
-        revenue: createField<number>('proforma_year2_annual_revenue'),
-        ebitdar: createField<number>('proforma_year2_annual_ebitdar'),
-        ebitda: createField<number>('proforma_year2_annual_ebitda'),
-        ebit: createField<number>('proforma_year2_annual_ebit'),
-        occupancy_pct: createField<number>('proforma_year2_average_occupancy'),
+        revenue: createField<number>('proforma_year2_revenue', 'proforma_year2_annual_revenue'),
+        ebitdar: createField<number>('proforma_year2_ebitdar', 'proforma_year2_annual_ebitdar'),
+        ebitda: createField<number>('proforma_year2_ebitda', 'proforma_year2_annual_ebitda'),
+        ebit: createField<number>('proforma_year2_ebit', 'proforma_year2_annual_ebit'),
+        occupancy_pct: createField<number>('proforma_year2_occupancy_pct', 'proforma_year2_average_occupancy'),
       },
       year_3: {
-        revenue: createField<number>('proforma_year3_annual_revenue'),
-        ebitdar: createField<number>('proforma_year3_annual_ebitdar'),
-        ebitda: createField<number>('proforma_year3_annual_ebitda'),
-        ebit: createField<number>('proforma_year3_annual_ebit'),
-        occupancy_pct: createField<number>('proforma_year3_average_occupancy'),
+        revenue: createField<number>('proforma_year3_revenue', 'proforma_year3_annual_revenue'),
+        ebitdar: createField<number>('proforma_year3_ebitdar', 'proforma_year3_annual_ebitdar'),
+        ebitda: createField<number>('proforma_year3_ebitda', 'proforma_year3_annual_ebitda'),
+        ebit: createField<number>('proforma_year3_ebit', 'proforma_year3_annual_ebit'),
+        occupancy_pct: createField<number>('proforma_year3_occupancy_pct', 'proforma_year3_average_occupancy'),
       },
     },
 
     deal_metrics: {
       revenue_multiple: createField<number>('revenue_multiple'),
       ebitda_multiple: createField<number>('ebitda_multiple'),
-      cap_rate: createField<number>('projected_cap_rate_percentage'),
-      target_irr: createField<number>('target_irr_percentage'),
-      hold_period_years: createField<number>('target_hold_period'),
+      // CANONICAL: cap_rate_pct (legacy: projected_cap_rate_percentage)
+      cap_rate: createField<number>('cap_rate_pct', 'projected_cap_rate_percentage'),
+      // CANONICAL: target_irr_pct (legacy: target_irr_percentage)
+      target_irr: createField<number>('target_irr_pct', 'target_irr_percentage'),
+      hold_period_years: createField<number>('hold_period_years', 'target_hold_period'),
     },
 
     data_quality_notes: flatData.data_quality_notes || [],

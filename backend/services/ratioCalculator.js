@@ -195,6 +195,10 @@ function calculateRatios(reconciledData) {
   const censusSummary = reconciledData.census?.summary || {};
   const facility = reconciledData.facility || {};
 
+  // New department totals structure from AI extraction
+  const departmentTotals = reconciledData.expenses?.departmentTotals || {};
+  const laborSummary = reconciledData.expenses?.laborSummary || {};
+
   const revenue = ttmFinancials.total_revenue || 0;
   const beds = getValue(facility.bed_count) || 0;
   const totalCensusDays = censusSummary.total_census_days || 0;
@@ -203,67 +207,66 @@ function calculateRatios(reconciledData) {
   // Calculate resident days if not available
   const residentDays = totalCensusDays || (beds * 365 * (avgOccupancy / 100));
 
+  // Helper to get department total from new structure
+  const getDeptTotal = (dept) => departmentTotals[dept]?.department_total || null;
+  const getDeptLabor = (dept) => {
+    const d = departmentTotals[dept];
+    if (!d) return null;
+    return (d.total_salaries_wages || 0) + (d.total_benefits || 0) + (d.total_agency_labor || 0);
+  };
+
+  // Use new laborSummary if available, otherwise fall back to old structure
+  const totalLaborCost = laborSummary.total_labor_cost || ttmExpenses.total_labor || null;
+  const totalAgencyCost = laborSummary.total_agency_cost || ttmExpenses.total_agency || null;
+  const rawFoodCost = laborSummary.raw_food_cost || ttmExpenses.by_department?.dietary?.supplies || null;
+
+  // Direct care total (nursing labor)
+  const directCareTotal = getDeptTotal('direct_care') || ttmExpenses.by_department?.nursing?.total || null;
+  const directCareAgency = departmentTotals.direct_care?.total_agency_labor || ttmExpenses.by_department?.nursing?.agency_labor || null;
+
   const ratios = {
     period_end: ttmFinancials.period_end,
 
-    // Labor ratios
-    total_labor_cost: ttmExpenses.total_labor || null,
-    labor_pct_of_revenue: safePercent(ttmExpenses.total_labor, revenue),
-    nursing_labor_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.nursing?.total,
-      revenue
-    ),
-    agency_labor_total: ttmExpenses.total_agency || null,
-    agency_pct_of_labor: safePercent(ttmExpenses.total_agency, ttmExpenses.total_labor),
-    agency_pct_of_direct_care: safePercent(
-      ttmExpenses.by_department?.nursing?.agency_labor,
-      ttmExpenses.by_department?.nursing?.total
-    ),
+    // Labor ratios (calculated from raw dollar amounts)
+    total_labor_cost: totalLaborCost,
+    labor_pct_of_revenue: safePercent(totalLaborCost, revenue),
+    nursing_labor_pct_of_revenue: safePercent(directCareTotal, revenue),
+    agency_labor_total: totalAgencyCost,
+    agency_pct_of_labor: safePercent(totalAgencyCost, totalLaborCost),
+    agency_pct_of_direct_care: safePercent(directCareAgency, directCareTotal),
 
     // Per resident day metrics
-    labor_cost_per_resident_day: safeDivide(ttmExpenses.total_labor, residentDays),
+    labor_cost_per_resident_day: safeDivide(totalLaborCost, residentDays),
     total_cost_per_resident_day: safeDivide(ttmFinancials.total_expenses, residentDays),
 
-    // Food/Dietary
-    food_cost_total: ttmExpenses.by_department?.dietary?.supplies || null,
-    food_cost_per_resident_day: safeDivide(
-      ttmExpenses.by_department?.dietary?.supplies,
-      residentDays
-    ),
-    food_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.dietary?.supplies,
-      revenue
-    ),
-    dietary_labor_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.dietary?.salaries_wages,
-      revenue
-    ),
+    // Food/Dietary (culinary department)
+    food_cost_total: rawFoodCost,
+    food_cost_per_resident_day: safeDivide(rawFoodCost, residentDays),
+    food_pct_of_revenue: safePercent(rawFoodCost, revenue),
+    dietary_labor_pct_of_revenue: safePercent(getDeptLabor('culinary'), revenue),
+    culinary_pct_of_revenue: safePercent(getDeptTotal('culinary'), revenue),
 
     // Administrative
     admin_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.admin?.total,
+      getDeptTotal('administration') || ttmExpenses.by_department?.admin?.total,
       revenue
     ),
+    general_pct_of_revenue: safePercent(getDeptTotal('general'), revenue),
     management_fee_pct: null, // Would need specific line item
     bad_debt_pct: null, // Would need specific line item
 
-    // Property/Facilities
+    // Property/Facilities (maintenance department)
+    maintenance_pct_of_revenue: safePercent(getDeptTotal('maintenance'), revenue),
     utilities_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.plant_operations?.utilities,
+      departmentTotals.maintenance?.total_other || ttmExpenses.by_department?.plant_operations?.utilities,
       revenue
     ),
     utilities_per_bed: safeDivide(
-      ttmExpenses.by_department?.plant_operations?.utilities,
+      departmentTotals.maintenance?.total_other || ttmExpenses.by_department?.plant_operations?.utilities,
       beds * 12
     ),
-    property_cost_per_bed: safeDivide(
-      (ttmFinancials.property_taxes || 0) + (ttmFinancials.property_insurance || 0),
-      beds
-    ),
-    maintenance_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.plant_operations?.repairs_maintenance,
-      revenue
-    ),
+    property_pct_of_revenue: safePercent(getDeptTotal('property'), revenue),
+    property_cost_per_bed: safeDivide(getDeptTotal('property'), beds),
 
     // Insurance
     insurance_pct_of_revenue: safePercent(ttmFinancials.property_insurance, revenue),
@@ -271,9 +274,15 @@ function calculateRatios(reconciledData) {
 
     // Housekeeping
     housekeeping_pct_of_revenue: safePercent(
-      ttmExpenses.by_department?.housekeeping?.total,
+      getDeptTotal('housekeeping') || ttmExpenses.by_department?.housekeeping?.total,
       revenue
     ),
+
+    // Activities
+    activities_pct_of_revenue: safePercent(getDeptTotal('activities'), revenue),
+
+    // Direct Care
+    direct_care_pct_of_revenue: safePercent(directCareTotal, revenue),
 
     // Revenue metrics
     revenue_per_bed: safeDivide(revenue, beds),
@@ -285,7 +294,17 @@ function calculateRatios(reconciledData) {
     operating_margin: safePercent(ttmFinancials.net_income, revenue),
 
     // Occupancy
-    occupancy: avgOccupancy
+    occupancy: avgOccupancy,
+
+    // Department expense totals (raw dollar amounts for ProForma)
+    total_direct_care: directCareTotal,
+    total_activities: getDeptTotal('activities'),
+    total_culinary: getDeptTotal('culinary'),
+    total_housekeeping: getDeptTotal('housekeeping'),
+    total_maintenance: getDeptTotal('maintenance'),
+    total_administration: getDeptTotal('administration'),
+    total_general: getDeptTotal('general'),
+    total_property: getDeptTotal('property')
   };
 
   return ratios;

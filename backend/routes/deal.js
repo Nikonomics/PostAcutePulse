@@ -16,6 +16,7 @@ router.post('/create-deals', requireAuthentication, DealController.createDeal);
 router.get('/get-deals', requireAuthentication, DealController.getDeal);
 router.get('/get-deal-stats', requireAuthentication, DealController.getDealStats);
 router.get('/get-dashboard-data', requireAuthentication, DealController.getDashboardData);
+router.get('/get-deal-facilities-coordinates', requireAuthentication, DealController.getDealFacilitiesCoordinates);
 router.get('/get-deal-by-id', DealController.getDealById);
 router.put('/update-deal-status', requireAuthentication, DealController.updateDealStatus);
 router.post('/update-deal', requireAuthentication, DealController.updateDeal);

@@ -14,15 +14,26 @@ const DEFAULT_BENCHMARKS = {
   // Operational
   occupancy_target: 85,
   private_pay_mix_target: 35,
+  revenue_per_occupied_bed_target: 115,  // $ per day
 
   // Expense targets (as percentages)
   labor_pct_target: 55,
   agency_pct_of_labor_target: 2,
   food_cost_per_day_target: 10.50,
   management_fee_pct_target: 4,
-  bad_debt_pct_target: 1.5,
-  utilities_pct_target: 3,
-  insurance_pct_target: 3,
+  bad_debt_pct_target: 0.5,
+  utilities_pct_target: 2.5,
+  insurance_pct_target: 1.5,
+
+  // Department expense targets (% of revenue)
+  direct_care_pct_target: 28,
+  activities_pct_target: 1.5,
+  culinary_pct_target: 8,
+  housekeeping_pct_target: 4,
+  maintenance_pct_target: 3,
+  administration_pct_target: 6,
+  general_pct_target: 5,
+  property_pct_target: 8,
 
   // Margin targets
   ebitda_margin_target: 9,
@@ -51,15 +62,25 @@ function normalizeBenchmarkConfig(config) {
   return {
     occupancy_target: (config.occupancy_target || 0.85) * 100,
     private_pay_mix_target: (config.private_pay_mix_target || 0.35) * 100,
+    revenue_per_occupied_bed_target: config.revenue_per_occupied_bed_target || 115,
     labor_pct_target: (config.labor_pct_target || 0.55) * 100,
     agency_pct_of_labor_target: (config.agency_pct_of_labor_target || 0.02) * 100,
     food_cost_per_day_target: config.food_cost_per_day_target || 10.50,
     management_fee_pct_target: (config.management_fee_pct_target || 0.04) * 100,
     bad_debt_pct_target: (config.bad_debt_pct_target || 0.005) * 100,
     utilities_pct_target: (config.utilities_pct_target || 0.025) * 100,
-    insurance_pct_target: (config.insurance_pct_target || 0.03) * 100,
+    insurance_pct_target: (config.insurance_pct_target || 0.015) * 100,
     ebitda_margin_target: (config.ebitda_margin_target || 0.09) * 100,
     ebitdar_margin_target: (config.ebitdar_margin_target || 0.23) * 100,
+    // Department expense targets (already stored as percentages in frontend)
+    direct_care_pct_target: config.direct_care_pct_target || 28,
+    activities_pct_target: config.activities_pct_target || 1.5,
+    culinary_pct_target: config.culinary_pct_target || 8,
+    housekeeping_pct_target: config.housekeeping_pct_target || 4,
+    maintenance_pct_target: config.maintenance_pct_target || 3,
+    administration_pct_target: config.administration_pct_target || 6,
+    general_pct_target: config.general_pct_target || 5,
+    property_pct_target: config.property_pct_target || 8,
     stabilization_months: config.stabilization_months || 18,
   };
 }
@@ -82,8 +103,12 @@ function extractActuals(deal) {
   const ebitdar = parseFloat(extractionData.t12m_ebitdar) ||
                   parseFloat(extractionData.ebitdar) || 0;
   const occupancy = parseFloat(deal.current_occupancy) ||
-                    parseFloat(extractionData.current_occupancy) || 0;
-  const beds = parseInt(deal.no_of_beds) || 0;
+                    parseFloat(extractionData.occupancy_pct) ||  // Canonical field from reconciler
+                    parseFloat(extractionData.current_occupancy) ||
+                    parseFloat(extractionData.occupancy) || 0;
+  const beds = parseInt(deal.no_of_beds) ||
+               parseInt(extractionData.bed_count) ||
+               parseInt(extractionData.no_of_beds) || 0;
   const purchasePrice = parseFloat(deal.purchase_price) || 0;
 
   // Calculate EBITDA margin if not directly available
@@ -92,10 +117,31 @@ function extractActuals(deal) {
 
   // Payer mix
   const privatePayPct = parseFloat(deal.private_pay_percentage) ||
+                        parseFloat(extractionData.private_pay_pct) ||  // Canonical field from reconciler
                         parseFloat(extractionData.private_pay_percentage) || null;
 
   // Calculate census days for food cost calculation
   const censusDays = beds * (occupancy / 100) * 365;
+
+  // Department expense totals (from extraction data)
+  const totalDirectCare = parseFloat(extractionData.total_direct_care) || null;
+  const totalActivities = parseFloat(extractionData.total_activities) || null;
+  const totalCulinary = parseFloat(extractionData.total_culinary) || null;
+  const totalHousekeeping = parseFloat(extractionData.total_housekeeping) || null;
+  const totalMaintenance = parseFloat(extractionData.total_maintenance) || null;
+  const totalAdministration = parseFloat(extractionData.total_administration) || null;
+  const totalGeneral = parseFloat(extractionData.total_general) || null;
+  const totalProperty = parseFloat(extractionData.total_property) || null;
+
+  // Calculate department expense percentages of revenue
+  const directCarePct = revenue > 0 && totalDirectCare ? (totalDirectCare / revenue) * 100 : null;
+  const activitiesPct = revenue > 0 && totalActivities ? (totalActivities / revenue) * 100 : null;
+  const culinaryPct = revenue > 0 && totalCulinary ? (totalCulinary / revenue) * 100 : null;
+  const housekeepingPct = revenue > 0 && totalHousekeeping ? (totalHousekeeping / revenue) * 100 : null;
+  const maintenancePct = revenue > 0 && totalMaintenance ? (totalMaintenance / revenue) * 100 : null;
+  const administrationPct = revenue > 0 && totalAdministration ? (totalAdministration / revenue) * 100 : null;
+  const generalPct = revenue > 0 && totalGeneral ? (totalGeneral / revenue) * 100 : null;
+  const propertyPct = revenue > 0 && totalProperty ? (totalProperty / revenue) * 100 : null;
 
   return {
     revenue,
@@ -117,6 +163,16 @@ function extractActuals(deal) {
     bad_debt_pct: expenseRatios.bad_debt_pct,
     utilities_pct: expenseRatios.utilities_pct,
 
+    // Department expense percentages (of revenue)
+    direct_care_pct: directCarePct,
+    activities_pct: activitiesPct,
+    culinary_pct: culinaryPct,
+    housekeeping_pct: housekeepingPct,
+    maintenance_pct: maintenancePct,
+    administration_pct: administrationPct,
+    general_pct: generalPct,
+    property_pct: propertyPct,
+
     // Raw expense amounts for calculating dollar opportunities
     raw_expenses: {
       total_labor: expenseRatios.total_labor_cost,
@@ -125,6 +181,15 @@ function extractActuals(deal) {
       management_fees: rawExpenses.management_fees,
       bad_debt: rawExpenses.bad_debt,
       utilities_total: rawExpenses.utilities_total,
+      // Department totals
+      total_direct_care: totalDirectCare,
+      total_activities: totalActivities,
+      total_culinary: totalCulinary,
+      total_housekeeping: totalHousekeeping,
+      total_maintenance: totalMaintenance,
+      total_administration: totalAdministration,
+      total_general: totalGeneral,
+      total_property: totalProperty,
     },
   };
 }
@@ -181,6 +246,15 @@ function calculateProforma(deal, benchmarks = null, overrides = {}) {
     utilities_pct: calculateVariance(actuals.utilities_pct, targets.utilities_pct_target),
     ebitda_margin: calculateVariance(actuals.ebitda_margin, targets.ebitda_margin_target),
     ebitdar_margin: calculateVariance(actuals.ebitdar_margin, targets.ebitdar_margin_target),
+    // Department expense variances
+    direct_care_pct: calculateVariance(actuals.direct_care_pct, targets.direct_care_pct_target),
+    activities_pct: calculateVariance(actuals.activities_pct, targets.activities_pct_target),
+    culinary_pct: calculateVariance(actuals.culinary_pct, targets.culinary_pct_target),
+    housekeeping_pct: calculateVariance(actuals.housekeeping_pct, targets.housekeeping_pct_target),
+    maintenance_pct: calculateVariance(actuals.maintenance_pct, targets.maintenance_pct_target),
+    administration_pct: calculateVariance(actuals.administration_pct, targets.administration_pct_target),
+    general_pct: calculateVariance(actuals.general_pct, targets.general_pct_target),
+    property_pct: calculateVariance(actuals.property_pct, targets.property_pct_target),
   };
 
   // Calculate opportunities (only for positive variances - i.e., above-target expenses)
@@ -283,6 +357,39 @@ function calculateProforma(deal, benchmarks = null, overrides = {}) {
     totalOpportunity += utilitiesOpportunity;
   }
 
+  // Department expense opportunities
+  const deptExpenseCategories = [
+    { key: 'direct_care_pct', label: 'Direct Care (Nursing)', targetKey: 'direct_care_pct_target' },
+    { key: 'activities_pct', label: 'Activities', targetKey: 'activities_pct_target' },
+    { key: 'culinary_pct', label: 'Culinary (Dietary)', targetKey: 'culinary_pct_target' },
+    { key: 'housekeeping_pct', label: 'Housekeeping/Laundry', targetKey: 'housekeeping_pct_target' },
+    { key: 'maintenance_pct', label: 'Maintenance', targetKey: 'maintenance_pct_target' },
+    { key: 'administration_pct', label: 'Administration', targetKey: 'administration_pct_target' },
+    { key: 'general_pct', label: 'General (G&A)', targetKey: 'general_pct_target' },
+    { key: 'property_pct', label: 'Property', targetKey: 'property_pct_target' },
+  ];
+
+  for (const dept of deptExpenseCategories) {
+    const variance = variances[dept.key];
+    const actualPct = actuals[dept.key];
+    const targetPct = targets[dept.targetKey];
+
+    if (variance !== null && variance > 0 && actuals.revenue > 0) {
+      const deptOpportunity = (variance / 100) * actuals.revenue;
+      opportunities.push({
+        category: dept.key.replace('_pct', ''),
+        label: dept.label,
+        description: `Reduce ${dept.label.toLowerCase()} from ${actualPct?.toFixed(1)}% to ${targetPct}% of revenue`,
+        actual_pct: actualPct,
+        target_pct: targetPct,
+        variance_pct: variance,
+        value: Math.round(deptOpportunity),
+        priority: getPriority(deptOpportunity, actuals.revenue),
+      });
+      totalOpportunity += deptOpportunity;
+    }
+  }
+
   // Sort opportunities by value (highest first)
   opportunities.sort((a, b) => b.value - a.value);
 
@@ -356,20 +463,41 @@ function calculateProforma(deal, benchmarks = null, overrides = {}) {
       management_fee_pct: actuals.management_fee_pct !== null ? parseFloat(actuals.management_fee_pct.toFixed(1)) : null,
       bad_debt_pct: actuals.bad_debt_pct !== null ? parseFloat(actuals.bad_debt_pct.toFixed(1)) : null,
       utilities_pct: actuals.utilities_pct !== null ? parseFloat(actuals.utilities_pct.toFixed(1)) : null,
+
+      // Department expense metrics (% of revenue)
+      direct_care_pct: actuals.direct_care_pct !== null ? parseFloat(actuals.direct_care_pct.toFixed(1)) : null,
+      activities_pct: actuals.activities_pct !== null ? parseFloat(actuals.activities_pct.toFixed(1)) : null,
+      culinary_pct: actuals.culinary_pct !== null ? parseFloat(actuals.culinary_pct.toFixed(1)) : null,
+      housekeeping_pct: actuals.housekeeping_pct !== null ? parseFloat(actuals.housekeeping_pct.toFixed(1)) : null,
+      maintenance_pct: actuals.maintenance_pct !== null ? parseFloat(actuals.maintenance_pct.toFixed(1)) : null,
+      administration_pct: actuals.administration_pct !== null ? parseFloat(actuals.administration_pct.toFixed(1)) : null,
+      general_pct: actuals.general_pct !== null ? parseFloat(actuals.general_pct.toFixed(1)) : null,
+      property_pct: actuals.property_pct !== null ? parseFloat(actuals.property_pct.toFixed(1)) : null,
     },
 
     // Benchmark targets used
     benchmarks: {
       occupancy_target: targets.occupancy_target,
       private_pay_mix_target: targets.private_pay_mix_target,
+      revenue_per_occupied_bed_target: targets.revenue_per_occupied_bed_target,
       labor_pct_target: targets.labor_pct_target,
       agency_pct_of_labor_target: targets.agency_pct_of_labor_target,
       food_cost_per_day_target: targets.food_cost_per_day_target,
       management_fee_pct_target: targets.management_fee_pct_target,
       bad_debt_pct_target: targets.bad_debt_pct_target,
       utilities_pct_target: targets.utilities_pct_target,
+      insurance_pct_target: targets.insurance_pct_target,
       ebitda_margin_target: targets.ebitda_margin_target,
       ebitdar_margin_target: targets.ebitdar_margin_target,
+      // Department expense targets
+      direct_care_pct_target: targets.direct_care_pct_target,
+      activities_pct_target: targets.activities_pct_target,
+      culinary_pct_target: targets.culinary_pct_target,
+      housekeeping_pct_target: targets.housekeeping_pct_target,
+      maintenance_pct_target: targets.maintenance_pct_target,
+      administration_pct_target: targets.administration_pct_target,
+      general_pct_target: targets.general_pct_target,
+      property_pct_target: targets.property_pct_target,
       stabilization_months: targets.stabilization_months,
     },
 
@@ -384,6 +512,15 @@ function calculateProforma(deal, benchmarks = null, overrides = {}) {
       utilities_pct: variances.utilities_pct !== null ? parseFloat(variances.utilities_pct.toFixed(1)) : null,
       ebitda_margin: variances.ebitda_margin !== null ? parseFloat(variances.ebitda_margin.toFixed(1)) : null,
       ebitdar_margin: variances.ebitdar_margin !== null ? parseFloat(variances.ebitdar_margin.toFixed(1)) : null,
+      // Department expense variances
+      direct_care_pct: variances.direct_care_pct !== null ? parseFloat(variances.direct_care_pct.toFixed(1)) : null,
+      activities_pct: variances.activities_pct !== null ? parseFloat(variances.activities_pct.toFixed(1)) : null,
+      culinary_pct: variances.culinary_pct !== null ? parseFloat(variances.culinary_pct.toFixed(1)) : null,
+      housekeeping_pct: variances.housekeeping_pct !== null ? parseFloat(variances.housekeeping_pct.toFixed(1)) : null,
+      maintenance_pct: variances.maintenance_pct !== null ? parseFloat(variances.maintenance_pct.toFixed(1)) : null,
+      administration_pct: variances.administration_pct !== null ? parseFloat(variances.administration_pct.toFixed(1)) : null,
+      general_pct: variances.general_pct !== null ? parseFloat(variances.general_pct.toFixed(1)) : null,
+      property_pct: variances.property_pct !== null ? parseFloat(variances.property_pct.toFixed(1)) : null,
     },
 
     // Improvement opportunities (sorted by value)

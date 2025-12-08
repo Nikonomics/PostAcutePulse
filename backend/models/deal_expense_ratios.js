@@ -127,6 +127,48 @@ module.exports = function (sequelize, DataTypes) {
       allowNull: true
     },
 
+    // Department Expense Totals (raw dollar amounts)
+    total_direct_care: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Direct Care expenses (nursing staff, CNA, benefits, agency)'
+    },
+    total_activities: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Activities expenses (staff, supplies, programs)'
+    },
+    total_culinary: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Culinary/Dietary expenses (food costs, dietary labor)'
+    },
+    total_housekeeping: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Housekeeping/Laundry expenses'
+    },
+    total_maintenance: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Maintenance expenses (repairs, utilities, plant operations)'
+    },
+    total_administration: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Administration expenses (admin salaries, office, professional fees)'
+    },
+    total_general: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total General expenses (G&A, marketing, insurance, overhead)'
+    },
+    total_property: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: 'Total Property expenses (rent, property taxes, insurance, depreciation)'
+    },
+
     // Revenue metrics
     revenue_per_bed: {
       type: DataTypes.FLOAT,

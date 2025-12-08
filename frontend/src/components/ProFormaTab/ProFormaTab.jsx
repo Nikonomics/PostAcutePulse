@@ -3,7 +3,7 @@ import { Card, Table, Form, Row, Col, Badge, Button, Spinner, InputGroup, Alert,
 import { TrendingUp, TrendingDown, AlertTriangle, Save, RotateCcw, Plus, FileText, Info, FolderOpen, Trash2, Calendar, CheckCircle } from 'lucide-react';
 import { debounce } from 'lodash';
 import {
-  calculateProforma,
+  calculateProforma as calculateProformaAPI,
   getProformaScenarios,
   createProformaScenario,
   deleteProformaScenario
@@ -18,12 +18,22 @@ const DEFAULT_BENCHMARKS = {
   labor_pct_target: 55,
   agency_pct_of_labor_target: 2,
   food_cost_per_day_target: 10.50,
+  revenue_per_occupied_bed_target: 115,  // $ per day
   management_fee_pct_target: 4,
   bad_debt_pct_target: 0.5,
   utilities_pct_target: 2.5,
-  insurance_pct_target: 3,
+  insurance_pct_target: 1.5,  // Updated from 3 to 1.5
   ebitda_margin_target: 9,
-  ebitdar_margin_target: 23
+  ebitdar_margin_target: 23,
+  // Department expense targets (% of revenue)
+  direct_care_pct_target: 28,
+  activities_pct_target: 1.5,
+  culinary_pct_target: 8,
+  housekeeping_pct_target: 4,
+  maintenance_pct_target: 3,
+  administration_pct_target: 6,
+  general_pct_target: 5,
+  property_pct_target: 8
 };
 
 /**
@@ -151,6 +161,7 @@ const LineItemRow = ({
   benchmarkKey,
   onBenchmarkChange,
   unit = '%',
+  benchmarkUnit = null,  // Optional: separate unit for benchmark (e.g., '%' when actual is '$')
   isEditable = false,
   isReversed = false,
   indent = 0,
@@ -158,8 +169,17 @@ const LineItemRow = ({
   opportunity,
   isDisabled = false
 }) => {
-  const variance = actual && benchmark ? actual - benchmark : null;
-  const varianceStatus = getVarianceStatus(actual, benchmark, isReversed);
+  // Use benchmarkUnit for benchmark/variance display if provided, otherwise use unit
+  const displayBenchmarkUnit = benchmarkUnit || unit;
+
+  // For variance calculation when units differ (e.g., actual is $ but benchmark is %),
+  // we need to compare the % of revenue (actualPctOfRevenue) against the benchmark
+  const varianceValue = benchmarkUnit && actualPctOfRevenue !== null && benchmark
+    ? actualPctOfRevenue - benchmark
+    : (actual && benchmark ? actual - benchmark : null);
+
+  const varianceCompareValue = benchmarkUnit ? actualPctOfRevenue : actual;
+  const varianceStatus = getVarianceStatus(varianceCompareValue, benchmark, isReversed);
   const isActualMissing = actual === null || actual === undefined;
   const inputDisabled = isActualMissing || isDisabled;
 
@@ -193,29 +213,29 @@ const LineItemRow = ({
           <InputGroup size="sm" style={{ width: '120px', marginLeft: 'auto' }}>
             <Form.Control
               type="number"
-              step={unit === '$' ? '0.01' : '0.1'}
+              step={displayBenchmarkUnit === '$' ? '0.01' : '0.1'}
               value={benchmark || ''}
               onChange={handleInputChange}
               className="text-end"
               disabled={inputDisabled}
               title={isActualMissing ? 'Actual value not available - benchmark editing disabled' : (isDisabled ? 'Calculation in progress...' : '')}
             />
-            <InputGroup.Text className={inputDisabled ? 'text-muted' : ''}>{unit}</InputGroup.Text>
+            <InputGroup.Text className={inputDisabled ? 'text-muted' : ''}>{displayBenchmarkUnit}</InputGroup.Text>
           </InputGroup>
         ) : (
           <span>
-            {unit === '$' ? formatCurrency(benchmark) :
-             unit === '%' ? formatPercent(benchmark) :
+            {displayBenchmarkUnit === '$' ? formatCurrency(benchmark) :
+             displayBenchmarkUnit === '%' ? formatPercent(benchmark) :
              formatNumber(benchmark)}
           </span>
         )}
       </td>
       <td className="text-end">
-        {variance !== null ? (
+        {varianceValue !== null ? (
           <span className={`variance variance-${varianceStatus}`}>
-            {unit === '$' ? formatCurrency(variance) :
-             unit === '%' ? formatPercent(variance) :
-             formatNumber(variance)}
+            {displayBenchmarkUnit === '$' ? formatCurrency(varianceValue) :
+             displayBenchmarkUnit === '%' ? formatPercent(varianceValue) :
+             formatNumber(varianceValue)}
           </span>
         ) : (
           <span className="text-muted">-</span>
@@ -259,6 +279,8 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
 
   // Extract current financials from extraction data
   // Handles both nested structure (from AI extraction) and flat structure
+  // NOTE: This must NOT depend on `analysis` to avoid infinite re-render loops
+  // The expense_data from API is merged separately in displayFinancials
   const currentFinancials = useMemo(() => {
     if (!extractionData) return null;
 
@@ -280,39 +302,51 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       || extractionData.ebitdar
       || extractionData.t12m_ebitdar;
 
-    // Get occupancy and beds
-    const occupancy = getValue(census.occupancy_percentage)
+    // Get occupancy and beds - using CANONICAL field names
+    const occupancy = getValue(census.occupancy_pct)
+      || getValue(census.occupancy_percentage)  // Legacy fallback
+      || extractionData.occupancy_pct
       || extractionData.current_occupancy
       || extractionData.t12m_occupancy;
     const beds = getValue(facility.bed_count)
-      || extractionData.no_of_beds;
+      || extractionData.bed_count
+      || extractionData.no_of_beds;  // Legacy fallback
 
-    // Get expense ratios - try nested expense_ratios, then flat fields
+    // Get expense ratios from extraction data
     const expenseRatios = fin.expense_ratios || {};
     const labor_pct = getValue(expenseRatios.labor_pct_of_revenue)
-      || extractionData.labor_pct_of_revenue;
+      || extractionData.labor_pct_of_revenue
+      || extractionData.labor_pct;
     const agency_pct = getValue(expenseRatios.agency_pct_of_labor)
-      || extractionData.agency_pct_of_labor;
+      || extractionData.agency_pct_of_labor
+      || extractionData.agency_pct;
     const food_cost = getValue(expenseRatios.food_cost_per_resident_day)
-      || extractionData.food_cost_per_resident_day;
+      || extractionData.food_cost_per_resident_day
+      || extractionData.food_cost;
     const management_fee_pct = getValue(expenseRatios.management_fee_pct)
       || extractionData.management_fee_pct;
     const bad_debt_pct = getValue(expenseRatios.bad_debt_pct)
       || extractionData.bad_debt_pct;
     const utilities_pct = getValue(expenseRatios.utilities_pct_of_revenue)
-      || extractionData.utilities_pct_of_revenue;
+      || extractionData.utilities_pct_of_revenue
+      || extractionData.utilities_pct;
     const insurance_pct = getValue(expenseRatios.insurance_pct_of_revenue)
-      || extractionData.insurance_pct_of_revenue;
+      || extractionData.insurance_pct_of_revenue
+      || extractionData.insurance_pct;
 
-    // Get dollar amounts for expense categories
+    // Get dollar amounts from extraction data
     const total_labor_cost = getValue(expenseRatios.total_labor_cost)
       || extractionData.total_labor_cost;
-    const raw_food_cost = getValue(fin.expense_breakdown?.culinary?.raw_food_cost)
-      || extractionData.raw_food_cost;
-    const management_fees = getValue(fin.expense_breakdown?.administration?.management_fees)
-      || extractionData.management_fees;
-    const utilities_total = getValue(fin.expense_breakdown?.maintenance?.utilities_total)
-      || extractionData.utilities_total;
+
+    // Department expense totals from extraction
+    const total_direct_care = extractionData.total_direct_care;
+    const total_activities = extractionData.total_activities;
+    const total_culinary = extractionData.total_culinary;
+    const total_housekeeping = extractionData.total_housekeeping;
+    const total_maintenance = extractionData.total_maintenance;
+    const total_administration = extractionData.total_administration;
+    const total_general = extractionData.total_general;
+    const total_property = extractionData.total_property;
 
     return {
       revenue,
@@ -323,9 +357,9 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
 
       // Dollar amounts for expense categories
       total_labor_cost,
-      raw_food_cost,
-      management_fees,
-      utilities_total,
+      raw_food_cost: getValue(fin.expense_breakdown?.culinary?.raw_food_cost) || extractionData.raw_food_cost,
+      management_fees: getValue(fin.expense_breakdown?.administration?.management_fees) || extractionData.management_fees,
+      utilities_total: getValue(fin.expense_breakdown?.maintenance?.utilities_total) || extractionData.utilities_total,
 
       // Expense ratios (percentages)
       labor_pct,
@@ -342,55 +376,110 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
         : null,
       ebitdar_margin: ebitdar && revenue
         ? (ebitdar / revenue) * 100
-        : null
+        : null,
+
+      // Department expense totals
+      total_direct_care,
+      total_activities,
+      total_culinary,
+      total_housekeeping,
+      total_maintenance,
+      total_administration,
+      total_general,
+      total_property
     };
   }, [extractionData]);
 
-  // Debounced calculation
-  const calculateProforma = useCallback(
-    debounce(async (benchmarkValues, isInitial = false) => {
-      if (!deal?.id || !currentFinancials) return;
+  // Merge currentFinancials with API expense_data for display purposes
+  // This depends on analysis but does NOT trigger recalculation
+  const displayFinancials = useMemo(() => {
+    if (!currentFinancials) return null;
 
-      // Use isLoading for initial load, isCalculating for recalculations
-      if (isInitial) {
-        setIsLoading(true);
-      } else {
-        setIsCalculating(true);
+    // Get expense data from API response (analysis.expense_data) - takes priority for display
+    const apiExpense = analysis?.expense_data || {};
+
+    return {
+      ...currentFinancials,
+      // Override with API expense data where available
+      total_labor_cost: apiExpense.total_labor_cost ?? currentFinancials.total_labor_cost,
+      labor_pct: apiExpense.labor_pct_of_revenue ?? currentFinancials.labor_pct,
+      agency_pct: apiExpense.agency_pct_of_labor ?? currentFinancials.agency_pct,
+      food_cost: apiExpense.food_cost_per_resident_day ?? currentFinancials.food_cost,
+      utilities_pct: apiExpense.utilities_pct_of_revenue ?? currentFinancials.utilities_pct,
+      insurance_pct: apiExpense.insurance_pct_of_revenue ?? currentFinancials.insurance_pct,
+      // Department expense totals - API takes priority
+      total_direct_care: apiExpense.total_direct_care ?? currentFinancials.total_direct_care,
+      total_activities: apiExpense.total_activities ?? currentFinancials.total_activities,
+      total_culinary: apiExpense.total_culinary ?? currentFinancials.total_culinary,
+      total_housekeeping: apiExpense.total_housekeeping ?? currentFinancials.total_housekeeping,
+      total_maintenance: apiExpense.total_maintenance ?? currentFinancials.total_maintenance,
+      total_administration: apiExpense.total_administration ?? currentFinancials.total_administration,
+      total_general: apiExpense.total_general ?? currentFinancials.total_general,
+      total_property: apiExpense.total_property ?? currentFinancials.total_property
+    };
+  }, [currentFinancials, analysis]);
+
+  // Track if initial load has completed
+  const hasInitialLoadCompleted = React.useRef(false);
+
+  // Debounced calculation - always sets isCalculating, not isLoading
+  // isLoading is only for the initial load before first API success
+  const calculateProforma = useCallback(
+    debounce(async (benchmarkValues) => {
+      if (!deal?.id || !currentFinancials) {
+        // Clear loading state if we can't make the call
+        setIsLoading(false);
+        return;
       }
+
+      setIsCalculating(true);
       setError(null);
 
       try {
-        const result = await calculateProforma(deal.id, {
+        const result = await calculateProformaAPI(deal.id, {
           ...benchmarkValues,
           current_financials: currentFinancials
         });
         setAnalysis(result);
+        // Mark initial load as complete on first successful result
+        if (!hasInitialLoadCompleted.current) {
+          hasInitialLoadCompleted.current = true;
+        }
       } catch (err) {
         console.error('Pro forma calculation error:', err);
         const message = getErrorMessage(err, 'Failed to calculate pro forma. Please try again.');
         setError(message);
         // Don't clear analysis - keep previous values for user reference
       } finally {
-        if (isInitial) {
-          setIsLoading(false);
-        } else {
-          setIsCalculating(false);
-        }
+        // Always clear both loading states to ensure spinner stops
+        setIsLoading(false);
+        setIsCalculating(false);
       }
     }, 500),
     [deal?.id, currentFinancials]
   );
 
-  // Track if this is the first calculation
-  const isFirstCalculation = React.useRef(true);
-
   // Recalculate when benchmarks change
   useEffect(() => {
-    if (currentFinancials) {
-      calculateProforma(benchmarks, isFirstCalculation.current);
-      isFirstCalculation.current = false;
+    // If deal.id is missing, we can't make API calls - stop spinner
+    if (!deal?.id) {
+      setIsLoading(false);
+      setError('Deal information unavailable. Please reload the page.');
+      return;
     }
-  }, [benchmarks, calculateProforma, currentFinancials]);
+
+    if (currentFinancials) {
+      calculateProforma(benchmarks);
+    } else if (extractionData) {
+      // extractionData exists but currentFinancials is null - stop loading spinner
+      // This happens when extraction data structure doesn't match expected format
+      setIsLoading(false);
+      setError('Limited financial data available. Some Pro Forma features may not be available.');
+    } else {
+      // No extraction data at all - stop spinner (the empty state UI will handle the message)
+      setIsLoading(false);
+    }
+  }, [benchmarks, calculateProforma, currentFinancials, extractionData, deal?.id]);
 
   // Handle benchmark change
   const handleBenchmarkChange = useCallback((key, value) => {
@@ -625,37 +714,41 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     };
   }, [analysis, currentFinancials]);
 
-  // Check if expense ratio data is available
+  // Check if expense ratio data is available (from either extraction or API)
   const hasExpenseRatios = useMemo(() => {
-    if (!currentFinancials) return false;
+    // Use displayFinancials if available (includes API data), fall back to currentFinancials
+    const financials = displayFinancials || currentFinancials;
+    if (!financials) return false;
     const expenseFields = [
-      currentFinancials.labor_pct,
-      currentFinancials.agency_pct,
-      currentFinancials.food_cost,
-      currentFinancials.management_fee_pct,
-      currentFinancials.bad_debt_pct,
-      currentFinancials.utilities_pct,
-      currentFinancials.insurance_pct
+      financials.labor_pct,
+      financials.agency_pct,
+      financials.food_cost,
+      financials.management_fee_pct,
+      financials.bad_debt_pct,
+      financials.utilities_pct,
+      financials.insurance_pct
     ];
     // Count how many expense fields have values
     const populatedCount = expenseFields.filter(v => v !== null && v !== undefined).length;
     return populatedCount >= 2; // At least 2 expense metrics available
-  }, [currentFinancials]);
+  }, [displayFinancials, currentFinancials]);
 
   // Count missing expense metrics for the note
   const missingExpenseCount = useMemo(() => {
-    if (!currentFinancials) return 7;
+    // Use displayFinancials if available (includes API data), fall back to currentFinancials
+    const financials = displayFinancials || currentFinancials;
+    if (!financials) return 7;
     const expenseFields = [
-      currentFinancials.labor_pct,
-      currentFinancials.agency_pct,
-      currentFinancials.food_cost,
-      currentFinancials.management_fee_pct,
-      currentFinancials.bad_debt_pct,
-      currentFinancials.utilities_pct,
-      currentFinancials.insurance_pct
+      financials.labor_pct,
+      financials.agency_pct,
+      financials.food_cost,
+      financials.management_fee_pct,
+      financials.bad_debt_pct,
+      financials.utilities_pct,
+      financials.insurance_pct
     ];
     return expenseFields.filter(v => v === null || v === undefined).length;
-  }, [currentFinancials]);
+  }, [displayFinancials, currentFinancials]);
 
   // Empty state: No extraction data at all
   if (!extractionData) {
@@ -861,7 +954,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
           <SummaryCard
             title="Stabilized EBITDA"
             value={formatCurrency(summaryMetrics.stabilizedEbitda)}
-            subtitle={`vs ${formatCurrency(currentFinancials.ebitda)} current`}
+            subtitle={`vs ${formatCurrency(displayFinancials?.ebitda ?? currentFinancials?.ebitda)} current`}
             icon={TrendingUp}
             variant="primary"
             isLoading={isCalculating}
@@ -966,7 +1059,11 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
                   ? currentFinancials.revenue / (currentFinancials.beds * (currentFinancials.occupancy / 100) * 365)
                   : null}
                 unit="$"
-                benchmark={null}
+                benchmark={benchmarks.revenue_per_occupied_bed_target}
+                benchmarkKey="revenue_per_occupied_bed_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                isEditable={true}
+                isDisabled={isCalculating}
                 indent={1}
               />
 
@@ -974,41 +1071,208 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               <SectionHeader title="Labor Costs" subtitle="Largest expense category" />
               <LineItemRow
                 label="Total Labor Cost"
-                actual={currentFinancials.total_labor_cost}
-                actualPctOfRevenue={currentFinancials.labor_pct}
-                benchmark={currentFinancials.revenue ? (currentFinancials.revenue * benchmarks.labor_pct_target / 100) : null}
-                unit="$"
-                isReversed={true}
-                opportunity={analysis?.opportunities?.find(o => o.category === 'Labor Optimization')?.opportunity}
-              />
-              <LineItemRow
-                label="Labor as % of Revenue"
-                actual={currentFinancials.labor_pct}
+                actual={displayFinancials?.labor_pct ?? currentFinancials.labor_pct}
+                actualPctOfRevenue={displayFinancials?.labor_pct ?? currentFinancials.labor_pct}
                 benchmark={benchmarks.labor_pct_target}
                 benchmarkKey="labor_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
                 isDisabled={isCalculating}
+                unit="%"
                 isReversed={true}
-                indent={1}
+                opportunity={(() => {
+                  const actualPct = displayFinancials?.labor_pct ?? currentFinancials.labor_pct;
+                  const variance = actualPct !== null && actualPct !== undefined ? actualPct - benchmarks.labor_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
               />
               <LineItemRow
-                label="Agency Staffing % of Labor"
-                actual={currentFinancials.agency_pct}
+                label="Agency Staffing Cost"
+                actual={displayFinancials?.agency_pct ?? currentFinancials.agency_pct}
+                actualPctOfRevenue={displayFinancials?.agency_pct ?? currentFinancials.agency_pct}
                 benchmark={benchmarks.agency_pct_of_labor_target}
                 benchmarkKey="agency_pct_of_labor_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
                 isDisabled={isCalculating}
+                unit="%"
                 isReversed={true}
                 indent={1}
+                opportunity={(() => {
+                  const actualPct = displayFinancials?.agency_pct ?? currentFinancials.agency_pct;
+                  const variance = actualPct !== null && actualPct !== undefined ? actualPct - benchmarks.agency_pct_of_labor_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+
+              {/* Department Expense Totals Section */}
+              <SectionHeader title="Department Expense Totals" subtitle="Annual amounts by category (benchmark = % of revenue)" />
+              <LineItemRow
+                label="Direct Care (Nursing)"
+                actual={displayFinancials?.total_direct_care ?? currentFinancials.total_direct_care}
+                actualPctOfRevenue={(displayFinancials?.total_direct_care ?? currentFinancials.total_direct_care) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_direct_care ?? currentFinancials.total_direct_care) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.direct_care_pct_target}
+                benchmarkKey="direct_care_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_direct_care ?? currentFinancials.total_direct_care) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_direct_care ?? currentFinancials.total_direct_care) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.direct_care_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="Activities"
+                actual={displayFinancials?.total_activities ?? currentFinancials.total_activities}
+                actualPctOfRevenue={(displayFinancials?.total_activities ?? currentFinancials.total_activities) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_activities ?? currentFinancials.total_activities) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.activities_pct_target}
+                benchmarkKey="activities_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_activities ?? currentFinancials.total_activities) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_activities ?? currentFinancials.total_activities) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.activities_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="Culinary (Dietary)"
+                actual={displayFinancials?.total_culinary ?? currentFinancials.total_culinary}
+                actualPctOfRevenue={(displayFinancials?.total_culinary ?? currentFinancials.total_culinary) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_culinary ?? currentFinancials.total_culinary) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.culinary_pct_target}
+                benchmarkKey="culinary_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_culinary ?? currentFinancials.total_culinary) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_culinary ?? currentFinancials.total_culinary) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.culinary_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="Housekeeping/Laundry"
+                actual={displayFinancials?.total_housekeeping ?? currentFinancials.total_housekeeping}
+                actualPctOfRevenue={(displayFinancials?.total_housekeeping ?? currentFinancials.total_housekeeping) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_housekeeping ?? currentFinancials.total_housekeeping) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.housekeeping_pct_target}
+                benchmarkKey="housekeeping_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_housekeeping ?? currentFinancials.total_housekeeping) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_housekeeping ?? currentFinancials.total_housekeeping) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.housekeeping_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="Maintenance"
+                actual={displayFinancials?.total_maintenance ?? currentFinancials.total_maintenance}
+                actualPctOfRevenue={(displayFinancials?.total_maintenance ?? currentFinancials.total_maintenance) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_maintenance ?? currentFinancials.total_maintenance) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.maintenance_pct_target}
+                benchmarkKey="maintenance_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_maintenance ?? currentFinancials.total_maintenance) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_maintenance ?? currentFinancials.total_maintenance) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.maintenance_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="Administration"
+                actual={displayFinancials?.total_administration ?? currentFinancials.total_administration}
+                actualPctOfRevenue={(displayFinancials?.total_administration ?? currentFinancials.total_administration) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_administration ?? currentFinancials.total_administration) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.administration_pct_target}
+                benchmarkKey="administration_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_administration ?? currentFinancials.total_administration) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_administration ?? currentFinancials.total_administration) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.administration_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="General (G&A)"
+                actual={displayFinancials?.total_general ?? currentFinancials.total_general}
+                actualPctOfRevenue={(displayFinancials?.total_general ?? currentFinancials.total_general) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_general ?? currentFinancials.total_general) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.general_pct_target}
+                benchmarkKey="general_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_general ?? currentFinancials.total_general) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_general ?? currentFinancials.total_general) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.general_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
+              />
+              <LineItemRow
+                label="Property"
+                actual={displayFinancials?.total_property ?? currentFinancials.total_property}
+                actualPctOfRevenue={(displayFinancials?.total_property ?? currentFinancials.total_property) && currentFinancials.revenue
+                  ? ((displayFinancials?.total_property ?? currentFinancials.total_property) / currentFinancials.revenue) * 100 : null}
+                benchmark={benchmarks.property_pct_target}
+                benchmarkKey="property_pct_target"
+                onBenchmarkChange={handleBenchmarkChange}
+                unit="$"
+                benchmarkUnit="%"
+                isEditable={true}
+                isDisabled={isCalculating}
+                isReversed={true}
+                opportunity={(() => {
+                  const actualPct = (displayFinancials?.total_property ?? currentFinancials.total_property) && currentFinancials.revenue
+                    ? ((displayFinancials?.total_property ?? currentFinancials.total_property) / currentFinancials.revenue) * 100 : null;
+                  const variance = actualPct !== null ? actualPct - benchmarks.property_pct_target : null;
+                  return variance > 0 && currentFinancials.revenue ? (variance / 100) * currentFinancials.revenue : null;
+                })()}
               />
 
               {/* Other Expenses Section */}
               <SectionHeader title="Other Operating Expenses" />
               <LineItemRow
                 label="Food Cost per Resident Day"
-                actual={currentFinancials.food_cost}
+                actual={displayFinancials?.food_cost ?? currentFinancials.food_cost}
                 benchmark={benchmarks.food_cost_per_day_target}
                 benchmarkKey="food_cost_per_day_target"
                 onBenchmarkChange={handleBenchmarkChange}
@@ -1041,7 +1305,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
               <LineItemRow
                 label="Utilities % of Revenue"
-                actual={currentFinancials.utilities_pct}
+                actual={displayFinancials?.utilities_pct ?? currentFinancials.utilities_pct}
                 benchmark={benchmarks.utilities_pct_target}
                 benchmarkKey="utilities_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
@@ -1051,7 +1315,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
               <LineItemRow
                 label="Insurance % of Revenue"
-                actual={currentFinancials.insurance_pct}
+                actual={displayFinancials?.insurance_pct ?? currentFinancials.insurance_pct}
                 benchmark={benchmarks.insurance_pct_target}
                 benchmarkKey="insurance_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}

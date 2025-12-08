@@ -177,11 +177,31 @@ async function runFullExtraction(files) {
   const totalDuration = Date.now() - startTime;
   console.log(`[Orchestrator] Extraction complete in ${totalDuration}ms`);
 
+  // Merge calculated expense ratios into extractedData for ProForma compatibility
+  // These ratios are calculated from department totals and revenue by ratioCalculator
+  const extractedDataWithRatios = {
+    ...reconciledData.summary,
+    // Expense ratio percentages (needed for ProForma opportunity calculations)
+    labor_pct_of_revenue: ratioAnalysis.ratios.labor_pct_of_revenue,
+    agency_pct_of_labor: ratioAnalysis.ratios.agency_pct_of_labor,
+    food_cost_per_resident_day: ratioAnalysis.ratios.food_cost_per_resident_day,
+    food_pct_of_revenue: ratioAnalysis.ratios.food_pct_of_revenue,
+    management_fee_pct: ratioAnalysis.ratios.management_fee_pct,
+    bad_debt_pct: ratioAnalysis.ratios.bad_debt_pct,
+    utilities_pct_of_revenue: ratioAnalysis.ratios.utilities_pct_of_revenue,
+    insurance_pct_of_revenue: ratioAnalysis.ratios.insurance_pct_of_revenue,
+    // Additional ratios for ProForma
+    ebitda_margin: ratioAnalysis.ratios.ebitda_margin,
+    ebitdar_margin: ratioAnalysis.ratios.ebitdar_margin,
+    occupancy: ratioAnalysis.ratios.occupancy
+  };
+
   return {
     success: true,
 
     // Flat summary for backward compatibility with deals table
-    extractedData: reconciledData.summary,
+    // Now includes calculated expense ratios for ProForma
+    extractedData: extractedDataWithRatios,
 
     // Full time-series data
     monthlyFinancials: reconciledData.financials?.monthly || [],

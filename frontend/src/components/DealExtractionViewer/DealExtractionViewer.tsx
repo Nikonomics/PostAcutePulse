@@ -8,11 +8,28 @@ import {
   DollarSign,
   Users,
   BarChart3,
-  TrendingUp,
   Calculator,
   ClipboardList,
   Target,
   Brain,
+  TrendingUp,
+  TrendingDown,
+  HelpCircle,
+  Wrench,
+  Plus,
+  Trash2,
+  MessageSquare,
+  FolderOpen,
+  RefreshCw,
+  Upload,
+  File,
+  FileSpreadsheet,
+  Image,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Eye,
+  Download as DownloadIcon,
 } from 'lucide-react';
 import SNFalyzePanel from '../SNFalyzePanel';
 import {
@@ -36,10 +53,10 @@ const TAB_CONFIGS = [
   { id: 'overview', title: 'Overview', icon: Building2 },
   { id: 'financials', title: 'Financials', icon: DollarSign },
   { id: 'census', title: 'Census & Rates', icon: Users },
-  { id: 'projections', title: 'Projections', icon: TrendingUp },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
   { id: 'proforma', title: 'Pro Forma', icon: Target },
   { id: 'observations', title: 'Observations', icon: Lightbulb },
+  { id: 'documents', title: 'Documents', icon: FolderOpen },
 ];
 
 // Styles
@@ -114,6 +131,12 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   dealDocuments = [],
   dealId,
   deal,
+  onDocumentUpload,
+  isUploading = false,
+  onDocumentView,
+  onDocumentDelete,
+  onDocumentDownload,
+  deleteLoadingId,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showComparison] = useState(initialShowComparison);
@@ -124,6 +147,17 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
 
   // State for SNFalyze panel
   const [snfalyzePanelOpen, setSnfalyzePanelOpen] = useState(false);
+
+  // State for reviewer notes (moved here to comply with Rules of Hooks)
+  const [reviewerNotes, setReviewerNotes] = useState<string[]>(
+    extractionData.reviewer_notes || []
+  );
+  const [newNote, setNewNote] = useState('');
+
+  // State for documents tab (moved here to comply with Rules of Hooks)
+  const [isReExtracting, setIsReExtracting] = useState(false);
+  const [reExtractionStatus, setReExtractionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [reExtractionMessage, setReExtractionMessage] = useState('');
 
   // Handle source click to open document viewer
   const handleSourceClick = useCallback((sourceRef: SourceReference) => {
@@ -199,7 +233,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         rows.push([`Data Quality Note ${i + 1}`, note, 'info', '']);
       });
     }
-    if (extractionData.key_observations?.length > 0) {
+    if (Array.isArray(extractionData.key_observations) && extractionData.key_observations.length > 0) {
       extractionData.key_observations.forEach((obs: string, i: number) => {
         rows.push([`Key Observation ${i + 1}`, obs, 'info', '']);
       });
@@ -408,7 +442,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
       <h3 style={sectionHeaderStyle}>Census & Occupancy Trends</h3>
       <CensusTrendCharts
         monthlyTrends={extractionData.census_and_occupancy.monthly_trends}
-        currentOccupancy={extractionData.census_and_occupancy.occupancy_percentage}
+        currentOccupancy={extractionData.census_and_occupancy.occupancy_pct}
         currentADC={extractionData.census_and_occupancy.average_daily_census}
         currentPayerMix={extractionData.census_and_occupancy.payer_mix_by_census}
         bedCount={extractionData.facility_information.bed_count.value ?? undefined}
@@ -440,25 +474,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
       </div>
       <div style={{ maxWidth: '250px' }}>
         <FieldCell label="Average Daily Rate" field={extractionData.rate_information.average_daily_rate} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-      </div>
-    </div>
-  );
-
-  // Render Projections Tab
-  const renderProjectionsTab = () => (
-    <div>
-      {/* Pro Forma Projections */}
-      <h3 style={sectionHeaderStyle}>Pro Forma Projections</h3>
-      <ProFormaTable projections={extractionData.pro_forma_projections} showComparison={showComparison} />
-
-      {/* Deal Metrics */}
-      <h3 style={{ ...sectionHeaderStyle, marginTop: '2.5rem' }}>Deal Metrics</h3>
-      <div style={gridStyle}>
-        <FieldCell label="Revenue Multiple" field={extractionData.deal_metrics.revenue_multiple} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="EBITDA Multiple" field={extractionData.deal_metrics.ebitda_multiple} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Cap Rate" field={extractionData.deal_metrics.cap_rate} format="percent" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Target IRR" field={extractionData.deal_metrics.target_irr} format="percent" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Hold Period (Years)" field={extractionData.deal_metrics.hold_period_years} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
       </div>
     </div>
   );
@@ -495,62 +510,695 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     </div>
   );
 
+  // Helper to check if key_observations is structured format
+  const getStructuredObservations = () => {
+    const obs = extractionData.key_observations;
+    if (!obs) return null;
+    // If it's an array, it's legacy format
+    if (Array.isArray(obs)) return null;
+    // Otherwise it's structured
+    return obs as { deal_strengths: string[]; deal_risks: string[]; missing_data: string[]; calculation_notes: string[] };
+  };
+
+  const structuredObs = getStructuredObservations();
+  const legacyObservations = Array.isArray(extractionData.key_observations) ? extractionData.key_observations : [];
+
+  // Handle adding a reviewer note
+  const handleAddNote = () => {
+    if (newNote.trim()) {
+      const updatedNotes = [...reviewerNotes, newNote.trim()];
+      setReviewerNotes(updatedNotes);
+      setNewNote('');
+      // Save to backend via onFieldEdit if available
+      if (onFieldEdit) {
+        onFieldEdit('reviewer_notes', updatedNotes);
+      }
+    }
+  };
+
+  // Handle deleting a reviewer note
+  const handleDeleteNote = (index: number) => {
+    const updatedNotes = reviewerNotes.filter((_, i) => i !== index);
+    setReviewerNotes(updatedNotes);
+    if (onFieldEdit) {
+      onFieldEdit('reviewer_notes', updatedNotes);
+    }
+  };
+
+  // Observation section component
+  const ObservationSection = ({
+    title,
+    icon: Icon,
+    iconColor,
+    items,
+    bgColor,
+    borderColor,
+    textColor,
+  }: {
+    title: string;
+    icon: React.ElementType;
+    iconColor: string;
+    items: string[];
+    bgColor: string;
+    borderColor: string;
+    textColor: string;
+  }) => (
+    <div style={{ marginBottom: '1.5rem' }}>
+      <h4 style={{
+        fontSize: '0.875rem',
+        fontWeight: 600,
+        color: '#374151',
+        marginBottom: '0.75rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem'
+      }}>
+        <Icon size={16} style={{ color: iconColor }} />
+        {title}
+        <span style={{
+          fontSize: '0.75rem',
+          fontWeight: 400,
+          color: '#9ca3af',
+          marginLeft: '0.25rem'
+        }}>
+          ({items.length})
+        </span>
+      </h4>
+      {items.length > 0 ? (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {items.map((item, index) => (
+            <li key={index} style={{
+              padding: '0.75rem 1rem',
+              backgroundColor: bgColor,
+              border: `1px solid ${borderColor}`,
+              borderRadius: '0.5rem',
+              marginBottom: '0.5rem',
+              fontSize: '0.875rem',
+              color: textColor,
+            }}>
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '0.875rem' }}>
+          No {title.toLowerCase()} identified
+        </p>
+      )}
+    </div>
+  );
+
   // Render Observations Tab
   const renderObservationsTab = () => (
     <div>
+      {/* AI-Generated Insights Section */}
+      <div style={{
+        backgroundColor: '#f8fafc',
+        borderRadius: '0.5rem',
+        padding: '1.25rem',
+        marginBottom: '2rem',
+        border: '1px solid #e2e8f0'
+      }}>
+        <h3 style={{
+          fontSize: '1rem',
+          fontWeight: 600,
+          color: '#1e293b',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <Brain size={20} style={{ color: '#8b5cf6' }} />
+          AI-Generated Insights
+        </h3>
+
+        {structuredObs ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
+            <ObservationSection
+              title="Deal Strengths"
+              icon={TrendingUp}
+              iconColor="#10b981"
+              items={structuredObs.deal_strengths || []}
+              bgColor="#ecfdf5"
+              borderColor="#a7f3d0"
+              textColor="#065f46"
+            />
+            <ObservationSection
+              title="Deal Risks"
+              icon={TrendingDown}
+              iconColor="#ef4444"
+              items={structuredObs.deal_risks || []}
+              bgColor="#fef2f2"
+              borderColor="#fecaca"
+              textColor="#991b1b"
+            />
+            <ObservationSection
+              title="Missing Data"
+              icon={HelpCircle}
+              iconColor="#f59e0b"
+              items={structuredObs.missing_data || []}
+              bgColor="#fffbeb"
+              borderColor="#fcd34d"
+              textColor="#92400e"
+            />
+            <ObservationSection
+              title="Calculation Notes"
+              icon={Wrench}
+              iconColor="#6366f1"
+              items={structuredObs.calculation_notes || []}
+              bgColor="#eef2ff"
+              borderColor="#c7d2fe"
+              textColor="#3730a3"
+            />
+          </div>
+        ) : legacyObservations.length > 0 ? (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {legacyObservations.map((observation, index) => (
+              <li key={index} style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: '#eff6ff',
+                border: '1px solid #93c5fd',
+                borderRadius: '0.5rem',
+                marginBottom: '0.5rem',
+                fontSize: '0.875rem',
+                color: '#1e40af',
+              }}>
+                {observation}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
+            No AI insights available. Re-extract documents to generate insights.
+          </p>
+        )}
+      </div>
+
       {/* Data Quality Notes */}
-      <h3 style={sectionHeaderStyle}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertTriangle size={18} style={{ color: '#f59e0b' }} />
-          Data Quality Notes
-        </span>
-      </h3>
-      {extractionData.data_quality_notes && extractionData.data_quality_notes.length > 0 ? (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {extractionData.data_quality_notes.map((note, index) => (
-            <li key={index} style={{
-              padding: '0.75rem 1rem',
-              backgroundColor: '#fffbeb',
-              border: '1px solid #fcd34d',
-              borderRadius: '0.5rem',
-              marginBottom: '0.5rem',
-              fontSize: '0.875rem',
-              color: '#92400e',
-            }}>
-              {note}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No data quality notes</p>
+      {extractionData.data_quality_notes && extractionData.data_quality_notes.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={sectionHeaderStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertTriangle size={18} style={{ color: '#f59e0b' }} />
+              Data Quality Notes
+            </span>
+          </h3>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {extractionData.data_quality_notes.map((note, index) => (
+              <li key={index} style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: '#fffbeb',
+                border: '1px solid #fcd34d',
+                borderRadius: '0.5rem',
+                marginBottom: '0.5rem',
+                fontSize: '0.875rem',
+                color: '#92400e',
+              }}>
+                {note}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      {/* Key Observations */}
-      <h3 style={{ ...sectionHeaderStyle, marginTop: '2rem' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Lightbulb size={18} style={{ color: '#3b82f6' }} />
-          Key Observations
-        </span>
-      </h3>
-      {extractionData.key_observations && extractionData.key_observations.length > 0 ? (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {extractionData.key_observations.map((observation, index) => (
-            <li key={index} style={{
-              padding: '0.75rem 1rem',
-              backgroundColor: '#eff6ff',
-              border: '1px solid #93c5fd',
+      {/* Reviewer Notes Section */}
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '0.5rem',
+        padding: '1.25rem',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{
+          fontSize: '1rem',
+          fontWeight: 600,
+          color: '#1e293b',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <MessageSquare size={20} style={{ color: '#3b82f6' }} />
+          Reviewer Notes
+          <span style={{
+            fontSize: '0.75rem',
+            fontWeight: 400,
+            color: '#9ca3af',
+            marginLeft: '0.25rem'
+          }}>
+            (Add your own observations)
+          </span>
+        </h3>
+
+        {/* Existing Notes */}
+        {reviewerNotes.length > 0 && (
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem 0' }}>
+            {reviewerNotes.map((note, index) => (
+              <li key={index} style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: '#f3f4f6',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                marginBottom: '0.5rem',
+                fontSize: '0.875rem',
+                color: '#374151',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+              }}>
+                <span style={{ flex: 1 }}>{note}</span>
+                <button
+                  onClick={() => handleDeleteNote(index)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                    color: '#9ca3af',
+                    flexShrink: 0,
+                  }}
+                  title="Delete note"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Add New Note */}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            type="text"
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAddNote()}
+            placeholder="Add a note about this deal..."
+            style={{
+              flex: 1,
+              padding: '0.625rem 0.875rem',
+              border: '1px solid #d1d5db',
               borderRadius: '0.5rem',
-              marginBottom: '0.5rem',
               fontSize: '0.875rem',
-              color: '#1e40af',
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleAddNote}
+            disabled={!newNote.trim()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              padding: '0.625rem 1rem',
+              backgroundColor: newNote.trim() ? '#3b82f6' : '#e5e7eb',
+              color: newNote.trim() ? 'white' : '#9ca3af',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              cursor: newNote.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <Plus size={16} />
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Handle re-extraction
+  const handleReExtract = async () => {
+    if (!dealId) return;
+
+    setIsReExtracting(true);
+    setReExtractionStatus('idle');
+    setReExtractionMessage('');
+
+    try {
+      // Dynamically import to avoid circular dependencies
+      const { reExtractDeal } = await import('../../api/DealService');
+      const result = await reExtractDeal(dealId);
+
+      if (result.success) {
+        setReExtractionStatus('success');
+        setReExtractionMessage(`Re-extraction complete! Processed ${result.body?.monthlyFinancials || 0} months of financial data.`);
+        // Reload the page to show updated data
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setReExtractionStatus('error');
+        setReExtractionMessage(result.message || 'Re-extraction failed');
+      }
+    } catch (error: any) {
+      setReExtractionStatus('error');
+      setReExtractionMessage(error.response?.data?.message || error.message || 'Failed to re-extract documents');
+    } finally {
+      setIsReExtracting(false);
+    }
+  };
+
+  // Get file icon based on file type
+  const getFileIcon = (fileType: string) => {
+    const type = fileType?.toLowerCase() || '';
+    if (type.includes('pdf')) return <FileText size={20} style={{ color: '#ef4444' }} />;
+    if (type.includes('sheet') || type.includes('excel') || type.includes('xls')) return <FileSpreadsheet size={20} style={{ color: '#22c55e' }} />;
+    if (type.includes('image') || type.includes('png') || type.includes('jpg') || type.includes('jpeg')) return <Image size={20} style={{ color: '#3b82f6' }} />;
+    return <File size={20} style={{ color: '#6b7280' }} />;
+  };
+
+  // Format file size
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Render Documents Tab
+  const renderDocumentsTab = () => (
+    <div>
+      {/* Re-extraction Action Section */}
+      <div style={{
+        backgroundColor: '#f8fafc',
+        borderRadius: '0.75rem',
+        padding: '1.25rem',
+        marginBottom: '1.5rem',
+        border: '1px solid #e2e8f0'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '0.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
             }}>
-              {observation}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No key observations</p>
-      )}
+              <RefreshCw size={18} style={{ color: '#6366f1' }} />
+              Re-run Document Extraction
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: '#64748b', margin: 0 }}>
+              Re-analyze all uploaded documents to update financial data and AI insights.
+              This will regenerate the Observations tab with the latest AI analysis.
+            </p>
+          </div>
+          <button
+            onClick={handleReExtract}
+            disabled={isReExtracting || !dealId}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.25rem',
+              backgroundColor: isReExtracting ? '#94a3b8' : '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              cursor: isReExtracting ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isReExtracting ? (
+              <>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                Re-extracting...
+              </>
+            ) : (
+              <>
+                <RefreshCw size={16} />
+                Re-extract All Documents
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Status message */}
+        {reExtractionStatus !== 'idle' && (
+          <div style={{
+            marginTop: '1rem',
+            padding: '0.75rem 1rem',
+            borderRadius: '0.5rem',
+            backgroundColor: reExtractionStatus === 'success' ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${reExtractionStatus === 'success' ? '#a7f3d0' : '#fecaca'}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}>
+            {reExtractionStatus === 'success' ? (
+              <CheckCircle size={16} style={{ color: '#10b981' }} />
+            ) : (
+              <XCircle size={16} style={{ color: '#ef4444' }} />
+            )}
+            <span style={{
+              fontSize: '0.875rem',
+              color: reExtractionStatus === 'success' ? '#065f46' : '#991b1b'
+            }}>
+              {reExtractionMessage}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Documents List */}
+      <div>
+        <h3 style={{
+          fontSize: '1rem',
+          fontWeight: 600,
+          color: '#1e293b',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <FolderOpen size={18} style={{ color: '#3b82f6' }} />
+          Uploaded Documents
+          <span style={{
+            fontSize: '0.75rem',
+            fontWeight: 400,
+            color: '#9ca3af',
+            marginLeft: '0.25rem'
+          }}>
+            ({dealDocuments.length} {dealDocuments.length === 1 ? 'file' : 'files'})
+          </span>
+        </h3>
+
+        {dealDocuments.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {dealDocuments.map((doc, index) => (
+              <div
+                key={doc.id || index}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    padding: '0.5rem',
+                    backgroundColor: '#dbeafe',
+                    borderRadius: '0.375rem',
+                  }}>
+                    {getFileIcon(doc.type || doc.file_type)}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      color: '#111827',
+                    }}>
+                      {doc.document_name || doc.name}
+                    </p>
+                    <p style={{
+                      margin: '0.25rem 0 0 0',
+                      fontSize: '0.75rem',
+                      color: '#6b7280',
+                    }}>
+                      {doc.size && `${doc.size} • `}
+                      {doc.user && `Uploaded by ${doc.user.first_name} ${doc.user.last_name} • `}
+                      {doc.created_at && doc.created_at.split('T')[0]}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {/* View Button */}
+                  <button
+                    onClick={() => onDocumentView?.(doc)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      backgroundColor: 'transparent',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <Eye size={14} />
+                    View
+                  </button>
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => onDocumentDelete?.(doc.id)}
+                    disabled={deleteLoadingId === doc.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      backgroundColor: 'transparent',
+                      border: '1px solid #fca5a5',
+                      borderRadius: '0.375rem',
+                      color: '#dc2626',
+                      cursor: deleteLoadingId === doc.id ? 'not-allowed' : 'pointer',
+                      fontSize: '0.75rem',
+                      opacity: deleteLoadingId === doc.id ? 0.6 : 1,
+                    }}
+                  >
+                    {deleteLoadingId === doc.id ? (
+                      <>
+                        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={14} />
+                        Delete
+                      </>
+                    )}
+                  </button>
+                  {/* Download Button */}
+                  <button
+                    onClick={() => onDocumentDownload?.(doc.document_url || doc.url || '')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      backgroundColor: 'transparent',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <DownloadIcon size={14} />
+                    Download
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            padding: '3rem 2rem',
+            textAlign: 'center',
+            backgroundColor: '#f9fafb',
+            borderRadius: '0.5rem',
+            border: '1px dashed #d1d5db',
+          }}>
+            <FolderOpen size={40} style={{ color: '#d1d5db', margin: '0 auto 1rem' }} />
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
+              No documents uploaded for this deal
+            </p>
+            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#9ca3af' }}>
+              Documents uploaded during deal creation will appear here
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Upload New Documents Section */}
+      <div style={{
+        marginTop: '1.5rem',
+        padding: '1.25rem',
+        backgroundColor: '#f0fdf4',
+        borderRadius: '0.5rem',
+        border: '1px solid #86efac',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <Upload size={20} style={{ color: '#16a34a', flexShrink: 0, marginTop: '0.125rem' }} />
+            <div>
+              <h4 style={{
+                margin: 0,
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                color: '#166534'
+              }}>
+                Add New Documents
+              </h4>
+              <p style={{
+                margin: '0.375rem 0 0 0',
+                fontSize: '0.8rem',
+                color: '#15803d'
+              }}>
+                Upload additional documents to include in the deal analysis.
+                After uploading, click "Re-extract All Documents" to process them.
+              </p>
+            </div>
+          </div>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.625rem 1rem',
+              backgroundColor: isUploading ? '#94a3b8' : '#16a34a',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              cursor: isUploading || !onDocumentUpload ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Plus size={16} />
+                Add Document
+              </>
+            )}
+            <input
+              type="file"
+              accept=".pdf,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg"
+              style={{ display: 'none' }}
+              disabled={isUploading || !onDocumentUpload}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (file && onDocumentUpload) {
+                  await onDocumentUpload(file);
+                  e.target.value = ''; // Reset input
+                }
+              }}
+            />
+          </label>
+        </div>
+      </div>
     </div>
   );
 
@@ -563,14 +1211,14 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         return renderFinancialsTab();
       case 'census':
         return renderCensusTab();
-      case 'projections':
-        return renderProjectionsTab();
       case 'calculator':
         return renderCalculatorTab();
       case 'proforma':
         return renderProFormaTab();
       case 'observations':
         return renderObservationsTab();
+      case 'documents':
+        return renderDocumentsTab();
       default:
         return renderOverviewTab();
     }

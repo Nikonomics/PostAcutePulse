@@ -828,6 +828,36 @@ const DealDetailPage = () => {
     }
   };
 
+  // Handler for document upload from DealExtractionViewer (accepts File directly)
+  const handleDocumentUpload = async (file) => {
+    setUploading(true);
+    try {
+      // Upload the file and get the URL
+      const uploadRes = await fileUpload(file);
+      const fileUrl = uploadRes.body[0];
+      if (fileUrl) {
+        // When file upload gets URL, then call API addDealDocument
+        const payload = {
+          deal_id: id,
+          document_name: file.name,
+          document_url: fileUrl,
+        };
+        const response = await addDealDocument(payload);
+        if (response.success === true) {
+          setUploadedDocuments((prev) => [response.body, ...prev]);
+          toast.success(response.message);
+        } else {
+          toast.error(response.message);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to add deal document", err);
+      toast.error("Failed to upload document");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleDocumentView = (doc) => {
     // Set the document to preview and open the panel
     setPreviewDocument(doc);
@@ -1065,15 +1095,15 @@ const DealDetailPage = () => {
                   <DealExtractionViewer
                     extractionData={unflattenExtractedData(deal.extraction_data)}
                     showComparison={false}
-                    dealDocuments={uploadedDocuments?.map(doc => ({
-                      id: doc.id,
-                      name: doc.document_name || doc.name,
-                      file_path: doc.document_url || doc.file_path,
-                      file_type: doc.document_type || doc.file_type || '',
-                      url: doc.document_url || doc.url,
-                    })) || []}
+                    dealDocuments={uploadedDocuments || []}
                     dealId={deal.id}
                     deal={deal}
+                    onDocumentUpload={handleDocumentUpload}
+                    isUploading={uploading}
+                    onDocumentView={handleDocumentView}
+                    onDocumentDelete={handleDeleteDocument}
+                    onDocumentDownload={handleDocumentDownload}
+                    deleteLoadingId={deleteLoadingId}
                   />
                 </div>
               )}

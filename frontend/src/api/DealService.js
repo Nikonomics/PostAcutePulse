@@ -519,5 +519,19 @@ export const calculateProforma = async (dealId, benchmarkOverrides = {}) => {
     `${apiRoutes.proformaCalculate}/${dealId}/proforma/calculate`,
     { benchmark_overrides: benchmarkOverrides }
   );
+  // Backend returns {success, code, message, body} - extract body for frontend
+  return response.data?.body || response.data;
+};
+
+/**
+ * Re-run extraction for an existing deal using previously uploaded documents
+ * This updates the deal's extraction data and generates new insights
+ * @param {number} dealId - The deal ID
+ * @returns {Promise} - Re-extraction result with updated data
+ */
+export const reExtractDeal = async (dealId) => {
+  const response = await apiService.post(
+    `${apiRoutes.reExtractDeal}/${dealId}/reextract`
+  );
   return response.data;
 };

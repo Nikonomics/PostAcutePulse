@@ -119,27 +119,39 @@ Return ONLY valid JSON, no markdown.`;
 
 /**
  * Prompt 3: Monthly Expense Details by Department
+ * CRITICAL: This prompt must extract MONTHLY data for ALL months found in the documents
  */
-const EXPENSES_PROMPT = `You are extracting detailed expense breakdowns by department from P&L statements.
+const EXPENSES_PROMPT = `You are extracting detailed MONTHLY expense breakdowns from P&L statements and financial reports.
 
-DEPARTMENTS TO EXTRACT:
-- nursing (or direct_care): Nursing salaries, benefits, agency/contract labor
-- dietary (or culinary): Food costs, dietary labor, supplies
-- housekeeping: Housekeeping labor, laundry, supplies
+CRITICAL PRIORITY: Extract data for EVERY MONTH found in the documents. This is essential for trend analysis and Pro Forma calculations.
+
+STANDARD DEPARTMENT CATEGORIES (use exact names):
+- direct_care: All nursing/direct care staff costs (RN, LPN, CNA wages, benefits, agency)
 - activities: Activities staff, supplies, programs
-- social_services: Social worker costs
-- plant_operations (or maintenance): Maintenance labor, repairs, utilities
-- admin (or g_and_a): Administrative salaries, office, professional fees
-- marketing: Marketing and advertising costs
-- other: Any other categorized expenses
+- culinary: All dietary/food service (food costs, dietary labor, supplies)
+- housekeeping: Housekeeping labor, laundry, supplies
+- maintenance: Maintenance labor, repairs, utilities, plant operations
+- administration: Administrative salaries, office expenses, professional fees
+- general: G&A, marketing, insurance, other overhead
+- property: Rent, property taxes, property insurance, depreciation
 
-FOR EACH DEPARTMENT AND MONTH, EXTRACT:
-- Salaries/wages
-- Benefits
-- Agency/contract labor
-- Supplies
-- Other department-specific costs
-- Total for department
+FOR EACH MONTH AND DEPARTMENT, EXTRACT:
+- salaries_wages: Monthly salaries and wages
+- benefits: Monthly benefits (health, retirement, etc.)
+- payroll_taxes: Monthly payroll taxes
+- agency_labor: Monthly agency/contract staffing costs
+- contract_labor: Monthly contract labor costs
+- supplies: Monthly supplies and materials
+- food_cost: Food costs (for culinary department)
+- utilities: Utility costs (for maintenance department)
+- repairs_maintenance: Repair costs (for maintenance department)
+- other_expenses: Other departmental expenses
+- total_department_expense: Total for that department that month
+
+ALSO EXTRACT OVERALL MONTHLY TOTALS (sum across all departments for each month):
+- total_labor: All salaries + benefits + agency for the month
+- total_agency: Total agency/contract labor for the month
+- total_expenses: All expenses for the month
 
 Return JSON:
 {
@@ -147,24 +159,70 @@ Return JSON:
     {
       "month": "YYYY-MM",
       "source_document": "filename",
-      "department": "nursing",
+      "department": "direct_care",
       "salaries_wages": number|null,
       "benefits": number|null,
       "payroll_taxes": number|null,
       "agency_labor": number|null,
       "contract_labor": number|null,
+      "total_labor": number|null,
       "supplies": number|null,
+      "food_cost": number|null,
+      "utilities": number|null,
+      "repairs_maintenance": number|null,
       "other_expenses": number|null,
       "total_department_expense": number|null
     }
   ],
+  "monthly_totals": [
+    {
+      "month": "YYYY-MM",
+      "total_labor": number|null,
+      "total_agency": number|null,
+      "raw_food_cost": number|null,
+      "total_expenses": number|null,
+      "source_document": "filename"
+    }
+  ],
+  "department_totals": {
+    "direct_care": {
+      "total_salaries_wages": number|null,
+      "total_benefits": number|null,
+      "total_agency_labor": number|null,
+      "total_supplies": number|null,
+      "total_other": number|null,
+      "department_total": number|null,
+      "source_document": "filename"
+    },
+    "activities": { "department_total": number|null },
+    "culinary": { "department_total": number|null, "raw_food_cost": number|null },
+    "housekeeping": { "department_total": number|null },
+    "maintenance": { "department_total": number|null, "utilities_total": number|null },
+    "administration": { "department_total": number|null, "management_fees": number|null },
+    "general": { "department_total": number|null, "insurance_total": number|null },
+    "property": { "department_total": number|null, "rent_total": number|null }
+  },
+  "labor_summary": {
+    "total_labor_cost": number|null,
+    "total_agency_cost": number|null,
+    "raw_food_cost": number|null,
+    "utilities_total": number|null,
+    "insurance_total": number|null,
+    "management_fees": number|null,
+    "period": "TTM"|"Annual"|"YTD",
+    "months_of_data": number,
+    "source_documents": ["filename1", "filename2"]
+  },
   "summary": {
-    "departments_found": ["nursing", "dietary", "admin"],
-    "months_covered": ["2024-10", "2024-11"],
-    "has_agency_detail": true|false,
-    "has_benefit_detail": true|false
+    "departments_found": ["direct_care", "culinary", "administration"],
+    "months_covered": ["2024-10", "2024-11", "2024-12"],
+    "total_months": number,
+    "has_monthly_detail": true|false,
+    "has_agency_detail": true|false
   }
 }
+
+IMPORTANT: Extract ALL months found in the documents. If a P&L covers Mar 2025 to Sep 2025, extract data for all 7 months.
 
 Return ONLY valid JSON, no markdown.`;
 
@@ -172,7 +230,19 @@ Return ONLY valid JSON, no markdown.`;
 /**
  * Prompt 4: Monthly Census and Occupancy
  */
-const CENSUS_PROMPT = `You are extracting monthly census and occupancy data from census reports.
+const CENSUS_PROMPT = `You are extracting monthly census and occupancy data from ALL document types.
+
+IMPORTANT: Census data appears in MULTIPLE document types - extract from ALL of them:
+1. Dedicated Census Reports - detailed monthly census breakdowns
+2. Income & Expense (I&E) Reports - often have "Payer Mix" or "Census Days" sections at the top
+3. P&L Statements - may include census/occupancy summaries
+4. Financial Summaries - often include Average Daily Census (ADC) data
+
+LOOK FOR THESE SECTIONS IN ALL DOCUMENTS:
+- "Payer Mix" with Medicaid/Private days
+- "Census Days" breakdown by month
+- "Average Daily Census" or "ADC" rows
+- Any monthly columns with resident counts or patient days
 
 EXTRACT FOR EACH MONTH:
 1. total_beds: Total beds/units available (typically 30-200 for SNF/ALF)
@@ -181,6 +251,19 @@ EXTRACT FOR EACH MONTH:
 4. Census days by payer type (Medicaid, Medicare, Private Pay, Other)
 5. Payer mix percentages
 6. Admissions and discharges (if available)
+
+CRITICAL CALCULATION RULES - ALWAYS APPLY:
+1. If you have total_census_days but NOT average_daily_census:
+   - CALCULATE: average_daily_census = total_census_days / days_in_month
+   - Days in month: Jan=31, Feb=28/29, Mar=31, Apr=30, May=31, Jun=30, Jul=31, Aug=31, Sep=30, Oct=31, Nov=30, Dec=31
+   - Example: If June has total_census_days=2700, then ADC = 2700/30 = 90
+
+2. If you have average_daily_census but NOT occupancy_percentage:
+   - CALCULATE: occupancy_percentage = (average_daily_census / total_beds) * 100
+
+3. If you have payer days (medicaid_days, medicare_days, etc.) but NOT total_census_days:
+   - CALCULATE: total_census_days = medicaid_days + medicare_days + private_pay_days + other_payer_days
+   - Then calculate ADC as above
 
 CRITICAL DISTINCTIONS:
 - average_daily_census is the NUMBER of residents (e.g., 85 residents)
@@ -193,6 +276,7 @@ IMPORTANT:
 - Census days should be actual resident days for the month
 - Calculate payer mix as: (payer_days / total_days) * 100
 - ALWAYS provide occupancy_percentage - calculate it if not directly stated
+- ALWAYS calculate average_daily_census from total_census_days when ADC is not directly provided
 
 Return JSON:
 {
@@ -221,9 +305,17 @@ Return JSON:
     "bed_count": number,
     "months_covered": number,
     "avg_occupancy": number,
-    "payer_mix_available": true|false
+    "payer_mix_available": true|false,
+    "documents_analyzed": ["filename1", "filename2"]
   }
 }
+
+CRITICAL MULTI-DOCUMENT HANDLING:
+- Extract census data from EVERY document that contains it
+- Include ALL months found across ALL documents (even if some overlap)
+- Track which document each month's data came from
+- If a month appears in multiple documents, include BOTH records - they will be merged later
+- Example: Census PDF has Jun 2024-May 2025, I&E XLS has Mar 2025-Sep 2025 = extract all 16 months
 
 Return ONLY valid JSON, no markdown.`;
 

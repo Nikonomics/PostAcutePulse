@@ -5,9 +5,60 @@
  * Calculates TTM and summary values
  */
 
+const {
+  normalizeToCanonical,
+  normalizeMonthlyTrends,
+  LEGACY_TO_CANONICAL,
+  MONTHLY_TREND_FIELD_MAPPINGS
+} = require('../schemas/extraction-schema');
+
+/**
+ * Merge multiple financial records for the same month
+ * Combines data from different documents (e.g., P&L + revenue breakdown)
+ */
+function mergeFinancialRecords(records) {
+  if (records.length === 1) return records[0];
+
+  // Start with the most complete record as base
+  const scored = records.map(r => ({
+    record: r,
+    score: scoreFinancialCompleteness(r)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+
+  const merged = { ...scored[0].record };
+
+  // Fields to merge from other records
+  const mergeFields = [
+    'total_revenue', 'medicaid_revenue', 'medicare_revenue', 'private_pay_revenue', 'other_revenue',
+    'total_expenses', 'operating_expenses', 'depreciation', 'amortization', 'interest_expense',
+    'rent_expense', 'property_taxes', 'property_insurance', 'net_income', 'ebit', 'ebitda', 'ebitdar'
+  ];
+
+  // Merge data from all records
+  for (const { record } of scored.slice(1)) {
+    for (const field of mergeFields) {
+      if ((merged[field] === null || merged[field] === undefined)
+          && record[field] !== null && record[field] !== undefined) {
+        merged[field] = record[field];
+      }
+    }
+  }
+
+  // Track sources
+  const sources = [...new Set(records.map(r => r.source_document).filter(Boolean))];
+  if (sources.length > 1) {
+    merged.source_document = sources.join(', ');
+    merged.merged_from_documents = sources;
+  }
+
+  return merged;
+}
+
+
 /**
  * Reconcile monthly financial data from multiple sources
- * For overlapping months, prefer the more recent document
+ * IMPORTANT: Merges data from multiple documents for the same month
  * @param {Array} monthlyFinancials - Array of monthly financial records
  * @returns {Object} Reconciled monthly data and TTM summary
  */
@@ -29,24 +80,14 @@ function reconcileFinancials(monthlyFinancials) {
     byMonth[month].push(record);
   }
 
-  // For each month, pick the best record (prefer most complete data)
+  // For each month, MERGE all records to combine data from different documents
   const reconciled = [];
 
   for (const month of Object.keys(byMonth).sort()) {
     const records = byMonth[month];
-
-    if (records.length === 1) {
-      reconciled.push(records[0]);
-    } else {
-      // Score each record by completeness
-      const scored = records.map(r => ({
-        record: r,
-        score: scoreFinancialCompleteness(r)
-      }));
-
-      scored.sort((a, b) => b.score - a.score);
-      reconciled.push(scored[0].record);
-    }
+    // Merge all records for this month
+    const merged = mergeFinancialRecords(records);
+    reconciled.push(merged);
   }
 
   // Sort by month
@@ -159,12 +200,84 @@ function sumField(records, field) {
 
 
 /**
- * Reconcile monthly census data
+ * Get the number of days in a month from a YYYY-MM string
+ * Handles leap years correctly
  */
-function reconcileCensus(monthlyCensus) {
+function getDaysInMonth(monthStr) {
+  if (!monthStr || typeof monthStr !== 'string') return 30; // Default fallback
+
+  const parts = monthStr.split('-');
+  if (parts.length < 2) return 30;
+
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+
+  if (isNaN(year) || isNaN(month)) return 30;
+
+  // JavaScript Date trick: day 0 of next month = last day of current month
+  return new Date(year, month, 0).getDate();
+}
+
+
+/**
+ * Merge multiple census records for the same month
+ * Combines data from different documents (e.g., payer type reports + occupancy reports)
+ * For conflicts, prefers non-null values and higher values for counts
+ */
+function mergeCensusRecords(records) {
+  if (records.length === 1) return records[0];
+
+  // Start with the most complete record as base
+  const scored = records.map(r => ({
+    record: r,
+    score: scoreCensusCompleteness(r)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+
+  const merged = { ...scored[0].record };
+
+  // Fields to merge from other records
+  const mergeFields = [
+    'total_beds', 'average_daily_census', 'occupancy_percentage',
+    'total_census_days', 'medicaid_days', 'medicare_days', 'private_pay_days', 'other_payer_days',
+    'medicaid_percentage', 'medicare_percentage', 'private_pay_percentage', 'other_percentage',
+    'admissions', 'discharges'
+  ];
+
+  // Merge data from all records
+  for (const { record } of scored.slice(1)) {
+    for (const field of mergeFields) {
+      // If merged doesn't have value but this record does, use it
+      if ((merged[field] === null || merged[field] === undefined)
+          && record[field] !== null && record[field] !== undefined) {
+        merged[field] = record[field];
+      }
+    }
+  }
+
+  // Track sources for debugging
+  const sources = [...new Set(records.map(r => r.source_document).filter(Boolean))];
+  if (sources.length > 1) {
+    merged.source_document = sources.join(', ');
+    merged.merged_from_documents = sources;
+  }
+
+  return merged;
+}
+
+
+/**
+ * Reconcile monthly census data
+ * IMPORTANT: Merges data from multiple documents for the same month
+ * @param {Array} monthlyCensus - Array of census records
+ * @param {number} facilityBedCount - Bed count from facility extraction (fallback for occupancy calc)
+ */
+function reconcileCensus(monthlyCensus, facilityBedCount = null) {
   if (!monthlyCensus || !Array.isArray(monthlyCensus)) {
     return { monthly: [], summary: null };
   }
+
+  console.log(`[Reconciler] Processing ${monthlyCensus.length} census records from extraction`);
 
   // Group by month
   const byMonth = {};
@@ -179,36 +292,85 @@ function reconcileCensus(monthlyCensus) {
     byMonth[month].push(record);
   }
 
-  // For each month, pick the best record
+  // Log which months have data from multiple documents
+  const multiDocMonths = Object.entries(byMonth).filter(([_, records]) => records.length > 1);
+  if (multiDocMonths.length > 0) {
+    console.log(`[Reconciler] Merging data for ${multiDocMonths.length} months with multiple sources:`);
+    for (const [month, records] of multiDocMonths) {
+      const sources = records.map(r => r.source_document || 'unknown').join(', ');
+      console.log(`  - ${month}: ${records.length} records from [${sources}]`);
+    }
+  }
+
+  // For each month, MERGE all records to combine data from different documents
   const reconciled = [];
 
   for (const month of Object.keys(byMonth).sort()) {
     const records = byMonth[month];
-
-    if (records.length === 1) {
-      reconciled.push(records[0]);
-    } else {
-      // Score by completeness
-      const scored = records.map(r => ({
-        record: r,
-        score: scoreCensusCompleteness(r)
-      }));
-
-      scored.sort((a, b) => b.score - a.score);
-      reconciled.push(scored[0].record);
-    }
+    // Merge all records for this month (handles both single and multiple records)
+    const merged = mergeCensusRecords(records);
+    reconciled.push(merged);
   }
+
+  console.log(`[Reconciler] Reconciled to ${reconciled.length} unique months`);
 
   // Sort by month
   reconciled.sort((a, b) => a.month.localeCompare(b.month));
 
+  // Post-process: Calculate missing ADC from total_census_days
+  // This is critical for payer mix reports that have census days but not ADC
+  for (const record of reconciled) {
+    // If we have total_census_days but no ADC, calculate it
+    if ((record.average_daily_census === null || record.average_daily_census === undefined)
+        && record.total_census_days !== null && record.total_census_days !== undefined
+        && record.total_census_days > 0) {
+      const daysInMonth = getDaysInMonth(record.month);
+      if (daysInMonth > 0) {
+        record.average_daily_census = Math.round((record.total_census_days / daysInMonth) * 10) / 10;
+        console.log(`[Reconciler] Calculated ADC ${record.average_daily_census} from ${record.total_census_days} census days for ${record.month}`);
+      }
+    }
+
+    // If we have payer days but no total_census_days, calculate total from components
+    if ((record.total_census_days === null || record.total_census_days === undefined)
+        && (record.medicaid_days || record.medicare_days || record.private_pay_days || record.other_payer_days)) {
+      record.total_census_days = (record.medicaid_days || 0) + (record.medicare_days || 0)
+                                + (record.private_pay_days || 0) + (record.other_payer_days || 0);
+
+      // Now calculate ADC if still missing
+      if ((record.average_daily_census === null || record.average_daily_census === undefined)
+          && record.total_census_days > 0) {
+        const daysInMonth = getDaysInMonth(record.month);
+        if (daysInMonth > 0) {
+          record.average_daily_census = Math.round((record.total_census_days / daysInMonth) * 10) / 10;
+          console.log(`[Reconciler] Calculated ADC ${record.average_daily_census} from payer days total ${record.total_census_days} for ${record.month}`);
+        }
+      }
+    }
+  }
+
   // Post-process: Calculate missing occupancy_percentage
   // Also handle cases where AI confused census and occupancy values
+  // PRIORITY: 1) from census records, 2) from facility extraction
   let detectedBedCount = null;
   for (const record of reconciled) {
     if (record.total_beds && record.total_beds > 0) {
       detectedBedCount = record.total_beds;
       break;
+    }
+  }
+  // Fallback to facility bed count if no census records have beds
+  if (!detectedBedCount && facilityBedCount && facilityBedCount > 0) {
+    detectedBedCount = facilityBedCount;
+    console.log(`[Reconciler] Using facility bed count ${detectedBedCount} for occupancy calculation`);
+  }
+
+  // Backfill total_beds in all records for consistency
+  if (detectedBedCount) {
+    for (const record of reconciled) {
+      if (!record.total_beds) {
+        record.total_beds = detectedBedCount;
+      }
     }
   }
 
@@ -222,19 +384,31 @@ function reconcileCensus(monthlyCensus) {
       }
     }
 
-    // Heuristic: If average_daily_census looks like a percentage (>100 or close to typical occupancy range 80-100)
-    // and occupancy_percentage is null, the AI likely put occupancy in the wrong field
+    // Heuristic: If average_daily_census looks like a percentage and occupancy_percentage is null,
+    // the AI likely put occupancy in the wrong field
+    // ONLY apply this heuristic in very specific cases to avoid losing valid census data
     if ((record.occupancy_percentage === null || record.occupancy_percentage === undefined)
         && record.average_daily_census !== null
         && record.average_daily_census > 0 && record.average_daily_census <= 100) {
-      // Check if this looks more like a percentage than a census count
-      // If beds are known and census > beds, it's likely a percentage
       const beds = record.total_beds || detectedBedCount;
+
+      // Case 1: If beds are known and census > beds, it's definitely a percentage
       if (beds && record.average_daily_census > beds) {
-        // This is likely occupancy percentage mistakenly in census field
         record.occupancy_percentage = record.average_daily_census;
-        record.average_daily_census = null; // Clear the incorrect value
+        record.average_daily_census = null;
       }
+      // Case 2: ONLY swap if we have strong evidence it's a percentage:
+      // - Value has a decimal that looks like XX.X% (e.g., 92.5)
+      // - AND there are NO census days fields populated (which would indicate this is real census data)
+      else if (!beds
+               && record.average_daily_census >= 80 && record.average_daily_census <= 100
+               && String(record.average_daily_census).includes('.')
+               && !record.total_census_days && !record.medicaid_days && !record.private_pay_days) {
+        record.occupancy_percentage = record.average_daily_census;
+        record.average_daily_census = null;
+      }
+      // Otherwise, PRESERVE the average_daily_census value even if bed count is unknown
+      // It's more likely to be valid census data than a misplaced percentage
     }
   }
 
@@ -337,9 +511,41 @@ function averageField(records, field) {
 
 /**
  * Reconcile expense data by department and month
+ * Handles both old structure (monthly_expenses array) and new structure (department_totals object)
  */
-function reconcileExpenses(monthlyExpenses) {
-  if (!monthlyExpenses || !Array.isArray(monthlyExpenses)) {
+function reconcileExpenses(expensesData) {
+  // Handle new structure with department_totals from AI extraction
+  if (expensesData && typeof expensesData === 'object' && !Array.isArray(expensesData)) {
+    const departmentTotals = expensesData.department_totals || {};
+    const laborSummary = expensesData.labor_summary || {};
+    const monthlyExpenses = expensesData.monthly_expenses || [];
+
+    // Process monthly expenses if available
+    const monthlyResult = reconcileMonthlyExpenses(monthlyExpenses);
+
+    return {
+      monthly: monthlyResult.monthly,
+      byDepartment: monthlyResult.byDepartment,
+      ttmTotals: monthlyResult.ttmTotals,
+      // New structure: direct department totals from AI
+      departmentTotals: departmentTotals,
+      laborSummary: laborSummary
+    };
+  }
+
+  // Handle old structure (just an array of monthly expenses)
+  if (!expensesData || !Array.isArray(expensesData)) {
+    return { monthly: [], byDepartment: {}, ttmTotals: null, departmentTotals: {}, laborSummary: {} };
+  }
+
+  return reconcileMonthlyExpenses(expensesData);
+}
+
+/**
+ * Helper to reconcile monthly expense records
+ */
+function reconcileMonthlyExpenses(monthlyExpenses) {
+  if (!monthlyExpenses || !Array.isArray(monthlyExpenses) || monthlyExpenses.length === 0) {
     return { monthly: [], byDepartment: {}, ttmTotals: null };
   }
 
@@ -354,22 +560,24 @@ function reconcileExpenses(monthlyExpenses) {
     byMonthDept[key].push(record);
   }
 
-  // Reconcile - pick best record for each month+department
+  // Log which months have data from multiple documents
+  const multiDocKeys = Object.entries(byMonthDept).filter(([_, records]) => records.length > 1);
+  if (multiDocKeys.length > 0) {
+    console.log(`[Reconciler] Merging expense data for ${multiDocKeys.length} month+department combinations with multiple sources:`);
+    for (const [key, records] of multiDocKeys) {
+      const sources = records.map(r => r.source_document || 'unknown').join(', ');
+      console.log(`  - ${key}: ${records.length} records from [${sources}]`);
+    }
+  }
+
+  // Reconcile - MERGE records for each month+department (not just pick best)
   const reconciled = [];
 
   for (const key of Object.keys(byMonthDept)) {
     const records = byMonthDept[key];
-    if (records.length === 1) {
-      reconciled.push(records[0]);
-    } else {
-      // Pick most complete
-      const scored = records.map(r => ({
-        record: r,
-        score: scoreExpenseCompleteness(r)
-      }));
-      scored.sort((a, b) => b.score - a.score);
-      reconciled.push(scored[0].record);
-    }
+    // Use mergeExpenseRecords to combine data from multiple documents
+    const merged = mergeExpenseRecords(records);
+    reconciled.push(merged);
   }
 
   // Group by department for analysis
@@ -409,6 +617,52 @@ function scoreExpenseCompleteness(record) {
   }
 
   return score;
+}
+
+
+/**
+ * Merge multiple expense records for the same month+department
+ * Combines data from different documents (e.g., detailed expense report + P&L)
+ * For conflicts, prefers non-null values
+ */
+function mergeExpenseRecords(records) {
+  if (records.length === 1) return records[0];
+
+  // Start with the most complete record as base
+  const scored = records.map(r => ({
+    record: r,
+    score: scoreExpenseCompleteness(r)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+
+  const merged = { ...scored[0].record };
+
+  // Fields to merge from other records
+  const mergeFields = [
+    'salaries_wages', 'benefits', 'payroll_taxes', 'agency_labor',
+    'supplies', 'contract_services', 'other_expenses', 'total_department_expense',
+    'fte_count', 'hours_worked', 'overtime_hours', 'overtime_cost'
+  ];
+
+  // Merge data from all records
+  for (const { record } of scored.slice(1)) {
+    for (const field of mergeFields) {
+      // If merged doesn't have value but this record does, use it
+      if ((merged[field] === null || merged[field] === undefined)
+          && record[field] !== null && record[field] !== undefined) {
+        merged[field] = record[field];
+      }
+    }
+  }
+
+  // Track sources for debugging
+  const sources = [...new Set(records.map(r => r.source_document).filter(Boolean))];
+  if (sources.length > 1) {
+    merged.source_document = sources.join(', ');
+    merged.merged_from_documents = sources;
+  }
+
+  return merged;
 }
 
 
@@ -489,11 +743,17 @@ function reconcileRates(ratesData) {
  * Main reconciliation function - combines all parallel extraction results
  */
 function reconcileExtractionResults(parallelResults) {
+  // Extract facility bed count to pass to census reconciliation
+  // Note: parallel extraction returns {value, confidence, source} objects, so extract .value
+  const facilityBedCount = parallelResults.facility?.bed_count?.value || null;
+
   const reconciled = {
     facility: parallelResults.facility || {},
     financials: reconcileFinancials(parallelResults.financials?.monthly_financials),
-    expenses: reconcileExpenses(parallelResults.expenses?.monthly_expenses),
-    census: reconcileCensus(parallelResults.census?.monthly_census),
+    // Pass entire expenses object to preserve department_totals and labor_summary
+    expenses: reconcileExpenses(parallelResults.expenses),
+    // Pass facility bed count to calculate occupancy when census records lack total_beds
+    census: reconcileCensus(parallelResults.census?.monthly_census, facilityBedCount),
     rates: reconcileRates(parallelResults.rates),
     metadata: {
       extraction_errors: parallelResults.errors || [],
@@ -511,31 +771,132 @@ function reconcileExtractionResults(parallelResults) {
 
 
 /**
- * Build flat summary data for deals table (backward compatibility)
+ * Build flat summary data for deals table
+ * Uses CANONICAL field names from extraction-schema.js
+ * CRITICAL: Calculates expense ratios needed for Pro Forma tab
  */
 function buildFlatSummary(reconciled) {
   const facility = reconciled.facility || {};
   const ttm = reconciled.financials?.ttm || {};
   const censusSummary = reconciled.census?.summary || {};
+  const monthlyCensus = reconciled.census?.monthly || [];
+  const expenses = reconciled.expenses || {};
+  const departmentTotals = expenses.departmentTotals || {};
+  const laborSummary = expenses.laborSummary || {};
+
+  // Helper to get department total
+  const getDeptTotal = (dept) => {
+    const d = departmentTotals[dept];
+    return d?.department_total || null;
+  };
+
+  // Get revenue for ratio calculations
+  const annualRevenue = ttm.total_revenue || null;
+
+  // Calculate total labor cost from department totals if not directly available
+  let totalLaborCost = laborSummary.total_labor_cost || null;
+  if (!totalLaborCost && Object.keys(departmentTotals).length > 0) {
+    totalLaborCost = 0;
+    for (const dept of Object.values(departmentTotals)) {
+      if (dept.total_salaries_wages) totalLaborCost += dept.total_salaries_wages;
+      if (dept.total_benefits) totalLaborCost += dept.total_benefits;
+      if (dept.total_agency_labor) totalLaborCost += dept.total_agency_labor;
+    }
+    if (totalLaborCost === 0) totalLaborCost = null;
+  }
+
+  // Get agency cost
+  const agencyLaborCost = laborSummary.total_agency_cost || null;
+
+  // Get specific expense categories from department totals or labor summary
+  const rawFoodCost = laborSummary.raw_food_cost
+    || departmentTotals.culinary?.raw_food_cost
+    || null;
+  const utilitiesTotal = laborSummary.utilities_total
+    || departmentTotals.maintenance?.utilities_total
+    || null;
+  const insuranceTotal = laborSummary.insurance_total
+    || departmentTotals.general?.insurance_total
+    || null;
+  const managementFees = laborSummary.management_fees
+    || departmentTotals.administration?.management_fees
+    || null;
+
+  // CALCULATE EXPENSE RATIOS for Pro Forma tab
+  // These are the key fields the frontend reads
+  let labor_pct_of_revenue = null;
+  let agency_pct_of_labor = null;
+  let utilities_pct_of_revenue = null;
+  let insurance_pct_of_revenue = null;
+  let management_fee_pct = null;
+  let food_cost_per_resident_day = null;
+
+  if (annualRevenue && annualRevenue > 0) {
+    if (totalLaborCost) {
+      labor_pct_of_revenue = Math.round((totalLaborCost / annualRevenue) * 10000) / 100;
+      console.log(`[Reconciler] Calculated labor_pct_of_revenue: ${labor_pct_of_revenue}%`);
+    }
+    if (utilitiesTotal) {
+      utilities_pct_of_revenue = Math.round((utilitiesTotal / annualRevenue) * 10000) / 100;
+    }
+    if (insuranceTotal) {
+      insurance_pct_of_revenue = Math.round((insuranceTotal / annualRevenue) * 10000) / 100;
+    }
+    if (managementFees) {
+      management_fee_pct = Math.round((managementFees / annualRevenue) * 10000) / 100;
+    }
+  }
+
+  if (totalLaborCost && totalLaborCost > 0 && agencyLaborCost) {
+    agency_pct_of_labor = Math.round((agencyLaborCost / totalLaborCost) * 10000) / 100;
+    console.log(`[Reconciler] Calculated agency_pct_of_labor: ${agency_pct_of_labor}%`);
+  }
+
+  // Calculate food cost per resident day
+  // Food cost per day = raw_food_cost / (ADC * 365)
+  const adc = censusSummary.average_daily_census || null;
+  if (rawFoodCost && adc && adc > 0) {
+    const annualResidentDays = adc * 365;
+    food_cost_per_resident_day = Math.round((rawFoodCost / annualResidentDays) * 100) / 100;
+    console.log(`[Reconciler] Calculated food_cost_per_resident_day: $${food_cost_per_resident_day}`);
+  }
+
+  // Build monthly_trends array with CANONICAL field names
+  // This is the key fix for the empty Occupancy Trend chart
+  const monthly_trends = monthlyCensus.map(record => ({
+    month: record.month,
+    total_beds: record.total_beds || null,
+    average_daily_census: record.average_daily_census || null,
+    // CANONICAL: Use _pct suffix, NOT _percentage
+    occupancy_pct: record.occupancy_percentage || record.occupancy_pct || null,
+    medicaid_pct: record.medicaid_percentage || record.medicaid_pct || null,
+    medicare_pct: record.medicare_percentage || record.medicare_pct || null,
+    private_pay_pct: record.private_pay_percentage || record.private_pay_pct || null,
+    // Include raw day counts
+    medicaid_days: record.medicaid_days || null,
+    medicare_days: record.medicare_days || null,
+    private_pay_days: record.private_pay_days || null,
+    total_patient_days: record.total_census_days || null
+  }));
 
   return {
-    // Facility info
+    // Facility info - using CANONICAL names
     facility_name: getValue(facility.facility_name),
     facility_type: getValue(facility.facility_type),
     street_address: getValue(facility.street_address),
     city: getValue(facility.city),
     state: getValue(facility.state),
     zip_code: getValue(facility.zip_code),
-    no_of_beds: getValue(facility.bed_count),
+    bed_count: getValue(facility.bed_count),  // CANONICAL: bed_count (not no_of_beds)
     primary_contact_name: getValue(facility.contact_name),
-    title: getValue(facility.contact_title),
-    phone_number: getValue(facility.contact_phone),
-    email: getValue(facility.contact_email),
+    contact_title: getValue(facility.contact_title),  // CANONICAL: contact_title (not title)
+    contact_phone: getValue(facility.contact_phone),  // CANONICAL: contact_phone (not phone_number)
+    contact_email: getValue(facility.contact_email),  // CANONICAL: contact_email (not email)
     deal_name: getValue(facility.deal_name),
     purchase_price: getValue(facility.purchase_price),
 
     // Financial TTM
-    annual_revenue: ttm.total_revenue,
+    annual_revenue: annualRevenue,
     total_expenses: ttm.total_expenses,
     net_income: ttm.net_income,
     ebit: ttm.ebit,
@@ -543,7 +904,7 @@ function buildFlatSummary(reconciled) {
     ebitdar: ttm.ebitdar,
     depreciation: ttm.depreciation,
     interest_expense: ttm.interest_expense,
-    current_rent_lease_expense: ttm.rent_expense,
+    rent_lease_expense: ttm.rent_expense,  // CANONICAL: rent_lease_expense
     financial_period_start: ttm.period_start,
     financial_period_end: ttm.period_end,
 
@@ -552,12 +913,44 @@ function buildFlatSummary(reconciled) {
     medicare_revenue: ttm.medicare_revenue,
     private_pay_revenue: ttm.private_pay_revenue,
 
-    // Census
+    // Census - using CANONICAL names (_pct suffix)
     average_daily_census: censusSummary.average_daily_census,
-    current_occupancy: censusSummary.average_occupancy,
-    medicaid_percentage: censusSummary.medicaid_percentage,
-    medicare_percentage: censusSummary.medicare_percentage,
-    private_pay_percentage: censusSummary.private_pay_percentage
+    occupancy_pct: censusSummary.average_occupancy,  // CANONICAL: occupancy_pct
+    medicaid_pct: censusSummary.medicaid_percentage || censusSummary.medicaid_pct,  // CANONICAL
+    medicare_pct: censusSummary.medicare_percentage || censusSummary.medicare_pct,  // CANONICAL
+    private_pay_pct: censusSummary.private_pay_percentage || censusSummary.private_pay_pct,  // CANONICAL
+
+    // Monthly trends array for charts - with CANONICAL field names
+    monthly_trends: monthly_trends.length > 0 ? monthly_trends : null,
+
+    // Department expense totals (for ProForma)
+    total_direct_care: getDeptTotal('direct_care'),
+    total_activities: getDeptTotal('activities'),
+    total_culinary: getDeptTotal('culinary'),
+    total_housekeeping: getDeptTotal('housekeeping'),
+    total_maintenance: getDeptTotal('maintenance'),
+    total_administration: getDeptTotal('administration'),
+    total_general: getDeptTotal('general'),
+    total_property: getDeptTotal('property'),
+
+    // Labor summary (for ProForma ratios)
+    total_labor_cost: totalLaborCost,
+    agency_labor_cost: agencyLaborCost,  // CANONICAL: agency_labor_cost
+    raw_food_cost: rawFoodCost,
+    utilities_total: utilitiesTotal,
+    insurance_total: insuranceTotal,
+    management_fees: managementFees,
+
+    // EXPENSE RATIOS for Pro Forma tab (CRITICAL for opportunity calculations)
+    labor_pct_of_revenue: labor_pct_of_revenue,
+    agency_pct_of_labor: agency_pct_of_labor,
+    food_cost_per_resident_day: food_cost_per_resident_day,
+    management_fee_pct: management_fee_pct,
+    utilities_pct_of_revenue: utilities_pct_of_revenue,
+    insurance_pct_of_revenue: insurance_pct_of_revenue,
+
+    // Full department breakdown for detailed analysis
+    department_totals: Object.keys(departmentTotals).length > 0 ? departmentTotals : null
   };
 }
 

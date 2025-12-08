@@ -1325,6 +1325,7 @@ function formatExpenseRatios(deal) {
 
 /**
  * Legacy: Extract expense ratios from deal
+ * Checks both nested expense_ratios object AND flat extraction_data fields
  * @param {Object} deal - Deal object
  * @returns {Object} Expense ratios
  */
@@ -1332,23 +1333,30 @@ function extractExpenseRatios(deal) {
   const extractionData = deal.extraction_data || {};
   const expenseRatios = extractionData.expense_ratios || {};
 
+  // Helper to get value from nested OR flat structure
+  const getValue = (nestedKey, flatKey) => {
+    // Try nested first (legacy), then flat (current extraction)
+    return expenseRatios[nestedKey] || extractionData[flatKey || nestedKey] || null;
+  };
+
   return {
-    labor_pct: expenseRatios.labor_pct_of_revenue || null,
-    total_labor_cost: expenseRatios.total_labor_cost || null,
-    agency_pct: expenseRatios.agency_pct_of_labor || null,
-    agency_pct_of_direct_care: expenseRatios.agency_pct_of_direct_care || null,
-    food_cost_per_day: expenseRatios.food_cost_per_resident_day || null,
-    food_pct: expenseRatios.food_pct_of_revenue || null,
-    management_fee_pct: expenseRatios.management_fee_pct || null,
-    bad_debt_pct: expenseRatios.bad_debt_pct || null,
-    utilities_pct: expenseRatios.utilities_pct_of_revenue || null,
-    property_cost_per_bed: expenseRatios.property_cost_per_bed || null,
-    insurance_pct: expenseRatios.insurance_pct_of_revenue || null,
+    labor_pct: getValue('labor_pct_of_revenue', 'labor_pct_of_revenue'),
+    total_labor_cost: getValue('total_labor_cost', 'total_labor_cost'),
+    agency_pct: getValue('agency_pct_of_labor', 'agency_pct_of_labor'),
+    agency_pct_of_direct_care: getValue('agency_pct_of_direct_care', 'agency_pct_of_direct_care'),
+    food_cost_per_day: getValue('food_cost_per_resident_day', 'food_cost_per_resident_day'),
+    food_pct: getValue('food_pct_of_revenue', 'food_pct_of_revenue'),
+    management_fee_pct: getValue('management_fee_pct', 'management_fee_pct'),
+    bad_debt_pct: getValue('bad_debt_pct', 'bad_debt_pct'),
+    utilities_pct: getValue('utilities_pct_of_revenue', 'utilities_pct_of_revenue'),
+    property_cost_per_bed: getValue('property_cost_per_bed', 'property_cost_per_bed'),
+    insurance_pct: getValue('insurance_pct_of_revenue', 'insurance_pct_of_revenue'),
   };
 }
 
 /**
  * Legacy: Extract raw expense amounts
+ * Checks both nested expense_detail object AND flat extraction_data fields
  * @param {Object} deal - Deal object
  * @returns {Object} Raw expenses
  */
@@ -1362,23 +1370,31 @@ function extractRawExpenses(deal) {
     return obj;
   };
 
+  // Helper to get from nested OR flat structure
+  const getExpenseValue = (nestedPath, flatKey) => {
+    // Try nested first (legacy), then flat (current extraction)
+    const nestedValue = getValue(nestedPath);
+    if (nestedValue !== null) return nestedValue;
+    return extractionData[flatKey] || null;
+  };
+
   return {
-    agency_staffing: getValue(expenseDetail.direct_care?.agency_staffing),
-    direct_care_total: getValue(expenseDetail.direct_care?.total),
-    nursing_wages: getValue(expenseDetail.direct_care?.nursing_wages),
-    cna_wages: getValue(expenseDetail.direct_care?.cna_wages),
-    raw_food_cost: getValue(expenseDetail.culinary?.raw_food_cost),
-    dietary_wages: getValue(expenseDetail.culinary?.dietary_wages),
-    culinary_total: getValue(expenseDetail.culinary?.total),
-    management_fees: getValue(expenseDetail.administrative?.management_fees),
-    bad_debt: getValue(expenseDetail.administrative?.bad_debt),
-    admin_wages: getValue(expenseDetail.administrative?.admin_wages),
-    admin_total: getValue(expenseDetail.administrative?.total),
-    utilities_total: getValue(expenseDetail.utilities?.total),
-    property_insurance: getValue(expenseDetail.plant_operations?.insurance),
-    repairs_maintenance: getValue(expenseDetail.plant_operations?.repairs_maintenance),
-    interest_expense: getValue(expenseDetail.non_operating?.interest_expense),
-    depreciation: getValue(expenseDetail.non_operating?.depreciation),
+    agency_staffing: getExpenseValue(expenseDetail.direct_care?.agency_staffing, 'agency_staffing'),
+    direct_care_total: getExpenseValue(expenseDetail.direct_care?.total, 'direct_care_total'),
+    nursing_wages: getExpenseValue(expenseDetail.direct_care?.nursing_wages, 'nursing_wages'),
+    cna_wages: getExpenseValue(expenseDetail.direct_care?.cna_wages, 'cna_wages'),
+    raw_food_cost: getExpenseValue(expenseDetail.culinary?.raw_food_cost, 'raw_food_cost'),
+    dietary_wages: getExpenseValue(expenseDetail.culinary?.dietary_wages, 'dietary_wages'),
+    culinary_total: getExpenseValue(expenseDetail.culinary?.total, 'culinary_total'),
+    management_fees: getExpenseValue(expenseDetail.administrative?.management_fees, 'management_fees'),
+    bad_debt: getExpenseValue(expenseDetail.administrative?.bad_debt, 'bad_debt'),
+    admin_wages: getExpenseValue(expenseDetail.administrative?.admin_wages, 'admin_wages'),
+    admin_total: getExpenseValue(expenseDetail.administrative?.total, 'admin_total'),
+    utilities_total: getExpenseValue(expenseDetail.utilities?.total, 'utilities_total'),
+    property_insurance: getExpenseValue(expenseDetail.plant_operations?.insurance, 'property_insurance'),
+    repairs_maintenance: getExpenseValue(expenseDetail.plant_operations?.repairs_maintenance, 'repairs_maintenance'),
+    interest_expense: getExpenseValue(expenseDetail.non_operating?.interest_expense, 'interest_expense'),
+    depreciation: getExpenseValue(expenseDetail.non_operating?.depreciation, 'depreciation'),
   };
 }
 

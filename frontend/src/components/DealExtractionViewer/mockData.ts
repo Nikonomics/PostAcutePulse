@@ -71,6 +71,8 @@ export const sampleExtractionData: ExtractedDealData = {
     },
     total_expenses: { value: 5035549, confidence: 'high', source: 'P&L' },
     operating_expenses: { value: 4300013, confidence: 'high', source: 'P&L - Operating Expenses' },
+    total_labor_cost: { value: 2900000, confidence: 'high', source: 'P&L - Total Labor' },
+    agency_labor_cost: { value: 320000, confidence: 'high', source: 'P&L - Agency Staffing' },
     ebitdar: {
       value: -366998,
       raw_value: 'Calculated',
@@ -112,7 +114,7 @@ export const sampleExtractionData: ExtractedDealData = {
 
   census_and_occupancy: {
     average_daily_census: { value: 94, confidence: 'high', source: 'Census Report' },
-    occupancy_percentage: {
+    occupancy_pct: {
       value: 94,
       confidence: 'medium',
       calculated: true,
