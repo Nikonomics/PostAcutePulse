@@ -203,6 +203,7 @@ const CombinedDealForm = () => {
   const [keyObservations, setKeyObservations] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [selectedDocument, setSelectedDocument] = useState(null);
+  const [extractionResponseData, setExtractionResponseData] = useState(null); // Store full extraction response
 
   // Upload & Analyze state
   const [isExtracting, setIsExtracting] = useState(false);
@@ -468,6 +469,8 @@ const CombinedDealForm = () => {
         setIsFromAiExtraction(true);
         setUploadedFiles(uploadedFilesFromResponse);
         setAiExtractionConfidence(calculatedConfidence);
+        // Store the full extraction response for later use when creating the deal
+        setExtractionResponseData(response.body);
 
         // Store data quality notes and observations for display
         if (extracted.data_quality_notes) {
@@ -1297,9 +1300,11 @@ const CombinedDealForm = () => {
       }
 
       // Include raw extraction data for Deal Analysis view
-      if (isFromAiExtraction && location.state?.extractedData) {
+      // Use extractionResponseData if available (from direct upload), otherwise check location.state (from redirect)
+      const extractedData = extractionResponseData?.extractedData || location.state?.extractedData;
+      if (isFromAiExtraction && extractedData) {
         payload.extraction_data = {
-          ...location.state.extractedData,
+          ...extractedData,
           extraction_timestamp: new Date().toISOString(),
           confidence: aiExtractionConfidence,
           data_quality_notes: dataQualityNotes,
@@ -1308,8 +1313,10 @@ const CombinedDealForm = () => {
         };
 
         // Include enhanced time-series data if available
-        if (location.state?.enhancedData) {
-          payload.enhanced_extraction_data = location.state.enhancedData;
+        // Use extractionResponseData if available (includes monthlyFinancials, monthlyCensus, etc.)
+        const enhancedData = extractionResponseData || location.state?.enhancedData;
+        if (enhancedData) {
+          payload.enhanced_extraction_data = enhancedData;
         }
       }
 
