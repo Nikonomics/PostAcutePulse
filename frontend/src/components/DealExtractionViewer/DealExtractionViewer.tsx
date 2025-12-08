@@ -50,12 +50,12 @@ import CensusTrendCharts from './CensusTrendCharts';
 
 // Tab configuration
 const TAB_CONFIGS = [
-  { id: 'overview', title: 'Overview', icon: Building2 },
+  { id: 'overview', title: 'General Info', icon: Building2 },
+  { id: 'deal_overview', title: 'Deal Overview', icon: Lightbulb },
   { id: 'financials', title: 'Financials', icon: DollarSign },
   { id: 'census', title: 'Census & Rates', icon: Users },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
   { id: 'proforma', title: 'Pro Forma', icon: Target },
-  { id: 'observations', title: 'Observations', icon: Lightbulb },
   { id: 'documents', title: 'Documents', icon: FolderOpen },
 ];
 
@@ -345,33 +345,33 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
       {/* Deal Information */}
       <h3 style={sectionHeaderStyle}>Deal Information</h3>
       <div style={gridStyle}>
-        <FieldCell label="Deal Name" field={extractionData.deal_information.deal_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Deal Type" field={extractionData.deal_information.deal_type} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Deal Source" field={extractionData.deal_information.deal_source} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Priority Level" field={extractionData.deal_information.priority_level} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Purchase Price" field={extractionData.deal_information.purchase_price} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Price Per Bed" field={extractionData.deal_information.price_per_bed} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+        <FieldCell label="Deal Name" field={extractionData.deal_information.deal_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.deal_name" onEdit={(value) => handleFieldEdit('deal_information.deal_name', value)} />
+        <FieldCell label="Deal Type" field={extractionData.deal_information.deal_type} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.deal_type" onEdit={(value) => handleFieldEdit('deal_information.deal_type', value)} />
+        <FieldCell label="Deal Source" field={extractionData.deal_information.deal_source} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.deal_source" onEdit={(value) => handleFieldEdit('deal_information.deal_source', value)} />
+        <FieldCell label="Priority Level" field={extractionData.deal_information.priority_level} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.priority_level" onEdit={(value) => handleFieldEdit('deal_information.priority_level', value)} />
+        <FieldCell label="Purchase Price" field={extractionData.deal_information.purchase_price} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.purchase_price" onEdit={(value) => handleFieldEdit('deal_information.purchase_price', value)} />
+        <FieldCell label="Price Per Bed" field={extractionData.deal_information.price_per_bed} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.price_per_bed" onEdit={(value) => handleFieldEdit('deal_information.price_per_bed', value)} />
       </div>
 
       {/* Facility Information */}
       <h3 style={{ ...sectionHeaderStyle, marginTop: '2rem' }}>Facility Information</h3>
       <div style={gridStyle}>
-        <FieldCell label="Facility Name" field={extractionData.facility_information.facility_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Facility Type" field={extractionData.facility_information.facility_type} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Street Address" field={extractionData.facility_information.street_address} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="City" field={extractionData.facility_information.city} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="State" field={extractionData.facility_information.state} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Zip Code" field={extractionData.facility_information.zip_code} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Bed Count" field={extractionData.facility_information.bed_count} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} />
+        <FieldCell label="Facility Name" field={extractionData.facility_information.facility_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.facility_name" onEdit={(value) => handleFieldEdit('facility_information.facility_name', value)} />
+        <FieldCell label="Facility Type" field={extractionData.facility_information.facility_type} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.facility_type" onEdit={(value) => handleFieldEdit('facility_information.facility_type', value)} />
+        <FieldCell label="Street Address" field={extractionData.facility_information.street_address} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.street_address" onEdit={(value) => handleFieldEdit('facility_information.street_address', value)} />
+        <FieldCell label="City" field={extractionData.facility_information.city} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.city" onEdit={(value) => handleFieldEdit('facility_information.city', value)} />
+        <FieldCell label="State" field={extractionData.facility_information.state} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.state" onEdit={(value) => handleFieldEdit('facility_information.state', value)} />
+        <FieldCell label="Zip Code" field={extractionData.facility_information.zip_code} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.zip_code" onEdit={(value) => handleFieldEdit('facility_information.zip_code', value)} />
+        <FieldCell label="Bed Count" field={extractionData.facility_information.bed_count} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.bed_count" onEdit={(value) => handleFieldEdit('facility_information.bed_count', value)} />
       </div>
 
       {/* Contact Information */}
       <h3 style={{ ...sectionHeaderStyle, marginTop: '2rem' }}>Contact Information</h3>
       <div style={gridStyle}>
-        <FieldCell label="Primary Contact" field={extractionData.contact_information.primary_contact_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Title" field={extractionData.contact_information.title} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Phone" field={extractionData.contact_information.phone} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        <FieldCell label="Email" field={extractionData.contact_information.email} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} />
+        <FieldCell label="Primary Contact" field={extractionData.contact_information.primary_contact_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.primary_contact_name" onEdit={(value) => handleFieldEdit('contact_information.primary_contact_name', value)} />
+        <FieldCell label="Title" field={extractionData.contact_information.title} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.title" onEdit={(value) => handleFieldEdit('contact_information.title', value)} />
+        <FieldCell label="Phone" field={extractionData.contact_information.phone} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.phone" onEdit={(value) => handleFieldEdit('contact_information.phone', value)} />
+        <FieldCell label="Email" field={extractionData.contact_information.email} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.email" onEdit={(value) => handleFieldEdit('contact_information.email', value)} />
       </div>
     </div>
   );
@@ -608,7 +608,378 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     </div>
   );
 
-  // Render Observations Tab
+  // Render Deal Overview Tab (Stage 1 Screening)
+  const renderDealOverviewTab = () => {
+    const overview = extractionData?.deal_overview;
+
+    if (!overview) {
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <Lightbulb size={48} style={{ color: '#d1d5db', marginBottom: '1rem' }} />
+          <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
+            No deal screening data available.
+          </p>
+          <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+            Re-extract documents to generate Stage 1 deal screening analysis.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {/* Recommendation Badge - Top Priority */}
+        {overview.recommendation && (
+          <div style={{
+            marginBottom: '1.5rem',
+            padding: '1rem 1.5rem',
+            background: overview.recommendation.decision === 'PURSUE'
+              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+              : overview.recommendation.decision === 'PURSUE_WITH_CAUTION'
+              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+              : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            borderRadius: '0.75rem',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 500, opacity: 0.9, marginBottom: '0.25rem' }}>
+                RECOMMENDATION
+              </div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.02em' }}>
+                {overview.recommendation.decision.replace(/_/g, ' ')}
+              </div>
+            </div>
+            <Target size={32} style={{ opacity: 0.8 }} />
+          </div>
+        )}
+
+        {/* Executive Summary - 1000 Character Summary */}
+        {overview.summary_1000_chars && (
+          <div style={{
+            marginBottom: '2rem',
+            padding: '1.5rem',
+            backgroundColor: '#f8fafc',
+            borderRadius: '0.75rem',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <FileText size={20} style={{ color: '#3b82f6' }} />
+              Executive Summary
+            </h3>
+            <div style={{
+              fontSize: '0.875rem',
+              lineHeight: '1.6',
+              color: '#334155',
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'system-ui, -apple-system, sans-serif'
+            }}>
+              {overview.summary_1000_chars}
+            </div>
+          </div>
+        )}
+
+        {/* Key Metrics Cards */}
+        {overview.ttm_financials?.summary_metrics && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                ${overview.ttm_financials.summary_metrics.total_revenue
+                  ? (overview.ttm_financials.summary_metrics.total_revenue / 1000000).toFixed(2) + 'M'
+                  : 'N/A'}
+              </div>
+            </div>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR</div>
+              <div style={{
+                fontSize: '1.5rem',
+                fontWeight: 700,
+                color: (overview.ttm_financials.summary_metrics.ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
+              }}>
+                ${overview.ttm_financials.summary_metrics.ebitdar
+                  ? (overview.ttm_financials.summary_metrics.ebitdar / 1000).toFixed(0) + 'K'
+                  : 'N/A'}
+              </div>
+            </div>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR Margin</div>
+              <div style={{
+                fontSize: '1.5rem',
+                fontWeight: 700,
+                color: (overview.ttm_financials.summary_metrics.ebitdar_margin_pct || 0) >= 15 ? '#10b981' : '#ef4444'
+              }}>
+                {overview.ttm_financials.summary_metrics.ebitdar_margin_pct?.toFixed(1) || 'N/A'}%
+              </div>
+            </div>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Red Flags & Strengths Side by Side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          {/* Red Flags */}
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#fef2f2',
+            borderRadius: '0.75rem',
+            border: '1px solid #fecaca'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#991b1b',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertTriangle size={20} style={{ color: '#ef4444' }} />
+              Red Flags
+            </h3>
+            {overview.red_flags && overview.red_flags.length > 0 ? (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {overview.red_flags.map((flag, index) => (
+                  <li key={index} style={{
+                    padding: '0.75rem',
+                    backgroundColor: 'white',
+                    borderRadius: '0.5rem',
+                    marginBottom: '0.5rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid #fecaca'
+                  }}>
+                    <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
+                      {flag.issue}
+                      <span style={{
+                        marginLeft: '0.5rem',
+                        padding: '0.125rem 0.5rem',
+                        backgroundColor: '#fee2e2',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 500
+                      }}>
+                        {flag.severity}
+                      </span>
+                    </div>
+                    <div style={{ color: '#7f1d1d' }}>{flag.impact}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: '#991b1b', fontSize: '0.875rem', fontStyle: 'italic' }}>No critical red flags identified</p>
+            )}
+          </div>
+
+          {/* Strengths */}
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#ecfdf5',
+            borderRadius: '0.75rem',
+            border: '1px solid #a7f3d0'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#065f46',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <TrendingUp size={20} style={{ color: '#10b981' }} />
+              Strengths
+            </h3>
+            {overview.strengths && overview.strengths.length > 0 ? (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {overview.strengths.map((strength, index) => (
+                  <li key={index} style={{
+                    padding: '0.75rem',
+                    backgroundColor: 'white',
+                    borderRadius: '0.5rem',
+                    marginBottom: '0.5rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid #a7f3d0'
+                  }}>
+                    <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
+                      {strength.strength}
+                    </div>
+                    <div style={{ color: '#047857' }}>{strength.value}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: '#065f46', fontSize: '0.875rem', fontStyle: 'italic' }}>No strengths identified</p>
+            )}
+          </div>
+        </div>
+
+        {/* Valuation Summary */}
+        {overview.valuation && (
+          <div style={{
+            marginBottom: '2rem',
+            padding: '1.25rem',
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <DollarSign size={20} style={{ color: '#3b82f6' }} />
+              Valuation Analysis
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* As-Is Value */}
+              {overview.valuation.as_is_value && (
+                <div style={{ padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>As-Is Value</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
+                    ${overview.valuation.as_is_value.income_approach_low
+                      ? (overview.valuation.as_is_value.income_approach_low / 1000000).toFixed(2)
+                      : '?'}M - ${overview.valuation.as_is_value.income_approach_high
+                      ? (overview.valuation.as_is_value.income_approach_high / 1000000).toFixed(2)
+                      : '?'}M
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    ${overview.valuation.as_is_value.per_bed_low
+                      ? (overview.valuation.as_is_value.per_bed_low / 1000).toFixed(0)
+                      : '?'}K - ${overview.valuation.as_is_value.per_bed_high
+                      ? (overview.valuation.as_is_value.per_bed_high / 1000).toFixed(0)
+                      : '?'}K per bed
+                  </div>
+                </div>
+              )}
+
+              {/* Stabilized Value */}
+              {overview.valuation.stabilized_value && (
+                <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '0.5rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>Stabilized Value</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginBottom: '0.25rem' }}>
+                    ${overview.valuation.stabilized_value.value_at_9pct_cap
+                      ? (overview.valuation.stabilized_value.value_at_9pct_cap / 1000000).toFixed(2) + 'M'
+                      : 'N/A'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    At {overview.valuation.stabilized_value.target_occupancy_pct || '?'}% occupancy, 9% cap
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Max Purchase Price */}
+            {overview.valuation.max_purchase_price && (
+              <div style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                backgroundColor: '#eff6ff',
+                borderRadius: '0.5rem',
+                border: '1px solid #93c5fd'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#1e40af', marginBottom: '0.25rem', fontWeight: 600 }}>
+                  MAX PURCHASE PRICE
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e40af' }}>
+                  ${overview.valuation.max_purchase_price.max_price
+                    ? (overview.valuation.max_purchase_price.max_price / 1000000).toFixed(2) + 'M'
+                    : 'N/A'}
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500, marginLeft: '0.5rem' }}>
+                    (${overview.valuation.max_purchase_price.max_price_per_bed
+                      ? (overview.valuation.max_purchase_price.max_price_per_bed / 1000).toFixed(0) + 'K/bed'
+                      : 'N/A'})
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recommendation Rationale */}
+        {overview.recommendation?.rationale && (
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#f8fafc',
+            borderRadius: '0.75rem',
+            border: '1px solid #e2e8f0'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <MessageSquare size={20} style={{ color: '#3b82f6' }} />
+              Rationale
+            </h3>
+            <p style={{
+              fontSize: '0.875rem',
+              lineHeight: '1.6',
+              color: '#334155',
+              margin: 0
+            }}>
+              {overview.recommendation.rationale}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render Observations Tab (Legacy - keeping for backwards compatibility)
   const renderObservationsTab = () => (
     <div>
       {/* AI-Generated Insights Section */}
@@ -1207,6 +1578,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     switch (activeTab) {
       case 'overview':
         return renderOverviewTab();
+      case 'deal_overview':
+        return renderDealOverviewTab();
       case 'financials':
         return renderFinancialsTab();
       case 'census':
@@ -1215,8 +1588,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         return renderCalculatorTab();
       case 'proforma':
         return renderProFormaTab();
-      case 'observations':
-        return renderObservationsTab();
       case 'documents':
         return renderDocumentsTab();
       default:
