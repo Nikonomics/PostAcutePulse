@@ -13,6 +13,7 @@ const anthropic = new Anthropic({
 // Model configuration
 const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 16384; // Large enough for 12+ months of detailed financial data
+const MAX_TOKENS_OVERVIEW = 32000; // Larger for overview extraction (detailed markdown + 1000-char summary)
 
 /**
  * ===========================================
@@ -1106,17 +1107,18 @@ function repairTruncatedJson(jsonStr) {
  * @param {string} documentText - Combined text from all documents
  * @param {string} systemPrompt - The focused extraction prompt
  * @param {string} extractionType - Name of extraction for logging
+ * @param {number} maxTokens - Optional max tokens override (defaults to MAX_TOKENS)
  * @returns {Promise<Object>} Extracted data
  */
-async function runFocusedExtraction(documentText, systemPrompt, extractionType) {
+async function runFocusedExtraction(documentText, systemPrompt, extractionType, maxTokens = MAX_TOKENS) {
   const startTime = Date.now();
 
   try {
-    console.log(`[${extractionType}] Starting extraction...`);
+    console.log(`[${extractionType}] Starting extraction... (max_tokens: ${maxTokens})`);
 
     const response = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: MAX_TOKENS,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -1201,7 +1203,7 @@ async function runParallelExtractions(combinedDocumentText) {
     runFocusedExtraction(combinedDocumentText, EXPENSES_PROMPT, 'expenses'),
     runFocusedExtraction(combinedDocumentText, CENSUS_PROMPT, 'census'),
     runFocusedExtraction(combinedDocumentText, RATES_PROMPT, 'rates'),
-    runFocusedExtraction(combinedDocumentText, OVERVIEW_PROMPT, 'overview')
+    runFocusedExtraction(combinedDocumentText, OVERVIEW_PROMPT, 'overview', MAX_TOKENS_OVERVIEW)
   ];
 
   const results = await Promise.all(extractionPromises);
