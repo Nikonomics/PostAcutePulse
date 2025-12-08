@@ -391,6 +391,401 @@ Return ONLY valid JSON, no markdown.`;
 
 
 /**
+ * Prompt 6: Deal Overview & Stage 1 Screening
+ */
+const OVERVIEW_PROMPT = `You are a healthcare M&A analyst generating a Stage 1 deal screening for an assisted living facility acquisition. Your analysis should enable an operator to make a go/no-go decision on pursuing diligence.
+
+## CRITICAL: TTM FINANCIAL CONSTRUCTION
+
+**This is the most important analytical step. Do not skip or shortcut this process.**
+
+### Step 1: Identify All Financial Data Sources
+List every document containing monthly financial data (revenue, expenses, P&L line items):
+- Document name
+- Period covered (start month/year to end month/year)
+- Data granularity (monthly, quarterly, annual)
+
+### Step 2: Determine the Freshest Possible TTM Period
+Identify the most recent month with complete financial data across ALL documents. Then work backwards 12 months.
+
+**Example:**
+- T12 P&L covers: May 2024 - April 2025
+- YTD I&E covers: March 2025 - September 2025
+- **Freshest TTM:** October 2024 - September 2025
+  - Oct 2024 - Feb 2025: Pull from T12 P&L
+  - Mar 2025 - Sep 2025: Pull from YTD I&E
+
+### Step 3: Construct Month-by-Month TTM
+Build a 12-month table pulling from the appropriate source document for each month. Include:
+- Revenue (by category if available)
+- Total Expenses
+- Net Income/Loss
+- Key line items needed for EBITDAR calculation (Interest, Depreciation, Rent/Lease)
+
+### Step 4: Calculate TTM Totals
+Sum all 12 months for each metric. Show your work.
+
+**NEVER use a pre-calculated T12 total when fresher monthly data is available from another document.**
+
+---
+
+## CRITICAL VALIDATION
+
+Before proceeding to output, verify:
+- EBITDAR >= EBITDA >= EBIT >= Net Income (less negative or more positive)
+- Occupancy % = (Current Census / Licensed Beds) * 100
+- Sum of payer mix percentages = 100%
+
+If validation fails, recheck your calculations.
+
+---
+
+## IMPORTANT: MISSING DATA HANDLING
+
+If critical data is missing (licensed beds, TTM revenue, occupancy), still generate the analysis with null values and flag the missing items prominently in the red_flags section. Do NOT refuse to generate output.
+
+If market data (competitive set, market occupancy, demand indicators) is not provided in documents, flag as "Stage 2 Diligence Item" - do NOT attempt to infer or fabricate market data.
+
+---
+
+## OUTPUT FORMAT
+
+Return your analysis as valid JSON with this structure:
+
+{
+  "data_completeness": {
+    "licensed_beds": "available|partial|missing",
+    "current_census": "available|partial|missing",
+    "ttm_revenue": "available|partial|missing",
+    "ttm_expenses": "available|partial|missing",
+    "payer_mix": "available|partial|missing",
+    "facility_type": "available|partial|missing",
+    "location": "available|partial|missing",
+    "building_info": "available|partial|missing"
+  },
+  "facility_snapshot": {
+    "facility_name": "string|null",
+    "facility_type": "ALF|Memory Care|ALF + MC|CCRC|null",
+    "location": {
+      "city": "string|null",
+      "state": "string|null",
+      "zip": "string|null"
+    },
+    "licensed_beds": number|null,
+    "current_census": number|null,
+    "current_occupancy_pct": number|null,
+    "unit_mix": {
+      "studio": number|null,
+      "one_bedroom": number|null,
+      "two_bedroom": number|null
+    },
+    "ownership_type": "Non-profit|For-profit|REIT|Private Equity|Family|Unknown",
+    "specialty_focus": "string|null",
+    "acuity_level_distribution": "string|null",
+    "regulatory_status": "string"
+  },
+  "building_info": {
+    "year_built": number|null,
+    "last_major_renovation": {
+      "year": number|null,
+      "scope": "string|null"
+    },
+    "building_type": "Single-story|Multi-story|Campus|Unknown",
+    "construction_type": "Wood frame|Steel|Concrete|Unknown",
+    "square_footage": number|null,
+    "architect_builder": "string|null",
+    "notable_features": ["string"],
+    "condition_notes": "string|null",
+    "source_document": "string|null"
+  },
+  "ttm_financials": {
+    "period_start": "YYYY-MM",
+    "period_end": "YYYY-MM",
+    "data_sources": [
+      {
+        "months": "YYYY-MM to YYYY-MM",
+        "source_document": "string",
+        "notes": "string|null"
+      }
+    ],
+    "monthly_breakdown": [
+      {
+        "month": "YYYY-MM",
+        "revenue": number|null,
+        "expenses": number|null,
+        "net_income": number|null,
+        "interest": number|null,
+        "depreciation": number|null,
+        "rent_lease": number|null,
+        "source_document": "string"
+      }
+    ],
+    "summary_metrics": {
+      "total_revenue": number|null,
+      "total_expenses": number|null,
+      "net_income": number|null,
+      "ebitdar": number|null,
+      "ebitdar_margin_pct": number|null,
+      "ebitda": number|null,
+      "ebitda_margin_pct": number|null,
+      "ebit": number|null,
+      "occupancy_pct": number|null
+    },
+    "ebitdar_calculation": {
+      "net_income": number|null,
+      "add_interest": number|null,
+      "equals_ebit": number|null,
+      "add_depreciation": number|null,
+      "add_amortization": number|null,
+      "equals_ebitda": number|null,
+      "add_rent_lease": number|null,
+      "equals_ebitdar": number|null
+    },
+    "benchmarks": {
+      "ebitdar_margin_target": 23,
+      "ebitda_margin_target": 9,
+      "occupancy_target": 85,
+      "ebitdar_margin_variance": number|null,
+      "ebitda_margin_variance": number|null,
+      "occupancy_variance": number|null
+    },
+    "unit_economics": {
+      "revenue_per_occupied_bed_annual": number|null,
+      "revenue_per_resident_day": number|null,
+      "expense_per_resident_day": number|null,
+      "labor_cost_pct_of_revenue": number|null,
+      "direct_care_cost_pct_of_revenue": number|null,
+      "agency_staffing_pct_of_direct_care": number|null
+    },
+    "revenue_by_payer": [
+      {
+        "payer": "Medicaid|Medicare|Private Pay|Other",
+        "revenue": number|null,
+        "pct_of_total": number|null,
+        "census_days": number|null,
+        "pct_of_census": number|null
+      }
+    ]
+  },
+  "operating_trends": {
+    "comparison_period": "string",
+    "metrics": [
+      {
+        "metric": "Revenue|Census|EBITDAR|Private Pay %",
+        "prior_period_avg": number|null,
+        "recent_3mo_avg": number|null,
+        "change_pct": number|null,
+        "trend": "UP|FLAT|DOWN"
+      }
+    ],
+    "trend_drivers": {
+      "census": "string",
+      "payer_mix": "string",
+      "staffing": "string|null",
+      "quality": "string|null"
+    },
+    "overall_assessment": "Improving|Stable|Deteriorating"
+  },
+  "rate_structure": {
+    "private_pay_rates": [
+      {
+        "unit_type": "string",
+        "monthly_base": number|null,
+        "care_level_range": "string"
+      }
+    ],
+    "medicaid_rates": [
+      {
+        "care_level": "string",
+        "monthly_rate": number|null,
+        "daily_rate": number|null
+      }
+    ],
+    "rate_gap_analysis": [
+      {
+        "care_level": "string",
+        "private_pay_rate": number|null,
+        "medicaid_rate": number|null,
+        "monthly_gap": number|null,
+        "annual_gap_per_resident": number|null
+      }
+    ],
+    "implication": "string"
+  },
+  "market_position": {
+    "competitive_set": "string or Stage 2 diligence item",
+    "market_occupancy": "string or Stage 2 diligence item",
+    "rate_positioning": "Premium|Mid-market|Commodity|Medicaid-focused|Unknown",
+    "demand_indicators": "string or Stage 2 diligence item"
+  },
+  "red_flags": [
+    {
+      "issue": "string",
+      "impact": "string (quantified)",
+      "severity": "Critical|Significant|Moderate"
+    }
+  ],
+  "strengths": [
+    {
+      "strength": "string",
+      "value": "string (quantified)"
+    }
+  ],
+  "valuation": {
+    "as_is_value": {
+      "income_approach_low": number|null,
+      "income_approach_high": number|null,
+      "per_bed_low": number|null,
+      "per_bed_high": number|null,
+      "basis": "string"
+    },
+    "stabilized_value": {
+      "target_occupancy_pct": number|null,
+      "target_occupancy_rationale": "string",
+      "target_payer_mix": "string",
+      "target_payer_mix_rationale": "string",
+      "target_ebitdar_margin_pct": number|null,
+      "target_ebitdar_margin_rationale": "string",
+      "stabilized_ebitdar": number|null,
+      "value_at_8pct_cap": number|null,
+      "value_at_9pct_cap": number|null,
+      "value_at_10pct_cap": number|null,
+      "per_bed_at_8pct": number|null,
+      "per_bed_at_9pct": number|null,
+      "per_bed_at_10pct": number|null
+    },
+    "max_purchase_price": {
+      "stabilized_value": number|null,
+      "less_turnaround_investment": number|null,
+      "less_return_buffer": number|null,
+      "max_price": number|null,
+      "max_price_per_bed": number|null
+    }
+  },
+  "turnaround_or_optimization": {
+    "type": "turnaround|optimization",
+    "turnaround": {
+      "stabilization_targets": {
+        "current_occupancy_pct": number|null,
+        "target_occupancy_pct": number|null,
+        "occupancy_improvement_pts": number|null,
+        "current_private_pay_pct": number|null,
+        "target_private_pay_pct": number|null,
+        "payer_mix_improvement_pts": number|null,
+        "current_ebitdar_margin_pct": number|null,
+        "target_ebitdar_margin_pct": number|null,
+        "margin_improvement_pts": number|null,
+        "current_ebitdar": number|null,
+        "target_ebitdar": number|null,
+        "ebitdar_improvement": number|null
+      },
+      "key_initiatives": [
+        {
+          "priority": 1|2|3,
+          "initiative": "string",
+          "estimated_annual_impact": number|null,
+          "timeline_months": number|null,
+          "difficulty": "High|Medium|Low"
+        }
+      ],
+      "investment_required": {
+        "operating_losses": number|null,
+        "capex": number|null,
+        "working_capital": number|null,
+        "transition_costs": number|null,
+        "contingency": number|null,
+        "total": number|null
+      },
+      "risk_factors": ["string"],
+      "timeline_to_stabilization_months": number|null
+    },
+    "optimization": {
+      "opportunities": [
+        {
+          "opportunity": "string",
+          "estimated_impact": "string (quantified)"
+        }
+      ],
+      "risks_to_current_performance": ["string"]
+    }
+  },
+  "open_diligence_items": [
+    {
+      "priority": 1|2|3|4|5,
+      "item": "string",
+      "why_it_matters": "string"
+    }
+  ],
+  "recommendation": {
+    "decision": "PURSUE|PURSUE_WITH_CAUTION|PASS",
+    "rationale": "string (2-4 sentences explaining the recommendation, key value drivers, critical risks, and conditions for proceeding)"
+  },
+  "summary_1000_chars": "string (Executive summary in exactly the format specified, maximum 1000 characters)"
+}
+
+## SUMMARY FORMAT (for summary_1000_chars field)
+
+Use this exact format, maximum 1000 characters:
+
+**[Facility Name]** - [X]-bed [Type], [City, State] ([X]% occupied)
+
+**TTM Performance ([Mon Year] - [Mon Year]):** Revenue $X.XM | EBITDAR $X | Margin X%
+
+**Trends:** Revenue [UP/FLAT/DOWN] | Census [UP/FLAT/DOWN] | Margins [UP/FLAT/DOWN]
+
+**Key Issues:**
+- [Issue 1 - quantified]
+- [Issue 2 - quantified]
+- [Issue 3 - quantified]
+
+**Upside:** [Key opportunity - quantified potential]
+
+**Stabilized Potential:** $X EBITDAR at X% occ, X% margin
+
+**Value:**
+- As-Is: $X-XM ($XK-XK/bed)
+- Stabilized: $X-XM ($XK-XK/bed)
+- Turnaround investment: ~$X.XM (if applicable)
+- Max purchase: ~$XM ($XK/bed)
+
+**Recommendation: [PURSUE / PURSUE WITH CAUTION / PASS]** - [1 sentence rationale + key diligence items]
+
+---
+
+## CRITICAL RULES
+
+1. **Build the freshest TTM** - Combine multiple documents to get the most recent 12 months. Never use stale T12 totals when fresher monthly data exists.
+
+2. **Show your math** - Include calculation details for EBITDAR, margins, trends. Include monthly breakdown for TTM.
+
+3. **Quantify everything** - No issue or opportunity without a dollar/percentage impact.
+
+4. **Flag missing data explicitly** - Use null for missing values and flag in red_flags if critical.
+
+5. **Benchmark against targets:**
+   - EBITDAR margin: 23%
+   - EBITDA margin: 9%
+   - Occupancy: 85%
+   - Agency staffing: <5% of direct care
+
+6. **Extract building information prominently** - Any structural details (year built, renovations, construction type) should be captured.
+
+7. **Conditional turnaround section** - If EBITDAR margin <15%, populate "turnaround" object. If >=15%, populate "optimization" object. Set "type" field accordingly.
+
+8. **Be direct** - State recommendation clearly; avoid hedging language.
+
+9. **Separate fact from inference** - Use confidence levels and source attribution.
+
+10. **Both outputs required** - Populate all JSON fields AND generate 1000-char summary.
+
+11. **TTM period must be stated** - Always include exact month range in period_start and period_end.
+
+12. **Market data disclaimer** - If market competitive data not in documents, state "Stage 2 diligence item" - do not fabricate.
+
+Return ONLY valid JSON, no markdown.`;
+
+
+/**
  * Repair truncated JSON by finding the last valid array element and properly closing
  * @param {string} jsonStr - Potentially truncated JSON string
  * @returns {string} Repaired JSON string
@@ -629,13 +1024,14 @@ async function runParallelExtractions(combinedDocumentText) {
   console.log('Starting parallel extractions...');
   const startTime = Date.now();
 
-  // Run all 5 extractions in parallel
+  // Run all 6 extractions in parallel
   const extractionPromises = [
     runFocusedExtraction(combinedDocumentText, FACILITY_PROMPT, 'facility'),
     runFocusedExtraction(combinedDocumentText, FINANCIALS_PROMPT, 'financials'),
     runFocusedExtraction(combinedDocumentText, EXPENSES_PROMPT, 'expenses'),
     runFocusedExtraction(combinedDocumentText, CENSUS_PROMPT, 'census'),
-    runFocusedExtraction(combinedDocumentText, RATES_PROMPT, 'rates')
+    runFocusedExtraction(combinedDocumentText, RATES_PROMPT, 'rates'),
+    runFocusedExtraction(combinedDocumentText, OVERVIEW_PROMPT, 'overview')
   ];
 
   const results = await Promise.all(extractionPromises);
@@ -650,6 +1046,7 @@ async function runParallelExtractions(combinedDocumentText) {
     expenses: null,
     census: null,
     rates: null,
+    overview: null,
     errors: [],
     metadata: {
       totalDuration,
