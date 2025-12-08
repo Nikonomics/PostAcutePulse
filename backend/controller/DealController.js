@@ -623,7 +623,7 @@ module.exports = {
               deal_id: firstDealId,
               facility_name: facility.facility_name,
               facility_type: facility.facility_type,
-              address: facility.address,
+              street_address: facility.address || facility.street_address,
               city: facility.city,
               state: facility.state,
               zip_code: facility.zip_code,
@@ -3874,7 +3874,7 @@ module.exports = {
         include: [{
           model: DealFacilities,
           as: 'facilities',
-          attributes: ['id', 'facility_name', 'address', 'city', 'state', 'latitude', 'longitude'],
+          attributes: ['id', 'facility_name', 'street_address', 'city', 'state', 'latitude', 'longitude'],
           where: {
             [Op.or]: [
               { latitude: { [Op.ne]: null } },
