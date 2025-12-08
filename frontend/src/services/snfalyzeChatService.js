@@ -16,7 +16,8 @@ import { calculateDealMetrics } from '../api/DealService';
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
-const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+// Use dedicated chatbot API key if available, otherwise fall back to main Gemini key
+const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_CHATBOT_API_KEY || process.env.REACT_APP_GEMINI_API_KEY;
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // =============================================================================
@@ -498,6 +499,59 @@ ${recommendations?.map(rec => `• ${rec.title}: ${rec.description}`).join('\n')
 // AI CHAT FUNCTIONS
 // =============================================================================
 
+// Rate limiting helper with request queue
+let lastRequestTime = 0;
+let requestQueue = Promise.resolve();
+const MIN_REQUEST_INTERVAL = 4000; // Minimum 4 seconds between requests (Gemini free tier: 15 RPM = 1 per 4s)
+
+async function rateLimitedFetch(url, options, retries = 3) {
+  // Queue requests to prevent concurrent calls
+  const executeRequest = async () => {
+    // Enforce minimum interval between requests
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+    }
+    lastRequestTime = Date.now();
+
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+
+        if (response.ok) {
+          return response;
+        }
+
+        if (response.status === 429) {
+          // Rate limited - wait and retry with exponential backoff
+          const waitTime = Math.pow(2, attempt) * 3000; // 3s, 6s, 12s
+          console.warn(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          lastRequestTime = Date.now(); // Reset timer after waiting
+          continue;
+        }
+
+        // For other errors, throw immediately
+        const errorText = await response.text();
+        throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+      } catch (err) {
+        if (err.message.includes('Rate limit') || attempt === retries - 1) {
+          throw err;
+        }
+        // Network error - retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+  };
+
+  // Chain request to queue to prevent concurrent calls
+  requestQueue = requestQueue.then(executeRequest).catch(executeRequest);
+  return requestQueue;
+}
+
 function getSystemPrompt(dealContext) {
   return `You are SNFalyze.ai, an advanced M&A deal analysis assistant specializing in Skilled Nursing Facility (SNF) deals. You use Cascadia Healthcare's proprietary SNF Deal Evaluation Algorithm to provide sophisticated analysis.
 
@@ -540,7 +594,7 @@ User's question: ${userMessage}
 
 Respond helpfully and specifically to the user's question, referencing the deal data and analysis above.`;
 
-  const response = await fetch(
+  const response = await rateLimitedFetch(
     `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
@@ -550,10 +604,6 @@ Respond helpfully and specifically to the user's question, referencing the deal 
       })
     }
   );
-
-  if (!response.ok) {
-    throw new Error('Failed to get AI response');
-  }
 
   const data = await response.json();
   const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -599,7 +649,7 @@ End with a 2-3 sentence overall recommendation.
 
 Format your response with proper markdown using ## for headers, bullet points (-) for lists, and numbered lists (1. 2. 3.) for sequential steps. Include blank lines between sections for readability.`;
 
-  const response = await fetch(
+  const response = await rateLimitedFetch(
     `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
     {
       method: 'POST',
@@ -609,10 +659,6 @@ Format your response with proper markdown using ## for headers, bullet points (-
       })
     }
   );
-
-  if (!response.ok) {
-    throw new Error('Failed to get AI response');
-  }
 
   const data = await response.json();
   const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;

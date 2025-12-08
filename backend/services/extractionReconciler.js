@@ -755,6 +755,8 @@ function reconcileExtractionResults(parallelResults) {
     // Pass facility bed count to calculate occupancy when census records lack total_beds
     census: reconcileCensus(parallelResults.census?.monthly_census, facilityBedCount),
     rates: reconcileRates(parallelResults.rates),
+    // Stage 1 Deal Overview & Screening Analysis (6th parallel extraction)
+    overview: parallelResults.overview || null,
     metadata: {
       extraction_errors: parallelResults.errors || [],
       extraction_duration: parallelResults.metadata?.totalDuration,
@@ -995,7 +997,14 @@ function buildFlatSummary(reconciled) {
 
     // DEAL OVERVIEW (Stage 1 Screening Analysis from 6th parallel extraction)
     // This is the full JSON object from the OVERVIEW_PROMPT extraction
-    deal_overview: reconciled.overview || null,
+    deal_overview: (() => {
+      console.log('[Reconciler] reconciled.overview exists?', !!reconciled.overview);
+      console.log('[Reconciler] reconciled.overview type:', typeof reconciled.overview);
+      if (reconciled.overview) {
+        console.log('[Reconciler] reconciled.overview keys:', Object.keys(reconciled.overview).slice(0, 10));
+      }
+      return reconciled.overview || null;
+    })(),
 
     // SOURCE AND CONFIDENCE METADATA MAPS
     // These allow the frontend to display citations for each field

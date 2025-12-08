@@ -76,11 +76,13 @@ const getTabStyle = (isActive: boolean): React.CSSProperties => ({
   fontWeight: isActive ? 600 : 500,
   color: isActive ? '#1e40af' : '#6b7280',
   backgroundColor: isActive ? 'white' : 'transparent',
+  borderTop: 'none',
+  borderLeft: 'none',
+  borderRight: 'none',
   borderBottom: isActive ? '2px solid #1e40af' : '2px solid transparent',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   transition: 'all 0.15s',
-  border: 'none',
 });
 
 const contentStyle: React.CSSProperties = {
@@ -292,56 +294,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Overview Tab
   const renderOverviewTab = () => (
     <div>
-      {/* Ask SNFalyze Button */}
-      <div style={{
-        marginBottom: '1.5rem',
-        padding: '1rem',
-        background: 'linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)',
-        borderRadius: '0.75rem',
-        border: '1px solid #c4b5fd',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div>
-          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#5b21b6' }}>
-            Get AI-Powered Deal Insights
-          </h4>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#7c3aed' }}>
-            Ask SNFalyze to analyze this deal's financial health, risks, and opportunities
-          </p>
-        </div>
-        <button
-          onClick={() => setSnfalyzePanelOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.625rem 1.25rem',
-            background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-            border: 'none',
-            borderRadius: '0.5rem',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            color: 'white',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.4)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.3)';
-          }}
-        >
-          <Brain size={18} />
-          Ask SNFalyze
-        </button>
-      </div>
-
       {/* Deal Information */}
       <h3 style={sectionHeaderStyle}>Deal Information</h3>
       <div style={gridStyle}>
@@ -619,9 +571,29 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
             No deal screening data available.
           </p>
-          <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+          <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
             Re-extract documents to generate Stage 1 deal screening analysis.
           </p>
+          <button
+            onClick={() => setSnfalyzePanelOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.5rem',
+              background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <Brain size={18} />
+            Ask SNFalyze AI
+          </button>
         </div>
       );
     }
@@ -975,6 +947,47 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             </p>
           </div>
         )}
+
+        {/* SNFalyze AI Assistant Button */}
+        <div style={{
+          marginTop: '2rem',
+          padding: '1.5rem',
+          background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+          borderRadius: '0.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ color: 'white' }}>
+            <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+              Need deeper analysis?
+            </div>
+            <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>
+              Ask SNFalyze AI about this deal's metrics, risks, and opportunities
+            </div>
+          </div>
+          <button
+            onClick={() => setSnfalyzePanelOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.5rem',
+              backgroundColor: 'white',
+              color: '#7c3aed',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <Brain size={18} />
+            Ask SNFalyze AI
+          </button>
+        </div>
       </div>
     );
   };

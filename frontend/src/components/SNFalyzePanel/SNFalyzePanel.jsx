@@ -9,322 +9,20 @@ import {
   Trash2,
   MessageSquare,
 } from 'lucide-react';
-import { calculateDealMetrics } from '../../api/DealService';
-
-// =============================================================================
-// GEMINI API CONFIGURATION
-// =============================================================================
-const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-
-// =============================================================================
-// IndexedDB PERSISTENCE (for conversation history per deal)
-// =============================================================================
-const DB_NAME = 'SNFalyzePanelDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'conversations';
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = (event) => reject(event.target.error);
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'dealId' });
-      }
-    };
-  });
-}
-
-async function saveConversationToDB(dealId, messages) {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      store.put({ dealId, messages, lastUpdated: new Date().toISOString() });
-      tx.oncomplete = () => resolve();
-      tx.onerror = (event) => reject(event.target.error);
-    });
-  } catch (err) {
-    console.error('Error saving conversation:', err);
-  }
-}
-
-async function getConversationFromDB(dealId) {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(dealId);
-      req.onsuccess = () => resolve(req.result ? req.result.messages : null);
-      req.onerror = (event) => reject(event.target.error);
-    });
-  } catch (err) {
-    console.error('Error loading conversation:', err);
-    return null;
-  }
-}
-
-async function clearConversationFromDB(dealId) {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      store.delete(dealId);
-      tx.oncomplete = () => resolve();
-      tx.onerror = (event) => reject(event.target.error);
-    });
-  } catch (err) {
-    console.error('Error clearing conversation:', err);
-  }
-}
-
-// =============================================================================
-// MARKDOWN RENDERING
-// =============================================================================
-const renderMarkdown = (text) => {
-  if (!text) return '';
-
-  const lines = text.split('\n');
-  let html = '';
-  let inList = false;
-  let inOrderedList = false;
-
-  lines.forEach((line) => {
-    if (inList && !line.trim().startsWith('-') && !line.trim().startsWith('*')) {
-      html += '</ul>';
-      inList = false;
-    }
-    if (inOrderedList && !/^\d+\./.test(line.trim())) {
-      html += '</ol>';
-      inOrderedList = false;
-    }
-
-    if (line.startsWith('## ')) {
-      html += `<h3 class="snf-header">${line.substring(3)}</h3>`;
-    } else if (line.startsWith('# ')) {
-      html += `<h2 class="snf-header-main">${line.substring(2)}</h2>`;
-    } else if (line.startsWith('**') && line.endsWith('**')) {
-      html += `<h4 class="snf-subheader">${line.slice(2, -2)}</h4>`;
-    } else if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-      if (!inList) {
-        html += '<ul class="snf-list">';
-        inList = true;
-      }
-      const content = line.trim().substring(2);
-      html += `<li>${formatInlineMarkdown(content)}</li>`;
-    } else if (/^\d+\.\s/.test(line.trim())) {
-      if (!inOrderedList) {
-        html += '<ol class="snf-ordered-list">';
-        inOrderedList = true;
-      }
-      const content = line.trim().replace(/^\d+\.\s/, '');
-      html += `<li>${formatInlineMarkdown(content)}</li>`;
-    } else if (line.trim() === '') {
-      html += '<div class="snf-spacer"></div>';
-    } else {
-      html += `<p class="snf-paragraph">${formatInlineMarkdown(line)}</p>`;
-    }
-  });
-
-  if (inList) html += '</ul>';
-  if (inOrderedList) html += '</ol>';
-
-  return html;
-};
-
-const formatInlineMarkdown = (text) => {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/__(.+?)__/g, '<strong>$1</strong>')
-    .replace(/_(.+?)_/g, '<em>$1</em>');
-};
-
-// =============================================================================
-// BUILD CONTEXT SUMMARY
-// =============================================================================
-
-/**
- * Build comprehensive context from deal data and calculator metrics
- */
-const buildDealContext = (deal, calculatorMetrics) => {
-  if (!deal) return '';
-
-  const val = (v) => (v !== null && v !== undefined) ? String(v) : 'N/A';
-
-  let context = `DEAL INFORMATION
-================
-Deal Name: ${deal.deal_name || deal.name || 'Unknown'}
-Deal Type: ${deal.deal_type || 'N/A'}
-Status: ${deal.deal_status || deal.status || 'N/A'}
-Priority: ${deal.priority_level || 'N/A'}
-Deal Source: ${deal.deal_source || 'N/A'}
-Target Close Date: ${deal.target_close_date || 'N/A'}
-
-FACILITY INFORMATION
-====================
-Facility Name: ${deal.facility_name || 'N/A'}
-Facility Type: ${deal.facility_type || 'N/A'}
-Location: ${deal.city || 'N/A'}, ${deal.state || 'N/A'} ${deal.zip_code || ''}
-Address: ${deal.street_address || 'N/A'}
-Number of Beds: ${deal.no_of_beds || 'N/A'}
-
-FINANCIAL METRICS (from deal record)
-====================================
-Purchase Price: ${deal.purchase_price ? `$${deal.purchase_price.toLocaleString()}` : 'N/A'}
-Price Per Bed: ${deal.price_per_bed ? `$${deal.price_per_bed.toLocaleString()}` : 'N/A'}
-Annual Revenue: ${deal.annual_revenue ? `$${deal.annual_revenue.toLocaleString()}` : 'N/A'}
-Revenue Multiple: ${deal.revenue_multiple ? `${deal.revenue_multiple}x` : 'N/A'}
-EBITDA: ${deal.ebitda ? `$${deal.ebitda.toLocaleString()}` : 'N/A'}
-EBITDA Multiple: ${deal.ebitda_multiple ? `${deal.ebitda_multiple}x` : 'N/A'}
-EBITDA Margin: ${deal.ebitda_margin ? `${deal.ebitda_margin}%` : 'N/A'}
-
-OPERATIONAL METRICS
-===================
-Current Occupancy: ${deal.current_occupancy ? `${deal.current_occupancy}%` : 'N/A'}
-Average Daily Rate: ${deal.average_daily_rate ? `$${deal.average_daily_rate.toLocaleString()}` : 'N/A'}
-
-PAYER MIX
-=========
-Medicare: ${deal.medicare_percentage ? `${deal.medicare_percentage}%` : 'N/A'}
-Private Pay: ${deal.private_pay_percentage ? `${deal.private_pay_percentage}%` : 'N/A'}
-
-INVESTMENT TARGETS
-==================
-Target IRR: ${deal.target_irr_percentage ? `${deal.target_irr_percentage}%` : 'N/A'}
-Target Hold Period: ${deal.target_hold_period ? `${deal.target_hold_period} years` : 'N/A'}
-Projected Cap Rate: ${deal.projected_cap_rate_percentage ? `${deal.projected_cap_rate_percentage}%` : 'N/A'}
-Exit Multiple: ${deal.exit_multiple ? `${deal.exit_multiple}x` : 'N/A'}`;
-
-  // Add calculator metrics if available
-  if (calculatorMetrics) {
-    const { inputs, computed, dataQuality } = calculatorMetrics;
-
-    context += `
-
-CALCULATOR METRICS (computed)
-=============================
-Data Completeness: ${val(dataQuality?.completenessScore)}%
-Has Revenue Data: ${dataQuality?.hasRevenueData ? 'Yes' : 'No'}
-Has EBITDA Data: ${dataQuality?.hasEBITDAData ? 'Yes' : 'No'}
-Has Occupancy Data: ${dataQuality?.hasOccupancyData ? 'Yes' : 'No'}
-Has Payer Mix Data: ${dataQuality?.hasPayerMixData ? 'Yes' : 'No'}
-
-INPUT VALUES
-------------
-Purchase Price: ${val(inputs?.purchasePrice)}
-Annual Revenue: ${val(inputs?.annualRevenue)}
-EBITDA: ${val(inputs?.ebitda)}
-EBITDAR: ${val(inputs?.ebitdar)}
-Number of Beds: ${val(inputs?.numberOfBeds)}
-Current Occupancy: ${val(inputs?.currentOccupancy)}
-Average Daily Rate: ${val(inputs?.averageDailyRate)}
-Annual Rent: ${val(inputs?.annualRent)}
-Target IRR: ${val(inputs?.targetIRR)}
-Target Hold Period: ${val(inputs?.targetHoldPeriod)}
-Exit Multiple: ${val(inputs?.exitMultiple)}
-Target Cap Rate: ${val(inputs?.targetCapRate)}
-
-COMPUTED METRICS
-----------------
-Price Per Bed: ${val(computed?.pricePerBed)}
-Revenue Multiple: ${val(computed?.revenueMultiple)}
-EBITDA Multiple: ${val(computed?.ebitdaMultiple)}
-EBITDAR Multiple: ${val(computed?.ebitdarMultiple)}
-Cap Rate: ${val(computed?.capRate)}
-EBITDA Margin: ${val(computed?.ebitdaMargin)}
-Revenue Per Bed: ${val(computed?.revenuePerBed)}
-EBITDA Per Bed: ${val(computed?.ebitdaPerBed)}
-Rent Coverage Ratio: ${val(computed?.rentCoverageRatio)}
-Stabilized Cap Rate: ${val(computed?.stabilizedCapRate)}
-Exit Value at Multiple: ${val(computed?.exitValueAtMultiple)}
-Implied Value at Target Cap: ${val(computed?.impliedValueAtTargetCap)}`;
-
-    if (computed?.payerMix) {
-      context += `
-
-PAYER MIX (computed)
---------------------
-Medicare: ${val(computed.payerMix.medicare)}
-Medicaid: ${val(computed.payerMix.medicaid)}
-Private Pay: ${val(computed.payerMix.privatePay)}
-Other: ${val(computed.payerMix.other)}`;
-    }
-  }
-
-  return context;
-};
-
-// =============================================================================
-// INITIAL ANALYSIS PROMPT
-// =============================================================================
-const getInitialAnalysisPrompt = (dealContext) => {
-  return `You are SNFalyze.ai, an advanced M&A deal analysis assistant specializing in Skilled Nursing Facility (SNF) deals. You use Cascadia Healthcare's proprietary SNF Deal Evaluation Algorithm to provide sophisticated analysis.
-
-Here is the complete deal data:
-
-${dealContext}
-
-Please analyze this deal and provide a well-formatted comprehensive analysis with the following sections. Use clear headers, spacing, and bullet points for readability:
-
-## 1. Financial Health Assessment
-Provide a concise 2-3 sentence assessment of the deal's overall financial health.
-
-## 2. Key Strengths
-List 2-4 strengths as bullet points, each with a brief explanation.
-
-## 3. Key Concerns & Red Flags
-List 2-4 concerns as bullet points, each with a brief explanation of why it matters.
-
-## 4. Benchmark Comparison
-Compare key metrics to Cascadia benchmarks in a clear format:
-- EBITDA Margin: [deal value] vs 9% benchmark
-- EBITDAR Margin: [deal value] vs 23% benchmark
-- Occupancy: [deal value] vs 85% benchmark
-
-## 5. Recommended Next Steps
-Provide 4-6 actionable next steps as numbered items, each on its own line.
-
-## Summary
-End with a 2-3 sentence overall recommendation.
-
-Format your response with proper markdown using ## for headers, bullet points (-) for lists, and numbered lists (1. 2. 3.) for sequential steps. Include blank lines between sections for readability.`;
-};
-
-// =============================================================================
-// FOLLOW-UP CONVERSATION PROMPT
-// =============================================================================
-const getConversationPrompt = (dealContext, conversationHistory, userMessage) => {
-  const historyText = conversationHistory
-    .map(m => `${m.role === 'user' ? 'User' : 'SNFalyze'}: ${m.content}`)
-    .join('\n\n');
-
-  return `You are SNFalyze.ai, an advanced M&A deal analysis assistant specializing in Skilled Nursing Facility (SNF) deals. You use Cascadia Healthcare's proprietary SNF Deal Evaluation Algorithm to provide sophisticated analysis.
-
-Here is the complete deal data:
-
-${dealContext}
-
-Previous conversation:
-${historyText}
-
-User's new question: ${userMessage}
-
-Respond to the user's question with actionable, insightful, and concise analysis based on SNF industry expertise. Focus on:
-- Financial performance vs Cascadia benchmarks (9% EBITDA, 23% EBITDAR, 85% occupancy)
-- Risk assessment and mitigation strategies
-- REIT compatibility and optimization opportunities
-- Market analysis and competitive positioning
-- Turnaround potential and operational improvements
-
-Format your response with proper markdown using ## for headers when appropriate, bullet points (-) for lists, and bold (**text**) for emphasis.`;
-};
+import {
+  QUICK_ACTIONS,
+  getDealId,
+  getWelcomeMessage,
+  saveConversation,
+  loadConversation,
+  clearConversation,
+  runSNFEvaluation,
+  fetchCalculatorMetrics,
+  generateQuickActionAnalysis,
+  sendChatMessage,
+  generateInitialAnalysis,
+  renderMarkdown,
+} from '../../services/snfalyzeChatService';
 
 // =============================================================================
 // MAIN COMPONENT
@@ -334,22 +32,23 @@ const SNFalyzePanel = ({
   onClose,
   dealId,
   deal,
-  autoAnalyze = false // Set to true to automatically run analysis on open
+  autoAnalyze = false
 }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [calculatorMetrics, setCalculatorMetrics] = useState(null);
+  const [dealEvaluation, setDealEvaluation] = useState(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Load conversation from IndexedDB when panel opens
+  // Load conversation and metrics when panel opens
   useEffect(() => {
     if (isOpen && dealId) {
-      loadConversation();
-      fetchCalculatorMetrics();
+      loadExistingConversation();
+      loadMetricsAndEvaluation();
     }
   }, [isOpen, dealId]);
 
@@ -368,13 +67,13 @@ const SNFalyzePanel = ({
   // Auto-analyze when opening with autoAnalyze=true and no existing conversation
   useEffect(() => {
     if (isOpen && autoAnalyze && messages.length === 0 && !isLoading && deal && !metricsLoading) {
-      runInitialAnalysis();
+      handleInitialAnalysis();
     }
   }, [isOpen, autoAnalyze, messages.length, deal, metricsLoading]);
 
-  const loadConversation = async () => {
+  const loadExistingConversation = async () => {
     if (!dealId) return;
-    const savedMessages = await getConversationFromDB(dealId);
+    const savedMessages = await loadConversation(getDealId({ id: dealId }));
     if (savedMessages && savedMessages.length > 0) {
       setMessages(savedMessages.map(m => ({
         ...m,
@@ -383,52 +82,34 @@ const SNFalyzePanel = ({
     }
   };
 
-  const fetchCalculatorMetrics = async () => {
+  const loadMetricsAndEvaluation = async () => {
     if (!dealId) return;
     setMetricsLoading(true);
     try {
-      const response = await calculateDealMetrics(dealId);
-      if (response.success) {
-        setCalculatorMetrics(response.body);
+      // Fetch calculator metrics
+      const metrics = await fetchCalculatorMetrics(dealId);
+      setCalculatorMetrics(metrics);
+
+      // Run SNF evaluation if we have deal data
+      if (deal) {
+        const evaluation = await runSNFEvaluation(deal);
+        setDealEvaluation(evaluation);
       }
     } catch (err) {
-      console.error('Error fetching calculator metrics:', err);
+      console.error('Error loading metrics/evaluation:', err);
     } finally {
       setMetricsLoading(false);
     }
   };
 
-  const runInitialAnalysis = async () => {
+  const handleInitialAnalysis = async () => {
     if (!deal) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const dealContext = buildDealContext(deal, calculatorMetrics);
-      const prompt = getInitialAnalysisPrompt(dealContext);
-
-      const response = await fetch(
-        `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
-      }
-
-      const data = await response.json();
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!aiText) {
-        throw new Error('Invalid response format from Gemini API');
-      }
+      const aiText = await generateInitialAnalysis(deal, calculatorMetrics, dealEvaluation);
 
       const aiMessage = {
         id: Date.now(),
@@ -439,9 +120,45 @@ const SNFalyzePanel = ({
 
       const newMessages = [aiMessage];
       setMessages(newMessages);
-      await saveConversationToDB(dealId, newMessages);
+      await saveConversation(getDealId(deal), newMessages);
     } catch (err) {
       setError(err.message || 'Failed to get SNFalyze analysis');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickAction = async (action) => {
+    if (!action.action || !deal) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let evaluation = dealEvaluation;
+
+      // If no evaluation exists yet, run it first
+      if (!evaluation) {
+        evaluation = await runSNFEvaluation(deal);
+        setDealEvaluation(evaluation);
+      }
+
+      // Generate the specific analysis
+      const analysisContent = generateQuickActionAnalysis(action.action, evaluation);
+
+      const analysisMessage = {
+        id: Date.now(),
+        role: 'assistant',
+        title: action.label,
+        content: analysisContent,
+        timestamp: new Date()
+      };
+
+      const newMessages = [...messages, analysisMessage];
+      setMessages(newMessages);
+      await saveConversation(getDealId(deal), newMessages);
+    } catch (err) {
+      setError(err.message || 'Failed to generate analysis');
     } finally {
       setIsLoading(false);
     }
@@ -464,37 +181,13 @@ const SNFalyzePanel = ({
     setError(null);
 
     try {
-      const dealContext = buildDealContext(deal, calculatorMetrics);
-
-      // Build conversation history for context
-      const conversationHistory = updatedMessages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
-      const prompt = getConversationPrompt(dealContext, conversationHistory.slice(0, -1), inputMessage.trim());
-
-      const response = await fetch(
-        `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        }
+      const aiText = await sendChatMessage(
+        inputMessage.trim(),
+        updatedMessages,
+        deal,
+        calculatorMetrics,
+        dealEvaluation
       );
-
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
-      }
-
-      const data = await response.json();
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!aiText) {
-        throw new Error('Invalid response format from Gemini API');
-      }
 
       const aiMessage = {
         id: Date.now() + 1,
@@ -505,7 +198,7 @@ const SNFalyzePanel = ({
 
       const newMessages = [...updatedMessages, aiMessage];
       setMessages(newMessages);
-      await saveConversationToDB(dealId, newMessages);
+      await saveConversation(getDealId(deal), newMessages);
     } catch (err) {
       setError(err.message || 'Failed to get SNFalyze response');
     } finally {
@@ -516,7 +209,8 @@ const SNFalyzePanel = ({
   const handleClearConversation = async () => {
     if (window.confirm('Clear conversation history for this deal?')) {
       setMessages([]);
-      await clearConversationFromDB(dealId);
+      setDealEvaluation(null);
+      await clearConversation(getDealId(deal));
     }
   };
 
@@ -609,6 +303,43 @@ const SNFalyzePanel = ({
 
         .snfalyze-panel-btn:hover {
           background: rgba(255, 255, 255, 0.3);
+        }
+
+        .snfalyze-quick-actions {
+          padding: 0.75rem 1rem;
+          background: #f9fafb;
+          border-bottom: 1px solid #e5e7eb;
+          overflow-x: auto;
+        }
+
+        .snfalyze-quick-actions-row {
+          display: flex;
+          gap: 0.5rem;
+          flex-wrap: nowrap;
+        }
+
+        .snfalyze-quick-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.375rem 0.75rem;
+          border: none;
+          border-radius: 0.5rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: white;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: opacity 0.2s;
+        }
+
+        .snfalyze-quick-btn:hover {
+          opacity: 0.9;
+        }
+
+        .snfalyze-quick-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
 
         .snfalyze-panel-content {
@@ -716,6 +447,15 @@ const SNFalyzePanel = ({
           background: #3b82f6;
           color: white;
           border-top-right-radius: 0.25rem;
+        }
+
+        .snfalyze-message-title {
+          font-weight: 600;
+          color: #7c3aed;
+          margin-bottom: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
         }
 
         .snfalyze-message-timestamp {
@@ -938,7 +678,7 @@ const SNFalyzePanel = ({
             )}
             <button
               className="snfalyze-panel-btn"
-              onClick={() => { runInitialAnalysis(); }}
+              onClick={handleInitialAnalysis}
               title="Refresh analysis"
               disabled={isLoading}
             >
@@ -947,6 +687,23 @@ const SNFalyzePanel = ({
             <button className="snfalyze-panel-btn" onClick={onClose}>
               <X size={20} />
             </button>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="snfalyze-quick-actions">
+          <div className="snfalyze-quick-actions-row">
+            {QUICK_ACTIONS.map((action, index) => (
+              <button
+                key={index}
+                onClick={() => handleQuickAction(action)}
+                disabled={isLoading}
+                className={`snfalyze-quick-btn ${action.color}`}
+              >
+                <span>{action.icon}</span>
+                {action.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -959,7 +716,7 @@ const SNFalyzePanel = ({
               <span>Get AI-powered insights, analysis, and recommendations</span>
               <button
                 className="snfalyze-analyze-btn"
-                onClick={runInitialAnalysis}
+                onClick={handleInitialAnalysis}
                 disabled={isLoading || metricsLoading}
               >
                 <Sparkles size={18} />
@@ -969,12 +726,17 @@ const SNFalyzePanel = ({
           ) : (
             <>
               {messages.map((message) => (
-                <div key={message.id} className={`snfalyze-message ${message.role}`}>
+                <div key={message.id} className={`snfalyze-message ${message.role === 'user' ? 'user' : 'ai'}`}>
                   <div className={`snfalyze-avatar ${message.role === 'user' ? 'user' : 'ai'}`}>
                     {message.role === 'user' ? 'You' : 'AI'}
                   </div>
                   <div>
                     <div className="snfalyze-message-content">
+                      {message.title && (
+                        <div className="snfalyze-message-title">
+                          {message.title}
+                        </div>
+                      )}
                       {message.role === 'assistant' ? (
                         <div
                           className="snfalyze-response"
@@ -1025,7 +787,7 @@ const SNFalyzePanel = ({
               ref={inputRef}
               type="text"
               className="snfalyze-input"
-              placeholder="Ask a follow-up question..."
+              placeholder="Ask a question about this deal..."
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}

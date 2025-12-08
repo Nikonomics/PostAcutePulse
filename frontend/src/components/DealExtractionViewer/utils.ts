@@ -645,6 +645,10 @@ export const unflattenExtractedData = (flatData: any): any => {
 
     data_quality_notes: flatData.data_quality_notes || [],
     key_observations: flatData.key_observations || [],
+
+    // Stage 1 Deal Overview & Screening Analysis (6th parallel extraction)
+    // Pass through as-is since it's already a nested object from the OVERVIEW_PROMPT
+    deal_overview: flatData.deal_overview || null,
   };
 };
 
