@@ -740,7 +740,7 @@ Return your analysis as valid JSON with this structure:
     "rationale": "string (2-4 sentences explaining the recommendation, key value drivers, critical risks, and conditions for proceeding)"
   },
   "summary_1000_chars": "string (Executive summary in exactly the format specified, maximum 1000 characters)",
-  "detailed_narrative_markdown": "string (Full markdown-formatted Stage 1 analysis report, 8000-15000 characters, following the format specified below)"
+  "detailed_narrative_markdown": "string (Concise markdown-formatted Stage 1 analysis report, 4000-6000 characters, following the format specified below)"
 }
 
 ## SUMMARY FORMAT (for summary_1000_chars field)
@@ -774,82 +774,29 @@ Use this exact format, maximum 1000 characters:
 
 ## DETAILED NARRATIVE FORMAT (for detailed_narrative_markdown field)
 
-Generate a comprehensive markdown-formatted Stage 1 deal analysis report (8000-15000 characters) using this structure:
+Generate a concise markdown-formatted Stage 1 deal analysis report (4000-6000 characters) using this structure:
 
 # STAGE 1 DEAL EVALUATION
 ## [Facility Name] Acquisition
 
 ---
 
-## DATA COMPLETENESS CHECK
-
-| Category | Status | Notes |
-|----------|--------|-------|
-| Licensed Beds | [Status with icon] | [Notes] |
-| Current Census | [Status with icon] | [Notes] |
-| TTM Revenue | [Status with icon] | [Notes] |
-| TTM Operating Expenses | [Status with icon] | [Notes] |
-| Payer Mix | [Status with icon] | [Notes] |
-| Rate Schedules | [Status with icon] | [Notes] |
-| Building Info | [Status with icon] | [Notes] |
-| Asking Price | [Status with icon] | [Notes] |
-
-Use: ✅ Available | ⚠️ Partial | ❌ Missing
-
----
-
 ## FACILITY SNAPSHOT
 
-[Markdown table with all key facility information]
-
-### BUILDING & STRUCTURE INFORMATION
-
-[If building information available, create detailed table with Year Built, Last Renovation, Construction Type, Architect, etc.]
+[Markdown table with key facility information: Beds, Type, Location, Current Census, Occupancy%]
 
 ---
 
 ## TTM FINANCIAL PERFORMANCE
 **Period: [Month Year] - [Month Year]**
 
-### Data Source Documentation
-
-[Table showing which months come from which documents]
-
-### Monthly Build-Up Table
-
-[Full 12-month table with Revenue, Expenses, Net Income, Interest, Depreciation, Rent, Source for each month]
-
 ### Summary Metrics
 
-[Table comparing TTM actuals vs benchmarks with variance indicators]
+[Compact table with TTM Revenue, Expenses, EBITDAR, Margin, Rev/Bed, Occupancy]
 
-### EBITDAR Calculation Detail
+### Key Trends
 
-(Show calculation step-by-step in a formatted block)
-
-### Unit Economics
-
-Revenue per day, expense per day, loss per day if negative
-
----
-
-## OPERATING TRENDS
-
-[Compare recent 3-6 months vs prior periods. Include ASCII bar charts for census trends if declining]
-
-Example format: Show monthly data with visual bar indicators using block characters, marking peak and current values
-
----
-
-## RATE STRUCTURE ANALYSIS
-
-[Tables for private pay rates and Medicaid rates. Include rate gap analysis]
-
----
-
-## MARKET POSITION
-
-[Table or bullet points on competitive position, market occupancy, rate positioning]
+[2-3 bullet points on revenue, census, or margin trends if notable]
 
 ---
 
@@ -867,59 +814,33 @@ Example format: Show monthly data with visual bar indicators using block charact
 
 ---
 
-## VALUATION CONTEXT
+## VALUATION SUMMARY
 
-### As-Is Value
+### As-Is & Stabilized Value
 
-[Table with different valuation approaches and $/bed]
+[Compact table: As-Is range, Stabilized value (at 9% cap), Max Purchase Price, $/bed for each]
 
-### Stabilized Value
+### Key Value Drivers
 
-[Table with target metrics and stabilized valuations at different cap rates]
-
-### Max Purchase Price Calculation
-
-[Table showing stabilized value minus turnaround investment minus return buffer]
+[2-3 bullet points on what creates value or limits it]
 
 ---
 
-## TURNAROUND POTENTIAL (if needed)
+## NEXT STEPS
 
-### Stabilization Targets
-
-[Current vs Stabilized comparison table]
-
-### Key Initiatives
-
-[Ranked table of initiatives with estimated annual impact, timeline, difficulty]
-
-### Investment Required
-
-[Detailed breakdown of capital needed]
-
-### Risk Factors
-
-[Numbered list of key execution risks]
-
----
-
-## OPEN DILIGENCE ITEMS
-
-[Priority-ranked table of Stage 2 diligence requirements with rationale]
+[Priority-ranked list (3-5 items) of critical Stage 2 diligence requirements]
 
 ---
 
 **FORMATTING REQUIREMENTS:**
-- Use markdown tables extensively (with | separators and --- headers)
+- Use compact markdown tables (with | separators and --- headers)
 - Use > blockquotes for red flags and strengths
 - Use ** for bold emphasis on key numbers
-- Use 🔴 🟢 ⚠️ ✅ ❌ icons appropriately (NO other emojis)
-- Include ASCII bar charts for census trends if relevant
-- Show all calculations in formatted code blocks
-- Use horizontal rule separators between major sections
+- Use 🔴 🟢 icons only (NO other emojis)
 - Keep language direct and analytical (no marketing fluff)
 - Quantify EVERYTHING - every claim needs a number
-- Use "Stage 2 diligence item" for missing market data
+- BE CONCISE - Target 4000-6000 characters total
+- Focus on insights, not data dumps
 
 ---
 
