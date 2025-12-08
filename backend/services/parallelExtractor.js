@@ -1116,17 +1116,41 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
   try {
     console.log(`[${extractionType}] Starting extraction... (max_tokens: ${maxTokens})`);
 
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [{
-        role: 'user',
-        content: `Extract the relevant information from these documents:\n\n${documentText}`
-      }]
-    });
+    let responseText = '';
 
-    const responseText = response.content[0].text;
+    // Use streaming for large token requests (>20k) to avoid 10-minute timeout
+    if (maxTokens > 20000) {
+      console.log(`[${extractionType}] Using streaming due to high token count...`);
+
+      const stream = await anthropic.messages.stream({
+        model: MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{
+          role: 'user',
+          content: `Extract the relevant information from these documents:\n\n${documentText}`
+        }]
+      });
+
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          responseText += chunk.delta.text;
+        }
+      }
+    } else {
+      // Use regular (non-streaming) for smaller requests
+      const response = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{
+          role: 'user',
+          content: `Extract the relevant information from these documents:\n\n${documentText}`
+        }]
+      });
+
+      responseText = response.content[0].text;
+    }
 
     // Parse JSON with repair logic
     let extractedData;
