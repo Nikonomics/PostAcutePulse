@@ -139,6 +139,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return parts.join('.');
   };
 
+  // Get document name from either name or document_name field
+  const getDocName = (doc: typeof dealDocuments[0]): string => {
+    return doc.document_name || doc.name || '';
+  };
+
   // Find the matching document from the deal's documents
   const matchedDocument = useMemo(() => {
     if (!sourceRef || !dealDocuments || dealDocuments.length === 0) return null;
@@ -147,22 +152,25 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const sourceNormalized = normalizeFilename(sourceDocName);
     const sourceBase = normalizeFilename(getBaseName(sourceDocName));
 
-    // Try to find exact match first
-    let doc = dealDocuments.find(d =>
-      d.name.toLowerCase() === sourceDocName.toLowerCase()
-    );
+    // Try to find exact match first (check both name and document_name)
+    let doc = dealDocuments.find(d => {
+      const docName = getDocName(d);
+      return docName.toLowerCase() === sourceDocName.toLowerCase();
+    });
 
     // Try normalized match
     if (!doc) {
-      doc = dealDocuments.find(d =>
-        normalizeFilename(d.name) === sourceNormalized
-      );
+      doc = dealDocuments.find(d => {
+        const docName = getDocName(d);
+        return normalizeFilename(docName) === sourceNormalized;
+      });
     }
 
     // Try base name match (without extension)
     if (!doc) {
       doc = dealDocuments.find(d => {
-        const docBase = normalizeFilename(getBaseName(d.name));
+        const docName = getDocName(d);
+        const docBase = normalizeFilename(getBaseName(docName));
         return docBase === sourceBase;
       });
     }
@@ -170,7 +178,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     // Try partial match - check if one contains the other
     if (!doc) {
       doc = dealDocuments.find(d => {
-        const docNormalized = normalizeFilename(d.name);
+        const docName = getDocName(d);
+        const docNormalized = normalizeFilename(docName);
         return docNormalized.includes(sourceNormalized) ||
                sourceNormalized.includes(docNormalized);
       });
@@ -179,7 +188,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     // Try fuzzy match - significant overlap
     if (!doc) {
       doc = dealDocuments.find(d => {
-        const docBase = normalizeFilename(getBaseName(d.name));
+        const docName = getDocName(d);
+        const docBase = normalizeFilename(getBaseName(docName));
         // Check if they share at least 80% of characters
         const shorter = sourceBase.length < docBase.length ? sourceBase : docBase;
         const longer = sourceBase.length < docBase.length ? docBase : sourceBase;
@@ -193,8 +203,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         sourceDocument: sourceDocName,
         sourceNormalized,
         availableDocuments: dealDocuments.map(d => ({
-          name: d.name,
-          normalized: normalizeFilename(d.name)
+          name: getDocName(d),
+          normalized: normalizeFilename(getDocName(d))
         }))
       });
     }
@@ -209,15 +219,18 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     // Get the API base URL from environment
     const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
 
+    // Check both url and document_url fields
+    const docUrl = matchedDocument.document_url || matchedDocument.url;
+
     // Use the url field if already a complete path
-    if (matchedDocument.url) {
+    if (docUrl) {
       // If url already starts with /api or http, use it appropriately
-      if (matchedDocument.url.startsWith('http')) {
-        return matchedDocument.url;
+      if (docUrl.startsWith('http')) {
+        return docUrl;
       }
       // For relative URLs, prepend the API base URL (without /api/v1 since url already has it)
       const baseWithoutApi = apiBaseUrl.replace(/\/api\/v1$/, '');
-      return `${baseWithoutApi}${matchedDocument.url}`;
+      return `${baseWithoutApi}${docUrl}`;
     }
 
     if (matchedDocument.file_path) {
@@ -232,7 +245,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   // Get file type for display
   const fileType = useMemo(() => {
     if (!matchedDocument) return 'unknown';
-    const ext = matchedDocument.name.split('.').pop()?.toLowerCase() || '';
+    const docName = getDocName(matchedDocument);
+    const ext = docName.split('.').pop()?.toLowerCase() || '';
     if (['pdf'].includes(ext)) return 'pdf';
     if (['xlsx', 'xls'].includes(ext)) return 'excel';
     if (['docx', 'doc'].includes(ext)) return 'word';
@@ -262,7 +276,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     if (fileUrl && matchedDocument) {
       const link = document.createElement('a');
       link.href = fileUrl;
-      link.download = matchedDocument.name;
+      link.download = getDocName(matchedDocument);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -345,7 +359,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 The source document "{sourceRef?.document}" could not be found in the deal's uploaded files.
               </p>
               <p style={{ margin: '0.5rem 0 0 0', color: '#9ca3af', fontSize: '0.75rem' }}>
-                Available documents: {dealDocuments?.map(d => d.name).join(', ') || 'None'}
+                Available documents: {dealDocuments?.map(d => getDocName(d)).join(', ') || 'None'}
               </p>
             </div>
           ) : fileType === 'pdf' && fileUrl ? (
@@ -358,17 +372,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 <iframe
                   src={`${fileUrl}#page=1`}
                   style={{ width: '100%', height: '500px', border: 'none' }}
-                  title={matchedDocument.name}
+                  title={getDocName(matchedDocument)}
                 />
               )}
             </div>
           ) : fileType === 'excel' && fileUrl ? (
             <div style={{ ...iframeContainerStyle, minHeight: '400px' }}>
-              <ExcelPreview url={fileUrl} fileName={matchedDocument.name} />
+              <ExcelPreview url={fileUrl} fileName={getDocName(matchedDocument)} />
             </div>
           ) : fileType === 'word' && fileUrl ? (
             <div style={{ ...iframeContainerStyle, minHeight: '400px' }}>
-              <WordPreview url={fileUrl} fileName={matchedDocument.name} />
+              <WordPreview url={fileUrl} fileName={getDocName(matchedDocument)} />
             </div>
           ) : (
             <div style={{
@@ -383,7 +397,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }}>
               <FileText size={48} style={{ color: '#6b7280', marginBottom: '1rem' }} />
               <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151', fontSize: '1rem' }}>
-                {matchedDocument.name}
+                {getDocName(matchedDocument)}
               </h4>
               <p style={{ margin: 0, color: '#6b7280', fontSize: '0.875rem', textAlign: 'center' }}>
                 {fileType === 'csv' && 'CSV files cannot be previewed directly. Click "Open" or "Download" to view.'}

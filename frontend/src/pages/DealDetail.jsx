@@ -32,6 +32,7 @@ import {
   deleteDeal,
   formatSimpleDate,
   deleteDealComment,
+  updateExtractionData,
 } from "../api/DealService";
 import { fileUpload } from "../api/authService";
 import { getTeamRecentActivity } from "../api/DealService";
@@ -869,6 +870,56 @@ const DealDetailPage = () => {
     setPreviewDocument(null);
   };
 
+  // Handler for field edits from DealExtractionViewer
+  const handleFieldEdit = async (fieldPath, newValue) => {
+    try {
+      // Deep clone the extraction data to avoid mutation issues
+      const currentExtractionData = JSON.parse(JSON.stringify(deal.extraction_data || {}));
+
+      // Navigate to the correct nested field and update the value
+      const pathParts = fieldPath.split('.');
+      let target = currentExtractionData;
+
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        if (!target[pathParts[i]]) {
+          target[pathParts[i]] = {};
+        }
+        target = target[pathParts[i]];
+      }
+
+      // Update the value in the extraction data structure
+      const lastKey = pathParts[pathParts.length - 1];
+      if (target[lastKey] && typeof target[lastKey] === 'object' && 'value' in target[lastKey]) {
+        // If it's an ExtractedField, update the value property
+        target[lastKey] = {
+          ...target[lastKey],
+          value: newValue,
+          confidence: 'user_edited'
+        };
+      } else {
+        // Direct value assignment
+        target[lastKey] = newValue;
+      }
+
+      // Call the new API that only updates extraction_data
+      const response = await updateExtractionData(deal.id, currentExtractionData);
+
+      if (response.success) {
+        // Update local state
+        setDeal(prev => ({
+          ...prev,
+          extraction_data: currentExtractionData
+        }));
+        toast.success('Field updated successfully');
+      } else {
+        toast.error(response.message || 'Failed to update field');
+      }
+    } catch (err) {
+      console.error("Failed to update field", err);
+      toast.error("Failed to update field");
+    }
+  };
+
   // Get the full URL for document display
   const getDocumentUrl = (docUrl) => {
     if (!docUrl) return '';
@@ -1104,6 +1155,7 @@ const DealDetailPage = () => {
                     onDocumentDelete={handleDeleteDocument}
                     onDocumentDownload={handleDocumentDownload}
                     deleteLoadingId={deleteLoadingId}
+                    onFieldEdit={handleFieldEdit}
                   />
                 </div>
               )}

@@ -19,6 +19,7 @@ router.get('/get-dashboard-data', requireAuthentication, DealController.getDashb
 router.get('/get-deal-facilities-coordinates', requireAuthentication, DealController.getDealFacilitiesCoordinates);
 router.get('/get-deal-by-id', DealController.getDealById);
 router.put('/update-deal-status', requireAuthentication, DealController.updateDealStatus);
+router.put('/:id/extraction-data', requireAuthentication, DealController.updateExtractionData);
 router.post('/update-deal', requireAuthentication, DealController.updateDeal);
 router.delete('/delete-deal/:id', requireAuthentication, DealController.deleteDeal);
 router.post('/add-deal-comment', requireAuthentication, DealController.addDealComment);

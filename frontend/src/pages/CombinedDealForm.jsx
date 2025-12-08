@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Trash2, Plus, MapPin, FileText, X, Download, ChevronRight, ChevronDown } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ArrowLeft, Trash2, Plus, MapPin, FileText, X, Download, ChevronRight, ChevronDown, Upload, Loader } from "lucide-react";
 import * as Yup from "yup";
-import GooglePlacesAutocomplete, {
-  geocodeByPlaceId,
-  getLatLng,
-} from "react-google-places-autocomplete";
-import { createBatchDeals } from "../api/DealService";
+// Google Places Autocomplete disabled - using manual input
+// import GooglePlacesAutocomplete, {
+//   geocodeByPlaceId,
+//   getLatLng,
+// } from "react-google-places-autocomplete";
+import { createBatchDeals, extractDealEnhanced } from "../api/DealService";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { getActiveUsers } from "../api/authService";
@@ -181,7 +182,6 @@ function removeCommas(value) {
 const CombinedDealForm = () => {
   const [showLocationForm, setShowLocationForm] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(true); // Temporarily disabled Google Maps
 
   const [dealData, setDealData] = useState(getInitialDealData());
   const [validationErrors, setValidationErrors] = useState({});
@@ -203,6 +203,11 @@ const CombinedDealForm = () => {
   const [keyObservations, setKeyObservations] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [selectedDocument, setSelectedDocument] = useState(null);
+
+  // Upload & Analyze state
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -396,6 +401,200 @@ const CombinedDealForm = () => {
       setUsersData(response.body);
     } catch (error) {
       console.error("Error fetching users:", error);
+    }
+  };
+
+  // --- Upload & Analyze Handlers ---
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.relatedTarget === null || !e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    const validFiles = droppedFiles.filter(file =>
+      file.type === 'application/pdf' ||
+      file.type.startsWith('image/') ||
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.type === 'application/vnd.ms-excel' ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      file.type === 'application/msword'
+    );
+
+    if (validFiles.length > 0) {
+      handleExtractAndPopulate(validFiles);
+    } else {
+      toast.error("Please upload PDF, image, Excel, or Word files");
+    }
+  }, []);
+
+  const handleFileSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    if (selectedFiles.length > 0) {
+      handleExtractAndPopulate(selectedFiles);
+    }
+  };
+
+  const handleExtractAndPopulate = async (files) => {
+    setIsExtracting(true);
+    try {
+      const response = await extractDealEnhanced(files);
+      if (response.success) {
+        const extracted = response.body.extractedData;
+        const uploadedFilesFromResponse = response.body.uploadedFiles || [];
+        const successRate = response.body.metadata?.successCount || 5;
+        const calculatedConfidence = Math.round((successRate / 5) * 100);
+
+        setIsFromAiExtraction(true);
+        setUploadedFiles(uploadedFilesFromResponse);
+        setAiExtractionConfidence(calculatedConfidence);
+
+        // Store data quality notes and observations for display
+        if (extracted.data_quality_notes) {
+          setDataQualityNotes(extracted.data_quality_notes);
+        }
+        if (extracted.key_observations) {
+          setKeyObservations(extracted.key_observations);
+        }
+        if (extracted.document_types_identified) {
+          setDocumentTypes(extracted.document_types_identified);
+        }
+
+        // Map extracted data to form fields
+        const initialData = getInitialDealData();
+
+        // Deal level fields
+        if (extracted.deal_name) initialData.deal_name = extracted.deal_name;
+        if (extracted.deal_type) initialData.deal_type = extracted.deal_type;
+        if (extracted.deal_source) initialData.deal_source = extracted.deal_source;
+        if (extracted.priority_level) initialData.priority_level = extracted.priority_level;
+        if (extracted.primary_contact_name) initialData.primary_contact_name = extracted.primary_contact_name;
+        if (extracted.title) initialData.title = extracted.title;
+        if (extracted.phone_number) initialData.phone_number = extracted.phone_number;
+        if (extracted.email) initialData.email = extracted.email;
+
+        // Facility level fields - populate the first facility
+        const facility = initialData.deal_facilities[0];
+
+        if (extracted.facility_name) facility.facility_name = extracted.facility_name;
+        if (extracted.street_address) facility.address = extracted.street_address;
+        if (extracted.city) {
+          facility.city = extracted.city;
+          initialData.city = extracted.city;
+        }
+        if (extracted.state) {
+          facility.state = extracted.state;
+          initialData.state = extracted.state;
+        }
+
+        // Map facility type - handle different formats
+        if (extracted.facility_type) {
+          const facilityTypeMap = {
+            'SNF': 'Skilled Nursing',
+            'Skilled Nursing': 'Skilled Nursing',
+            'Skilled Nursing Facility': 'Skilled Nursing',
+            'Assisted Living': 'Assisted Living',
+            'AL': 'Assisted Living',
+            'Memory Care': 'Memory Care',
+            'MC': 'Memory Care',
+            'Independent Living': 'Independent Living',
+            'IL': 'Independent Living',
+            'CCRC': 'CCRC',
+            'Rehabilitation': 'Rehabilitation',
+          };
+          const mappedType = facilityTypeMap[extracted.facility_type] || 'Skilled Nursing';
+          facility.facility_type = [mappedType];
+
+          // Set bed count for the mapped type
+          if (extracted.no_of_beds) {
+            const bedKey = mappedType.toLowerCase().replace(' ', '_');
+            facility.no_of_beds[bedKey] = extracted.no_of_beds.toString();
+          }
+        } else if (extracted.no_of_beds) {
+          // Default to skilled nursing if facility type not specified
+          facility.no_of_beds.skilled_nursing = extracted.no_of_beds.toString();
+        }
+
+        // Financial fields
+        if (extracted.purchase_price) {
+          facility.purchase_price = extracted.purchase_price.toString();
+          initialData.total_deal_amount = extracted.purchase_price.toString();
+        }
+        if (extracted.price_per_bed) facility.price_per_bed = extracted.price_per_bed.toString();
+        if (extracted.annual_revenue) facility.annual_revenue = extracted.annual_revenue.toString();
+        if (extracted.ebitda) facility.ebitda = extracted.ebitda.toString();
+        if (extracted.revenue_multiple) facility.revenue_multiple = extracted.revenue_multiple.toString();
+        if (extracted.ebitda_multiple) facility.ebitda_multiple = extracted.ebitda_multiple.toString();
+        if (extracted.current_occupancy) facility.current_occupancy = extracted.current_occupancy.toString();
+        if (extracted.average_daily_rate) facility.average_daily_rate = extracted.average_daily_rate.toString();
+        if (extracted.medicare_percentage) facility.medicare_percentage = extracted.medicare_percentage.toString();
+        if (extracted.private_pay_percentage) facility.private_pay_percentage = extracted.private_pay_percentage.toString();
+        if (extracted.target_irr_percentage) facility.target_irr_percentage = extracted.target_irr_percentage.toString();
+        if (extracted.projected_cap_rate_percentage) facility.projected_cap_rate_percentage = extracted.projected_cap_rate_percentage.toString();
+        if (extracted.target_hold_period) facility.target_hold_period = extracted.target_hold_period.toString();
+
+        // T12 Financial fields
+        if (extracted.t12m_revenue) facility.t12m_revenue = extracted.t12m_revenue.toString();
+        if (extracted.t12m_occupancy) facility.t12m_occupancy = extracted.t12m_occupancy.toString();
+        if (extracted.t12m_ebitdar) facility.t12m_ebitdar = extracted.t12m_ebitdar.toString();
+        if (extracted.current_rent_lease_expense) facility.current_rent_lease_expense = extracted.current_rent_lease_expense.toString();
+        if (extracted.t12m_ebitda) facility.t12m_ebitda = extracted.t12m_ebitda.toString();
+        if (extracted.t12m_ebit) facility.t12m_ebit = extracted.t12m_ebit.toString();
+
+        // Pro Forma Year 1
+        if (extracted.proforma_year1_annual_revenue) facility.proforma_year1_annual_revenue = extracted.proforma_year1_annual_revenue.toString();
+        if (extracted.proforma_year1_annual_ebitdar) facility.proforma_year1_annual_ebitdar = extracted.proforma_year1_annual_ebitdar.toString();
+        if (extracted.proforma_year1_annual_rent) facility.proforma_year1_annual_rent = extracted.proforma_year1_annual_rent.toString();
+        if (extracted.proforma_year1_annual_ebitda) facility.proforma_year1_annual_ebitda = extracted.proforma_year1_annual_ebitda.toString();
+        if (extracted.proforma_year1_annual_ebit) facility.proforma_year1_annual_ebit = extracted.proforma_year1_annual_ebit.toString();
+        if (extracted.proforma_year1_average_occupancy) facility.proforma_year1_average_occupancy = extracted.proforma_year1_average_occupancy.toString();
+
+        // Pro Forma Year 2
+        if (extracted.proforma_year2_annual_revenue) facility.proforma_year2_annual_revenue = extracted.proforma_year2_annual_revenue.toString();
+        if (extracted.proforma_year2_annual_ebitdar) facility.proforma_year2_annual_ebitdar = extracted.proforma_year2_annual_ebitdar.toString();
+        if (extracted.proforma_year2_annual_rent) facility.proforma_year2_annual_rent = extracted.proforma_year2_annual_rent.toString();
+        if (extracted.proforma_year2_annual_ebitda) facility.proforma_year2_annual_ebitda = extracted.proforma_year2_annual_ebitda.toString();
+        if (extracted.proforma_year2_annual_ebit) facility.proforma_year2_annual_ebit = extracted.proforma_year2_annual_ebit.toString();
+        if (extracted.proforma_year2_average_occupancy) facility.proforma_year2_average_occupancy = extracted.proforma_year2_average_occupancy.toString();
+
+        // Pro Forma Year 3
+        if (extracted.proforma_year3_annual_revenue) facility.proforma_year3_annual_revenue = extracted.proforma_year3_annual_revenue.toString();
+        if (extracted.proforma_year3_annual_ebitdar) facility.proforma_year3_annual_ebitdar = extracted.proforma_year3_annual_ebitdar.toString();
+        if (extracted.proforma_year3_annual_rent) facility.proforma_year3_annual_rent = extracted.proforma_year3_annual_rent.toString();
+        if (extracted.proforma_year3_annual_ebitda) facility.proforma_year3_annual_ebitda = extracted.proforma_year3_annual_ebitda.toString();
+        if (extracted.proforma_year3_annual_ebit) facility.proforma_year3_annual_ebit = extracted.proforma_year3_annual_ebit.toString();
+        if (extracted.proforma_year3_average_occupancy) facility.proforma_year3_average_occupancy = extracted.proforma_year3_average_occupancy.toString();
+
+        setDealData(initialData);
+        toast.success(`AI extracted ${calculatedConfidence}% of key fields from your documents`);
+      } else {
+        toast.error(response.message || "Failed to extract data");
+      }
+    } catch (error) {
+      console.error("Extraction error:", error);
+      toast.error(error.message || "Failed to extract data from document");
+    } finally {
+      setIsExtracting(false);
     }
   };
 
@@ -639,65 +838,6 @@ const CombinedDealForm = () => {
         state: "",
       }));
     }
-  };
-
-  // Handle facility address selection and auto-fill city/state
-  const handleFacilityAddressSelect = async (facilityIndex, place) => {
-    if (!place) return;
-
-    // Parse the Google Places response to extract address components
-    const addressParts = place.label.split(", ");
-    let city = "";
-    let state = "";
-    let address = place.label;
-
-    const results = await geocodeByPlaceId(place.value.place_id);
-    const { lat, lng } = await getLatLng(results[0]);
-    console.log(lat, lng, "lng");
-
-    // For addresses like "East Saint North, Goshen, CT, USA"
-    // We need to identify which parts are city and state
-    if (addressParts.length >= 3) {
-      // Look for state pattern (2-letter state code)
-      const stateIndex = addressParts.findIndex(
-        (part) =>
-          /^[A-Z]{2}$/.test(part.trim()) ||
-          /^[A-Z]{2}\s+\d{5}$/.test(part.trim()) // State with zip code
-      );
-
-      if (stateIndex !== -1) {
-        // State found, city is typically the part before state
-        state = addressParts[stateIndex].trim();
-        if (stateIndex > 0) {
-          city = addressParts[stateIndex - 1].trim();
-        }
-      } else if (addressParts.length >= 2) {
-        // Fallback: assume second-to-last is city, last is state
-        city = addressParts[addressParts.length - 3] || "";
-        state = addressParts[addressParts.length - 2] || "";
-      }
-    } else if (addressParts.length === 2) {
-      // Simple case: "City, State"
-      city = addressParts[0];
-      state = addressParts[1];
-    }
-
-    // Update address, city, and state when Google Places is selected
-    setDealData((prev) => {
-      const newFacilities = [...prev.deal_facilities];
-      newFacilities[facilityIndex] = {
-        ...newFacilities[facilityIndex],
-        address: address,
-        city: city,
-        state: state,
-        latitude: lat,
-        longitude: lng,
-      };
-      return {
-        ...prev,
-        deal_facilities: newFacilities,
-      };
-    });
   };
 
   // --- Input Change Handlers ---
@@ -949,13 +1089,7 @@ const CombinedDealForm = () => {
   // --- On Preview: Validate all, mark all as touched, show all errors ---
   const handlePreview = (e) => {
     e.preventDefault();
-    
-    // Check if Google Maps is loaded
-    if (!isGoogleMapsLoaded) {
-      toast.error("Google Maps is still loading. Please wait a moment and try again.");
-      return;
-    }
-    
+
     setIsSubmitted(true);
 
     const newTouched = {};
@@ -1449,34 +1583,14 @@ const CombinedDealForm = () => {
                   </p>
                 </div>
                 <div className="form-group mb-4">
-                  <label className="form-label">Search for a location</label>
-                  {!isGoogleMapsLoaded ? (
-                    <div className="form-control" style={{ backgroundColor: '#f8f9fa', cursor: 'not-allowed' }}>
-                      <div className="d-flex align-items-center justify-content-center py-3">
-                        <div className="spinner-border spinner-border-sm me-2" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
-                        Loading Google Maps...
-                      </div>
-                    </div>
-                  ) : (
-                    <GooglePlacesAutocomplete
-                      apiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
-                      selectProps={{
-                        value: selectedLocation,
-                        onChange: handleLocationSelect,
-                        placeholder: "Search for a city, state, or region...",
-                        isClearable: true,
-                        className: "form-input",
-                      }}
-                      autocompletionRequest={{
-                        types: ["(cities)"],
-                        componentRestrictions: {
-                          country: ["us", "ca"],
-                        },
-                      }}
-                    />
-                  )}
+                  <label className="form-label">Enter location (City, State)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g., Los Angeles, CA"
+                    value={selectedLocation?.label || ""}
+                    onChange={(e) => setSelectedLocation(e.target.value ? { label: e.target.value, value: e.target.value } : null)}
+                  />
                 </div>
                 <div className="text-center">
                   <button
@@ -1535,25 +1649,7 @@ const CombinedDealForm = () => {
           </div>
         )}
 
-        {/* Google Maps Loading Indicator */}
-        {!isGoogleMapsLoaded && (
-          <div
-            className="alert alert-info mb-4 border-0 shadow-sm"
-            role="alert"
-          >
-            <div className="d-flex align-items-center">
-              <div className="spinner-border spinner-border-sm me-2" role="status">
-                <span className="visually-hidden">Loading...</span>
-              </div>
-              <div>
-                <h5 className="alert-heading mb-1">Loading Google Maps</h5>
-                <p className="mb-0">Please wait while we load the location services. This may take a few seconds.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <style jsx>{`
+        <style>{`
           .form-section {
             background: white;
             border-radius: 12px;
@@ -1865,7 +1961,151 @@ const CombinedDealForm = () => {
             text-align: center;
             padding: 2rem;
           }
+          .upload-zone {
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+            border: 2px dashed #7c3aed;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+          }
+          .upload-zone:hover {
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8edff 100%);
+            border-color: #6d28d9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+          }
+          .upload-zone.dragging {
+            background: linear-gradient(135deg, #e8edff 0%, #ddd6fe 100%);
+            border-color: #6d28d9;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+          }
+          .upload-zone-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+          }
+          .upload-zone-icon svg {
+            color: white;
+          }
+          .upload-zone h5 {
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+          }
+          .upload-zone p {
+            color: #6b7280;
+            margin-bottom: 1rem;
+          }
+          .upload-zone .btn-upload {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+          }
+          .upload-zone .btn-upload:hover {
+            background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
+            transform: translateY(-1px);
+          }
+          .upload-zone .btn-upload:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+          }
+          .upload-zone-divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: #9ca3af;
+          }
+          .upload-zone-divider::before,
+          .upload-zone-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e5e7eb;
+          }
+          .upload-zone-divider span {
+            padding: 0 1rem;
+            font-size: 0.875rem;
+          }
+          .spin {
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
         `}</style>
+
+        {/* Upload Zone - Show when not from AI extraction */}
+        {!isFromAiExtraction && (
+          <div
+            className={`upload-zone ${isDragging ? 'dragging' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => !isExtracting && fileInputRef.current?.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
+              multiple
+              style={{ display: 'none' }}
+            />
+            <div className="upload-zone-icon">
+              {isExtracting ? <Loader size={28} className="spin" /> : <Upload size={28} />}
+            </div>
+            <h5>{isExtracting ? 'Analyzing Documents...' : 'Upload & Analyze with AI'}</h5>
+            <p>
+              {isExtracting
+                ? 'Extracting deal information from your documents'
+                : 'Drag and drop files here, or click to browse'}
+            </p>
+            <button
+              className="btn-upload"
+              disabled={isExtracting}
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+            >
+              {isExtracting ? (
+                <>
+                  <Loader size={16} className="spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Upload size={16} />
+                  Select Files
+                </>
+              )}
+            </button>
+            <p className="mt-3 mb-0" style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+              Supports PDF, images, Excel, and Word documents
+            </p>
+            <div className="upload-zone-divider">
+              <span>or enter deal information manually below</span>
+            </div>
+          </div>
+        )}
 
         {/* AI Extraction Banner */}
         {isFromAiExtraction && (
@@ -2161,52 +2401,15 @@ const CombinedDealForm = () => {
                 </div>
                 <div className="col-md-6 mb-3">
                   <label className="form-label">Address</label>
-                  {!isGoogleMapsLoaded ? (
-                    <div className="form-control" style={{ backgroundColor: '#f8f9fa', cursor: 'not-allowed' }}>
-                      <div className="d-flex align-items-center justify-content-center py-2">
-                        <div className="spinner-border spinner-border-sm me-2" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
-                        Loading Google Maps...
-                      </div>
-                    </div>
-                  ) : (
-                    <GooglePlacesAutocomplete
-                      apiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
-                      selectProps={{
-                        value: facility.address
-                          ? { label: facility.address, value: facility.address }
-                          : null,
-                        onChange: (place) => {
-                          if (place) {
-                            handleFacilityAddressSelect(facilityIndex, place);
-                          }
-                        },
-                        placeholder: "Search for facility address...",
-                        isClearable: true,
-                        className: "form-control",
-                        styles: {
-                          control: (provided) => ({
-                            ...provided,
-                            border: "1px solid #ced4da",
-                            borderRadius: "0.375rem",
-                            minHeight: "38px",
-                          }),
-                          placeholder: (provided) => ({
-                            ...provided,
-                            color: "#6c757d",
-                          }),
-                        },
-                      }}
-                      autocompletionRequest={{
-                        types: ["address"],
-                        componentRestrictions: {
-                          country: ["us", "ca"],
-                        },
-                      }}
-                      debounce={300}
-                    />
-                  )}
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Enter facility address"
+                    value={facility.address || ""}
+                    onChange={(e) =>
+                      handleFacilityInputChange(facilityIndex, "address", e.target.value)
+                    }
+                  />
                 </div>
               </div>
 

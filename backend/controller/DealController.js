@@ -337,6 +337,12 @@ const storeTimeSeriesData = async (dealId, extractionData) => {
 module.exports = {
   createDeal: async (req, res) => {
     try {
+      // Debug: Log incoming extraction data
+      console.log('[createDeal] Received req.body.extraction_data:',
+        req.body.extraction_data ? 'EXISTS (keys: ' + Object.keys(req.body.extraction_data).length + ')' : 'MISSING');
+      console.log('[createDeal] Received req.body.enhanced_extraction_data:',
+        req.body.enhanced_extraction_data ? 'EXISTS' : 'MISSING');
+
       const required = {
         user_id: req.user.id,
         address: req.body.address,
@@ -417,12 +423,12 @@ module.exports = {
           requiredData.deals.map(async (deal) => {
             const allUserIds = new Set();
             deal.email_notification_major_updates =
-              deal.notificationSettings.email_notification_major_updates ===
+              deal.notificationSettings?.email_notification_major_updates ===
               true
                 ? "yes"
                 : "no";
             deal.document_upload_notification =
-              deal.notificationSettings.document_upload_notification === true
+              deal.notificationSettings?.document_upload_notification === true
                 ? "yes"
                 : "no";
             deal.target_close_date = deal.target_close_date
@@ -1813,6 +1819,7 @@ module.exports = {
             extractionData.utilities_pct_of_revenue = expenseRatios.utilities_pct_of_revenue;
             extractionData.insurance_pct_of_revenue = expenseRatios.insurance_pct_of_revenue;
             extractionData.total_labor_cost = expenseRatios.total_labor_cost;
+            extractionData.agency_labor_total = expenseRatios.agency_labor_total;
             extractionData.revenue_per_resident_day = expenseRatios.revenue_per_resident_day;
 
             // Also store as nested structure for backward compatibility
@@ -1825,6 +1832,7 @@ module.exports = {
               utilities_pct_of_revenue: expenseRatios.utilities_pct_of_revenue,
               insurance_pct_of_revenue: expenseRatios.insurance_pct_of_revenue,
               total_labor_cost: expenseRatios.total_labor_cost,
+              agency_labor_total: expenseRatios.agency_labor_total,
               ebitda_margin: expenseRatios.ebitda_margin,
               ebitdar_margin: expenseRatios.ebitdar_margin,
               revenue_per_resident_day: expenseRatios.revenue_per_resident_day,
@@ -2161,6 +2169,43 @@ module.exports = {
 
       // return the success response:
       return helper.success(res, "Deal status updated successfully", deal);
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /*
+  This function will help to update the deal extraction data:
+  Method: PUT
+  URL: /api/v1/deal/:id/extraction-data
+  */
+  updateExtractionData: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { extraction_data } = req.body;
+
+      if (!id) {
+        return helper.error(res, "Deal ID is required");
+      }
+
+      if (!extraction_data) {
+        return helper.error(res, "Extraction data is required");
+      }
+
+      // Find the deal
+      const deal = await Deal.findByPk(id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Update only the extraction_data field
+      await deal.update({ extraction_data: extraction_data });
+
+      // Return the updated deal
+      return helper.success(res, "Extraction data updated successfully", {
+        id: deal.id,
+        extraction_data: deal.extraction_data
+      });
     } catch (err) {
       return helper.error(res, err);
     }
@@ -3719,6 +3764,27 @@ module.exports = {
         order: [['period_end', 'DESC']]
       });
 
+      // Fallback: If department totals are missing, calculate from deal_monthly_expenses
+      let deptTotalsFromMonthly = null;
+      if (!expenseRatiosRecord?.total_direct_care) {
+        console.log(`[ProForma] Department totals missing for deal ${dealId}, calculating from monthly expenses...`);
+        const monthlyExpenses = await DealMonthlyExpenses.findAll({
+          where: { deal_id: dealId }
+        });
+
+        if (monthlyExpenses && monthlyExpenses.length > 0) {
+          deptTotalsFromMonthly = {};
+          for (const record of monthlyExpenses) {
+            const dept = record.department;
+            if (!deptTotalsFromMonthly[dept]) {
+              deptTotalsFromMonthly[dept] = 0;
+            }
+            deptTotalsFromMonthly[dept] += record.total_department_expense || 0;
+          }
+          console.log(`[ProForma] Calculated department totals from ${monthlyExpenses.length} monthly records:`, deptTotalsFromMonthly);
+        }
+      }
+
       // Get user's default benchmark config
       const defaultConfig = await BenchmarkConfigurations.findOne({
         where: { user_id: userId, is_default: true }
@@ -3739,15 +3805,15 @@ module.exports = {
         labor_pct_of_revenue: expenseRatiosRecord.labor_pct_of_revenue,
         agency_pct_of_labor: expenseRatiosRecord.agency_pct_of_labor,
         agency_labor_total: expenseRatiosRecord.agency_labor_total,
-        // Department expense totals
-        total_direct_care: expenseRatiosRecord.total_direct_care,
-        total_activities: expenseRatiosRecord.total_activities,
-        total_culinary: expenseRatiosRecord.total_culinary,
-        total_housekeeping: expenseRatiosRecord.total_housekeeping,
-        total_maintenance: expenseRatiosRecord.total_maintenance,
-        total_administration: expenseRatiosRecord.total_administration,
-        total_general: expenseRatiosRecord.total_general,
-        total_property: expenseRatiosRecord.total_property,
+        // Department expense totals (with fallback from monthly expenses)
+        total_direct_care: expenseRatiosRecord.total_direct_care || deptTotalsFromMonthly?.direct_care || null,
+        total_activities: expenseRatiosRecord.total_activities || deptTotalsFromMonthly?.activities || null,
+        total_culinary: expenseRatiosRecord.total_culinary || deptTotalsFromMonthly?.culinary || null,
+        total_housekeeping: expenseRatiosRecord.total_housekeeping || deptTotalsFromMonthly?.housekeeping || null,
+        total_maintenance: expenseRatiosRecord.total_maintenance || deptTotalsFromMonthly?.maintenance || null,
+        total_administration: expenseRatiosRecord.total_administration || deptTotalsFromMonthly?.administration || null,
+        total_general: expenseRatiosRecord.total_general || deptTotalsFromMonthly?.general || null,
+        total_property: expenseRatiosRecord.total_property || deptTotalsFromMonthly?.property || null,
         // Other expense metrics
         food_cost_total: expenseRatiosRecord.food_cost_total,
         food_cost_per_resident_day: expenseRatiosRecord.food_cost_per_resident_day,
@@ -3799,21 +3865,67 @@ module.exports = {
         return helper.error(res, "Deal not found");
       }
 
-      // Get uploaded files for this deal
-      const files = getDealFiles(dealId);
-      if (!files || files.length === 0) {
+      // Get uploaded files from deal_documents table (more reliable than getDealFiles)
+      const dealDocuments = await DealDocuments.findAll({
+        where: { deal_id: dealId },
+        order: [['id', 'ASC']]
+      });
+
+      if (!dealDocuments || dealDocuments.length === 0) {
         return helper.error(res, "No uploaded files found for this deal. Please upload documents first.");
       }
 
-      console.log(`[reExtractDeal] Re-extracting deal ${dealId} with ${files.length} files...`);
+      console.log(`[reExtractDeal] Re-extracting deal ${dealId} with ${dealDocuments.length} documents from database...`);
 
-      // Convert stored files to the format expected by runFullExtraction
-      const fileBuffers = files.map(f => ({
-        name: f.name,
-        mimetype: f.mimetype,
-        size: f.size,
-        data: f.buffer
-      }));
+      // Read files from disk based on document_url paths
+      const fileBuffers = [];
+      for (const doc of dealDocuments) {
+        try {
+          // Extract the filename from the document_url (e.g., /api/v1/files/filename.pdf)
+          const urlPath = doc.document_url || '';
+          const filename = urlPath.replace('/api/v1/files/', '');
+
+          if (!filename) {
+            console.log(`[reExtractDeal] Skipping document ${doc.id} - no valid URL`);
+            continue;
+          }
+
+          // Use getFile to read the file
+          const fileData = getFile(filename);
+          if (!fileData || !fileData.buffer) {
+            console.log(`[reExtractDeal] Could not read file: ${filename}`);
+            continue;
+          }
+
+          // Determine mimetype from filename
+          const ext = filename.split('.').pop()?.toLowerCase() || '';
+          let mimetype = 'application/octet-stream';
+          if (ext === 'pdf') mimetype = 'application/pdf';
+          else if (ext === 'xlsx') mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          else if (ext === 'xls') mimetype = 'application/vnd.ms-excel';
+          else if (ext === 'csv') mimetype = 'text/csv';
+          else if (ext === 'docx') mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          else if (ext === 'doc') mimetype = 'application/msword';
+          else if (ext === 'txt') mimetype = 'text/plain';
+
+          fileBuffers.push({
+            name: doc.document_name || filename,
+            mimetype: mimetype,
+            size: fileData.buffer.length,
+            data: fileData.buffer
+          });
+
+          console.log(`[reExtractDeal] Loaded: ${doc.document_name} (${fileData.buffer.length} bytes)`);
+        } catch (fileErr) {
+          console.error(`[reExtractDeal] Error loading file ${doc.document_name}:`, fileErr.message);
+        }
+      }
+
+      if (fileBuffers.length === 0) {
+        return helper.error(res, "Could not read any document files. Files may have been moved or deleted.");
+      }
+
+      console.log(`[reExtractDeal] Successfully loaded ${fileBuffers.length} files for extraction`);
 
       // Run extraction
       const result = await runFullExtraction(fileBuffers);

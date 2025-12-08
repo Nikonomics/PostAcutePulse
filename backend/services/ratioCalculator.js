@@ -207,12 +207,64 @@ function calculateRatios(reconciledData) {
   // Calculate resident days if not available
   const residentDays = totalCensusDays || (beds * 365 * (avgOccupancy / 100));
 
-  // Helper to get department total from new structure
-  const getDeptTotal = (dept) => departmentTotals[dept]?.department_total || null;
+  // Map between new department names and old ttmExpenses.by_department keys
+  // ttmExpenses may use either old naming (nursing, dietary) or new naming (direct_care, culinary)
+  const oldKeyMapping = {
+    direct_care: 'nursing',
+    activities: 'activities',
+    culinary: 'dietary',
+    housekeeping: 'housekeeping',
+    maintenance: 'plant_operations',
+    administration: 'admin',
+    general: 'general',
+    property: 'property'
+  };
+
+  // Helper to get department total from new structure, with fallback to TTM expenses
+  const getDeptTotal = (dept) => {
+    // First try departmentTotals from AI extraction
+    if (departmentTotals[dept]?.department_total) {
+      return departmentTotals[dept].department_total;
+    }
+    // Fallback to ttmExpenses.by_department (may use new or old naming)
+    const byDept = ttmExpenses.by_department;
+    if (byDept) {
+      // Try new name first (direct_care, culinary, etc.)
+      if (byDept[dept]?.total) {
+        console.log(`[RatioCalculator] Using TTM fallback for ${dept}: ${byDept[dept].total}`);
+        return byDept[dept].total;
+      }
+      // Try old name mapping (nursing, dietary, etc.)
+      const oldKey = oldKeyMapping[dept];
+      if (oldKey && byDept[oldKey]?.total) {
+        console.log(`[RatioCalculator] Using TTM fallback (old key) for ${dept}: ${byDept[oldKey].total}`);
+        return byDept[oldKey].total;
+      }
+    }
+    return null;
+  };
+
   const getDeptLabor = (dept) => {
     const d = departmentTotals[dept];
-    if (!d) return null;
-    return (d.total_salaries_wages || 0) + (d.total_benefits || 0) + (d.total_agency_labor || 0);
+    if (d && (d.total_salaries_wages || d.total_benefits || d.total_agency_labor)) {
+      return (d.total_salaries_wages || 0) + (d.total_benefits || 0) + (d.total_agency_labor || 0);
+    }
+    // Fallback to ttmExpenses (try new name, then old name)
+    const byDept = ttmExpenses.by_department;
+    if (byDept) {
+      // Try new name first
+      if (byDept[dept]) {
+        const deptData = byDept[dept];
+        return (deptData.salaries_wages || 0) + (deptData.benefits || 0) + (deptData.agency_labor || 0);
+      }
+      // Try old name mapping
+      const oldKey = oldKeyMapping[dept];
+      if (oldKey && byDept[oldKey]) {
+        const deptData = byDept[oldKey];
+        return (deptData.salaries_wages || 0) + (deptData.benefits || 0) + (deptData.agency_labor || 0);
+      }
+    }
+    return null;
   };
 
   // Use new laborSummary if available, otherwise fall back to old structure

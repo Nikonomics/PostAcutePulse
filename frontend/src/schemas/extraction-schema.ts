@@ -411,6 +411,8 @@ export interface ExtractedDealData {
   key_observations: string[] | KeyObservations;
   // User-added observations
   reviewer_notes?: string[];
+  // Stage 1 Deal Overview & Screening Analysis (6th parallel extraction)
+  deal_overview?: any;  // Full JSON schema from OVERVIEW_PROMPT
 }
 
 // =============================================================================

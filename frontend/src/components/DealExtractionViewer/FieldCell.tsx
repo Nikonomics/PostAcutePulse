@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Copy, Check, Pencil, ExternalLink, FileText } from 'lucide-react';
+import { Copy, Check, Pencil, ExternalLink, FileText, Save, X } from 'lucide-react';
 import { FieldCellProps, SourceReference } from './types';
 import { formatFieldValue, copyToClipboard, isNegativeValue, parseSourceReference, isSourceClickable } from './utils';
 import ConfidenceIndicator from './ConfidenceIndicator';
@@ -93,16 +93,31 @@ const FieldCell: React.FC<FieldCellProps> = ({
 
       {/* Value display or edit */}
       {isEditing ? (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2">
           <input
             ref={inputRef}
             type="text"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            onBlur={handleSaveEdit}
             className="flex-1 px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-semibold"
           />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+            >
+              <Save size={14} />
+              Save
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              className="flex items-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 text-sm font-medium rounded hover:bg-gray-300 transition-colors"
+            >
+              <X size={14} />
+              Cancel
+            </button>
+          </div>
         </div>
       ) : showComparison && field.raw_value ? (
         // Comparison mode: show raw and normalized side by side
@@ -134,7 +149,7 @@ const FieldCell: React.FC<FieldCellProps> = ({
           </span>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1">
             {hasValue && (
               <button
                 onClick={handleCopy}
@@ -147,7 +162,7 @@ const FieldCell: React.FC<FieldCellProps> = ({
             {onEdit && (
               <button
                 onClick={handleStartEdit}
-                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
                 title="Edit value"
               >
                 <Pencil size={14} />

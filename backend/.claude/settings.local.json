@@ -21,7 +21,10 @@
       "Bash(git push:*)",
       "WebFetch(domain:www.atlassian.com)",
       "Bash(sqlite3:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm start)",
+      "Bash(pkill:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

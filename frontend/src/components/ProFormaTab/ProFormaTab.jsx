@@ -337,6 +337,8 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
     // Get dollar amounts from extraction data
     const total_labor_cost = getValue(expenseRatios.total_labor_cost)
       || extractionData.total_labor_cost;
+    const agency_labor_total = getValue(expenseRatios.agency_labor_total)
+      || extractionData.agency_labor_total;
 
     // Department expense totals from extraction
     const total_direct_care = extractionData.total_direct_care;
@@ -357,6 +359,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
 
       // Dollar amounts for expense categories
       total_labor_cost,
+      agency_labor_total,
       raw_food_cost: getValue(fin.expense_breakdown?.culinary?.raw_food_cost) || extractionData.raw_food_cost,
       management_fees: getValue(fin.expense_breakdown?.administration?.management_fees) || extractionData.management_fees,
       utilities_total: getValue(fin.expense_breakdown?.maintenance?.utilities_total) || extractionData.utilities_total,
@@ -402,6 +405,7 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
       ...currentFinancials,
       // Override with API expense data where available
       total_labor_cost: apiExpense.total_labor_cost ?? currentFinancials.total_labor_cost,
+      agency_labor_total: apiExpense.agency_labor_total ?? currentFinancials.agency_labor_total,
       labor_pct: apiExpense.labor_pct_of_revenue ?? currentFinancials.labor_pct,
       agency_pct: apiExpense.agency_pct_of_labor ?? currentFinancials.agency_pct,
       food_cost: apiExpense.food_cost_per_resident_day ?? currentFinancials.food_cost,
@@ -1068,17 +1072,18 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
 
               {/* Labor Section */}
-              <SectionHeader title="Labor Costs" subtitle="Largest expense category" />
+              <SectionHeader title="Labor Costs" subtitle="Largest expense category (benchmark = % of revenue)" />
               <LineItemRow
                 label="Total Labor Cost"
-                actual={displayFinancials?.labor_pct ?? currentFinancials.labor_pct}
+                actual={displayFinancials?.total_labor_cost ?? currentFinancials.total_labor_cost}
                 actualPctOfRevenue={displayFinancials?.labor_pct ?? currentFinancials.labor_pct}
                 benchmark={benchmarks.labor_pct_target}
                 benchmarkKey="labor_pct_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
                 isDisabled={isCalculating}
-                unit="%"
+                unit="$"
+                benchmarkUnit="%"
                 isReversed={true}
                 opportunity={(() => {
                   const actualPct = displayFinancials?.labor_pct ?? currentFinancials.labor_pct;
@@ -1088,14 +1093,15 @@ const ProFormaTab = ({ deal, extractionData, onSaveScenario }) => {
               />
               <LineItemRow
                 label="Agency Staffing Cost"
-                actual={displayFinancials?.agency_pct ?? currentFinancials.agency_pct}
+                actual={displayFinancials?.agency_labor_total ?? currentFinancials.agency_labor_total}
                 actualPctOfRevenue={displayFinancials?.agency_pct ?? currentFinancials.agency_pct}
                 benchmark={benchmarks.agency_pct_of_labor_target}
                 benchmarkKey="agency_pct_of_labor_target"
                 onBenchmarkChange={handleBenchmarkChange}
                 isEditable={true}
                 isDisabled={isCalculating}
-                unit="%"
+                unit="$"
+                benchmarkUnit="%"
                 isReversed={true}
                 indent={1}
                 opportunity={(() => {

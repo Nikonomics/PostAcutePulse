@@ -21,6 +21,7 @@ const apiRoutes = {
     getDashboardData: `${BASE_URL}/deal/get-dashboard-data`,
     getDealById: `${BASE_URL}/deal/get-deal-by-id`,
     updateDeal: `${BASE_URL}/deal/update-deal`,
+    updateExtractionData: `${BASE_URL}/deal`, // Usage: PUT `${updateExtractionData}/${dealId}/extraction-data`
     updateDealStatus: `${BASE_URL}/deal/update-deal-status`,
     updateDealPosition: `${BASE_URL}/deal/update-deal-position`,
     deleteDeal: `${BASE_URL}/deal/delete-deal`,

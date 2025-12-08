@@ -306,6 +306,11 @@ const UploadDeal = () => {
             projected_cap_rate_percentage: extractedData.projected_cap_rate_percentage || 0,
             target_hold_period: extractedData.target_hold_period || 0,
             deal_lead_id: activeUsers[0]?.id || 1,
+            // Default notification settings for AI-extracted deals
+            notificationSettings: {
+              email_notification_major_updates: true,
+              document_upload_notification: true,
+            },
           },
         ],
         // Include raw extraction data for Deal Analyzer view

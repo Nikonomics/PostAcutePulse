@@ -780,9 +780,50 @@ function buildFlatSummary(reconciled) {
   const ttm = reconciled.financials?.ttm || {};
   const censusSummary = reconciled.census?.summary || {};
   const monthlyCensus = reconciled.census?.monthly || [];
+  const monthlyFinancials = reconciled.financials?.monthly || [];
   const expenses = reconciled.expenses || {};
   const departmentTotals = expenses.departmentTotals || {};
   const laborSummary = expenses.laborSummary || {};
+
+  // Build source and confidence maps from facility data
+  const { sourceMap, confidenceMap } = buildMetadataMaps(facility);
+
+  // Add financial field sources from monthly financials (TTM period data comes from these documents)
+  if (monthlyFinancials.length > 0) {
+    // Get the document sources that contribute to TTM
+    const financialSources = [...new Set(monthlyFinancials.map(m => m.source_document).filter(Boolean))];
+    const financialSource = financialSources.length > 0 ? financialSources.join(', ') : null;
+
+    const financialFields = [
+      'annual_revenue', 'total_expenses', 'net_income', 'ebit', 'ebitda', 'ebitdar',
+      'depreciation', 'interest_expense', 'rent_lease_expense',
+      'medicaid_revenue', 'medicare_revenue', 'private_pay_revenue'
+    ];
+
+    for (const field of financialFields) {
+      if (financialSource) {
+        sourceMap[field] = financialSource;
+        confidenceMap[field] = 'calculated'; // TTM values are calculated from monthly data
+      }
+    }
+  }
+
+  // Add census field sources
+  if (monthlyCensus.length > 0) {
+    const censusSources = [...new Set(monthlyCensus.map(m => m.source_document).filter(Boolean))];
+    const censusSource = censusSources.length > 0 ? censusSources.join(', ') : null;
+
+    const censusFields = [
+      'average_daily_census', 'occupancy_pct', 'medicaid_pct', 'medicare_pct', 'private_pay_pct'
+    ];
+
+    for (const field of censusFields) {
+      if (censusSource) {
+        sourceMap[field] = censusSource;
+        confidenceMap[field] = 'calculated';
+      }
+    }
+  }
 
   // Helper to get department total
   const getDeptTotal = (dept) => {
@@ -950,7 +991,17 @@ function buildFlatSummary(reconciled) {
     insurance_pct_of_revenue: insurance_pct_of_revenue,
 
     // Full department breakdown for detailed analysis
-    department_totals: Object.keys(departmentTotals).length > 0 ? departmentTotals : null
+    department_totals: Object.keys(departmentTotals).length > 0 ? departmentTotals : null,
+
+    // DEAL OVERVIEW (Stage 1 Screening Analysis from 6th parallel extraction)
+    // This is the full JSON object from the OVERVIEW_PROMPT extraction
+    deal_overview: reconciled.overview || null,
+
+    // SOURCE AND CONFIDENCE METADATA MAPS
+    // These allow the frontend to display citations for each field
+    // Format: { fieldName: "document | location | snippet" }
+    _sourceMap: Object.keys(sourceMap).length > 0 ? sourceMap : null,
+    _confidenceMap: Object.keys(confidenceMap).length > 0 ? confidenceMap : null
   };
 }
 
@@ -962,6 +1013,65 @@ function getValue(obj) {
   if (obj === null || obj === undefined) return null;
   if (typeof obj === 'object' && 'value' in obj) return obj.value;
   return obj;
+}
+
+/**
+ * Helper to get source from confidence structure
+ */
+function getSource(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj === 'object' && 'source' in obj) return obj.source;
+  return null;
+}
+
+/**
+ * Helper to get confidence from confidence structure
+ */
+function getConfidence(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj === 'object' && 'confidence' in obj) return obj.confidence;
+  return null;
+}
+
+/**
+ * Build source and confidence maps from facility data
+ * These maps allow the frontend to display citations for each field
+ */
+function buildMetadataMaps(facility) {
+  const sourceMap = {};
+  const confidenceMap = {};
+
+  // List of facility fields that have {value, confidence, source} structure
+  const facilityFieldMappings = {
+    'facility_name': 'facility_name',
+    'facility_type': 'facility_type',
+    'street_address': 'street_address',
+    'city': 'city',
+    'state': 'state',
+    'zip_code': 'zip_code',
+    'bed_count': 'bed_count',
+    'contact_name': 'primary_contact_name',
+    'contact_title': 'contact_title',
+    'contact_phone': 'contact_phone',
+    'contact_email': 'contact_email',
+    'deal_name': 'deal_name',
+    'purchase_price': 'purchase_price'
+  };
+
+  for (const [aiField, canonicalField] of Object.entries(facilityFieldMappings)) {
+    const fieldData = facility[aiField];
+    const source = getSource(fieldData);
+    const confidence = getConfidence(fieldData);
+
+    if (source) {
+      sourceMap[canonicalField] = source;
+    }
+    if (confidence) {
+      confidenceMap[canonicalField] = confidence;
+    }
+  }
+
+  return { sourceMap, confidenceMap };
 }
 
 

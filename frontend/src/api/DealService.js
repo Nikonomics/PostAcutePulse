@@ -50,6 +50,14 @@ export const updateDeal = async (payload) => {
   return response.data;
 };
 
+export const updateExtractionData = async (dealId, extractionData) => {
+  const response = await apiService.put(
+    `${apiRoutes.updateExtractionData}/${dealId}/extraction-data`,
+    { extraction_data: extractionData }
+  );
+  return response.data;
+};
+
 export const deleteDeal = async (id) => {
   const response = await apiService.delete(`${apiRoutes.deleteDeal}/${id}`);
   return response.data;

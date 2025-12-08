@@ -58,18 +58,6 @@ const styles = `
     gap: 0.75rem;
   }
 
-  .btn-upload {
-    background-color: #7c3aed;
-    border-color: #7c3aed;
-    color: white;
-  }
-
-  .btn-upload:hover {
-    background-color: #6d28d9;
-    border-color: #6d28d9;
-    color: white;
-  }
-
   .btn-new-deal {
     background-color: #059669;
     border-color: #059669;
@@ -518,23 +506,6 @@ const DealsList = () => {
             <p className="page-subtitle">Manage and track all M&A opportunities</p>
           </div>
           <div className="header-actions">
-            <Button
-              className="btn-upload d-flex align-items-center gap-2"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isExtracting}
-            >
-              {isExtracting ? (
-                <>
-                  <Spinner animation="border" size="sm" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Upload size={16} />
-                  Upload & Analyze
-                </>
-              )}
-            </Button>
             <Button
               className="btn-new-deal d-flex align-items-center gap-2"
               onClick={() => navigate("/deals/combined-deal-form")}
