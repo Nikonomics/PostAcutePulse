@@ -267,10 +267,57 @@ function calculateRatios(reconciledData) {
     return null;
   };
 
-  // Use new laborSummary if available, otherwise fall back to old structure
-  const totalLaborCost = laborSummary.total_labor_cost || ttmExpenses.total_labor || null;
-  const totalAgencyCost = laborSummary.total_agency_cost || ttmExpenses.total_agency || null;
+  // Calculate total labor cost deterministically from department totals for consistency
+  // AI-extracted laborSummary.total_labor_cost can vary between runs, but department totals are consistent
+  const calculateTotalLaborFromDepts = () => {
+    const depts = ['direct_care', 'activities', 'culinary', 'housekeeping', 'maintenance', 'administration', 'general', 'property'];
+    let total = 0;
+    let hasAnyDeptLabor = false;
+
+    for (const dept of depts) {
+      const deptLabor = getDeptLabor(dept);
+      if (deptLabor !== null && deptLabor > 0) {
+        total += deptLabor;
+        hasAnyDeptLabor = true;
+      }
+    }
+
+    return hasAnyDeptLabor ? total : null;
+  };
+
+  // Calculate total agency cost deterministically from department totals
+  const calculateTotalAgencyFromDepts = () => {
+    const depts = ['direct_care', 'activities', 'culinary', 'housekeeping', 'maintenance', 'administration', 'general', 'property'];
+    let total = 0;
+    let hasAnyAgency = false;
+
+    for (const dept of depts) {
+      const d = departmentTotals[dept];
+      if (d && d.total_agency_labor) {
+        total += d.total_agency_labor;
+        hasAnyAgency = true;
+      }
+    }
+
+    return hasAnyAgency ? total : null;
+  };
+
+  // Prefer calculated totals from department data for consistency, fall back to AI-extracted values
+  const calculatedLaborCost = calculateTotalLaborFromDepts();
+  const calculatedAgencyCost = calculateTotalAgencyFromDepts();
+
+  const totalLaborCost = calculatedLaborCost || laborSummary.total_labor_cost || ttmExpenses.total_labor || null;
+  const totalAgencyCost = calculatedAgencyCost || laborSummary.total_agency_cost || ttmExpenses.total_agency || null;
   const rawFoodCost = laborSummary.raw_food_cost || ttmExpenses.by_department?.dietary?.supplies || null;
+
+  // Log which source was used for debugging
+  if (calculatedLaborCost) {
+    console.log(`[RatioCalculator] Using calculated total_labor_cost from departments: ${calculatedLaborCost}`);
+  } else if (laborSummary.total_labor_cost) {
+    console.log(`[RatioCalculator] Using laborSummary.total_labor_cost: ${laborSummary.total_labor_cost}`);
+  } else if (ttmExpenses.total_labor) {
+    console.log(`[RatioCalculator] Using ttmExpenses.total_labor: ${ttmExpenses.total_labor}`);
+  }
 
   // Direct care total (nursing labor)
   const directCareTotal = getDeptTotal('direct_care') || ttmExpenses.by_department?.nursing?.total || null;

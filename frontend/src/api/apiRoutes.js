@@ -5,6 +5,7 @@ const BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const apiRoutes = {
     login: `${BASE_URL}/auth/login`,
+    signUp: `${BASE_URL}/auth/sign-up`,
     createDeal: `${BASE_URL}/deal/create-deals`,
     getDeals: `${BASE_URL}/deal/get-deals`,
     getDealStats: `${BASE_URL}/deal/get-deal-stats`,

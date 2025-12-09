@@ -2,6 +2,18 @@ import { apiService } from "./apiService";
 import apiRoutes from "./apiRoutes";
 import axios from "axios";
 
+// Sign Up API
+export const signUp = async (userData) => {
+  try {
+    const response = await apiService.post(apiRoutes.signUp, userData);
+    localStorage.setItem("authToken", response.data.body.token);
+    localStorage.setItem("authUser", JSON.stringify(response.data.body.user));
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Registration failed");
+  }
+};
+
 // Login API
 export const login = async (email, password) => {
   try {

@@ -31,8 +31,8 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  ChevronUp,
   ChevronDown,
+  ChevronUp,
   Download as DownloadIcon,
 } from 'lucide-react';
 import SNFalyzePanel from '../SNFalyzePanel';
@@ -54,8 +54,8 @@ import CensusTrendCharts from './CensusTrendCharts';
 
 // Tab configuration
 const TAB_CONFIGS = [
-  { id: 'overview', title: 'General Info', icon: Building2 },
   { id: 'deal_overview', title: 'Deal Overview', icon: Lightbulb },
+  { id: 'overview', title: 'General Info', icon: Building2 },
   { id: 'financials', title: 'Financials', icon: DollarSign },
   { id: 'census', title: 'Census & Rates', icon: Users },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
@@ -80,11 +80,13 @@ const getTabStyle = (isActive: boolean): React.CSSProperties => ({
   fontWeight: isActive ? 600 : 500,
   color: isActive ? '#1e40af' : '#6b7280',
   backgroundColor: isActive ? 'white' : 'transparent',
+  borderTop: 'none',
+  borderLeft: 'none',
+  borderRight: 'none',
   borderBottom: isActive ? '2px solid #1e40af' : '2px solid transparent',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   transition: 'all 0.15s',
-  border: 'none',
 });
 
 const contentStyle: React.CSSProperties = {
@@ -141,9 +143,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   onDocumentDelete,
   onDocumentDownload,
   deleteLoadingId,
-  onDealStatusChange,
 }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('deal_overview');
   const [showComparison] = useState(initialShowComparison);
 
   // State for document viewer modal
@@ -159,41 +160,13 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   );
   const [newNote, setNewNote] = useState('');
 
-  // State for deal status
-  const [isStatusUpdating, setIsStatusUpdating] = useState(false);
-  const [currentDealStatus, setCurrentDealStatus] = useState(deal?.deal_status || 'pipeline');
-
-  // Deal status options
-  const DEAL_STATUS_OPTIONS = [
-    { value: 'pipeline', label: 'Pipeline', color: '#fef3c7', textColor: '#92400e' },
-    { value: 'due_diligence', label: 'Due Diligence', color: '#dbeafe', textColor: '#1e40af' },
-    { value: 'final_review', label: 'Final Review', color: '#ede9fe', textColor: '#6b21a8' },
-    { value: 'closed', label: 'Closed', color: '#d1fae5', textColor: '#065f46' },
-    { value: 'hold', label: 'On Hold', color: '#f3f4f6', textColor: '#374151' },
-  ];
-
-  // Handle status change
-  const handleStatusChange = async (newStatus: string) => {
-    if (!onDealStatusChange || newStatus === currentDealStatus) return;
-
-    setIsStatusUpdating(true);
-    try {
-      await onDealStatusChange(newStatus);
-      setCurrentDealStatus(newStatus);
-    } catch (error) {
-      console.error('Failed to update deal status:', error);
-    } finally {
-      setIsStatusUpdating(false);
-    }
-  };
-
   // State for documents tab (moved here to comply with Rules of Hooks)
   const [isReExtracting, setIsReExtracting] = useState(false);
   const [reExtractionStatus, setReExtractionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [reExtractionMessage, setReExtractionMessage] = useState('');
 
-  // State for collapsible sections in Deal Overview
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  // Collapsible section state for Deal Overview detailed analysis
+  const [detailedAnalysisExpanded, setDetailedAnalysisExpanded] = useState(false);
 
   // Handle source click to open document viewer
   const handleSourceClick = useCallback((sourceRef: SourceReference) => {
@@ -328,109 +301,11 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Overview Tab
   const renderOverviewTab = () => (
     <div>
-      {/* Ask SNFalyze Button */}
-      <div style={{
-        marginBottom: '1.5rem',
-        padding: '1rem',
-        background: 'linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)',
-        borderRadius: '0.75rem',
-        border: '1px solid #c4b5fd',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div>
-          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#5b21b6' }}>
-            Get AI-Powered Deal Insights
-          </h4>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#7c3aed' }}>
-            Ask SNFalyze to analyze this deal's financial health, risks, and opportunities
-          </p>
-        </div>
-        <button
-          onClick={() => setSnfalyzePanelOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.625rem 1.25rem',
-            background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-            border: 'none',
-            borderRadius: '0.5rem',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            color: 'white',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.4)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.3)';
-          }}
-        >
-          <Brain size={18} />
-          Ask SNFalyze
-        </button>
-      </div>
-
       {/* Deal Information */}
       <h3 style={sectionHeaderStyle}>Deal Information</h3>
       <div style={gridStyle}>
         <FieldCell label="Deal Name" field={extractionData.deal_information.deal_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.deal_name" onEdit={(value) => handleFieldEdit('deal_information.deal_name', value)} />
         <FieldCell label="Deal Type" field={extractionData.deal_information.deal_type} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.deal_type" onEdit={(value) => handleFieldEdit('deal_information.deal_type', value)} />
-        {/* Deal Status Dropdown */}
-        <div style={{
-          backgroundColor: '#f9fafb',
-          padding: '0.75rem',
-          borderRadius: '0.5rem',
-          border: '1px solid #e5e7eb',
-        }}>
-          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.375rem', fontWeight: 500 }}>
-            Deal Status
-          </div>
-          {onDealStatusChange ? (
-            <select
-              value={currentDealStatus}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              disabled={isStatusUpdating}
-              style={{
-                width: '100%',
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                borderRadius: '0.375rem',
-                border: '1px solid #d1d5db',
-                backgroundColor: DEAL_STATUS_OPTIONS.find(s => s.value === currentDealStatus)?.color || '#f3f4f6',
-                color: DEAL_STATUS_OPTIONS.find(s => s.value === currentDealStatus)?.textColor || '#374151',
-                cursor: isStatusUpdating ? 'wait' : 'pointer',
-                opacity: isStatusUpdating ? 0.7 : 1,
-              }}
-            >
-              {DEAL_STATUS_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div style={{
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              borderRadius: '9999px',
-              backgroundColor: DEAL_STATUS_OPTIONS.find(s => s.value === currentDealStatus)?.color || '#f3f4f6',
-              color: DEAL_STATUS_OPTIONS.find(s => s.value === currentDealStatus)?.textColor || '#374151',
-              display: 'inline-block',
-            }}>
-              {DEAL_STATUS_OPTIONS.find(s => s.value === currentDealStatus)?.label || currentDealStatus}
-            </div>
-          )}
-        </div>
         <FieldCell label="Deal Source" field={extractionData.deal_information.deal_source} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.deal_source" onEdit={(value) => handleFieldEdit('deal_information.deal_source', value)} />
         <FieldCell label="Priority Level" field={extractionData.deal_information.priority_level} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.priority_level" onEdit={(value) => handleFieldEdit('deal_information.priority_level', value)} />
         <FieldCell label="Purchase Price" field={extractionData.deal_information.purchase_price} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.purchase_price" onEdit={(value) => handleFieldEdit('deal_information.purchase_price', value)} />
@@ -692,38 +567,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     </div>
   );
 
-  // Helper function to parse markdown into individual sections
-  const parseMarkdownSections = (markdown: string) => {
-    const sections: Array<{ title: string; content: string }> = [];
-    const lines = markdown.split('\n');
-    let currentSection: { title: string; content: string } | null = null;
-
-    for (const line of lines) {
-      // Match ## headers (but not # or ###)
-      if (line.match(/^## [^#]/)) {
-        // Save previous section if it exists
-        if (currentSection) {
-          sections.push(currentSection);
-        }
-        // Start new section
-        currentSection = {
-          title: line.replace(/^## /, '').trim(),
-          content: ''
-        };
-      } else if (currentSection) {
-        // Add line to current section
-        currentSection.content += line + '\n';
-      }
-    }
-
-    // Don't forget the last section
-    if (currentSection) {
-      sections.push(currentSection);
-    }
-
-    return sections;
-  };
-
   // Render Deal Overview Tab (Stage 1 Screening)
   const renderDealOverviewTab = () => {
     const overview = extractionData?.deal_overview;
@@ -735,15 +578,148 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
             No deal screening data available.
           </p>
-          <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+          <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
             Re-extract documents to generate Stage 1 deal screening analysis.
           </p>
+          <button
+            onClick={() => setSnfalyzePanelOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.5rem',
+              background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <Brain size={18} />
+            Ask SNFalyze AI
+          </button>
         </div>
       );
     }
 
     return (
       <div>
+        {/* Full Markdown Narrative - Show if available */}
+        {overview.detailed_narrative_markdown && (
+          <div style={{
+            marginBottom: '2rem',
+            padding: '2rem',
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            lineHeight: '1.6'
+          }}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({node, ...props}) => (
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    marginBottom: '1rem',
+                    fontSize: '0.875rem'
+                  }} {...props} />
+                ),
+                thead: ({node, ...props}) => (
+                  <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }} {...props} />
+                ),
+                th: ({node, ...props}) => (
+                  <th style={{
+                    padding: '0.75rem',
+                    textAlign: 'left',
+                    fontWeight: 600,
+                    borderBottom: '1px solid #e5e7eb'
+                  }} {...props} />
+                ),
+                td: ({node, ...props}) => (
+                  <td style={{
+                    padding: '0.75rem',
+                    borderBottom: '1px solid #f3f4f6'
+                  }} {...props} />
+                ),
+                h1: ({node, ...props}) => (
+                  <h1 style={{
+                    fontSize: '2rem',
+                    fontWeight: 700,
+                    marginTop: '2rem',
+                    marginBottom: '1rem',
+                    color: '#111827'
+                  }} {...props} />
+                ),
+                h2: ({node, ...props}) => (
+                  <h2 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 600,
+                    marginTop: '1.5rem',
+                    marginBottom: '0.75rem',
+                    color: '#1f2937'
+                  }} {...props} />
+                ),
+                h3: ({node, ...props}) => (
+                  <h3 style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 600,
+                    marginTop: '1rem',
+                    marginBottom: '0.5rem',
+                    color: '#374151'
+                  }} {...props} />
+                ),
+                blockquote: ({node, ...props}) => (
+                  <blockquote style={{
+                    borderLeft: '4px solid #3b82f6',
+                    paddingLeft: '1rem',
+                    marginLeft: 0,
+                    marginBottom: '1rem',
+                    color: '#4b5563',
+                    fontStyle: 'italic'
+                  }} {...props} />
+                ),
+                code: ({node, inline, ...props}: any) =>
+                  inline ? (
+                    <code style={{
+                      backgroundColor: '#f3f4f6',
+                      padding: '0.2rem 0.4rem',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.875em',
+                      fontFamily: 'monospace'
+                    }} {...props} />
+                  ) : (
+                    <code style={{
+                      display: 'block',
+                      backgroundColor: '#1f2937',
+                      color: '#f9fafb',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      overflowX: 'auto',
+                      marginBottom: '1rem',
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem'
+                    }} {...props} />
+                  ),
+                hr: ({node, ...props}) => (
+                  <hr style={{
+                    border: 'none',
+                    borderTop: '1px solid #e5e7eb',
+                    margin: '2rem 0'
+                  }} {...props} />
+                ),
+              }}
+            >
+              {overview.detailed_narrative_markdown}
+            </ReactMarkdown>
+          </div>
+        )}
+
         {/* Recommendation Badge - Top Priority */}
         {overview.recommendation && (
           <div style={{
@@ -795,78 +771,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               <FileText size={20} style={{ color: '#3b82f6' }} />
               Executive Summary
             </h3>
-
-            {/* Key Metrics Cards - at top of Executive Summary */}
-            {overview.ttm_financials?.summary_metrics && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '1rem',
-                marginBottom: '1.5rem'
-              }}>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                    ${overview.ttm_financials.summary_metrics.total_revenue
-                      ? (overview.ttm_financials.summary_metrics.total_revenue / 1000000).toFixed(2) + 'M'
-                      : 'N/A'}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR</div>
-                  <div style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    color: (overview.ttm_financials.summary_metrics.ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
-                  }}>
-                    ${overview.ttm_financials.summary_metrics.ebitdar
-                      ? (overview.ttm_financials.summary_metrics.ebitdar / 1000).toFixed(0) + 'K'
-                      : 'N/A'}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR Margin</div>
-                  <div style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    color: (overview.ttm_financials.summary_metrics.ebitdar_margin_pct || 0) >= 15 ? '#10b981' : '#ef4444'
-                  }}>
-                    {overview.ttm_financials.summary_metrics.ebitdar_margin_pct?.toFixed(1) || 'N/A'}%
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                    {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div style={{
               fontSize: '0.875rem',
               lineHeight: '1.6',
@@ -879,387 +783,350 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           </div>
         )}
 
-        {/* Fallback: Show structured sections only if markdown is NOT available */}
-        {!overview.detailed_narrative_markdown && (
-          <>
-            {/* Red Flags & Strengths Side by Side */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-              {/* Red Flags */}
-              <div style={{
-                padding: '1.25rem',
-                backgroundColor: '#fef2f2',
-                borderRadius: '0.75rem',
-                border: '1px solid #fecaca'
-              }}>
-                <h3 style={{
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: '#991b1b',
-                  marginBottom: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <AlertTriangle size={20} style={{ color: '#ef4444' }} />
-                  Red Flags
-                </h3>
-                {overview.red_flags && overview.red_flags.length > 0 ? (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {overview.red_flags.map((flag, index) => (
-                      <li key={index} style={{
-                        padding: '0.75rem',
-                        backgroundColor: 'white',
-                        borderRadius: '0.5rem',
-                        marginBottom: '0.5rem',
-                        fontSize: '0.875rem',
-                        border: '1px solid #fecaca'
-                      }}>
-                        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
-                          {flag.issue}
-                          <span style={{
-                            marginLeft: '0.5rem',
-                            padding: '0.125rem 0.5rem',
-                            backgroundColor: '#fee2e2',
-                            borderRadius: '0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 500
-                          }}>
-                            {flag.severity}
-                          </span>
-                        </div>
-                        <div style={{ color: '#7f1d1d' }}>{flag.impact}</div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p style={{ color: '#991b1b', fontSize: '0.875rem', fontStyle: 'italic' }}>No critical red flags identified</p>
-                )}
-              </div>
+        {/* Key Metrics Cards */}
+        {overview.ttm_financials?.summary_metrics && (() => {
+          // Use ebitdar_calculation.equals_ebitdar if available (more accurate), fallback to summary_metrics
+          const ebitdarCalc = overview.ttm_financials.ebitdar_calculation;
+          const summaryMetrics = overview.ttm_financials.summary_metrics;
 
-              {/* Strengths */}
-              <div style={{
-                padding: '1.25rem',
-                backgroundColor: '#ecfdf5',
-                borderRadius: '0.75rem',
-                border: '1px solid #a7f3d0'
-              }}>
-                <h3 style={{
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: '#065f46',
-                  marginBottom: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <TrendingUp size={20} style={{ color: '#10b981' }} />
-                  Strengths
-                </h3>
-                {overview.strengths && overview.strengths.length > 0 ? (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {overview.strengths.map((strength, index) => (
-                      <li key={index} style={{
-                        padding: '0.75rem',
-                        backgroundColor: 'white',
-                        borderRadius: '0.5rem',
-                        marginBottom: '0.5rem',
-                        fontSize: '0.875rem',
-                        border: '1px solid #a7f3d0'
-                      }}>
-                        <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
-                          {strength.strength}
-                        </div>
-                        <div style={{ color: '#047857' }}>{strength.value}</div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p style={{ color: '#065f46', fontSize: '0.875rem', fontStyle: 'italic' }}>No strengths identified</p>
-                )}
+          // EBITDAR: prefer the detailed calculation which is more accurate
+          const ebitdar = ebitdarCalc?.equals_ebitdar ?? summaryMetrics.ebitdar;
+          const revenue = summaryMetrics.total_revenue;
+
+          // Calculate EBITDAR margin from actual EBITDAR value
+          const ebitdarMargin = (ebitdar && revenue)
+            ? (ebitdar / revenue) * 100
+            : summaryMetrics.ebitdar_margin_pct;
+
+          // Occupancy: try facility_snapshot first, then summary_metrics
+          const occupancy = overview.facility_snapshot?.current_occupancy_pct
+            ?? summaryMetrics.occupancy_pct;
+
+          return (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                ${revenue
+                  ? (revenue / 1000000).toFixed(2) + 'M'
+                  : 'N/A'}
               </div>
             </div>
-
-            {/* Valuation Summary */}
-            {overview.valuation && (
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR</div>
               <div style={{
-                marginBottom: '2rem',
-                padding: '1.25rem',
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #e5e7eb'
+                fontSize: '1.5rem',
+                fontWeight: 700,
+                color: (ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
               }}>
-                <h3 style={{
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: '#1e293b',
-                  marginBottom: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <DollarSign size={20} style={{ color: '#3b82f6' }} />
-                  Valuation Analysis
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* As-Is Value */}
-                  {overview.valuation.as_is_value && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>As-Is Value</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
-                        ${overview.valuation.as_is_value.income_approach_low
-                          ? (overview.valuation.as_is_value.income_approach_low / 1000000).toFixed(2)
-                          : '?'}M - ${overview.valuation.as_is_value.income_approach_high
-                          ? (overview.valuation.as_is_value.income_approach_high / 1000000).toFixed(2)
-                          : '?'}M
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                        ${overview.valuation.as_is_value.per_bed_low
-                          ? (overview.valuation.as_is_value.per_bed_low / 1000).toFixed(0)
-                          : '?'}K - ${overview.valuation.as_is_value.per_bed_high
-                          ? (overview.valuation.as_is_value.per_bed_high / 1000).toFixed(0)
-                          : '?'}K per bed
-                      </div>
-                    </div>
-                  )}
+                {ebitdar != null
+                  ? (ebitdar < 0 ? '-' : '') + '$' + (Math.abs(ebitdar) / 1000).toFixed(0) + 'K'
+                  : 'N/A'}
+              </div>
+            </div>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR Margin</div>
+              <div style={{
+                fontSize: '1.5rem',
+                fontWeight: 700,
+                color: (ebitdarMargin || 0) >= 15 ? '#10b981' : '#ef4444'
+              }}>
+                {ebitdarMargin != null ? ebitdarMargin.toFixed(1) : 'N/A'}%
+              </div>
+            </div>
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'white',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                {occupancy != null ? occupancy.toFixed(1) : 'N/A'}%
+              </div>
+            </div>
+          </div>
+          );
+        })()}
 
-                  {/* Stabilized Value */}
-                  {overview.valuation.stabilized_value && (
-                    <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '0.5rem' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>Stabilized Value</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginBottom: '0.25rem' }}>
-                        ${overview.valuation.stabilized_value.value_at_9pct_cap
-                          ? (overview.valuation.stabilized_value.value_at_9pct_cap / 1000000).toFixed(2) + 'M'
-                          : 'N/A'}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                        At {overview.valuation.stabilized_value.target_occupancy_pct || '?'}% occupancy, 9% cap
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Max Purchase Price */}
-                {overview.valuation.max_purchase_price && (
-                  <div style={{
-                    marginTop: '1rem',
-                    padding: '1rem',
-                    backgroundColor: '#eff6ff',
+        {/* Red Flags & Strengths Side by Side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          {/* Red Flags */}
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#fef2f2',
+            borderRadius: '0.75rem',
+            border: '1px solid #fecaca'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#991b1b',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertTriangle size={20} style={{ color: '#ef4444' }} />
+              Red Flags
+            </h3>
+            {overview.red_flags && overview.red_flags.length > 0 ? (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {overview.red_flags.map((flag, index) => (
+                  <li key={index} style={{
+                    padding: '0.75rem',
+                    backgroundColor: 'white',
                     borderRadius: '0.5rem',
-                    border: '1px solid #93c5fd'
+                    marginBottom: '0.5rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid #fecaca'
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: '#1e40af', marginBottom: '0.25rem', fontWeight: 600 }}>
-                      MAX PURCHASE PRICE
-                    </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e40af' }}>
-                      ${overview.valuation.max_purchase_price.max_price
-                        ? (overview.valuation.max_purchase_price.max_price / 1000000).toFixed(2) + 'M'
-                        : 'N/A'}
-                      <span style={{ fontSize: '0.875rem', fontWeight: 500, marginLeft: '0.5rem' }}>
-                        (${overview.valuation.max_purchase_price.max_price_per_bed
-                          ? (overview.valuation.max_purchase_price.max_price_per_bed / 1000).toFixed(0) + 'K/bed'
-                          : 'N/A'})
+                    <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
+                      {flag.issue}
+                      <span style={{
+                        marginLeft: '0.5rem',
+                        padding: '0.125rem 0.5rem',
+                        backgroundColor: '#fee2e2',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 500
+                      }}>
+                        {flag.severity}
                       </span>
                     </div>
-                  </div>
-                )}
-              </div>
+                    <div style={{ color: '#7f1d1d' }}>{flag.impact}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: '#991b1b', fontSize: '0.875rem', fontStyle: 'italic' }}>No critical red flags identified</p>
             )}
+          </div>
 
-            {/* Recommendation Rationale */}
-            {overview.recommendation?.rationale && (
-              <div style={{
-                padding: '1.25rem',
-                backgroundColor: '#f8fafc',
-                borderRadius: '0.75rem',
-                border: '1px solid #e2e8f0'
-              }}>
-                <h3 style={{
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: '#1e293b',
-                  marginBottom: '0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <MessageSquare size={20} style={{ color: '#3b82f6' }} />
-                  Rationale
-                </h3>
-                <p style={{
-                  fontSize: '0.875rem',
-                  lineHeight: '1.6',
-                  color: '#334155',
-                  margin: 0
-                }}>
-                  {overview.recommendation.rationale}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Individual Collapsible Sections for Markdown Content */}
-        {overview.detailed_narrative_markdown && (
-          <>
-            {parseMarkdownSections(overview.detailed_narrative_markdown).map((section, index) => {
-              const sectionKey = section.title.replace(/\s+/g, '-');
-              const isExpanded = expandedSections[sectionKey] || false;
-
-              return (
-                <div key={sectionKey} style={{
-                  marginBottom: '1rem',
-                  borderRadius: '0.75rem',
-                  border: '1px solid #e5e7eb',
-                  overflow: 'hidden',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  {/* Collapsible Header */}
-                  <button
-                    onClick={() => setExpandedSections(prev => ({ ...prev, [sectionKey]: !isExpanded }))}
-                    style={{
-                      width: '100%',
-                      padding: '1rem 1.5rem',
-                      backgroundColor: isExpanded ? '#f9fafb' : 'white',
-                      border: 'none',
-                      borderBottom: isExpanded ? '1px solid #e5e7eb' : 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      transition: 'background-color 0.2s',
-                      textAlign: 'left'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? '#f9fafb' : 'white'}
-                  >
-                    <h3 style={{
-                      fontSize: '0.95rem',
-                      fontWeight: 600,
-                      color: '#1e293b',
-                      margin: 0
-                    }}>
-                      {section.title}
-                    </h3>
-                    {isExpanded ? (
-                      <ChevronUp size={20} style={{ color: '#6b7280', flexShrink: 0 }} />
-                    ) : (
-                      <ChevronDown size={20} style={{ color: '#6b7280', flexShrink: 0 }} />
-                    )}
-                  </button>
-
-                  {/* Collapsible Content */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: '1.5rem',
-                      backgroundColor: 'white',
-                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                      lineHeight: '1.6'
-                    }}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          table: ({node, ...props}) => (
-                            <table style={{
-                              width: '100%',
-                              borderCollapse: 'collapse',
-                              marginBottom: '1rem',
-                              fontSize: '0.875rem'
-                            }} {...props} />
-                          ),
-                          thead: ({node, ...props}) => (
-                            <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }} {...props} />
-                          ),
-                          th: ({node, ...props}) => (
-                            <th style={{
-                              padding: '0.75rem',
-                              textAlign: 'left',
-                              fontWeight: 600,
-                              borderBottom: '1px solid #e5e7eb'
-                            }} {...props} />
-                          ),
-                          td: ({node, ...props}) => (
-                            <td style={{
-                              padding: '0.75rem',
-                              borderBottom: '1px solid #f3f4f6'
-                            }} {...props} />
-                          ),
-                          h1: ({node, ...props}) => (
-                            <h1 style={{
-                              fontSize: '1.75rem',
-                              fontWeight: 700,
-                              marginTop: '1.5rem',
-                              marginBottom: '0.75rem',
-                              color: '#111827'
-                            }} {...props} />
-                          ),
-                          h2: ({node, ...props}) => (
-                            <h2 style={{
-                              fontSize: '1.35rem',
-                              fontWeight: 600,
-                              marginTop: '1.25rem',
-                              marginBottom: '0.5rem',
-                              color: '#1f2937'
-                            }} {...props} />
-                          ),
-                          h3: ({node, ...props}) => (
-                            <h3 style={{
-                              fontSize: '1.1rem',
-                              fontWeight: 600,
-                              marginTop: '1rem',
-                              marginBottom: '0.5rem',
-                              color: '#374151'
-                            }} {...props} />
-                          ),
-                          blockquote: ({node, ...props}) => (
-                            <blockquote style={{
-                              borderLeft: '4px solid #3b82f6',
-                              paddingLeft: '1rem',
-                              marginLeft: 0,
-                              marginBottom: '1rem',
-                              color: '#4b5563',
-                              fontStyle: 'italic'
-                            }} {...props} />
-                          ),
-                          code: ({node, inline, ...props}: any) =>
-                            inline ? (
-                              <code style={{
-                                backgroundColor: '#f3f4f6',
-                                padding: '0.2rem 0.4rem',
-                                borderRadius: '0.25rem',
-                                fontSize: '0.875em',
-                                fontFamily: 'monospace'
-                              }} {...props} />
-                            ) : (
-                              <code style={{
-                                display: 'block',
-                                backgroundColor: '#1f2937',
-                                color: '#f9fafb',
-                                padding: '1rem',
-                                borderRadius: '0.5rem',
-                                overflowX: 'auto',
-                                marginBottom: '1rem',
-                                fontFamily: 'monospace',
-                                fontSize: '0.875rem'
-                              }} {...props} />
-                            ),
-                          hr: ({node, ...props}) => (
-                            <hr style={{
-                              border: 'none',
-                              borderTop: '1px solid #e5e7eb',
-                              margin: '1.5rem 0'
-                            }} {...props} />
-                          ),
-                        }}
-                      >
-                        {section.content}
-                      </ReactMarkdown>
+          {/* Strengths */}
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#ecfdf5',
+            borderRadius: '0.75rem',
+            border: '1px solid #a7f3d0'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#065f46',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <TrendingUp size={20} style={{ color: '#10b981' }} />
+              Strengths
+            </h3>
+            {overview.strengths && overview.strengths.length > 0 ? (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {overview.strengths.map((strength, index) => (
+                  <li key={index} style={{
+                    padding: '0.75rem',
+                    backgroundColor: 'white',
+                    borderRadius: '0.5rem',
+                    marginBottom: '0.5rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid #a7f3d0'
+                  }}>
+                    <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
+                      {strength.strength}
                     </div>
-                  )}
+                    <div style={{ color: '#047857' }}>{strength.value}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: '#065f46', fontSize: '0.875rem', fontStyle: 'italic' }}>No strengths identified</p>
+            )}
+          </div>
+        </div>
+
+        {/* Valuation Summary */}
+        {overview.valuation && (
+          <div style={{
+            marginBottom: '2rem',
+            padding: '1.25rem',
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <DollarSign size={20} style={{ color: '#3b82f6' }} />
+              Valuation Analysis
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* As-Is Value */}
+              {overview.valuation.as_is_value && (
+                <div style={{ padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>As-Is Value</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.25rem' }}>
+                    ${overview.valuation.as_is_value.income_approach_low
+                      ? (overview.valuation.as_is_value.income_approach_low / 1000000).toFixed(2)
+                      : '?'}M - ${overview.valuation.as_is_value.income_approach_high
+                      ? (overview.valuation.as_is_value.income_approach_high / 1000000).toFixed(2)
+                      : '?'}M
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    ${overview.valuation.as_is_value.per_bed_low
+                      ? (overview.valuation.as_is_value.per_bed_low / 1000).toFixed(0)
+                      : '?'}K - ${overview.valuation.as_is_value.per_bed_high
+                      ? (overview.valuation.as_is_value.per_bed_high / 1000).toFixed(0)
+                      : '?'}K per bed
+                  </div>
                 </div>
-              );
-            })}
-          </>
+              )}
+
+              {/* Stabilized Value */}
+              {overview.valuation.stabilized_value && (
+                <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '0.5rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>Stabilized Value</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginBottom: '0.25rem' }}>
+                    ${overview.valuation.stabilized_value.value_at_9pct_cap
+                      ? (overview.valuation.stabilized_value.value_at_9pct_cap / 1000000).toFixed(2) + 'M'
+                      : 'N/A'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    At {overview.valuation.stabilized_value.target_occupancy_pct || '?'}% occupancy, 9% cap
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Max Purchase Price */}
+            {overview.valuation.max_purchase_price && (
+              <div style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                backgroundColor: '#eff6ff',
+                borderRadius: '0.5rem',
+                border: '1px solid #93c5fd'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#1e40af', marginBottom: '0.25rem', fontWeight: 600 }}>
+                  MAX PURCHASE PRICE
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e40af' }}>
+                  ${overview.valuation.max_purchase_price.max_price
+                    ? (overview.valuation.max_purchase_price.max_price / 1000000).toFixed(2) + 'M'
+                    : 'N/A'}
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500, marginLeft: '0.5rem' }}>
+                    (${overview.valuation.max_purchase_price.max_price_per_bed
+                      ? (overview.valuation.max_purchase_price.max_price_per_bed / 1000).toFixed(0) + 'K/bed'
+                      : 'N/A'})
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         )}
+
+        {/* Recommendation Rationale */}
+        {overview.recommendation?.rationale && (
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#f8fafc',
+            borderRadius: '0.75rem',
+            border: '1px solid #e2e8f0'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <MessageSquare size={20} style={{ color: '#3b82f6' }} />
+              Rationale
+            </h3>
+            <p style={{
+              fontSize: '0.875rem',
+              lineHeight: '1.6',
+              color: '#334155',
+              margin: 0
+            }}>
+              {overview.recommendation.rationale}
+            </p>
+          </div>
+        )}
+
+        {/* SNFalyze AI Assistant Button */}
+        <div style={{
+          marginTop: '2rem',
+          padding: '1.5rem',
+          background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+          borderRadius: '0.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ color: 'white' }}>
+            <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+              Need deeper analysis?
+            </div>
+            <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>
+              Ask SNFalyze AI about this deal's metrics, risks, and opportunities
+            </div>
+          </div>
+          <button
+            onClick={() => setSnfalyzePanelOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.5rem',
+              backgroundColor: 'white',
+              color: '#7c3aed',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <Brain size={18} />
+            Ask SNFalyze AI
+          </button>
+        </div>
       </div>
     );
   };

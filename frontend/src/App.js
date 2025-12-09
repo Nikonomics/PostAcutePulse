@@ -2,6 +2,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/common/Layout";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Deals from "./pages/Deals";
 import CreateDeal from "./pages/CreateDeal";
@@ -46,9 +47,15 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 function App() {
   const { isLoggedIn } = useAuth();
 
-  // Render login page if user is not authenticated
+  // Render auth pages if user is not authenticated
   if (!isLoggedIn) {
-    return <Login />;
+    return (
+      <Routes>
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
   }
 
   // Main app layout and routes for authenticated users

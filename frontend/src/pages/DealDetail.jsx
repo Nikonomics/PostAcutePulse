@@ -33,6 +33,7 @@ import {
   formatSimpleDate,
   deleteDealComment,
   updateExtractionData,
+  updateDealStatus,
 } from "../api/DealService";
 import { fileUpload } from "../api/authService";
 import { getTeamRecentActivity } from "../api/DealService";
@@ -920,6 +921,27 @@ const DealDetailPage = () => {
     }
   };
 
+  // Handler for deal status change from DealExtractionViewer
+  const handleDealStatusChange = async (newStatus) => {
+    try {
+      const response = await updateDealStatus({ id: deal.id, deal_status: newStatus });
+      if (response.success) {
+        setDeal(prev => ({
+          ...prev,
+          deal_status: newStatus
+        }));
+        toast.success(`Deal status updated to ${newStatus.replace('_', ' ')}`);
+      } else {
+        toast.error(response.message || 'Failed to update deal status');
+        throw new Error(response.message);
+      }
+    } catch (err) {
+      console.error("Failed to update deal status", err);
+      toast.error("Failed to update deal status");
+      throw err;
+    }
+  };
+
   // Get the full URL for document display
   const getDocumentUrl = (docUrl) => {
     if (!docUrl) return '';
@@ -1156,6 +1178,7 @@ const DealDetailPage = () => {
                     onDocumentDownload={handleDocumentDownload}
                     deleteLoadingId={deleteLoadingId}
                     onFieldEdit={handleFieldEdit}
+                    onDealStatusChange={handleDealStatusChange}
                   />
                 </div>
               )}

@@ -24,7 +24,20 @@
       "Bash(python3:*)",
       "Bash(npm start)",
       "Bash(pkill:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(grep:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(git reset:*)",
+      "Bash(PORT=3001 npm start)",
+      "Bash(64000, which is the maximum allowed\"\n\nChanged to exactly 64000 tokens, which is the model''s hard limit.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git clone:*)",
+      "Bash(npm install)",
+      "Bash(node index.js:*)",
+      "Bash(psql:*)",
+      "Bash(brew install:*)",
+      "Bash(brew services start:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/createdb:*)"
     ],
     "deny": [],
     "ask": []

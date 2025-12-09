@@ -29,9 +29,12 @@ module.exports = {
       const required = {
         email: req.body.email,
         password: req.body.password,
+        first_name: req.body.first_name,
+        last_name: req.body.last_name,
       };
       const nonrequired = {
-
+        phone_number: req.body.phone_number,
+        department: req.body.department,
       };
       const requiredData = await helper.validateObject(required, nonrequired);
 
@@ -41,19 +44,37 @@ module.exports = {
       }
 
       const saltRounds = 10;
-      await bcrypt.hash(req.body.password, saltRounds).then(function (hash) { req.body.password = hash });
+      const hashedPassword = await bcrypt.hash(requiredData.password, saltRounds);
 
-      const user = await User.create(req.body);
-      const credential = { id: user.id, email: user.email };
-      const token = jwt.sign({ data: credential }, jwtToken);
-      const body = {
-        token: token,
-        user: user,
+      // Create user with default role of 'analyst' and active status
+      const user = await User.create({
+        email: requiredData.email,
+        password: hashedPassword,
+        first_name: requiredData.first_name,
+        last_name: requiredData.last_name,
+        phone_number: requiredData.phone_number || null,
+        department: requiredData.department || 'General',
+        role: 'analyst', // Default role for self-registered users
+        status: 'active',
+      });
+
+      const credential = { id: user.id, email: user.email, role: user.role };
+      const token = jwt.sign({ data: credential }, jwtToken, { expiresIn: "7d" });
+
+      const userResponse = {
+        id: user.id,
+        name: `${user.first_name} ${user.last_name}`,
+        email: user.email,
+        role: user.role,
+        created_at: user.created_at,
       };
 
-      return helper.success(res, "User registered successfully", body);
+      return helper.success(res, "Account created successfully! Welcome to SNFalyze.", {
+        token: token,
+        user: userResponse,
+      });
     } catch (err) {
-      return helper.error(res, err);
+      return helper.error(res, err.message || err);
     }
   },
 

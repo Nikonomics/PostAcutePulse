@@ -289,6 +289,9 @@ const DealsList = () => {
   const [showDealModal, setShowDealModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Status update state
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null);
+
   // Upload state
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -350,6 +353,28 @@ const DealsList = () => {
       setDeleteLoading(false);
       setShowDealModal(false);
       setDeleteLoadingId(null);
+    }
+  };
+
+  // Handle inline status change
+  const handleStatusChange = async (dealId, newStatus) => {
+    setStatusUpdatingId(dealId);
+    try {
+      const response = await updateDealStatus({ id: dealId, deal_status: newStatus });
+      if (response.success) {
+        // Update local state
+        setFilteredDeals(prev => prev.map(deal =>
+          deal.id === dealId ? { ...deal, deal_status: newStatus } : deal
+        ));
+        toast.success(`Status updated to ${getStatusLabel(newStatus)}`);
+      } else {
+        toast.error(response.message || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Failed to update deal status', error);
+      toast.error('Failed to update status');
+    } finally {
+      setStatusUpdatingId(null);
     }
   };
 
@@ -658,9 +683,25 @@ const DealsList = () => {
                       </div>
                     </td>
                     <td>
-                      <span className={getStatusBadgeClass(deal.deal_status)}>
-                        {getStatusLabel(deal.deal_status)}
-                      </span>
+                      <Form.Select
+                        size="sm"
+                        value={deal.deal_status}
+                        onChange={(e) => handleStatusChange(deal.id, e.target.value)}
+                        disabled={statusUpdatingId === deal.id}
+                        className={getStatusBadgeClass(deal.deal_status)}
+                        style={{
+                          width: 'auto',
+                          minWidth: '130px',
+                          cursor: statusUpdatingId === deal.id ? 'wait' : 'pointer',
+                          opacity: statusUpdatingId === deal.id ? 0.7 : 1,
+                        }}
+                      >
+                        <option value="pipeline">Pipeline</option>
+                        <option value="due_diligence">Due Diligence</option>
+                        <option value="final_review">Final Review</option>
+                        <option value="closed">Closed</option>
+                        <option value="hold">On Hold</option>
+                      </Form.Select>
                     </td>
                     <td>
                       <span className="type-badge">

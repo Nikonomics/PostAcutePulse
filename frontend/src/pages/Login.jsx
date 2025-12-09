@@ -6,7 +6,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import {loginSchema} from "../validations/authSchema";
 import { useAuth } from "../context/UserContext";
 import {login} from "../api/authService";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 const Login = () => {
   const { login: loginUser } = useAuth();
   const navigate = useNavigate();
@@ -103,10 +103,15 @@ const Login = () => {
               </button>
             </form>
             
-            {/* <div className="forgot-password">
-              <a href="#forgot">Forgot your password?</a>
-            </div> */}
-            
+            <div className="signup-link" style={{ textAlign: 'center', marginTop: '20px' }}>
+              <p style={{ color: '#6b7280', fontSize: '14px' }}>
+                Don't have an account?{' '}
+                <Link to="/signup" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: '500' }}>
+                  Create one
+                </Link>
+              </p>
+            </div>
+
             <div className="security-features">
               <p>SECURITY FEATURES</p>
               <div className="security-items">
