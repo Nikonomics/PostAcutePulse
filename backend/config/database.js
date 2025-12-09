@@ -64,8 +64,10 @@ const getConnectionString = () => {
  */
 const getSequelizeInstance = () => {
   const config = getConnectionString();
+  console.log('[getSequelizeInstance] Database type:', config.type);
 
   if (config.type === 'postgres') {
+    console.log('[getSequelizeInstance] Creating PostgreSQL connection');
     return new Sequelize(config.url, {
       dialect: 'postgres',
       protocol: 'postgres',
@@ -78,6 +80,7 @@ const getSequelizeInstance = () => {
       }
     });
   } else {
+    console.log('[getSequelizeInstance] Creating SQLite connection:', config.path);
     return new Sequelize({
       dialect: 'sqlite',
       storage: config.path,
