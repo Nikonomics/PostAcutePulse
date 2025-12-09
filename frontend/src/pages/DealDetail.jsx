@@ -34,6 +34,7 @@ import {
   deleteDealComment,
   updateExtractionData,
   updateDealStatus,
+  markDealAsViewed,
 } from "../api/DealService";
 import { fileUpload } from "../api/authService";
 import { getTeamRecentActivity } from "../api/DealService";
@@ -677,6 +678,15 @@ const DealDetailPage = () => {
 
   useEffect(() => {
     fetchDeal();
+  }, [id]);
+
+  // Mark deal as viewed when user opens the page
+  useEffect(() => {
+    if (id) {
+      markDealAsViewed(id).catch(err => {
+        console.error('Failed to mark deal as viewed:', err);
+      });
+    }
   }, [id]);
 
   // Fetch comments from API

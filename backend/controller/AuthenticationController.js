@@ -46,7 +46,7 @@ module.exports = {
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(requiredData.password, saltRounds);
 
-      // Create user with default role of 'analyst' and active status
+      // Create user with default role of 'analyst' and pending approval status
       const user = await User.create({
         email: requiredData.email,
         password: hashedPassword,
@@ -56,22 +56,35 @@ module.exports = {
         department: requiredData.department || 'General',
         role: 'analyst', // Default role for self-registered users
         status: 'active',
+        approval_status: 'pending', // Requires admin approval
       });
-
-      const credential = { id: user.id, email: user.email, role: user.role };
-      const token = jwt.sign({ data: credential }, jwtToken, { expiresIn: "7d" });
 
       const userResponse = {
         id: user.id,
         name: `${user.first_name} ${user.last_name}`,
         email: user.email,
         role: user.role,
+        approval_status: user.approval_status,
         created_at: user.created_at,
       };
 
-      return helper.success(res, "Account created successfully! Welcome to SNFalyze.", {
-        token: token,
+      // Notify admins about new signup (create notification for all admins)
+      const admins = await User.findAll({ where: { role: 'admin', status: 'active' } });
+      for (const admin of admins) {
+        await UserNotifications.create({
+          from_id: user.id,
+          to_id: admin.id,
+          notification_type: 'signup',
+          title: 'New User Registration',
+          content: `${user.first_name} ${user.last_name} (${user.email}) has registered and is awaiting approval.`,
+          ref_id: user.id,
+          is_read: false,
+        });
+      }
+
+      return helper.success(res, "Account created successfully! Your account is pending admin approval. You will be notified once approved.", {
         user: userResponse,
+        pending_approval: true,
       });
     } catch (err) {
       return helper.error(res, err.message || err);
@@ -104,6 +117,19 @@ module.exports = {
         return helper.error(res, "Password does not match.");
       }
 
+      // Check if user account is active
+      if (user.status !== 'active') {
+        return helper.error(res, "Your account has been deactivated. Please contact an administrator.");
+      }
+
+      // Check approval status
+      if (user.approval_status === 'pending') {
+        return helper.error(res, "Your account is pending admin approval. You will be notified once approved.");
+      }
+      if (user.approval_status === 'rejected') {
+        return helper.error(res, "Your account registration was not approved. Please contact an administrator for more information.");
+      }
+
       // Create token
       const credentials = {
         id: user.id,
@@ -115,9 +141,15 @@ module.exports = {
 
       const userResponse = {
         id: user.id,
-        name: user.name,
+        name: `${user.first_name} ${user.last_name}`,
+        first_name: user.first_name,
+        last_name: user.last_name,
         email: user.email,
         role: user.role,
+        department: user.department,
+        phone_number: user.phone_number,
+        profile_url: user.profile_url,
+        approval_status: user.approval_status,
         created_at: user.created_at,
       };
 
@@ -406,7 +438,7 @@ module.exports = {
     }
   },
 
-  /* 
+  /*
   this function will help to fetch team recent activity
   Method: GET
   URL: /api/v1/user/team-recent-activity
@@ -427,6 +459,313 @@ module.exports = {
     }
     catch (err) {
       return helper.error(res, err);
+    }
+  },
+
+  /*
+  Approve a pending user registration
+  Method: POST
+  URL: /api/v1/auth/approve-user/:id
+  */
+  approveUser: async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const adminId = req.user.id;
+
+      // Verify admin role
+      const admin = await User.findByPk(adminId);
+      if (!admin || admin.role !== 'admin') {
+        return helper.error(res, "Only administrators can approve users.");
+      }
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return helper.error(res, "User not found");
+      }
+
+      if (user.approval_status === 'approved') {
+        return helper.error(res, "User is already approved");
+      }
+
+      // Update approval status
+      await user.update({
+        approval_status: 'approved',
+        approved_by: adminId,
+        approved_at: new Date(),
+      });
+
+      // Notify the user
+      await UserNotifications.create({
+        from_id: adminId,
+        to_id: user.id,
+        notification_type: 'approval',
+        title: 'Account Approved',
+        content: 'Your account has been approved! You can now log in to SNFalyze.',
+        ref_id: user.id,
+        is_read: false,
+      });
+
+      return helper.success(res, "User approved successfully", {
+        id: user.id,
+        email: user.email,
+        approval_status: 'approved',
+      });
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Reject a pending user registration
+  Method: POST
+  URL: /api/v1/auth/reject-user/:id
+  */
+  rejectUser: async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const adminId = req.user.id;
+      const { reason } = req.body;
+
+      // Verify admin role
+      const admin = await User.findByPk(adminId);
+      if (!admin || admin.role !== 'admin') {
+        return helper.error(res, "Only administrators can reject users.");
+      }
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return helper.error(res, "User not found");
+      }
+
+      // Update approval status
+      await user.update({
+        approval_status: 'rejected',
+        approved_by: adminId,
+        approved_at: new Date(),
+      });
+
+      // Notify the user
+      await UserNotifications.create({
+        from_id: adminId,
+        to_id: user.id,
+        notification_type: 'rejection',
+        title: 'Account Not Approved',
+        content: reason || 'Your account registration was not approved. Please contact an administrator for more information.',
+        ref_id: user.id,
+        is_read: false,
+      });
+
+      return helper.success(res, "User rejected", {
+        id: user.id,
+        email: user.email,
+        approval_status: 'rejected',
+      });
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Get pending users awaiting approval
+  Method: GET
+  URL: /api/v1/auth/pending-users
+  */
+  getPendingUsers: async (req, res) => {
+    try {
+      const adminId = req.user.id;
+
+      // Verify admin role
+      const admin = await User.findByPk(adminId);
+      if (!admin || admin.role !== 'admin') {
+        return helper.error(res, "Only administrators can view pending users.");
+      }
+
+      const pendingUsers = await User.findAll({
+        where: { approval_status: 'pending' },
+        attributes: { exclude: ['password'] },
+        order: [['created_at', 'DESC']],
+      });
+
+      return helper.success(res, "Pending users fetched successfully", pendingUsers);
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Update user profile (self-service)
+  Method: PUT
+  URL: /api/v1/auth/update-profile
+  */
+  updateProfile: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { first_name, last_name, phone_number, department, profile_url } = req.body;
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return helper.error(res, "User not found");
+      }
+
+      // Update allowed fields only
+      const updateData = {};
+      if (first_name !== undefined) updateData.first_name = first_name;
+      if (last_name !== undefined) updateData.last_name = last_name;
+      if (phone_number !== undefined) updateData.phone_number = phone_number;
+      if (department !== undefined) updateData.department = department;
+      if (profile_url !== undefined) updateData.profile_url = profile_url;
+      updateData.updated_at = new Date();
+
+      await user.update(updateData);
+
+      const userResponse = {
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        phone_number: user.phone_number,
+        department: user.department,
+        profile_url: user.profile_url,
+        role: user.role,
+        updated_at: user.updated_at,
+      };
+
+      return helper.success(res, "Profile updated successfully", userResponse);
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Change password (self-service)
+  Method: PUT
+  URL: /api/v1/auth/change-password
+  */
+  changePassword: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { current_password, new_password } = req.body;
+
+      if (!current_password || !new_password) {
+        return helper.error(res, "Current password and new password are required");
+      }
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return helper.error(res, "User not found");
+      }
+
+      // Verify current password
+      const passwordMatch = await bcrypt.compare(current_password, user.password.replace("$2y$", "$2b$"));
+      if (!passwordMatch) {
+        return helper.error(res, "Current password is incorrect");
+      }
+
+      // Hash new password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(new_password, saltRounds);
+
+      await user.update({
+        password: hashedPassword,
+        updated_at: new Date(),
+      });
+
+      return helper.success(res, "Password changed successfully");
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Get user notifications
+  Method: GET
+  URL: /api/v1/auth/notifications
+  */
+  getNotifications: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { unread_only, limit = 20 } = req.query;
+
+      let whereClause = { to_id: userId };
+      if (unread_only === 'true') {
+        whereClause.is_read = false;
+      }
+
+      const notifications = await UserNotifications.findAll({
+        where: whereClause,
+        order: [['createdAt', 'DESC']],
+        limit: parseInt(limit),
+        include: [{
+          model: User,
+          as: 'fromUser',
+          attributes: ['id', 'first_name', 'last_name', 'profile_url'],
+          required: false,
+        }],
+      });
+
+      // Get unread count
+      const unreadCount = await UserNotifications.count({
+        where: { to_id: userId, is_read: false },
+      });
+
+      return helper.success(res, "Notifications fetched successfully", {
+        notifications,
+        unread_count: unreadCount,
+      });
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Mark notification(s) as read
+  Method: PUT
+  URL: /api/v1/auth/notifications/read
+  */
+  markNotificationsRead: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { notification_ids, mark_all } = req.body;
+
+      if (mark_all) {
+        await UserNotifications.update(
+          { is_read: true },
+          { where: { to_id: userId, is_read: false } }
+        );
+        return helper.success(res, "All notifications marked as read");
+      }
+
+      if (!notification_ids || !Array.isArray(notification_ids)) {
+        return helper.error(res, "notification_ids array is required");
+      }
+
+      await UserNotifications.update(
+        { is_read: true },
+        { where: { id: notification_ids, to_id: userId } }
+      );
+
+      return helper.success(res, "Notifications marked as read");
+    } catch (err) {
+      return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Get notification count (unread)
+  Method: GET
+  URL: /api/v1/auth/notifications/count
+  */
+  getNotificationCount: async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      const unreadCount = await UserNotifications.count({
+        where: { to_id: userId, is_read: false },
+      });
+
+      return helper.success(res, "Notification count fetched", { unread_count: unreadCount });
+    } catch (err) {
+      return helper.error(res, err.message || err);
     }
   },
 };

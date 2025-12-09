@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('user_notifications', {
+  const UserNotification = sequelize.define('user_notifications', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -14,8 +14,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     notification_type: {
-      type: DataTypes.STRING(20),
-      allowNull: false
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      comment: 'signup, approval, rejection, comment, mention, deal_update'
     },
     title: {
       type: DataTypes.STRING,
@@ -29,6 +30,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true
     },
+    ref_type: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'user, deal, comment'
+    },
     is_read: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
@@ -41,4 +47,18 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'user_notifications',
     timestamps: true
   });
+
+  // Define associations
+  UserNotification.associate = function(models) {
+    UserNotification.belongsTo(models.users, {
+      foreignKey: 'from_id',
+      as: 'fromUser'
+    });
+    UserNotification.belongsTo(models.users, {
+      foreignKey: 'to_id',
+      as: 'toUser'
+    });
+  };
+
+  return UserNotification;
 };

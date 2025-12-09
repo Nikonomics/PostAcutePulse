@@ -543,3 +543,48 @@ export const reExtractDeal = async (dealId) => {
   );
   return response.data;
 };
+
+// ============================================
+// Deal Activity Tracking API
+// ============================================
+
+/**
+ * Get deals list with activity tracking info (last activity, unread count)
+ * @param {string} search - Search query
+ * @param {string} status - Deal status filter
+ * @param {string} type - Deal type filter
+ * @param {number} page - Page number
+ * @returns {Promise} - Deals with activity tracking info
+ */
+export const getDealsWithActivity = async (search = '', status = '', type = '', page = 1) => {
+  const response = await apiService.get(
+    `${apiRoutes.getDealsWithActivity}?search=${search}&status=${status}&type=${type}&page=${page}`
+  );
+  return response.data;
+};
+
+/**
+ * Mark a deal as viewed by the current user
+ * This resets the unread activity count for this deal/user
+ * @param {number} dealId - The deal ID
+ * @returns {Promise} - Mark viewed result
+ */
+export const markDealAsViewed = async (dealId) => {
+  const response = await apiService.post(
+    `${apiRoutes.markDealViewed}/${dealId}/mark-viewed`
+  );
+  return response.data;
+};
+
+/**
+ * Get detailed change history/audit trail for a deal
+ * @param {number} dealId - The deal ID
+ * @param {number} page - Page number for pagination
+ * @returns {Promise} - Paginated change history
+ */
+export const getDealChangeHistory = async (dealId, page = 1) => {
+  const response = await apiService.get(
+    `${apiRoutes.getDealChangeHistory}/${dealId}/change-history?page=${page}`
+  );
+  return response.data;
+};

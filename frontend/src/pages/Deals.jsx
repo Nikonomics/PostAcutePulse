@@ -10,13 +10,12 @@ import {
   Building,
   DollarSign,
   MapPin,
-  Calendar,
   Filter,
   RefreshCw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
-  getDeals,
+  getDealsWithActivity,
   getDealStats,
   updateDealStatus,
   deleteDeal,
@@ -24,6 +23,8 @@ import {
   extractDealEnhanced,
 } from "../api/DealService";
 import { toast } from "react-toastify";
+import ActivityBadge from "../components/ActivityBadge";
+import LastActivityCell from "../components/LastActivityCell";
 
 // CSS Styles matching original app design
 const styles = `
@@ -299,7 +300,7 @@ const DealsList = () => {
   const fetchDealsWithFilters = async (search, status, type, page) => {
     try {
       setLoading(true);
-      const response = await getDeals(search, status, type, page);
+      const response = await getDealsWithActivity(search, status, type, page);
       setTotalDeals(response.body.total);
       setFilteredDeals(response.body.deals);
       setTotalPages(response.body.totalPages);
@@ -645,7 +646,7 @@ const DealsList = () => {
                   <th>Value</th>
                   <th>Status</th>
                   <th>Type</th>
-                  <th>Date</th>
+                  <th>Last Updated</th>
                   <th className="text-end">Actions</th>
                 </tr>
               </thead>
@@ -709,9 +710,15 @@ const DealsList = () => {
                       </span>
                     </td>
                     <td>
-                      <div className="d-flex align-items-center gap-1 text-muted">
-                        <Calendar size={14} />
-                        <span>{formatSimpleDate(deal.created_at)}</span>
+                      <div className="d-flex align-items-center gap-2">
+                        <LastActivityCell
+                          activityType={deal.last_activity_type}
+                          activityUser={deal.last_activity_user}
+                          activityAt={deal.last_activity_at || deal.updated_at || deal.created_at}
+                        />
+                        {deal.unread_count > 0 && (
+                          <ActivityBadge count={deal.unread_count} />
+                        )}
                       </div>
                     </td>
                     <td>

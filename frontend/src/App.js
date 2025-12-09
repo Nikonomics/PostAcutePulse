@@ -21,6 +21,7 @@ import EditCombinedDeatlForm1 from "./pages/EditCombinedDeatlForm1";
 import LocationTest from "./pages/LocationTest";
 import CreateDealChoice from "./pages/CreateDealChoice";
 import UploadDeal from "./pages/UploadDeal";
+import Profile from "./pages/Profile";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
 //   const { isLoggedIn } = useAuth();
@@ -186,6 +187,15 @@ function App() {
           element={
             <ProtectedRoute>
               <LocationTest />
+            </ProtectedRoute>
+          }
+        />
+        {/* Profile route */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />

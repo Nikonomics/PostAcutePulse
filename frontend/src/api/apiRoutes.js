@@ -39,6 +39,16 @@ const apiRoutes = {
     deleteMasterDeal: `${BASE_URL}/deal/delete-master-deal`,
     getSampleLocations: `${BASE_URL}/deal/get-deal-facilities-coordinates`,
     generateAccessToKen: `${BASE_URL}/auth/generate-access-token`,
+    // Profile & User management
+    updateProfile: `${BASE_URL}/auth/update-profile`,
+    changePassword: `${BASE_URL}/auth/change-password`,
+    pendingUsers: `${BASE_URL}/auth/pending-users`,
+    approveUser: `${BASE_URL}/auth/approve-user`, // Usage: POST `${approveUser}/${userId}`
+    rejectUser: `${BASE_URL}/auth/reject-user`, // Usage: POST `${rejectUser}/${userId}`
+    // Notifications
+    notifications: `${BASE_URL}/auth/notifications`,
+    notificationCount: `${BASE_URL}/auth/notifications/count`,
+    markNotificationsRead: `${BASE_URL}/auth/notifications/read`,
     extractDealFromDocument: `${BASE_URL}/deal/extract`,
     extractDealEnhanced: `${BASE_URL}/deal/extract-enhanced`,
     reExtractDeal: `${BASE_URL}/deal`, // Usage: POST `${reExtractDeal}/${dealId}/reextract`
@@ -59,6 +69,10 @@ const apiRoutes = {
     // Pro Forma Scenarios
     proforma: `${BASE_URL}/deal`, // Usage: `${proforma}/${dealId}/proforma`
     proformaCalculate: `${BASE_URL}/deal`, // Usage: POST `${proformaCalculate}/${dealId}/proforma/calculate`
+    // Deal Activity Tracking
+    getDealsWithActivity: `${BASE_URL}/deal/get-deals-with-activity`,
+    markDealViewed: `${BASE_URL}/deal`, // Usage: POST `${markDealViewed}/${dealId}/mark-viewed`
+    getDealChangeHistory: `${BASE_URL}/deal`, // Usage: GET `${getDealChangeHistory}/${dealId}/change-history`
 };
 
 export default apiRoutes;

@@ -34,6 +34,7 @@ const {
   normalizeBenchmarkConfig,
   DEFAULT_BENCHMARKS
 } = require("../services/proformaService");
+const { detectChanges, formatChangeSummary } = require("../services/dealChangeTracker");
 const User = db.users;
 const Deal = db.deals;
 const DealTeamMembers = db.deal_team_members;
@@ -53,6 +54,8 @@ const DealMonthlyCensus = db.deal_monthly_census;
 const DealMonthlyExpenses = db.deal_monthly_expenses;
 const DealRateSchedules = db.deal_rate_schedules;
 const DealExpenseRatios = db.deal_expense_ratios;
+const DealChangeLogs = db.deal_change_logs;
+const DealUserViews = db.deal_user_views;
 Deal.hasMany(DealTeamMembers, {
   foreignKey: "deal_id",
   as: "deal_team_members",
@@ -85,6 +88,11 @@ Deal.belongsTo(User, {
   foreignKey: "assistant_deal_lead_id",
   as: "assistant_deal_lead",
 });
+Deal.belongsTo(User, {
+  foreignKey: "last_activity_by",
+  as: "last_activity_user",
+});
+DealChangeLogs.belongsTo(User, { foreignKey: "user_id", as: "user" });
 DealComments.belongsTo(User, { foreignKey: "user_id", as: "user" });
 DealDocuments.belongsTo(User, { foreignKey: "user_id", as: "user" });
 CommentMentions.belongsTo(User, {
@@ -2055,6 +2063,9 @@ module.exports = {
         return helper.error(res, "Deal not found");
       }
 
+      // Store original values before update for change tracking
+      const originalDeal = deal.toJSON();
+
       const userData = await User.findByPk(requiredData.user_id);
 
       // create user set:
@@ -2065,6 +2076,31 @@ module.exports = {
 
       // Update the deal
       await deal.update(requiredData);
+
+      // Detect and log field changes
+      const changes = detectChanges(originalDeal, requiredData);
+
+      if (changes.length > 0) {
+        // Log each change to deal_change_logs
+        await Promise.all(changes.map(change =>
+          DealChangeLogs.create({
+            deal_id: deal.id,
+            user_id: userData.id,
+            change_type: change.field_name === 'deal_status' ? 'status_change' : 'field_update',
+            field_name: change.field_name,
+            field_label: change.field_label,
+            old_value: change.old_value,
+            new_value: change.new_value
+          })
+        ));
+
+        // Update last activity on deal
+        await deal.update({
+          last_activity_at: new Date(),
+          last_activity_by: userData.id,
+          last_activity_type: 'edited'
+        });
+      }
 
       // fetch all users who are mentioned in the comment:
       if (deal_team_members) {
@@ -2091,7 +2127,12 @@ module.exports = {
         });
       }
 
-      // create recent activity:
+      // create recent activity with improved message showing what changed:
+      const changeSummary = formatChangeSummary(changes);
+      const activityMessage = changeSummary
+        ? `<strong>${userData.first_name} ${userData.last_name}</strong> updated ${changeSummary} on deal <strong>${deal.deal_name}</strong>.`
+        : `The deal <strong>${deal.deal_name}</strong> has been updated by <strong>${userData.first_name} ${userData.last_name}</strong>.`;
+
       await Promise.all(
         Array.from(allUserIds).map(async (userId) => {
           if (userId !== userData.id) {
@@ -2102,12 +2143,13 @@ module.exports = {
               subject_type: "deal",
               subject_id: requiredData.id,
               is_team: true,
-              message: `The deal <strong>${deal.deal_name}</strong> has been updated by <strong>${userData.first_name} ${userData.last_name}</strong> on our platform.`,
+              message: activityMessage,
               data: JSON.stringify({
                 deal_id: deal.id,
                 deal_name: deal.deal_name,
                 to_id: userId,
                 from_id: userData.id,
+                changes: changes.length > 0 ? changes : null,
               }),
             });
           }
@@ -2248,6 +2290,21 @@ module.exports = {
       if (!deal) {
         return helper.error(res, "Deal not found");
       }
+
+      // Log comment as activity in change logs
+      await DealChangeLogs.create({
+        deal_id: validatedData.deal_id,
+        user_id: validatedData.user_id,
+        change_type: 'comment_added',
+        metadata: JSON.stringify({ comment_id: dealComment.id })
+      });
+
+      // Update last activity on deal
+      await deal.update({
+        last_activity_at: new Date(),
+        last_activity_by: validatedData.user_id,
+        last_activity_type: 'commented'
+      });
 
       allUserIds.add(deal.deal_lead_id);
       allUserIds.add(deal.assistant_deal_lead_id);
@@ -4011,6 +4068,175 @@ module.exports = {
     } catch (err) {
       console.error("Get deal facilities coordinates error:", err);
       return helper.error(res, err.message || "Failed to fetch deal facilities coordinates");
+    }
+  },
+
+  /**
+   * Mark a deal as viewed by the current user
+   * POST /api/v1/deal/:dealId/mark-viewed
+   */
+  markDealAsViewed: async (req, res) => {
+    try {
+      const dealId = req.params.dealId;
+      const userId = req.user.id;
+
+      // Upsert the view record
+      const existingView = await DealUserViews.findOne({
+        where: { deal_id: dealId, user_id: userId }
+      });
+
+      if (existingView) {
+        await existingView.update({ last_viewed_at: new Date() });
+      } else {
+        await DealUserViews.create({
+          deal_id: dealId,
+          user_id: userId,
+          last_viewed_at: new Date()
+        });
+      }
+
+      return helper.success(res, "Deal marked as viewed");
+    } catch (err) {
+      console.error("Mark deal as viewed error:", err);
+      return helper.error(res, err.message || "Failed to mark deal as viewed");
+    }
+  },
+
+  /**
+   * Get deals list with last activity and unread count for current user
+   * GET /api/v1/deal/get-deals-with-activity
+   */
+  getDealsWithActivity: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { search, status, type, page = 1 } = req.query;
+      const limit = 10;
+      const offset = (page - 1) * limit;
+
+      // Build where clause
+      const where = {};
+      if (search) {
+        where[Op.or] = [
+          { deal_name: { [Op.like]: `%${search}%` } },
+          { facility_name: { [Op.like]: `%${search}%` } }
+        ];
+      }
+      if (status && status !== 'All' && status !== '') {
+        where.deal_status = status;
+      }
+      if (type && type !== 'All' && type !== '') {
+        where.deal_type = type;
+      }
+
+      // Fetch deals with last activity user
+      const deals = await Deal.findAll({
+        where,
+        include: [
+          {
+            model: User,
+            as: 'last_activity_user',
+            attributes: ['id', 'first_name', 'last_name'],
+            required: false
+          },
+          {
+            model: DealFacilities,
+            as: 'facilities',
+            attributes: ['id', 'facility_type', 'no_of_beds', 'city', 'state', 'purchase_price'],
+            required: false
+          }
+        ],
+        order: [['last_activity_at', 'DESC NULLS LAST'], ['created_at', 'DESC']],
+        limit,
+        offset
+      });
+
+      // Get user's last view timestamps for these deals
+      const dealIds = deals.map(d => d.id);
+      const userViews = await DealUserViews.findAll({
+        where: {
+          deal_id: { [Op.in]: dealIds },
+          user_id: userId
+        }
+      });
+      const viewMap = new Map(userViews.map(v => [v.deal_id, v.last_viewed_at]));
+
+      // Get unread counts (activities since last view)
+      const unreadCounts = await Promise.all(dealIds.map(async (dealId) => {
+        const lastViewed = viewMap.get(dealId) || new Date(0);
+        const count = await DealChangeLogs.count({
+          where: {
+            deal_id: dealId,
+            user_id: { [Op.ne]: userId }, // Don't count user's own changes
+            created_at: { [Op.gt]: lastViewed }
+          }
+        });
+        return { dealId, count };
+      }));
+      const unreadMap = new Map(unreadCounts.map(u => [u.dealId, u.count]));
+
+      // Format response
+      const dealsWithActivity = deals.map(deal => {
+        const d = deal.toJSON();
+        return {
+          ...d,
+          last_activity: {
+            type: d.last_activity_type,
+            at: d.last_activity_at,
+            by: d.last_activity_user ?
+              `${d.last_activity_user.first_name} ${d.last_activity_user.last_name}` :
+              null
+          },
+          unread_count: unreadMap.get(d.id) || 0,
+          // Include deal_facility for compatibility with existing frontend
+          deal_facility: d.facilities || []
+        };
+      });
+
+      const total = await Deal.count({ where });
+
+      return helper.success(res, "Deals fetched successfully", {
+        deals: dealsWithActivity,
+        total,
+        totalPages: Math.ceil(total / limit)
+      });
+    } catch (err) {
+      console.error("Get deals with activity error:", err);
+      return helper.error(res, err.message || "Failed to fetch deals with activity");
+    }
+  },
+
+  /**
+   * Get complete change history for a deal
+   * GET /api/v1/deal/:dealId/change-history
+   */
+  getDealChangeHistory: async (req, res) => {
+    try {
+      const dealId = req.params.dealId;
+      const { page = 1, limit = 20 } = req.query;
+      const offset = (page - 1) * parseInt(limit);
+
+      const changes = await DealChangeLogs.findAll({
+        where: { deal_id: dealId },
+        include: [{
+          model: User,
+          as: 'user',
+          attributes: ['id', 'first_name', 'last_name', 'profile_url']
+        }],
+        order: [['created_at', 'DESC']],
+        limit: parseInt(limit),
+        offset
+      });
+
+      const total = await DealChangeLogs.count({ where: { deal_id: dealId } });
+
+      return helper.success(res, "Change history fetched", {
+        changes,
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      });
+    } catch (err) {
+      console.error("Get deal change history error:", err);
+      return helper.error(res, err.message || "Failed to fetch change history");
     }
   },
 };

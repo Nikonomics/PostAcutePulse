@@ -30,6 +30,12 @@ router.get('/get-deal-documents', requireAuthentication, DealController.getDealD
 router.get('/get-user-notifications', requireAuthentication, DealController.getUserNotifications);
 router.post('/read-notification', requireAuthentication, DealController.markUserNotificationAsRead);
 router.get('/get-deals-by-search', requireAuthentication, DealController.getActiveDeals);
+
+// Deal Activity Tracking
+router.get('/get-deals-with-activity', requireAuthentication, DealController.getDealsWithActivity);
+router.post('/:dealId/mark-viewed', requireAuthentication, DealController.markDealAsViewed);
+router.get('/:dealId/change-history', requireAuthentication, DealController.getDealChangeHistory);
+
 router.get("/master-deals", requireAuthentication, DealController.getMasterDeals)
 router.get("/get-master-deal", requireAuthentication, DealController.getParticularMasterDeal)
 router.delete("/delete-master-deal/:id", requireAuthentication, DealController.deleteMasterDeal)

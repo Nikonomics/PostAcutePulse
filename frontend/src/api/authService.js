@@ -85,3 +85,72 @@ export const logout = () => {
   localStorage.removeItem("authUser");
   window.location.reload("/");
 };
+
+// Get my profile details
+export const getMyProfileDetails = async () => {
+  const response = await apiService.get(apiRoutes.getUserById);
+  return response.data;
+};
+
+// Update profile
+export const updateProfile = async (profileData) => {
+  const response = await apiService.put(apiRoutes.updateProfile, profileData);
+  // Update localStorage with new user data
+  if (response.data.body) {
+    const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
+    const updatedUser = { ...currentUser, ...response.data.body };
+    localStorage.setItem("authUser", JSON.stringify(updatedUser));
+  }
+  return response.data;
+};
+
+// Change password
+export const changePassword = async (currentPassword, newPassword) => {
+  const response = await apiService.put(apiRoutes.changePassword, {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+  return response.data;
+};
+
+// Get pending users (admin only)
+export const getPendingUsers = async () => {
+  const response = await apiService.get(apiRoutes.pendingUsers);
+  return response.data;
+};
+
+// Approve user (admin only)
+export const approveUser = async (userId) => {
+  const response = await apiService.post(`${apiRoutes.approveUser}/${userId}`);
+  return response.data;
+};
+
+// Reject user (admin only)
+export const rejectUser = async (userId, reason) => {
+  const response = await apiService.post(`${apiRoutes.rejectUser}/${userId}`, { reason });
+  return response.data;
+};
+
+// Get notifications
+export const getNotifications = async (unreadOnly = false, limit = 20) => {
+  const params = new URLSearchParams();
+  if (unreadOnly) params.append("unread_only", "true");
+  params.append("limit", limit.toString());
+  const response = await apiService.get(`${apiRoutes.notifications}?${params}`);
+  return response.data;
+};
+
+// Get notification count
+export const getNotificationCount = async () => {
+  const response = await apiService.get(apiRoutes.notificationCount);
+  return response.data;
+};
+
+// Mark notifications as read
+export const markNotificationsRead = async (notificationIds = null, markAll = false) => {
+  const response = await apiService.put(apiRoutes.markNotificationsRead, {
+    notification_ids: notificationIds,
+    mark_all: markAll,
+  });
+  return response.data;
+};

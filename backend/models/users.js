@@ -50,6 +50,20 @@ module.exports = function (sequelize, DataTypes) {
       allowNull: true,
       defaultValue: "active"
     },
+    approval_status: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      defaultValue: "pending",
+      comment: "pending, approved, rejected"
+    },
+    approved_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    approved_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     email_notifications: {
       type: DataTypes.BOOLEAN,
       allowNull: true

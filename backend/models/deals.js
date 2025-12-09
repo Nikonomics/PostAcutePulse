@@ -221,6 +221,21 @@ module.exports = function (sequelize, DataTypes) {
     updated_at: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    last_activity_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Timestamp of last activity (update, comment, document)'
+    },
+    last_activity_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'User ID who performed last activity'
+    },
+    last_activity_type: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Type of last activity: edited, commented, document_added, status_changed'
     }
   }, {
     sequelize,
