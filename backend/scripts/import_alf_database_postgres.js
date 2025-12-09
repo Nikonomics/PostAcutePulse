@@ -281,6 +281,15 @@ async function importData() {
       try {
         const values = parseCSVLine(line);
 
+        // Skip lines that don't have enough columns
+        if (values.length < 2) {
+          errorCount++;
+          if (errorCount <= 5) {
+            console.error(`\n⚠️  Error on line ${lineNumber}: Insufficient columns (${values.length})`);
+          }
+          continue;
+        }
+
         // Map CSV columns to database fields (34 columns total)
         const record = [
           convertValue(values[0]),  // facility_id
@@ -319,33 +328,49 @@ async function importData() {
           convertValue(values[33]) ? parseFloat(values[33]) : null  // pct_population_hispanic
         ];
 
+        // Skip if facility_name is missing (required field)
+        if (!record[1]) {
+          errorCount++;
+          if (errorCount <= 5) {
+            console.error(`\n⚠️  Error on line ${lineNumber}: Missing facility_name`);
+          }
+          continue;
+        }
+
         batch.push(record);
 
         // Insert in batches
         if (batch.length >= batchSize) {
-          const placeholders = batch.map(() =>
-            `(${Array(34).fill('?').join(', ')})`
-          ).join(', ');
+          try {
+            const placeholders = batch.map(() =>
+              `(${Array(34).fill('?').join(', ')})`
+            ).join(', ');
 
-          const insertSQL = `
-            INSERT INTO alf_facilities (
-              facility_id, facility_name, address, city, state, zip_code, phone_number,
-              county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
-              license_number, capacity, email_address, ownership_type, latitude, longitude,
-              county_fips, total_county_al_need, pct_population_over_65, median_age,
-              pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
-              avg_household_size, avg_family_size, median_household_income, poverty_rate,
-              unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
-            ) VALUES ${placeholders}
-          `;
+            const insertSQL = `
+              INSERT INTO alf_facilities (
+                facility_id, facility_name, address, city, state, zip_code, phone_number,
+                county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
+                license_number, capacity, email_address, ownership_type, latitude, longitude,
+                county_fips, total_county_al_need, pct_population_over_65, median_age,
+                pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
+                avg_household_size, avg_family_size, median_household_income, poverty_rate,
+                unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
+              ) VALUES ${placeholders}
+            `;
 
-          const flattenedBatch = batch.flat();
-          await sequelize.query(insertSQL, { replacements: flattenedBatch });
+            const flattenedBatch = batch.flat();
+            await sequelize.query(insertSQL, { replacements: flattenedBatch });
 
-          importedCount += batch.length;
-          batch = [];
+            importedCount += batch.length;
+            batch = [];
 
-          process.stdout.write(`\r   Imported: ${importedCount} records...`);
+            process.stdout.write(`\r   Imported: ${importedCount} records...`);
+          } catch (insertErr) {
+            console.error(`\n⚠️  Batch insert failed:`, insertErr.message);
+            console.error(`   Skipping batch of ${batch.length} records around line ${lineNumber}`);
+            errorCount += batch.length;
+            batch = [];
+          }
         }
 
       } catch (err) {
@@ -358,26 +383,32 @@ async function importData() {
 
     // Insert remaining batch
     if (batch.length > 0) {
-      const placeholders = batch.map(() =>
-        `(${Array(34).fill('?').join(', ')})`
-      ).join(', ');
+      try {
+        const placeholders = batch.map(() =>
+          `(${Array(34).fill('?').join(', ')})`
+        ).join(', ');
 
-      const insertSQL = `
-        INSERT INTO alf_facilities (
-          facility_id, facility_name, address, city, state, zip_code, phone_number,
-          county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
-          license_number, capacity, email_address, ownership_type, latitude, longitude,
-          county_fips, total_county_al_need, pct_population_over_65, median_age,
-          pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
-          avg_household_size, avg_family_size, median_household_income, poverty_rate,
-          unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
-        ) VALUES ${placeholders}
-      `;
+        const insertSQL = `
+          INSERT INTO alf_facilities (
+            facility_id, facility_name, address, city, state, zip_code, phone_number,
+            county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
+            license_number, capacity, email_address, ownership_type, latitude, longitude,
+            county_fips, total_county_al_need, pct_population_over_65, median_age,
+            pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
+            avg_household_size, avg_family_size, median_household_income, poverty_rate,
+            unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
+          ) VALUES ${placeholders}
+        `;
 
-      const flattenedBatch = batch.flat();
-      await sequelize.query(insertSQL, { replacements: flattenedBatch });
+        const flattenedBatch = batch.flat();
+        await sequelize.query(insertSQL, { replacements: flattenedBatch });
 
-      importedCount += batch.length;
+        importedCount += batch.length;
+      } catch (insertErr) {
+        console.error(`\n⚠️  Final batch insert failed:`, insertErr.message);
+        console.error(`   Skipping final batch of ${batch.length} records`);
+        errorCount += batch.length;
+      }
     }
 
     console.log(`\n\n✅ Import complete!`);
