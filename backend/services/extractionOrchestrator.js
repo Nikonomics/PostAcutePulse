@@ -14,6 +14,7 @@ const pdfParse = require('pdf-parse');
 const { runParallelExtractions, prepareDocumentText } = require('./parallelExtractor');
 const { reconcileExtractionResults } = require('./extractionReconciler');
 const { analyzeRatios } = require('./ratioCalculator');
+const { analyzeFinancialPeriods, generatePromptSection } = require('./periodAnalyzer');
 
 // Minimum text length to consider extraction successful
 const MIN_TEXT_LENGTH = 100;
@@ -153,24 +154,41 @@ async function runFullExtraction(files) {
 
   console.log(`[Orchestrator] Successfully extracted text from ${successfulFiles.length}/${files.length} files`);
 
-  // Step 2: Prepare combined document text
-  console.log('[Orchestrator] Step 2: Preparing documents for parallel extraction...');
+  // Step 2: Analyze document periods (for combining T12 + YTD data)
+  console.log('[Orchestrator] Step 2: Analyzing financial document periods...');
+  const periodDocuments = successfulFiles.map(f => ({
+    filename: f.name,
+    content: f.text,
+    fileType: f.mimeType
+  }));
+  const periodAnalysis = analyzeFinancialPeriods(periodDocuments);
+  const periodPromptSection = generatePromptSection(periodAnalysis);
+
+  if (periodAnalysis.combination_needed) {
+    console.log(`[Orchestrator] Period analysis: Combining ${periodAnalysis.financial_documents.length} documents for optimal T12`);
+    console.log(`[Orchestrator] Target period: ${periodAnalysis.recommended_t12?.start} to ${periodAnalysis.recommended_t12?.end}`);
+  } else {
+    console.log(`[Orchestrator] Period analysis: ${periodAnalysis.financial_documents.length} financial documents identified`);
+  }
+
+  // Step 3: Prepare combined document text
+  console.log('[Orchestrator] Step 3: Preparing documents for parallel extraction...');
   const documents = successfulFiles.map(f => ({
     name: f.name,
     text: f.text
   }));
   const combinedText = prepareDocumentText(documents);
 
-  // Step 3: Run parallel extractions
-  console.log('[Orchestrator] Step 3: Running parallel extractions...');
-  const parallelResults = await runParallelExtractions(combinedText);
+  // Step 4: Run parallel extractions (with period analysis guidance)
+  console.log('[Orchestrator] Step 4: Running parallel extractions...');
+  const parallelResults = await runParallelExtractions(combinedText, periodPromptSection);
 
-  // Step 4: Reconcile results
-  console.log('[Orchestrator] Step 4: Reconciling extraction results...');
+  // Step 5: Reconcile results
+  console.log('[Orchestrator] Step 5: Reconciling extraction results...');
   const reconciledData = reconcileExtractionResults(parallelResults);
 
-  // Step 5: Calculate ratios and benchmarks
-  console.log('[Orchestrator] Step 5: Calculating ratios and benchmarks...');
+  // Step 6: Calculate ratios and benchmarks
+  console.log('[Orchestrator] Step 6: Calculating ratios and benchmarks...');
   const ratioAnalysis = analyzeRatios(reconciledData);
 
   // Build final result

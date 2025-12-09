@@ -1019,20 +1019,39 @@ async function enrichFacilityData(organized) {
 /**
  * Run all extractions in parallel
  * @param {string} combinedDocumentText - Text from all documents, labeled
+ * @param {string} periodAnalysisSection - Optional period analysis guidance from periodAnalyzer
  * @returns {Promise<Object>} Combined extraction results
  */
-async function runParallelExtractions(combinedDocumentText) {
+async function runParallelExtractions(combinedDocumentText, periodAnalysisSection = '') {
   console.log('Starting parallel extractions...');
   const startTime = Date.now();
+
+  // If period analysis provided, prepend it to financial prompts
+  // This guides Claude to use the correct periods when combining T12 + YTD documents
+  const financialsPromptWithPeriod = periodAnalysisSection
+    ? `${periodAnalysisSection}\n\n${FINANCIALS_PROMPT}`
+    : FINANCIALS_PROMPT;
+
+  const expensesPromptWithPeriod = periodAnalysisSection
+    ? `${periodAnalysisSection}\n\n${EXPENSES_PROMPT}`
+    : EXPENSES_PROMPT;
+
+  const overviewPromptWithPeriod = periodAnalysisSection
+    ? `${periodAnalysisSection}\n\n${OVERVIEW_PROMPT}`
+    : OVERVIEW_PROMPT;
+
+  if (periodAnalysisSection) {
+    console.log('[ParallelExtractor] Period analysis section added to financial prompts');
+  }
 
   // Run all 6 extractions in parallel
   const extractionPromises = [
     runFocusedExtraction(combinedDocumentText, FACILITY_PROMPT, 'facility'),
-    runFocusedExtraction(combinedDocumentText, FINANCIALS_PROMPT, 'financials'),
-    runFocusedExtraction(combinedDocumentText, EXPENSES_PROMPT, 'expenses'),
+    runFocusedExtraction(combinedDocumentText, financialsPromptWithPeriod, 'financials'),
+    runFocusedExtraction(combinedDocumentText, expensesPromptWithPeriod, 'expenses'),
     runFocusedExtraction(combinedDocumentText, CENSUS_PROMPT, 'census'),
     runFocusedExtraction(combinedDocumentText, RATES_PROMPT, 'rates'),
-    runFocusedExtraction(combinedDocumentText, OVERVIEW_PROMPT, 'overview', MAX_TOKENS_OVERVIEW)
+    runFocusedExtraction(combinedDocumentText, overviewPromptWithPeriod, 'overview', MAX_TOKENS_OVERVIEW)
   ];
 
   const results = await Promise.all(extractionPromises);
