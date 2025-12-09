@@ -56,10 +56,10 @@ function parseCSVLine(line) {
 
 // Convert value to appropriate type or null
 function convertValue(value) {
-  if (value === '' || value === 'NA' || value === 'N/A') return null;
+  if (!value || value === '' || value === 'NA' || value === 'N/A') return null;
 
   // Remove quotes if present
-  if (value.startsWith('"') && value.endsWith('"')) {
+  if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
     value = value.slice(1, -1);
   }
 
