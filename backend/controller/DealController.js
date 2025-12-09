@@ -4452,4 +4452,208 @@ module.exports = {
       return helper.error(res, err.message || "Failed to fetch change history");
     }
   },
+
+  /**
+   * Get facility matches for a deal (for review modal)
+   * Returns matches stored in extraction_data from ALF database matching
+   */
+  getFacilityMatches: async (req, res) => {
+    try {
+      const dealId = req.params.dealId;
+
+      // Find the deal
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found", 404);
+      }
+
+      // Parse extraction data
+      let extractionData = {};
+      if (deal.extraction_data) {
+        try {
+          extractionData = typeof deal.extraction_data === 'string'
+            ? JSON.parse(deal.extraction_data)
+            : deal.extraction_data;
+        } catch (parseErr) {
+          console.error('[getFacilityMatches] Failed to parse extraction_data:', parseErr);
+        }
+      }
+
+      // Check for enhanced extraction data (newer format)
+      let enhancedData = {};
+      if (deal.enhanced_extraction_data) {
+        try {
+          enhancedData = typeof deal.enhanced_extraction_data === 'string'
+            ? JSON.parse(deal.enhanced_extraction_data)
+            : deal.enhanced_extraction_data;
+        } catch (parseErr) {
+          console.error('[getFacilityMatches] Failed to parse enhanced_extraction_data:', parseErr);
+        }
+      }
+
+      // Try enhanced data first, fall back to extraction_data
+      const facilityMatches = enhancedData?.extractedData?.overview?.facility_matches
+        || extractionData?.deal_overview?.facility_matches
+        || extractionData?.overview?.facility_matches;
+
+      if (!facilityMatches) {
+        return helper.success(res, "No facility matches found", {
+          status: 'no_matches',
+          matches: []
+        });
+      }
+
+      return helper.success(res, "Facility matches retrieved", facilityMatches);
+
+    } catch (err) {
+      console.error('[getFacilityMatches] Error:', err);
+      return helper.error(res, err.message || "Failed to get facility matches");
+    }
+  },
+
+  /**
+   * Select a facility match from ALF database for a deal
+   * Populates facility data (address, beds, etc.) from selected match
+   */
+  selectFacilityMatch: async (req, res) => {
+    try {
+      const dealId = req.params.dealId;
+      const { facility_id, action } = req.body; // action: 'select' | 'skip' | 'not_sure'
+
+      console.log(`[selectFacilityMatch] Deal ${dealId}, Facility ${facility_id}, Action: ${action}`);
+
+      // Find the deal
+      const deal = await Deal.findByPk(dealId);
+      if (!deal) {
+        return helper.error(res, "Deal not found", 404);
+      }
+
+      // Parse extraction data to get the matches
+      let extractionData = {};
+      if (deal.extraction_data) {
+        try {
+          extractionData = typeof deal.extraction_data === 'string'
+            ? JSON.parse(deal.extraction_data)
+            : deal.extraction_data;
+        } catch (parseErr) {
+          console.error('[selectFacilityMatch] Failed to parse extraction_data:', parseErr);
+        }
+      }
+
+      // Check for enhanced extraction data
+      let enhancedData = {};
+      if (deal.enhanced_extraction_data) {
+        try {
+          enhancedData = typeof deal.enhanced_extraction_data === 'string'
+            ? JSON.parse(deal.enhanced_extraction_data)
+            : deal.enhanced_extraction_data;
+        } catch (parseErr) {
+          console.error('[selectFacilityMatch] Failed to parse enhanced_extraction_data:', parseErr);
+        }
+      }
+
+      // Get facility matches
+      const facilityMatches = enhancedData?.extractedData?.overview?.facility_matches
+        || extractionData?.deal_overview?.facility_matches
+        || extractionData?.overview?.facility_matches;
+
+      if (!facilityMatches || !facilityMatches.matches) {
+        return helper.error(res, "No facility matches found for this deal", 404);
+      }
+
+      // Handle different actions
+      if (action === 'skip' || action === 'not_sure') {
+        // User chose to skip or is not sure - mark as reviewed but don't populate
+        if (enhancedData?.extractedData?.overview?.facility_matches) {
+          enhancedData.extractedData.overview.facility_matches.status = action === 'skip' ? 'skipped' : 'not_sure';
+          deal.enhanced_extraction_data = JSON.stringify(enhancedData);
+        } else if (extractionData?.overview?.facility_matches) {
+          extractionData.overview.facility_matches.status = action === 'skip' ? 'skipped' : 'not_sure';
+          deal.extraction_data = JSON.stringify(extractionData);
+        }
+
+        await deal.save();
+
+        return helper.success(res, `Facility matching ${action === 'skip' ? 'skipped' : 'marked as unsure'}`, {
+          action,
+          status: action === 'skip' ? 'skipped' : 'not_sure'
+        });
+      }
+
+      // Find the selected match
+      const selectedMatch = facilityMatches.matches.find(m => m.facility_id === facility_id);
+      if (!selectedMatch) {
+        return helper.error(res, "Selected facility not found in matches", 404);
+      }
+
+      console.log(`[selectFacilityMatch] Selected: ${selectedMatch.facility_name} (${selectedMatch.match_confidence})`);
+
+      // Find or create facility record for this deal
+      let facility = await DealFacility.findOne({ where: { deal_id: dealId } });
+
+      if (!facility) {
+        // Create new facility record
+        facility = await DealFacility.create({
+          deal_id: dealId,
+          facility_name: selectedMatch.facility_name,
+          street_address: selectedMatch.address,
+          city: selectedMatch.city,
+          state: selectedMatch.state,
+          zip_code: selectedMatch.zip_code,
+          no_of_beds: selectedMatch.capacity?.toString() || null,
+          latitude: selectedMatch.latitude,
+          longitude: selectedMatch.longitude,
+          facility_type: selectedMatch.facility_type
+        });
+      } else {
+        // Update existing facility record with ALF database data
+        await facility.update({
+          facility_name: selectedMatch.facility_name,
+          street_address: selectedMatch.address,
+          city: selectedMatch.city,
+          state: selectedMatch.state,
+          zip_code: selectedMatch.zip_code,
+          no_of_beds: selectedMatch.capacity?.toString() || facility.no_of_beds,
+          latitude: selectedMatch.latitude,
+          longitude: selectedMatch.longitude,
+          facility_type: selectedMatch.facility_type || facility.facility_type
+        });
+      }
+
+      // Update extraction data to mark as selected
+      if (enhancedData?.extractedData?.overview?.facility_matches) {
+        enhancedData.extractedData.overview.facility_matches.status = 'selected';
+        enhancedData.extractedData.overview.facility_matches.selected_facility_id = facility_id;
+        enhancedData.extractedData.overview.facility_matches.selected_match = selectedMatch;
+        deal.enhanced_extraction_data = JSON.stringify(enhancedData);
+      } else if (extractionData?.overview?.facility_matches) {
+        extractionData.overview.facility_matches.status = 'selected';
+        extractionData.overview.facility_matches.selected_facility_id = facility_id;
+        extractionData.overview.facility_matches.selected_match = selectedMatch;
+        deal.extraction_data = JSON.stringify(extractionData);
+      }
+
+      await deal.save();
+
+      console.log(`[selectFacilityMatch] ✅ Applied facility data for deal ${dealId}`);
+
+      return helper.success(res, "Facility match applied successfully", {
+        facility: {
+          id: facility.id,
+          facility_name: facility.facility_name,
+          address: facility.street_address,
+          city: facility.city,
+          state: facility.state,
+          zip_code: facility.zip_code,
+          capacity: facility.no_of_beds,
+          match_score: selectedMatch.match_score,
+          match_confidence: selectedMatch.match_confidence
+        }
+      });
+
+    } catch (err) {
+      console.error('[selectFacilityMatch] Error:', err);
+      return helper.error(res, err.message || "Failed to apply facility match");
+    }
+  },
 };
