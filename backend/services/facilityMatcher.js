@@ -8,6 +8,27 @@
 const { getSequelizeInstance } = require('../config/database');
 
 /**
+ * State name to 2-letter code mapping
+ * The ALF database stores states as 2-letter codes (e.g., "OR", "CA")
+ */
+const STATE_CODES = {
+  'ALABAMA': 'AL', 'ALASKA': 'AK', 'ARIZONA': 'AZ', 'ARKANSAS': 'AR',
+  'CALIFORNIA': 'CA', 'COLORADO': 'CO', 'CONNECTICUT': 'CT', 'DELAWARE': 'DE',
+  'FLORIDA': 'FL', 'GEORGIA': 'GA', 'HAWAII': 'HI', 'IDAHO': 'ID',
+  'ILLINOIS': 'IL', 'INDIANA': 'IN', 'IOWA': 'IA', 'KANSAS': 'KS',
+  'KENTUCKY': 'KY', 'LOUISIANA': 'LA', 'MAINE': 'ME', 'MARYLAND': 'MD',
+  'MASSACHUSETTS': 'MA', 'MICHIGAN': 'MI', 'MINNESOTA': 'MN', 'MISSISSIPPI': 'MS',
+  'MISSOURI': 'MO', 'MONTANA': 'MT', 'NEBRASKA': 'NE', 'NEVADA': 'NV',
+  'NEW HAMPSHIRE': 'NH', 'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY',
+  'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', 'OHIO': 'OH', 'OKLAHOMA': 'OK',
+  'OREGON': 'OR', 'PENNSYLVANIA': 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC',
+  'SOUTH DAKOTA': 'SD', 'TENNESSEE': 'TN', 'TEXAS': 'TX', 'UTAH': 'UT',
+  'VERMONT': 'VT', 'VIRGINIA': 'VA', 'WASHINGTON': 'WA', 'WEST VIRGINIA': 'WV',
+  'WISCONSIN': 'WI', 'WYOMING': 'WY',
+  'DISTRICT OF COLUMBIA': 'DC'
+};
+
+/**
  * Normalize facility name for matching
  * - Convert to lowercase
  * - Remove common suffixes/prefixes
@@ -45,6 +66,9 @@ function normalizeFacilityName(name) {
 
   // Remove special characters but keep spaces
   normalized = normalized.replace(/[^a-z0-9\s]/g, '').trim();
+
+  // Remove "the" at the beginning or end (common in facility names)
+  normalized = normalized.replace(/^the\s+/i, '').replace(/\s+the$/i, '').trim();
 
   // Collapse multiple spaces
   normalized = normalized.replace(/\s+/g, ' ');
@@ -115,8 +139,14 @@ async function matchFacility(facilityName, city = null, state = null, minSimilar
     const replacements = [];
 
     if (state) {
+      // Convert state name to 2-letter code if necessary
+      const stateUpper = state.toUpperCase();
+      const stateCode = STATE_CODES[stateUpper] || stateUpper;
+
       query += ' AND state = ?';
-      replacements.push(state.toUpperCase());
+      replacements.push(stateCode);
+
+      console.log('[Facility Match] State conversion:', state, '->', stateCode);
     }
 
     if (city) {
