@@ -19,6 +19,12 @@ const { analyzeFinancialPeriods, generatePromptSection } = require('./periodAnal
 // Minimum text length to consider extraction successful
 const MIN_TEXT_LENGTH = 100;
 
+// Maximum combined text length for extraction
+// Claude's context limit is ~200K tokens. With ~4 chars/token, that's ~800K chars.
+// We need headroom for prompts (~30K tokens = 120K chars), so limit document text to ~600K chars (~150K tokens)
+// This prevents extraction failures due to "prompt is too long" errors
+const MAX_COMBINED_TEXT_LENGTH = 600000;
+
 /**
  * Extract text from PDF buffer
  */
@@ -153,6 +159,41 @@ async function runFullExtraction(files) {
   }
 
   console.log(`[Orchestrator] Successfully extracted text from ${successfulFiles.length}/${files.length} files`);
+
+  // Check combined text size before proceeding
+  const totalTextLength = successfulFiles.reduce((sum, f) => sum + (f.text?.length || 0), 0);
+  console.log(`[Orchestrator] Total combined text length: ${totalTextLength.toLocaleString()} characters`);
+
+  if (totalTextLength > MAX_COMBINED_TEXT_LENGTH) {
+    const estimatedTokens = Math.round(totalTextLength / 4);
+    const maxTokens = Math.round(MAX_COMBINED_TEXT_LENGTH / 4);
+    console.error(`[Orchestrator] Combined document text exceeds limit: ${totalTextLength.toLocaleString()} chars (~${estimatedTokens.toLocaleString()} tokens) > ${MAX_COMBINED_TEXT_LENGTH.toLocaleString()} chars (~${maxTokens.toLocaleString()} tokens)`);
+
+    // Sort files by text length to show largest contributors
+    const filesBySize = [...successfulFiles].sort((a, b) => (b.text?.length || 0) - (a.text?.length || 0));
+    const topFiles = filesBySize.slice(0, 5).map(f => `${f.name}: ${(f.text?.length || 0).toLocaleString()} chars`);
+
+    return {
+      success: false,
+      error: `Documents exceed maximum size for extraction. Combined text is ${(totalTextLength / 1000000).toFixed(1)}M characters (~${Math.round(totalTextLength / 4000)}K tokens), but the limit is ${(MAX_COMBINED_TEXT_LENGTH / 1000000).toFixed(1)}M characters (~${Math.round(MAX_COMBINED_TEXT_LENGTH / 4000)}K tokens). Please reduce the number of documents or use smaller files.`,
+      errorCode: 'DOCUMENTS_TOO_LARGE',
+      details: {
+        totalCharacters: totalTextLength,
+        estimatedTokens: estimatedTokens,
+        maxCharacters: MAX_COMBINED_TEXT_LENGTH,
+        maxTokens: maxTokens,
+        largestFiles: topFiles
+      },
+      processedFiles: processedFiles.map(f => ({
+        name: f.name,
+        mimeType: f.mimeType,
+        size: f.size,
+        textLength: f.text?.length || 0,
+        success: !f.error,
+        error: f.error
+      }))
+    };
+  }
 
   // Step 2: Analyze document periods (for combining T12 + YTD data)
   console.log('[Orchestrator] Step 2: Analyzing financial document periods...');
