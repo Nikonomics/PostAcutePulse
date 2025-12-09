@@ -724,6 +724,72 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     return sections;
   };
 
+  // Helper function to render markdown-style text as formatted HTML
+  const renderFormattedText = (text: string) => {
+    if (!text) return null;
+
+    // Convert markdown to simple HTML-like rendering
+    const lines = text.split('\n');
+    return lines.map((line, idx) => {
+      // Bold text: **text** -> <strong>text</strong>
+      let formattedLine = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Bullet points
+      if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
+        return (
+          <div key={idx} style={{ paddingLeft: '1rem', marginBottom: '0.25rem' }}>
+            <span dangerouslySetInnerHTML={{ __html: formattedLine }} />
+          </div>
+        );
+      }
+      // Empty lines
+      if (line.trim() === '') {
+        return <div key={idx} style={{ height: '0.5rem' }} />;
+      }
+      return (
+        <div key={idx} style={{ marginBottom: '0.25rem' }}>
+          <span dangerouslySetInnerHTML={{ __html: formattedLine }} />
+        </div>
+      );
+    });
+  };
+
+  // Helper to get metric card status and styles
+  const getMetricStatus = (type: string, value: number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return { bg: 'white', border: '#e5e7eb', borderLeft: '#e5e7eb', textColor: '#111827' };
+    }
+
+    switch (type) {
+      case 'netIncome':
+        return value >= 0
+          ? { bg: '#ecfdf5', border: '#a7f3d0', borderLeft: '#10b981', textColor: '#059669' }
+          : { bg: '#fef2f2', border: '#fecaca', borderLeft: '#ef4444', textColor: '#dc2626' };
+      case 'netIncomeMargin':
+        if (value >= 0) return { bg: '#ecfdf5', border: '#a7f3d0', borderLeft: '#10b981', textColor: '#059669' };
+        if (value >= -5) return { bg: '#fffbeb', border: '#fcd34d', borderLeft: '#f59e0b', textColor: '#d97706' };
+        return { bg: '#fef2f2', border: '#fecaca', borderLeft: '#ef4444', textColor: '#dc2626' };
+      case 'occupancy':
+        if (value >= 85) return { bg: '#ecfdf5', border: '#a7f3d0', borderLeft: '#10b981', textColor: '#059669' };
+        if (value >= 75) return { bg: '#fffbeb', border: '#fcd34d', borderLeft: '#f59e0b', textColor: '#d97706' };
+        return { bg: '#fef2f2', border: '#fecaca', borderLeft: '#ef4444', textColor: '#dc2626' };
+      default:
+        return { bg: 'white', border: '#e5e7eb', borderLeft: '#e5e7eb', textColor: '#111827' };
+    }
+  };
+
+  // Helper to get trend badge styles
+  const getTrendBadge = (trend: string | null | undefined) => {
+    if (!trend) return null;
+    const trendUpper = trend.toUpperCase();
+    if (trendUpper === 'UP') {
+      return { bg: '#ecfdf5', color: '#059669', icon: '↑', label: 'Up' };
+    }
+    if (trendUpper === 'DOWN') {
+      return { bg: '#fef2f2', color: '#dc2626', icon: '↓', label: 'Down' };
+    }
+    return { bg: '#f3f4f6', color: '#6b7280', icon: '→', label: 'Flat' };
+  };
+
   // Render Deal Overview Tab (Stage 1 Screening)
   const renderDealOverviewTab = () => {
     const overview = extractionData?.deal_overview;
@@ -742,23 +808,277 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
       );
     }
 
+    // Extract facility info
+    const facilityName = overview.facility_snapshot?.facility_name || 'Unknown Facility';
+    const beds = overview.facility_snapshot?.licensed_beds;
+    const facilityType = overview.facility_snapshot?.facility_type || '';
+    const city = overview.facility_snapshot?.city;
+    const state = overview.facility_snapshot?.state;
+    const occupancy = overview.facility_snapshot?.current_occupancy_pct;
+
+    // Get metric statuses
+    const netIncome = overview.ttm_financials?.net_income;
+    const netIncomeMargin = overview.ttm_financials?.net_income_margin_pct;
+    const netIncomeStatus = getMetricStatus('netIncome', netIncome);
+    const marginStatus = getMetricStatus('netIncomeMargin', netIncomeMargin);
+    const occupancyStatus = getMetricStatus('occupancy', occupancy);
+
+    // Get trends
+    const revenueTrend = getTrendBadge(overview.operating_trends?.revenue_trend);
+    const censusTrend = getTrendBadge(overview.operating_trends?.census_trend);
+    const netIncomeTrend = getTrendBadge(overview.operating_trends?.net_income_trend);
+
     return (
-      <div>
-        {/* Executive Summary - 1000 Character Summary */}
-        {overview.summary_1000_chars && (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+        {/* Facility Header Card */}
+        <div style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '8px',
+          padding: '16px 20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>📍</span>
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b' }}>
+                {facilityName}
+              </div>
+              <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                {beds && <span>{beds}-bed</span>}
+                {facilityType && <><span>•</span><span>{facilityType}</span></>}
+                {(city || state) && (
+                  <>
+                    <span>•</span>
+                    <span>{[city, state].filter(Boolean).join(', ')}</span>
+                  </>
+                )}
+                {occupancy !== null && occupancy !== undefined && (
+                  <>
+                    <span>•</span>
+                    <span style={{
+                      fontWeight: 600,
+                      color: occupancy >= 85 ? '#059669' : occupancy >= 75 ? '#d97706' : '#dc2626'
+                    }}>
+                      {occupancy.toFixed(0)}% occupied
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Metrics Cards */}
+        {overview.ttm_financials && (
           <div style={{
-            marginBottom: '2rem',
-            padding: '1.5rem',
-            backgroundColor: '#f8fafc',
-            borderRadius: '0.75rem',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            background: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            padding: '20px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
           }}>
             <h3 style={{
               fontSize: '1rem',
               fontWeight: 600,
               color: '#1e293b',
-              marginBottom: '1rem',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <FileText size={20} style={{ color: '#3b82f6' }} />
+              Key Metrics
+              {overview.ttm_financials.period && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#6b7280', marginLeft: '8px' }}>
+                  ({overview.ttm_financials.period})
+                </span>
+              )}
+            </h3>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '16px',
+              marginBottom: '16px'
+            }}>
+              {/* TTM Revenue */}
+              <div style={{
+                padding: '16px',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb',
+                borderLeft: '4px solid #3b82f6',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>TTM Revenue</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
+                  ${(overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue)
+                    ? ((overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue) / 1000000).toFixed(2) + 'M'
+                    : 'N/A'}
+                </div>
+              </div>
+
+              {/* Net Income */}
+              <div style={{
+                padding: '16px',
+                backgroundColor: netIncomeStatus.bg,
+                borderRadius: '8px',
+                border: `1px solid ${netIncomeStatus.border}`,
+                borderLeft: `4px solid ${netIncomeStatus.borderLeft}`,
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>Net Income</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: netIncomeStatus.textColor }}>
+                  {netIncome !== null && netIncome !== undefined
+                    ? (netIncome < 0 ? '-' : '') + '$' + Math.abs(netIncome / 1000).toFixed(0) + 'K'
+                    : 'N/A'}
+                </div>
+              </div>
+
+              {/* Net Income Margin */}
+              <div style={{
+                padding: '16px',
+                backgroundColor: marginStatus.bg,
+                borderRadius: '8px',
+                border: `1px solid ${marginStatus.border}`,
+                borderLeft: `4px solid ${marginStatus.borderLeft}`,
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>Net Income Margin</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: marginStatus.textColor }}>
+                  {netIncomeMargin !== null && netIncomeMargin !== undefined
+                    ? netIncomeMargin.toFixed(1) + '%'
+                    : 'N/A'}
+                </div>
+              </div>
+
+              {/* Occupancy */}
+              <div style={{
+                padding: '16px',
+                backgroundColor: occupancyStatus.bg,
+                borderRadius: '8px',
+                border: `1px solid ${occupancyStatus.border}`,
+                borderLeft: `4px solid ${occupancyStatus.borderLeft}`,
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>Occupancy</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: occupancyStatus.textColor }}>
+                  {occupancy !== null && occupancy !== undefined ? occupancy.toFixed(1) + '%' : 'N/A'}
+                </div>
+              </div>
+            </div>
+
+            {/* Add-backs Row */}
+            {(overview.ttm_financials.rent_lease || overview.ttm_financials.interest || overview.ttm_financials.depreciation) && (
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <span style={{ fontWeight: 600, color: '#1e40af' }}>Add-backs:</span>
+                {overview.ttm_financials.rent_lease !== null && overview.ttm_financials.rent_lease !== undefined && (
+                  <span style={{ color: '#334155' }}>
+                    Rent ${(overview.ttm_financials.rent_lease / 1000).toFixed(0)}K
+                  </span>
+                )}
+                {overview.ttm_financials.interest !== null && overview.ttm_financials.interest !== undefined && (
+                  <>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span style={{ color: '#334155' }}>
+                      Interest ${(overview.ttm_financials.interest / 1000).toFixed(0)}K
+                    </span>
+                  </>
+                )}
+                {overview.ttm_financials.depreciation !== null && overview.ttm_financials.depreciation !== undefined && (
+                  <>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span style={{ color: '#334155' }}>
+                      Depreciation ${(overview.ttm_financials.depreciation / 1000).toFixed(0)}K
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Trends Row */}
+            {(revenueTrend || censusTrend || netIncomeTrend) && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginRight: '4px' }}>Trends:</span>
+                {revenueTrend && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    backgroundColor: revenueTrend.bg,
+                    color: revenueTrend.color
+                  }}>
+                    Revenue {revenueTrend.icon}
+                  </span>
+                )}
+                {censusTrend && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    backgroundColor: censusTrend.bg,
+                    color: censusTrend.color
+                  }}>
+                    Census {censusTrend.icon}
+                  </span>
+                )}
+                {netIncomeTrend && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '4px 12px',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    backgroundColor: netIncomeTrend.bg,
+                    color: netIncomeTrend.color
+                  }}>
+                    Net Income {netIncomeTrend.icon}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Executive Summary */}
+        {overview.summary_1000_chars && (
+          <div style={{
+            background: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            padding: '20px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+          }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: '#1e293b',
+              marginBottom: '16px',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem'
@@ -766,122 +1086,13 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               <FileText size={20} style={{ color: '#3b82f6' }} />
               Executive Summary
             </h3>
-
-            {/* Key Metrics Cards - V7: Net Income instead of EBITDAR */}
-            {overview.ttm_financials && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '1rem',
-                marginBottom: '1.5rem'
-              }}>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
-                    TTM Revenue {overview.ttm_financials.period && <span style={{ fontWeight: 500 }}>({overview.ttm_financials.period})</span>}
-                  </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                    ${(overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue)
-                      ? ((overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue) / 1000000).toFixed(2) + 'M'
-                      : 'N/A'}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Net Income</div>
-                  <div style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    color: (overview.ttm_financials.net_income || 0) >= 0 ? '#10b981' : '#ef4444'
-                  }}>
-                    {overview.ttm_financials.net_income !== null && overview.ttm_financials.net_income !== undefined
-                      ? (overview.ttm_financials.net_income < 0 ? '-' : '') + '$' + Math.abs(overview.ttm_financials.net_income / 1000).toFixed(0) + 'K'
-                      : 'N/A'}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Net Income Margin</div>
-                  <div style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    color: (overview.ttm_financials.net_income_margin_pct || 0) >= 0 ? '#10b981' : '#ef4444'
-                  }}>
-                    {overview.ttm_financials.net_income_margin_pct !== null && overview.ttm_financials.net_income_margin_pct !== undefined
-                      ? overview.ttm_financials.net_income_margin_pct.toFixed(1) + '%'
-                      : 'N/A'}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Occupancy</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                    {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Add-backs Row - V7: Show rent/interest/depreciation separately */}
-            {overview.ttm_financials && (overview.ttm_financials.rent_lease || overview.ttm_financials.interest || overview.ttm_financials.depreciation) && (
-              <div style={{
-                display: 'flex',
-                gap: '1.5rem',
-                flexWrap: 'wrap',
-                padding: '0.75rem 1rem',
-                backgroundColor: '#eff6ff',
-                borderRadius: '0.5rem',
-                border: '1px solid #93c5fd',
-                marginBottom: '1.5rem',
-                fontSize: '0.875rem'
-              }}>
-                <span style={{ fontWeight: 600, color: '#1e40af' }}>Add-backs:</span>
-                {overview.ttm_financials.rent_lease !== null && overview.ttm_financials.rent_lease !== undefined && (
-                  <span style={{ color: '#1e40af' }}>
-                    Rent ${(overview.ttm_financials.rent_lease / 1000).toFixed(0)}K
-                  </span>
-                )}
-                {overview.ttm_financials.interest !== null && overview.ttm_financials.interest !== undefined && (
-                  <span style={{ color: '#1e40af' }}>
-                    Interest ${(overview.ttm_financials.interest / 1000).toFixed(0)}K
-                  </span>
-                )}
-                {overview.ttm_financials.depreciation !== null && overview.ttm_financials.depreciation !== undefined && (
-                  <span style={{ color: '#1e40af' }}>
-                    Depreciation ${(overview.ttm_financials.depreciation / 1000).toFixed(0)}K
-                  </span>
-                )}
-              </div>
-            )}
-
             <div style={{
               fontSize: '0.875rem',
-              lineHeight: '1.6',
+              lineHeight: '1.7',
               color: '#334155',
-              whiteSpace: 'pre-wrap',
               fontFamily: 'system-ui, -apple-system, sans-serif'
             }}>
-              {overview.summary_1000_chars}
+              {renderFormattedText(overview.summary_1000_chars)}
             </div>
           </div>
         )}
@@ -890,7 +1101,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         {!overview.detailed_narrative_markdown && (
           <>
             {/* Red Flags & Strengths Side by Side */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {/* Red Flags */}
               <div style={{
                 padding: '1.25rem',
