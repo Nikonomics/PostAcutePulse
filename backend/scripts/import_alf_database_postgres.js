@@ -1,83 +1,35 @@
 #!/usr/bin/env node
 /**
- * Import ALF Database (2021) into SQLite
+ * Import ALF Database (2021) into PostgreSQL or SQLite
  *
  * This script imports the 44,650 ALF facility records from the GitHub CSV
- * into a new `alf_facilities` table for facility matching and mapping.
+ * into an `alf_facilities` table. Automatically detects database type:
+ * - PostgreSQL (production via DATABASE_URL)
+ * - SQLite (local development)
  */
 
-const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
-const path = require('path');
 const readline = require('readline');
 const https = require('https');
-const { DB_PATH } = require('../config/database');
+const { getSequelizeInstance, getConnectionString } = require('../config/database');
+
 const CSV_PATH = '/tmp/alf_database.csv';
 const CSV_URL = 'https://raw.githubusercontent.com/antonstengel/assisted-living-data/main/assisted-living-facilities.csv';
 
 console.log('🏥 ALF Database Import Script');
 console.log('================================\n');
 
-// Open database connection
-const db = new sqlite3.Database(DB_PATH, (err) => {
-  if (err) {
-    console.error('❌ Error opening database:', err.message);
-    process.exit(1);
-  }
-  console.log('✅ Connected to database:', DB_PATH);
-});
+// Get database configuration
+const dbConfig = getConnectionString();
+console.log(`📊 Database type: ${dbConfig.type}`);
+if (dbConfig.type === 'postgres') {
+  console.log(`📊 Using PostgreSQL (persistent across restarts)`);
+} else {
+  console.log(`📊 Using SQLite at: ${dbConfig.path}`);
+}
 
-// Create the alf_facilities table
-const createTableSQL = `
-CREATE TABLE IF NOT EXISTS alf_facilities (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  facility_id TEXT,
-  facility_name TEXT NOT NULL,
-  address TEXT,
-  city TEXT,
-  state TEXT,
-  zip_code TEXT,
-  phone_number TEXT,
-  county TEXT,
-  licensee TEXT,
-  state_facility_type_2 TEXT,
-  state_facility_type_1 TEXT,
-  date_accessed TEXT,
-  license_number TEXT,
-  capacity INTEGER,
-  email_address TEXT,
-  ownership_type TEXT,
-  latitude REAL,
-  longitude REAL,
-  county_fips TEXT,
-  total_county_al_need REAL,
-  pct_population_over_65 REAL,
-  median_age REAL,
-  pct_owner_occupied REAL,
-  pct_renter_occupied REAL,
-  pct_vacant REAL,
-  median_home_value REAL,
-  avg_household_size REAL,
-  avg_family_size REAL,
-  median_household_income REAL,
-  poverty_rate REAL,
-  unemployment_rate REAL,
-  pct_population_white REAL,
-  pct_population_black REAL,
-  pct_population_hispanic REAL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-`;
-
-// Create indexes for fast lookups
-const createIndexesSQL = [
-  `CREATE INDEX IF NOT EXISTS idx_alf_facility_name ON alf_facilities(facility_name);`,
-  `CREATE INDEX IF NOT EXISTS idx_alf_city_state ON alf_facilities(city, state);`,
-  `CREATE INDEX IF NOT EXISTS idx_alf_state ON alf_facilities(state);`,
-  `CREATE INDEX IF NOT EXISTS idx_alf_zip ON alf_facilities(zip_code);`,
-  `CREATE INDEX IF NOT EXISTS idx_alf_coords ON alf_facilities(latitude, longitude);`
-];
+// Create Sequelize instance
+const sequelize = getSequelizeInstance();
 
 // Parse CSV line handling commas inside quotes
 function parseCSVLine(line) {
@@ -160,38 +112,122 @@ async function downloadCSV() {
 
 async function importData() {
   try {
+    // Test connection
+    await sequelize.authenticate();
+    console.log('✅ Connected to database\n');
+
     // Download CSV from GitHub
     await downloadCSV();
 
-    // Create table
+    // Create table using Sequelize query
     console.log('📋 Creating alf_facilities table...');
-    await new Promise((resolve, reject) => {
-      db.run(createTableSQL, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+
+    const isPostgres = dbConfig.type === 'postgres';
+
+    // Create table SQL (adjusted for PostgreSQL vs SQLite)
+    const createTableSQL = isPostgres ? `
+      CREATE TABLE IF NOT EXISTS alf_facilities (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT,
+        facility_name TEXT NOT NULL,
+        address TEXT,
+        city TEXT,
+        state TEXT,
+        zip_code TEXT,
+        phone_number TEXT,
+        county TEXT,
+        licensee TEXT,
+        state_facility_type_2 TEXT,
+        state_facility_type_1 TEXT,
+        date_accessed TEXT,
+        license_number TEXT,
+        capacity INTEGER,
+        email_address TEXT,
+        ownership_type TEXT,
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
+        county_fips TEXT,
+        total_county_al_need DOUBLE PRECISION,
+        pct_population_over_65 DOUBLE PRECISION,
+        median_age DOUBLE PRECISION,
+        pct_owner_occupied DOUBLE PRECISION,
+        pct_renter_occupied DOUBLE PRECISION,
+        pct_vacant DOUBLE PRECISION,
+        median_home_value DOUBLE PRECISION,
+        avg_household_size DOUBLE PRECISION,
+        avg_family_size DOUBLE PRECISION,
+        median_household_income DOUBLE PRECISION,
+        poverty_rate DOUBLE PRECISION,
+        unemployment_rate DOUBLE PRECISION,
+        pct_population_white DOUBLE PRECISION,
+        pct_population_black DOUBLE PRECISION,
+        pct_population_hispanic DOUBLE PRECISION,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    ` : `
+      CREATE TABLE IF NOT EXISTS alf_facilities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT,
+        facility_name TEXT NOT NULL,
+        address TEXT,
+        city TEXT,
+        state TEXT,
+        zip_code TEXT,
+        phone_number TEXT,
+        county TEXT,
+        licensee TEXT,
+        state_facility_type_2 TEXT,
+        state_facility_type_1 TEXT,
+        date_accessed TEXT,
+        license_number TEXT,
+        capacity INTEGER,
+        email_address TEXT,
+        ownership_type TEXT,
+        latitude REAL,
+        longitude REAL,
+        county_fips TEXT,
+        total_county_al_need REAL,
+        pct_population_over_65 REAL,
+        median_age REAL,
+        pct_owner_occupied REAL,
+        pct_renter_occupied REAL,
+        pct_vacant REAL,
+        median_home_value REAL,
+        avg_household_size REAL,
+        avg_family_size REAL,
+        median_household_income REAL,
+        poverty_rate REAL,
+        unemployment_rate REAL,
+        pct_population_white REAL,
+        pct_population_black REAL,
+        pct_population_hispanic REAL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sequelize.query(createTableSQL);
     console.log('✅ Table created successfully\n');
 
     // Create indexes
     console.log('🔍 Creating indexes...');
+    const createIndexesSQL = [
+      `CREATE INDEX IF NOT EXISTS idx_alf_facility_name ON alf_facilities(facility_name);`,
+      `CREATE INDEX IF NOT EXISTS idx_alf_city_state ON alf_facilities(city, state);`,
+      `CREATE INDEX IF NOT EXISTS idx_alf_state ON alf_facilities(state);`,
+      `CREATE INDEX IF NOT EXISTS idx_alf_zip ON alf_facilities(zip_code);`,
+      `CREATE INDEX IF NOT EXISTS idx_alf_coords ON alf_facilities(latitude, longitude);`
+    ];
+
     for (const indexSQL of createIndexesSQL) {
-      await new Promise((resolve, reject) => {
-        db.run(indexSQL, (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+      await sequelize.query(indexSQL);
     }
     console.log('✅ Indexes created successfully\n');
 
     // Check if data already exists
-    const count = await new Promise((resolve, reject) => {
-      db.get('SELECT COUNT(*) as count FROM alf_facilities', (err, row) => {
-        if (err) reject(err);
-        else resolve(row.count);
-      });
-    });
+    const [countResult] = await sequelize.query('SELECT COUNT(*) as count FROM alf_facilities');
+    const count = countResult[0].count;
 
     if (count > 0) {
       console.log(`⚠️  Table already contains ${count} records.`);
@@ -209,16 +245,11 @@ async function importData() {
 
       if (answer !== 'yes') {
         console.log('❌ Import cancelled.');
-        db.close();
+        await sequelize.close();
         process.exit(0);
       }
 
-      await new Promise((resolve, reject) => {
-        db.run('DELETE FROM alf_facilities', (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+      await sequelize.query('DELETE FROM alf_facilities');
       console.log('✅ Existing records cleared\n');
     }
 
@@ -236,21 +267,8 @@ async function importData() {
     let headers = [];
     let importedCount = 0;
     let errorCount = 0;
-
-    const insertSQL = `
-      INSERT INTO alf_facilities (
-        facility_id, facility_name, address, city, state, zip_code, phone_number,
-        county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
-        license_number, capacity, email_address, ownership_type, latitude, longitude,
-        county_fips, total_county_al_need, pct_population_over_65, median_age,
-        pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
-        avg_household_size, avg_family_size, median_household_income, poverty_rate,
-        unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    // Use transaction for faster bulk insert
-    await new Promise((resolve) => db.run('BEGIN TRANSACTION', resolve));
+    const batchSize = 100;
+    let batch = [];
 
     for await (const line of rl) {
       lineNumber++;
@@ -263,7 +281,7 @@ async function importData() {
       try {
         const values = parseCSVLine(line);
 
-        // Map CSV columns to database fields (33 columns total)
+        // Map CSV columns to database fields (34 columns total)
         const record = [
           convertValue(values[0]),  // facility_id
           convertValue(values[1]),  // facility_name
@@ -301,16 +319,32 @@ async function importData() {
           convertValue(values[33]) ? parseFloat(values[33]) : null  // pct_population_hispanic
         ];
 
-        await new Promise((resolve, reject) => {
-          db.run(insertSQL, record, (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
+        batch.push(record);
 
-        importedCount++;
+        // Insert in batches
+        if (batch.length >= batchSize) {
+          const placeholders = batch.map(() =>
+            `(${Array(34).fill('?').join(', ')})`
+          ).join(', ');
 
-        if (importedCount % 1000 === 0) {
+          const insertSQL = `
+            INSERT INTO alf_facilities (
+              facility_id, facility_name, address, city, state, zip_code, phone_number,
+              county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
+              license_number, capacity, email_address, ownership_type, latitude, longitude,
+              county_fips, total_county_al_need, pct_population_over_65, median_age,
+              pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
+              avg_household_size, avg_family_size, median_household_income, poverty_rate,
+              unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
+            ) VALUES ${placeholders}
+          `;
+
+          const flattenedBatch = batch.flat();
+          await sequelize.query(insertSQL, { replacements: flattenedBatch });
+
+          importedCount += batch.length;
+          batch = [];
+
           process.stdout.write(`\r   Imported: ${importedCount} records...`);
         }
 
@@ -322,7 +356,29 @@ async function importData() {
       }
     }
 
-    await new Promise((resolve) => db.run('COMMIT', resolve));
+    // Insert remaining batch
+    if (batch.length > 0) {
+      const placeholders = batch.map(() =>
+        `(${Array(34).fill('?').join(', ')})`
+      ).join(', ');
+
+      const insertSQL = `
+        INSERT INTO alf_facilities (
+          facility_id, facility_name, address, city, state, zip_code, phone_number,
+          county, licensee, state_facility_type_2, state_facility_type_1, date_accessed,
+          license_number, capacity, email_address, ownership_type, latitude, longitude,
+          county_fips, total_county_al_need, pct_population_over_65, median_age,
+          pct_owner_occupied, pct_renter_occupied, pct_vacant, median_home_value,
+          avg_household_size, avg_family_size, median_household_income, poverty_rate,
+          unemployment_rate, pct_population_white, pct_population_black, pct_population_hispanic
+        ) VALUES ${placeholders}
+      `;
+
+      const flattenedBatch = batch.flat();
+      await sequelize.query(insertSQL, { replacements: flattenedBatch });
+
+      importedCount += batch.length;
+    }
 
     console.log(`\n\n✅ Import complete!`);
     console.log(`   Records imported: ${importedCount}`);
@@ -330,12 +386,9 @@ async function importData() {
 
     // Show sample records
     console.log('\n📊 Sample records from database:');
-    const samples = await new Promise((resolve, reject) => {
-      db.all('SELECT facility_name, city, state, capacity, latitude, longitude FROM alf_facilities LIMIT 3', (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
+    const [samples] = await sequelize.query(
+      'SELECT facility_name, city, state, capacity, latitude, longitude FROM alf_facilities LIMIT 3'
+    );
 
     samples.forEach((row, i) => {
       console.log(`\n   ${i + 1}. ${row.facility_name}`);
@@ -346,19 +399,14 @@ async function importData() {
 
     // Show summary by state
     console.log('\n📍 Facilities by state (top 10):');
-    const byState = await new Promise((resolve, reject) => {
-      db.all(`
-        SELECT state, COUNT(*) as count
-        FROM alf_facilities
-        WHERE state IS NOT NULL
-        GROUP BY state
-        ORDER BY count DESC
-        LIMIT 10
-      `, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
+    const [byState] = await sequelize.query(`
+      SELECT state, COUNT(*) as count
+      FROM alf_facilities
+      WHERE state IS NOT NULL
+      GROUP BY state
+      ORDER BY count DESC
+      LIMIT 10
+    `);
 
     byState.forEach((row) => {
       console.log(`   ${row.state}: ${row.count} facilities`);
@@ -366,11 +414,10 @@ async function importData() {
 
   } catch (err) {
     console.error('\n❌ Import failed:', err.message);
-    await new Promise((resolve) => db.run('ROLLBACK', resolve));
+    console.error(err);
   } finally {
-    db.close(() => {
-      console.log('\n👋 Database connection closed.');
-    });
+    await sequelize.close();
+    console.log('\n👋 Database connection closed.');
   }
 }
 

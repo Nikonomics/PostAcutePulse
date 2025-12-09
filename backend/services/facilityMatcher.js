@@ -5,10 +5,7 @@
  * to auto-populate missing data (licensed beds, address, coordinates, etc.)
  */
 
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-
-const DB_PATH = path.join(__dirname, '../database.sqlite');
+const { getSequelizeInstance } = require('../config/database');
 
 /**
  * Normalize facility name for matching
@@ -110,69 +107,65 @@ function levenshteinDistance(str1, str2) {
  * @returns {Promise<Object|null>} - Best matching facility or null
  */
 async function matchFacility(facilityName, city = null, state = null, minSimilarity = 0.7) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-      if (err) {
-        return reject(new Error(`Database connection failed: ${err.message}`));
-      }
-    });
+  const sequelize = getSequelizeInstance();
 
+  try {
     // Build query with optional filters
     let query = 'SELECT * FROM alf_facilities WHERE 1=1';
-    const params = [];
+    const replacements = [];
 
     if (state) {
       query += ' AND state = ?';
-      params.push(state.toUpperCase());
+      replacements.push(state.toUpperCase());
     }
 
     if (city) {
       query += ' AND city = ?';
-      params.push(city);
+      replacements.push(city);
     }
 
     query += ' LIMIT 1000'; // Limit search space for performance
 
-    db.all(query, params, (err, facilities) => {
-      db.close();
+    const [facilities] = await sequelize.query(query, { replacements });
 
-      if (err) {
-        return reject(new Error(`Query failed: ${err.message}`));
+    if (!facilities || facilities.length === 0) {
+      await sequelize.close();
+      return null;
+    }
+
+    // Normalize input name
+    const normalizedInput = normalizeFacilityName(facilityName);
+
+    // Find best match
+    let bestMatch = null;
+    let bestScore = 0;
+
+    facilities.forEach(facility => {
+      const normalizedDb = normalizeFacilityName(facility.facility_name);
+      const similarity = calculateSimilarity(normalizedInput, normalizedDb);
+
+      if (similarity > bestScore) {
+        bestScore = similarity;
+        bestMatch = facility;
       }
-
-      if (!facilities || facilities.length === 0) {
-        return resolve(null);
-      }
-
-      // Normalize input name
-      const normalizedInput = normalizeFacilityName(facilityName);
-
-      // Find best match
-      let bestMatch = null;
-      let bestScore = 0;
-
-      facilities.forEach(facility => {
-        const normalizedDb = normalizeFacilityName(facility.facility_name);
-        const similarity = calculateSimilarity(normalizedInput, normalizedDb);
-
-        if (similarity > bestScore) {
-          bestScore = similarity;
-          bestMatch = facility;
-        }
-      });
-
-      // Return match if above threshold
-      if (bestScore >= minSimilarity) {
-        return resolve({
-          ...bestMatch,
-          match_score: bestScore,
-          match_confidence: bestScore >= 0.9 ? 'high' : bestScore >= 0.8 ? 'medium' : 'low'
-        });
-      }
-
-      return resolve(null);
     });
-  });
+
+    await sequelize.close();
+
+    // Return match if above threshold
+    if (bestScore >= minSimilarity) {
+      return {
+        ...bestMatch,
+        match_score: bestScore,
+        match_confidence: bestScore >= 0.9 ? 'high' : bestScore >= 0.8 ? 'medium' : 'low'
+      };
+    }
+
+    return null;
+  } catch (err) {
+    await sequelize.close();
+    throw new Error(`Query failed: ${err.message}`);
+  }
 }
 
 /**
