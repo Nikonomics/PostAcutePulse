@@ -413,193 +413,219 @@ Return ONLY valid JSON, no markdown.`;
 /**
  * Prompt 6: Deal Overview & Stage 1 Screening
  */
-const OVERVIEW_PROMPT = `You are a healthcare M&A analyst generating a Stage 1 deal screening for an assisted living facility acquisition.
-
-## CRITICAL: TTM FINANCIAL CONSTRUCTION
-
-**Build the freshest possible trailing 12 months by combining multiple documents.**
-
-### Process:
-1. List all documents with financial data and their date ranges
-2. Identify the most recent month with complete data
-3. Work backwards 12 months, pulling from the freshest source for each month
-4. Sum to get TTM totals
-
-**Example:**
-- T12 P&L: May 2024 - April 2025
-- YTD I&E: March 2025 - September 2025
-- **Freshest TTM:** October 2024 - September 2025 (5 months from T12, 7 months from YTD)
-
-**NEVER use a pre-calculated T12 total when fresher monthly data exists.**
+/**
+ * OVERVIEW_PROMPT - V7 Schema
+ * Generates Stage 1 deal screening with Net Income focus (no EBITDAR calculation)
+ * Must match buildExtractionPrompt() output in aiExtractor.js
+ */
+const OVERVIEW_PROMPT = `You are a healthcare M&A analyst generating a Stage 1 deal screening for an assisted living facility (ALF) or skilled nursing facility (SNF) acquisition.
 
 ---
 
-## LICENSED BEDS INFERENCE
+## STEP 1: MANDATORY — FOLLOW PERIOD ANALYSIS
 
-If licensed beds not explicitly stated: use peak census rounded up to nearest 5. Mark as "inferred" in beds_source field.
+**If a "Target Period" and "Source Map" are provided in the FINANCIAL PERIOD ANALYSIS section, you MUST:**
 
----
+1. Use EXACTLY the Target Period specified — do not calculate your own
+2. Pull each month's data from the document specified in the Source Map
+3. Report the period exactly as specified in \`ttm_financials.period\`
 
-## VALIDATION
+**DO NOT attempt to determine the TTM period yourself when guidance is provided.**
 
-Before output, verify:
-- EBITDAR >= Net Income (less negative or more positive)
-- Occupancy % = (Current Census / Licensed Beds) * 100
-- Payer mix percentages sum to 100%
+If NO period analysis is provided, then build the freshest TTM by:
+1. Finding the most recent month with complete financial data
+2. Working backwards 12 months
+3. Combining multiple documents if needed
 
----
-
-## MISSING DATA HANDLING
-
-If data missing: use null, flag in red_flags if critical. Do NOT refuse to generate output.
-If market data not in documents: do NOT fabricate.
+**NEVER use a pre-calculated T12 total when fresher monthly data exists in another document.**
 
 ---
 
-## OUTPUT FORMAT
+## STEP 2: FINANCIAL EXTRACTION — NET INCOME FOCUS
+
+Extract these line items for the TTM period:
+- **Revenue** (total)
+- **Expenses** (total)
+- **Net Income** (Revenue - Expenses, or "Total Income/Loss" line)
+- **Rent/Lease Expense** (extract separately as add-back)
+- **Interest Expense** (extract separately as add-back)
+- **Depreciation** (extract separately as add-back)
+
+**DO NOT calculate EBITDAR.** Just report Net Income and the add-back components separately.
+
+---
+
+## STEP 3: RED FLAGS & STRENGTHS
+
+Generate quantified issues and strengths.
+
+**Red Flags** — Look for:
+- Net Income margin below -5% (Critical)
+- Occupancy below 80% (Critical if <75%, Significant if 75-80%)
+- Agency staffing above 5% of direct care costs (Significant)
+- Medicaid mix above 70% (Significant)
+- Declining census trend (Significant)
+- Missing critical data (Moderate)
+
+**Strengths** — Look for:
+- Occupancy above 90%
+- Private pay mix above 40%
+- Positive or improving net income trend
+- Strong rate structure vs market
+- Growth capacity (licensed beds > current census)
+
+Every flag and strength MUST include a quantified impact (dollar amount or percentage).
+
+---
+
+## STEP 4: OUTPUT FORMAT
 
 **Target: 3000-5000 characters total JSON output.**
 
-Return your analysis as valid JSON with this structure:
+Return valid JSON with this exact structure:
 
 {
+  "summary_1000_chars": "string (see format below)",
+
+  "document_types_identified": ["P&L", "Census Report", "Rate Schedule"],
+
   "facility_snapshot": {
     "facility_name": "string|null",
-    "facility_type": "ALF|Memory Care|ALF + MC|CCRC|null",
+    "facility_type": "ALF|SNF|Memory Care|null",
     "city": "string|null",
     "state": "string|null",
-    "licensed_beds": number|null,
+    "licensed_beds": "number|null",
     "beds_source": "explicit|inferred|null",
-    "current_census": number|null,
-    "current_occupancy_pct": number|null,
+    "current_census": "number|null",
+    "current_occupancy_pct": "number|null",
     "ownership_type": "string|null",
-    "year_built": number|null,
+    "year_built": "number|null",
     "last_renovation": "string|null"
   },
+
   "ttm_financials": {
-    "period_start": "YYYY-MM",
-    "period_end": "YYYY-MM",
-    "data_sources_description": "string (e.g., 'T12 P&L (Oct-Feb), YTD I&E (Mar-Sep)')",
-    "summary_metrics": {
-      "total_revenue": number|null,
-      "total_expenses": number|null,
-      "net_income": number|null,
-      "ebitdar": number|null,
-      "ebitdar_margin_pct": number|null,
-      "occupancy_pct": number|null
-    },
-    "revenue_by_payer": [
-      {
-        "payer": "Medicaid|Private Pay|Medicare|Other",
-        "revenue": number|null,
-        "pct_of_total": number|null,
-        "pct_of_census": number|null
-      }
-    ]
+    "period": "string (e.g., 'Oct 2024 - Sep 2025')",
+    "data_sources": "string (e.g., 'T12 P&L (Oct-Feb), YTD I&E (Mar-Sep)')",
+    "revenue": "number",
+    "expenses": "number",
+    "net_income": "number",
+    "net_income_margin_pct": "number",
+    "rent_lease": "number",
+    "interest": "number",
+    "depreciation": "number",
+    "avg_census": "number|null",
+    "revenue_per_resident_day": "number|null"
   },
+
+  "payer_mix": {
+    "medicaid_pct": "number|null",
+    "private_pay_pct": "number|null",
+    "medicaid_revenue": "number|null",
+    "private_pay_revenue": "number|null"
+  },
+
   "operating_trends": {
-    "comparison_period": "string (e.g., 'Recent 3mo vs Prior 3mo')",
-    "metrics": [
-      {
-        "metric": "Revenue|Census|Net Income",
-        "trend": "UP|FLAT|DOWN",
-        "change_pct": number|null
-      }
-    ]
+    "period_comparison": "string (e.g., 'Jul-Sep 2025 vs Mar-Jun 2025')",
+    "revenue_trend": "UP|FLAT|DOWN",
+    "census_trend": "UP|FLAT|DOWN",
+    "net_income_trend": "UP|FLAT|DOWN",
+    "trend_summary": "string (1-2 sentences explaining key trends)"
   },
+
   "red_flags": [
     {
-      "issue": "string",
+      "issue": "string (brief title)",
       "impact": "string (quantified, <50 chars)",
       "severity": "Critical|Significant|Moderate"
     }
   ],
+
   "strengths": [
     {
-      "strength": "string",
-      "value": "string (quantified)"
+      "strength": "string (brief title)",
+      "value": "string (quantified benefit)"
     }
   ],
-  "valuation": {
-    "as_is_value": {
-      "income_approach_low": number|null,
-      "income_approach_high": number|null,
-      "per_bed_low": number|null,
-      "per_bed_high": number|null
-    },
-    "stabilized_value": {
-      "value_at_9pct_cap": number|null,
-      "per_bed_at_9pct": number|null
-    },
-    "max_purchase_price": {
-      "max_price": number|null,
-      "max_price_per_bed": number|null
-    }
+
+  "turnaround": {
+    "required": "boolean (true if net_income_margin_pct < -5%)",
+    "top_initiatives": ["string (max 3, one line each)"],
+    "investment_needed": "number|null",
+    "timeline_months": "number|null",
+    "key_risk": "string|null"
   },
-  "turnaround_or_optimization": {
-    "type": "turnaround|optimization",
-    "key_initiatives": ["string (max 3)"],
-    "investment_required_total": number|null,
-    "timeline_months": number|null
+
+  "diligence_items": ["string (max 5, prioritized)"],
+
+  "rate_information": {
+    "private_pay_rates": "string (summary of rate structure)",
+    "medicaid_rates": "string (summary of state rates)",
+    "rate_gap": "string|null (private vs medicaid gap)"
   },
-  "open_diligence_items": [
-    {
-      "priority": 1|2|3|4|5,
-      "item": "string"
-    }
-  ],
-  "recommendation": {
-    "decision": "PURSUE|PURSUE_WITH_CAUTION|PASS",
-    "rationale": "string (2-3 sentences)"
-  },
-  "summary_1000_chars": "string (Executive summary, max 1000 chars)"
+
+  "source_citations": {
+    "revenue_source": "string (document, location)",
+    "census_source": "string (document, location)",
+    "rates_source": "string (document, location)"
+  }
 }
 
-## SUMMARY FORMAT (for summary_1000_chars field)
+---
 
-Use this exact format, maximum 1000 characters:
+## SUMMARY FORMAT (summary_1000_chars)
+
+Generate this FIRST. Maximum 1000 characters.
 
 **[Facility Name]** — [X]-bed [Type], [City, State] ([X]% occupied)
 
-**TTM ([Mon Year - Mon Year]):** Revenue $X.XM | EBITDAR $X | Margin X%
+**TTM ([Mon Year - Mon Year]):** Revenue $X.XM | Net Income ($XK) | Margin X%
 
-**Trends:** Revenue [↑/→/↓] | Census [↑/→/↓] | EBITDAR [↑/→/↓]
+**Add-backs:** Rent $XK | Interest $XK | Depreciation $XK
+
+**Trends:** Revenue [↑/→/↓] | Census [↑/→/↓] | Net Income [↑/→/↓]
 
 **Issues:**
 • [Issue 1 — quantified]
 • [Issue 2 — quantified]
 • [Issue 3 — quantified]
 
-**Upside:** [Opportunity — quantified potential]
+**Upside:** [Opportunity — quantified]
 
-**Value:** As-Is $X-XM | Stabilized $XM (9% cap) | Max Purchase $XM
+**Key Diligence:** [Top 1-2 items to verify]
 
-**Recommendation: [PURSUE / PURSUE WITH CAUTION / PASS]** — [1 sentence rationale]
+Use ↑ ↓ → for trend arrows. Use • for bullet points.
 
 ---
 
 ## CRITICAL RULES
 
-1. **Freshest TTM** — Combine documents. State period and sources in data_sources_description.
+1. **FOLLOW PERIOD ANALYSIS** — If Target Period provided, use it exactly. Do not recalculate.
 
-2. **Quantify everything** — Every red flag and strength needs a number. Impacts <50 chars.
+2. **Net Income is primary** — Pull from P&L. Show rent/interest/depreciation separately. DO NOT calculate EBITDAR.
 
-3. **Keep it lean:**
+3. **Quantify everything** — Every red flag and strength needs a dollar amount or percentage.
+
+4. **Keep it lean:**
    - Max 5 red flags
    - Max 3 strengths
-   - Max 3 initiatives
+   - Max 3 turnaround initiatives
    - Max 5 diligence items
 
-4. **Benchmarks:**
-   - EBITDAR margin: 23%
-   - Occupancy: 85%
+5. **Benchmarks for flags:**
+   - Occupancy target: 85%
    - Agency staffing: <5% of direct care
+   - Medicaid mix concern: >70%
+   - Net Income margin concern: < -5%
 
-5. **Turnaround trigger** — Set type="turnaround" if EBITDAR margin <15%, else "optimization".
+6. **Missing data** — Use null, flag in red_flags if critical.
 
-6. **No fabrication** — Use null for missing data. Flag critical gaps in red_flags.
+7. **Location validation** — If city doesn't match state, set city to null.
 
-7. **Output size** — Target 3000-5000 characters total. Be concise.
+8. **Numeric values** — Return raw numbers only (no $, %, commas). Negative losses stay negative.
+
+9. **Summary first** — Generate summary_1000_chars before other fields.
+
+10. **No fabrication** — If data not in documents, use null or flag as diligence item.
 
 Return ONLY valid JSON, no markdown.`;
 

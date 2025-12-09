@@ -26,453 +26,277 @@ const anthropic = new Anthropic({
 });
 
 /**
- * Build the enhanced extraction prompt for healthcare M&A documents
+ * Build the unified extraction + overview prompt for healthcare M&A documents
+ * Version 7.0 - Net Income focus, mandatory period analysis compliance
  */
 function buildExtractionPrompt() {
-  return `You are an expert healthcare M&A analyst specializing in skilled nursing facilities (SNF), assisted living facilities (ALF), and senior housing acquisitions. You extract structured deal data from CIMs, broker packages, P&L statements, census reports, rent rolls, and rate schedules.
+  return `You are an expert healthcare M&A analyst specializing in assisted living facilities (ALF) and skilled nursing facilities (SNF). You extract structured deal data and generate a Stage 1 deal screening from uploaded documents.
+
+---
 
 ## STEP 1: DOCUMENT IDENTIFICATION
-First, identify what types of documents you're analyzing:
-- P&L / Income Statement → Extract revenue, expenses, calculate EBITDAR/EBITDA
-- Census Report → Extract occupancy, payer mix, infer bed count from max census
+
+Identify what types of documents you're analyzing:
+- P&L / Income Statement → Extract revenue, expenses, net income
+- Census Report → Extract occupancy, payer mix, infer bed count
 - Rent Roll → Extract unit mix, unit count, rental rates
 - Rate Schedule → Extract pricing tiers by payer type
 - Floor Plans → Extract location info, unit counts
 - CIM/Offering Memo → Extract deal terms, pricing, contact info
 
-## STEP 2: EXTRACTION RULES
+---
 
-### Deal Name:
-- If explicit deal name found in CIM/Offering Memo, use it
-- If no deal name found but facility_name exists: deal_name = facility_name + " Acquisition"
-- Always populate deal_name if facility_name is available
+## STEP 2: MANDATORY — FOLLOW PERIOD ANALYSIS
 
-### Facility Type Identification:
-- "ALF", "Assisted Living", "RCF", "Residential Care" → "Assisted Living"
-- "SNF", "Skilled Nursing", "Nursing Facility", "NF" → "SNF"
+**If a "Target Period" and "Source Map" are provided in the FINANCIAL PERIOD ANALYSIS section, you MUST:**
+
+1. Use EXACTLY the Target Period specified — do not calculate your own
+2. Pull each month's data from the document specified in the Source Map
+3. Report the period exactly as specified in \`ttm_financials.period\`
+
+**DO NOT attempt to determine the TTM period yourself when guidance is provided.**
+
+If NO period analysis is provided, then identify the freshest 12-month period by:
+1. Finding the most recent month with complete financial data
+2. Working backwards 12 months
+3. Combining multiple documents if needed
+
+**NEVER use a pre-calculated T12 total when fresher monthly data exists in another document.**
+
+---
+
+## STEP 3: EXTRACTION RULES
+
+### Deal Name
+- If explicit deal name in CIM, use it
+- Otherwise: deal_name = facility_name + " Acquisition"
+
+### Facility Type
+- "ALF", "Assisted Living", "RCF", "Residential Care" → "ALF"
+- "SNF", "Skilled Nursing", "Nursing Facility" → "SNF"
 - "Memory Care", "MC", "Dementia Care" → "Memory Care"
-- "IL", "Independent Living" → "Independent Living"
-- "CCRC", "Continuing Care" → "CCRC"
 - If document has Medicaid care levels L1-L5 (not RUG/PDPM), likely ALF
 
-### Location Extraction (CRITICAL - READ CAREFULLY):
-1. Extract STATE first from: rate schedules (e.g., "Oregon DHS" = OR), document headers, addresses, letterheads
-2. Extract CITY from: architect stamps, letterheads, facility addresses, report headers
-3. VALIDATION REQUIRED: City MUST exist in the identified state
-   - If state = "OR" or "Oregon", valid cities include: Portland, Salem, Eugene, Bend, Medford, etc.
-   - If state = "OR" or "Oregon", INVALID cities include: Phoenix, Tucson, Los Angeles, Seattle, etc.
-   - If city appears inconsistent with state, set city to NULL and add to data_quality_notes
-4. Common location sources:
-   - Architect stamps on floor plans (e.g., "Portland, Oregon 97204")
-   - State agency references (e.g., "Oregon Department of Human Services" = Oregon facility)
-   - Rate schedules from state agencies
-5. NEVER guess a city. If uncertain, return null rather than a wrong city.
+### Location (CRITICAL)
+1. Extract STATE first from: rate schedules, document headers, addresses
+2. Extract CITY from: architect stamps, letterheads, facility addresses
+3. VALIDATION: City MUST exist in the identified state
+4. If uncertain, return null — NEVER guess
 
-### Bed/Unit Count:
+### Licensed Beds/Units
 - If explicit bed count found, use it
-- Otherwise: bed_count = MAX(census values across all months) rounded up to nearest 5
-- For ALF, may be called "units" not "beds"
+- Otherwise: beds = MAX(census values) rounded UP to nearest 5
+- Mark source as "explicit" or "inferred"
 
-### TTM Financial Calculations (CRITICAL):
+### Financial Data — Net Income Focus
+Extract these line items for each month in the TTM period:
+- **Revenue** (total)
+- **Expenses** (total)
+- **Net Income** (Revenue - Expenses, or "Total Income/Loss" line)
+- **Rent/Lease Expense** (extract separately)
+- **Interest Expense** (extract separately)
+- **Depreciation** (extract separately)
 
-When multiple financial documents are available (e.g., historical T12 + YTD):
-1. IDENTIFY the most recent complete month across all documents
-2. BUILD the freshest possible trailing 12 months by combining data sources
-3. SPECIFY the exact period used in period.start and period.end
+**DO NOT calculate EBITDAR.** Just report Net Income and the add-back components separately.
 
-Example:
-- T12 file covers: May 2024 - April 2025
-- YTD file covers: March 2025 - September 2025
-- CALCULATE: October 2024 - September 2025 (freshest T12)
-  - Oct 2024 - Feb 2025: Pull from T12 file
-  - Mar 2025 - Sep 2025: Pull from YTD file
+### Revenue by Payer
+From P&L, extract dollar amounts:
+- Medicaid revenue
+- Private pay revenue
+- Other revenue
 
-### EBIT/EBITDA/EBITDAR Calculation (MUST FOLLOW EXACTLY):
-
-Step 1: Find these SPECIFIC line items in the P&L and sum for the TTM period:
-- DEPRECIATION: Look for "DEPRECIATION" in Property Related section (~$21K/month typical)
-- INTEREST_EXPENSE: Look for "BOND INTEREST EXPENSE" or "INTEREST EXPENSE" (~$10.6K/month typical)
-- RENT_EXPENSE: Look for "LAND LEASE" or "RENT EXPENSE" (~$4K/month typical)
-- NET_INCOME: Look for "TOTAL INCOME (LOSS)" or "NET INCOME" at bottom of P&L
-
-Step 2: Calculate in this EXACT order:
-EBIT = NET_INCOME + INTEREST_EXPENSE
-EBITDA = EBIT + DEPRECIATION
-EBITDAR = EBITDA + RENT_EXPENSE
-
-Step 3: Validate your math:
-- EBITDAR should be LESS negative (or more positive) than EBITDA
-- EBITDA should be LESS negative (or more positive) than EBIT
-- EBIT should be LESS negative (or more positive) than NET_INCOME
-- If this order is wrong, you made a calculation error
-
-Step 4: Include calculation details in output:
-"calculation_details": {
-"net_income": [value],
-"interest_expense_addback": [value],
-"depreciation_addback": [value],
-"rent_expense_addback": [value]
-}
-
-### Revenue by Payer Source (REQUIRED):
-From P&L statements, extract DOLLAR AMOUNTS for each payer source:
-- medicaid_revenue: Look for "Medicaid Revenue", "Title XIX", "Medicaid Room & Board"
-- medicare_revenue: Look for "Medicare Revenue", "Title XVIII"
-- private_pay_revenue: Look for "Private Pay Revenue", "Private Room & Board"
-- other_revenue: Any other revenue sources (respite, ancillary, etc.)
-
-Calculate percentage of total for each, but store the ACTUAL DOLLAR AMOUNTS.
-
-### Payer Mix Percentages (REQUIRED):
+### Payer Mix (Census-Based)
 From Census Reports:
-1. Find total census days by payer type: Medicaid days, Private Pay days, Medicare days
-2. Calculate percentages: (payer_days / total_days) * 100
-3. Verify percentages sum to ~100%
+- Calculate: (payer_days / total_days) × 100
+- Report Medicaid %, Private Pay %
 
-From P&L Revenue:
-1. Use the revenue_by_payer amounts above
-2. Calculate percentages: (payer_revenue / total_revenue) * 100
+### Operating Trends
+Compare most recent 3 months vs prior period:
+- Revenue trend: UP (>5% increase), FLAT (±5%), DOWN (>5% decrease)
+- Census trend
+- Net Income trend
 
-ALWAYS extract both census-based AND revenue-based payer mix when data is available.
+---
 
-### Year-to-Date (YTD) Performance:
-If documents contain YTD or partial-year data SEPARATE from the T12:
-1. Extract the period covered (e.g., "March 2025 - September 2025")
-2. Extract YTD totals: revenue, expenses, net income
-3. Extract census days by payer type if available
-4. This is SEPARATE from the T12 data - do not combine them
+## STEP 4: RED FLAGS & STRENGTHS
 
-YTD data is often found in:
-- I&E statements with "YTD" in the title
-- Census reports showing current year totals
-- Monthly reports that show cumulative figures
+Generate quantified issues and strengths.
 
-### Rate Schedule Extraction (REQUIRED):
-Extract ALL rate information found:
+**Red Flags** — Look for:
+- Net Income margin below -5% (Critical)
+- Occupancy below 80% (Critical if <75%, Significant if 75-80%)
+- Agency staffing above 5% of direct care costs (Significant)
+- Medicaid mix above 70% (Significant)
+- Declining census trend (Significant)
+- Missing critical data (Moderate)
 
-Private Pay Rates - look for:
-- Base rent by unit type (Studio, 1BR, 2BR, etc.)
-- Care level add-ons (L1, L2, L3, etc.)
-- Additional person/spouse fees
+**Strengths** — Look for:
+- Occupancy above 90%
+- Private pay mix above 40%
+- Positive or improving net income trend
+- Strong rate structure vs market
+- Growth capacity (licensed beds > current census)
 
-Medicaid Rates - look for:
-- Rates by care level (Level 1 through Level 5)
-- Room and board components
-- State rate schedules
+Every flag and strength MUST include a quantified impact (dollar amount or percentage).
 
-Format as arrays:
-"private_pay_rates": [
-{"unit_type": "Studio", "monthly_rate": 4128, "care_levels": {"L1": 676, "L2": 889, "L3": 1158}},
-{"unit_type": "1 Bedroom", "monthly_rate": 4992}
-]
-"medicaid_rates": [
-{"care_level": "Level 1", "monthly_rate": 1980},
-{"care_level": "Level 2", "monthly_rate": 2454}
-]
-
-### Contact Information Extraction:
-- Look for "User:", "Prepared by:", "Generated by:" in report headers
-- Look for email patterns: [a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}
-- Look for phone patterns: \\(?\\d{3}\\)?[-.\s]?\\d{3}[-.\s]?\\d{4}
-- PointClickCare reports show "User: [Name]" - extract as contact if no other found
-
-### Occupancy Calculation:
-occupancy_pct = (average_daily_census / bed_count) * 100
-Mark as calculated: true
-
-### KEY OBSERVATIONS & INSIGHTS (REQUIRED):
-Based on your analysis of the extracted data, generate actionable insights in these categories:
-
-**deal_strengths** - Positive aspects that make this deal attractive:
-- High occupancy (>90%), strong private pay mix (>30%), favorable payer mix trends
-- Growing revenue or census, improving margins
-- Premium rate structure, low agency staffing reliance
-- Well-maintained facility indicators, good location market
-
-**deal_risks** - Concerns or red flags:
-- Low occupancy (<85%), high Medicaid concentration (>70%)
-- Declining census trends, negative EBITDA, high agency staffing costs
-- Missing critical data, inconsistent financials
-- Regulatory concerns, market challenges
-
-**missing_data** - Important information not found in documents:
-- Which key fields couldn't be extracted
-- What additional documents would help complete the analysis
-
-**calculation_notes** - How key metrics were derived:
-- EBITDA calculation methodology
-- Assumptions made for derived values
-- Data quality issues affecting calculations
-
-Format each observation as a complete sentence. Be specific with numbers and cite the data. Prioritize the most important 3-5 observations per category.
-
-## STEP 3: SOURCE CITATION FORMAT (CRITICAL)
-
-For EVERY extracted value, provide detailed source citations that allow users to find the exact location in the original document:
-
-### Source Reference Structure:
-Each "source" field should include:
-- **document**: The exact filename (e.g., "Trailing_12-Month_P&L.xlsx")
-- **location**: Specific location within the document:
-  - For Excel: "Sheet '[SheetName]', Row [X]" or "Sheet '[SheetName]', Cell [A1]"
-  - For PDF: "Page [X]" or "Page [X], Section '[Header]'"
-  - For Word/Text: "Page [X]" or "Section '[Header]'"
-- **snippet**: A brief text snippet showing the exact text where the value was found (10-50 chars)
-
-Example source formats:
-- "Trailing_12-Month_P&L.xlsx | Sheet 'Summary', Row 45 | 'Total Revenue: $3,933,015'"
-- "Census_Report.pdf | Page 2 | 'Average Daily Census: 94'"
-- "Rate-schedule_July_2025.pdf | Page 1, Care Level Table | 'Level 1: $1,980/month'"
-
-For calculated values, show the source as:
-- "Calculated | [formula description] | Based on: [source fields]"
-
-## STEP 4: MULTI-FACILITY DETECTION
-
-If the documents contain data for MULTIPLE FACILITIES:
-1. Look for multiple facility names, addresses, or distinct financial line items per facility
-2. CIMs often list multiple properties in a portfolio deal
-3. Separate P&L sheets per facility indicate multi-facility
-4. If detected, populate the "facilities" array with individual facility data
-
-If SINGLE FACILITY:
-- Leave "facilities" array empty or omit it
-- Populate the main facility_information section
+---
 
 ## STEP 5: OUTPUT FORMAT
 
-Return a JSON object with this structure. Use null for fields not found. Include confidence scores and detailed sources.
+Return valid JSON with this exact structure. Target 3000-5000 characters total.
 
+\`\`\`json
 {
+  "summary_1000_chars": "string (see format below)",
+
   "document_types_identified": ["P&L", "Census Report", "Rate Schedule"],
 
-  "is_portfolio_deal": false,
-  "facility_count": 1,
-
-  "deal_information": {
-    "deal_name": {"value": null, "confidence": "not_found", "source": null, "derived_from": null},
-    "deal_type": {"value": null, "confidence": "not_found", "source": null},
-    "deal_source": {"value": null, "confidence": "not_found", "source": null},
-    "priority_level": {"value": null, "confidence": "not_found", "source": null},
-    "purchase_price": {"value": null, "confidence": "not_found", "source": null},
-    "price_per_bed": {"value": null, "confidence": "not_found", "calculated": false, "source": null}
+  "facility_snapshot": {
+    "facility_name": "string|null",
+    "facility_type": "ALF|SNF|Memory Care|null",
+    "city": "string|null",
+    "state": "string|null",
+    "licensed_beds": "number|null",
+    "beds_source": "explicit|inferred|null",
+    "current_census": "number|null",
+    "current_occupancy_pct": "number|null",
+    "ownership_type": "string|null",
+    "year_built": "number|null",
+    "last_renovation": "string|null"
   },
 
-  "facility_information": {
-    "facility_name": {"value": null, "confidence": "not_found", "source": null},
-    "facility_type": {"value": null, "confidence": "not_found", "source": null},
-    "street_address": {"value": null, "confidence": "not_found", "source": null},
-    "city": {"value": null, "confidence": "not_found", "source": null},
-    "state": {"value": null, "confidence": "not_found", "source": null},
-    "zip_code": {"value": null, "confidence": "not_found", "source": null},
-    "bed_count": {"value": null, "confidence": "not_found", "method": "explicit|inferred_from_census", "source": null},
-    "unit_mix": {"value": null, "confidence": "not_found", "source": null}
+  "ttm_financials": {
+    "period": "string (e.g., 'Oct 2024 - Sep 2025')",
+    "data_sources": "string (e.g., 'T12 P&L (Oct-Feb), YTD I&E (Mar-Sep)')",
+    "revenue": "number",
+    "expenses": "number",
+    "net_income": "number",
+    "net_income_margin_pct": "number",
+    "rent_lease": "number",
+    "interest": "number",
+    "depreciation": "number",
+    "avg_census": "number|null",
+    "revenue_per_resident_day": "number|null"
   },
 
-  "contact_information": {
-    "primary_contact_name": {"value": null, "confidence": "not_found", "source": null},
-    "title": {"value": null, "confidence": "not_found", "source": null},
-    "phone": {"value": null, "confidence": "not_found", "source": null},
-    "email": {"value": null, "confidence": "not_found", "source": null}
+  "payer_mix": {
+    "medicaid_pct": "number|null",
+    "private_pay_pct": "number|null",
+    "medicaid_revenue": "number|null",
+    "private_pay_revenue": "number|null"
   },
 
-  "financial_information_t12": {
-    "period": {"start": null, "end": null, "note": null},
-    "total_revenue": {"value": null, "confidence": "not_found", "source": null},
-    "revenue_by_payer": {
-      "medicaid_revenue": {"value": null, "confidence": "not_found"},
-      "medicare_revenue": {"value": null, "confidence": "not_found"},
-      "private_pay_revenue": {"value": null, "confidence": "not_found"},
-      "other_revenue": {"value": null, "confidence": "not_found"}
-    },
-    "revenue_breakdown": {
-      "room_and_board": {"value": null, "confidence": "not_found"},
-      "care_level_revenue": {"value": null, "confidence": "not_found"},
-      "ancillary_revenue": {"value": null, "confidence": "not_found"},
-      "other_income": {"value": null, "confidence": "not_found"}
-    },
-    "total_expenses": {"value": null, "confidence": "not_found", "source": null},
-    "operating_expenses": {"value": null, "confidence": "not_found", "source": null},
-    "depreciation": {"value": null, "confidence": "not_found", "source": null},
-    "amortization": {"value": null, "confidence": "not_found", "source": null},
-    "interest_expense": {"value": null, "confidence": "not_found", "source": null},
-    "property_taxes": {"value": null, "confidence": "not_found", "source": null},
-    "property_insurance": {"value": null, "confidence": "not_found", "source": null},
-    "rent_lease_expense": {"value": null, "confidence": "not_found", "source": null},
-    "net_income": {"value": null, "confidence": "not_found", "source": null},
-    "ebit": {"value": null, "confidence": "not_found", "calculated": true},
-    "ebitda": {"value": null, "confidence": "not_found", "calculated": true},
-    "ebitdar": {"value": null, "confidence": "not_found", "calculated": true},
-    "calculation_details": {
-      "net_income": null,
-      "interest_expense_addback": null,
-      "depreciation_addback": null,
-      "rent_expense_addback": null,
-      "ebit_formula": "net_income + interest_expense",
-      "ebitda_formula": "ebit + depreciation",
-      "ebitdar_formula": "ebitda + rent_expense"
+  "operating_trends": {
+    "period_comparison": "string (e.g., 'Jul-Sep 2025 vs Mar-Jun 2025')",
+    "revenue_trend": "UP|FLAT|DOWN",
+    "census_trend": "UP|FLAT|DOWN",
+    "net_income_trend": "UP|FLAT|DOWN",
+    "trend_summary": "string (1-2 sentences explaining key trends)"
+  },
+
+  "red_flags": [
+    {
+      "issue": "string (brief title)",
+      "impact": "string (quantified, <50 chars)",
+      "severity": "Critical|Significant|Moderate"
     }
-  },
+  ],
 
-  "ytd_performance": {
-    "period": {"start": null, "end": null},
-    "total_revenue": {"value": null, "confidence": "not_found"},
-    "total_expenses": {"value": null, "confidence": "not_found"},
-    "net_income": {"value": null, "confidence": "not_found"},
-    "average_daily_census": {"value": null, "confidence": "not_found"},
-    "medicaid_days": {"value": null, "confidence": "not_found"},
-    "private_pay_days": {"value": null, "confidence": "not_found"},
-    "total_census_days": {"value": null, "confidence": "not_found"}
-  },
-
-  "census_and_occupancy": {
-    "average_daily_census": {"value": null, "confidence": "not_found", "source": null},
-    "occupancy_percentage": {"value": null, "confidence": "not_found", "calculated": false, "source": null},
-    "payer_mix_by_census": {
-      "medicaid_pct": {"value": null, "confidence": "not_found"},
-      "medicare_pct": {"value": null, "confidence": "not_found"},
-      "private_pay_pct": {"value": null, "confidence": "not_found"},
-      "other_pct": {"value": null, "confidence": "not_found"},
-      "source": null
-    },
-    "payer_mix_by_revenue": {
-      "medicaid_pct": {"value": null, "confidence": "not_found"},
-      "medicare_pct": {"value": null, "confidence": "not_found"},
-      "private_pay_pct": {"value": null, "confidence": "not_found"},
-      "other_pct": {"value": null, "confidence": "not_found"},
-      "source": null
+  "strengths": [
+    {
+      "strength": "string (brief title)",
+      "value": "string (quantified benefit)"
     }
+  ],
+
+  "turnaround": {
+    "required": "boolean (true if net_income_margin_pct < -5%)",
+    "top_initiatives": ["string (max 3, one line each)"],
+    "investment_needed": "number|null",
+    "timeline_months": "number|null",
+    "key_risk": "string|null"
   },
+
+  "diligence_items": ["string (max 5, prioritized)"],
 
   "rate_information": {
-    "private_pay_rates": {
-      "value": [],
-      "confidence": "not_found",
-      "source": null
-    },
-    "medicaid_rates": {
-      "value": [],
-      "confidence": "not_found",
-      "source": null
-    },
-    "average_daily_rate": {"value": null, "confidence": "not_found"}
+    "private_pay_rates": "string (summary of rate structure)",
+    "medicaid_rates": "string (summary of state rates)",
+    "rate_gap": "string|null (private vs medicaid gap)"
   },
 
-  "pro_forma_projections": {
-    "year_1": {
-      "revenue": {"value": null, "confidence": "not_found"},
-      "ebitdar": {"value": null, "confidence": "not_found"},
-      "rent_expense": {"value": null, "confidence": "not_found"},
-      "ebitda": {"value": null, "confidence": "not_found"},
-      "ebit": {"value": null, "confidence": "not_found"},
-      "occupancy_pct": {"value": null, "confidence": "not_found"}
-    },
-    "year_2": {
-      "revenue": {"value": null, "confidence": "not_found"},
-      "ebitdar": {"value": null, "confidence": "not_found"},
-      "rent_expense": {"value": null, "confidence": "not_found"},
-      "ebitda": {"value": null, "confidence": "not_found"},
-      "ebit": {"value": null, "confidence": "not_found"},
-      "occupancy_pct": {"value": null, "confidence": "not_found"}
-    },
-    "year_3": {
-      "revenue": {"value": null, "confidence": "not_found"},
-      "ebitdar": {"value": null, "confidence": "not_found"},
-      "rent_expense": {"value": null, "confidence": "not_found"},
-      "ebitda": {"value": null, "confidence": "not_found"},
-      "ebit": {"value": null, "confidence": "not_found"},
-      "occupancy_pct": {"value": null, "confidence": "not_found"}
-    }
-  },
-
-  "deal_metrics": {
-    "revenue_multiple": {"value": null, "calculated": false},
-    "ebitda_multiple": {"value": null, "calculated": false},
-    "cap_rate": {"value": null, "confidence": "not_found"},
-    "target_irr": {"value": null, "confidence": "not_found"},
-    "hold_period_years": {"value": null, "confidence": "not_found"}
-  },
-
-  "data_quality_notes": [],
-
-  "key_observations": {
-    "deal_strengths": [
-      "Strong occupancy at 94% with positive trending over the past 6 months",
-      "Private pay mix of 35% provides revenue stability and upside potential"
-    ],
-    "deal_risks": [
-      "Medicaid concentration at 62% creates reimbursement rate dependency",
-      "Agency staffing costs represent 15% of total labor, above industry average"
-    ],
-    "missing_data": [
-      "No purchase price provided - unable to calculate acquisition multiples",
-      "Rate schedule not included - private pay rates estimated from revenue"
-    ],
-    "calculation_notes": [
-      "EBITDA calculated as Net Income + Interest + Depreciation using T12 P&L data",
-      "Occupancy derived from average daily census of 94 divided by 100 beds"
-    ]
-  },
-
-  "facilities": [
-    {
-      "facility_name": {"value": null, "confidence": "not_found", "source": null},
-      "facility_type": {"value": null, "confidence": "not_found", "source": null},
-      "street_address": {"value": null, "confidence": "not_found", "source": null},
-      "city": {"value": null, "confidence": "not_found", "source": null},
-      "state": {"value": null, "confidence": "not_found", "source": null},
-      "zip_code": {"value": null, "confidence": "not_found", "source": null},
-      "county": {"value": null, "confidence": "not_found", "source": null},
-      "total_beds": {"value": null, "confidence": "not_found", "source": null},
-      "licensed_beds": {"value": null, "confidence": "not_found", "source": null},
-      "certified_beds": {"value": null, "confidence": "not_found", "source": null},
-      "purchase_price": {"value": null, "confidence": "not_found", "source": null},
-      "annual_revenue": {"value": null, "confidence": "not_found", "source": null},
-      "ebitda": {"value": null, "confidence": "not_found", "source": null},
-      "ebitdar": {"value": null, "confidence": "not_found", "source": null},
-      "noi": {"value": null, "confidence": "not_found", "source": null},
-      "annual_rent": {"value": null, "confidence": "not_found", "source": null},
-      "occupancy_rate": {"value": null, "confidence": "not_found", "source": null},
-      "medicare_mix": {"value": null, "confidence": "not_found", "source": null},
-      "medicaid_mix": {"value": null, "confidence": "not_found", "source": null},
-      "private_pay_mix": {"value": null, "confidence": "not_found", "source": null},
-      "managed_care_mix": {"value": null, "confidence": "not_found", "source": null},
-      "notes": {"value": null, "confidence": "not_found", "source": null}
-    }
-  ]
+  "source_citations": {
+    "revenue_source": "string (document, location)",
+    "census_source": "string (document, location)",
+    "rates_source": "string (document, location)"
+  }
 }
+\`\`\`
 
-## CRITICAL RULES:
+---
 
-1. **Numeric values**: Return raw numbers only (no $, %, commas). "15M" → 15000000, "85%" → 85
+## SUMMARY FORMAT (summary_1000_chars)
 
-2. **Negative values**: Operating losses should be negative numbers
+Generate this FIRST. Maximum 1000 characters.
 
-3. **Calculations**: Always show "calculated": true when you derived a value
+\`\`\`
+**[Facility Name]** — [X]-bed [Type], [City, State] ([X]% occupied)
 
-4. **Confidence levels**:
-   - "high" = explicitly stated in document
-   - "medium" = calculated from explicit data or strongly inferred
-   - "low" = inferred from indirect evidence
-   - "not_found" = field not found in any document
+**TTM ([Mon Year - Mon Year]):** Revenue $X.XM | Net Income ($XK) | Margin X%
 
-5. **Location validation**: If city doesn't match state, set city to null and add note to data_quality_notes. NEVER return Phoenix for an Oregon facility.
+**Add-backs:** Rent $XK | Interest $XK | Depreciation $XK
 
-6. **Facility type**: Use document terminology as evidence (ALF/RCF docs = "Assisted Living", not SNF)
+**Trends:** Revenue [↑/→/↓] | Census [↑/→/↓] | Net Income [↑/→/↓]
 
-7. **Deal name fallback**: If no explicit deal name, use: facility_name + " Acquisition"
+**Issues:**
+• [Issue 1 — quantified]
+• [Issue 2 — quantified]
+• [Issue 3 — quantified]
 
-8. **EBITDAR math validation**:
-   - EBITDAR > EBITDA > EBIT > Net Income (in terms of being less negative or more positive)
-   - If this doesn't hold, recheck your calculations
+**Upside:** [Opportunity — quantified]
 
-9. **Payer mix required**: Always extract payer mix from census data when available. Sum should be ~100%.
+**Key Diligence:** [Top 1-2 items to verify]
+\`\`\`
 
-10. **Rate tables required**: Always extract rate information when rate schedules are provided.
+Use ↑ ↓ → for trend arrows. Use • for bullet points.
 
-11. **Source attribution**: Include source document name for key fields to enable verification.
+---
 
-12. **Return ONLY valid JSON**, no markdown code blocks, no explanatory text before or after.`;
+## CRITICAL RULES
+
+1. **FOLLOW PERIOD ANALYSIS** — If Target Period provided, use it exactly. Do not recalculate.
+
+2. **Net Income is primary** — Pull from P&L. Show rent/interest/depreciation separately. DO NOT calculate EBITDAR.
+
+3. **Quantify everything** — Every red flag and strength needs a dollar amount or percentage.
+
+4. **Keep it lean:**
+   - Max 5 red flags
+   - Max 3 strengths
+   - Max 3 turnaround initiatives
+   - Max 5 diligence items
+
+5. **Benchmarks for flags:**
+   - Occupancy target: 85%
+   - Agency staffing: <5% of direct care
+   - Medicaid mix concern: >70%
+   - Net Income margin concern: < -5%
+
+6. **Missing data** — Use null, flag in red_flags if critical.
+
+7. **Location validation** — If city doesn't match state, set city to null.
+
+8. **Numeric values** — Return raw numbers only (no $, %, commas). Negative losses stay negative.
+
+9. **Summary first** — Generate summary_1000_chars before other fields.
+
+10. **No fabrication** — If data not in documents, use null or flag as diligence item.
+
+---
+
+## OUTPUT
+
+Return ONLY valid JSON. No markdown code blocks. No explanatory text.`;
 }
 
 /**
@@ -742,16 +566,247 @@ function normalizeKeyObservations(observations) {
   return defaultStructure;
 }
 
+/**
+ * Convert V7 schema red_flags/strengths to legacy key_observations format
+ * This provides backward compatibility for existing frontend components
+ * @param {Object} data - V7 extraction data with red_flags and strengths arrays
+ * @returns {Object} Legacy key_observations structure
+ */
+function convertV7ToKeyObservations(data) {
+  const result = {
+    deal_strengths: [],
+    deal_risks: [],
+    missing_data: [],
+    calculation_notes: []
+  };
+
+  // Convert strengths array to deal_strengths strings
+  if (data.strengths && Array.isArray(data.strengths)) {
+    result.deal_strengths = data.strengths.map(s => {
+      if (typeof s === 'string') return s;
+      return `${s.strength}: ${s.value}`;
+    });
+  }
+
+  // Convert red_flags array to deal_risks strings
+  if (data.red_flags && Array.isArray(data.red_flags)) {
+    result.deal_risks = data.red_flags.map(rf => {
+      if (typeof rf === 'string') return rf;
+      const severity = rf.severity ? `[${rf.severity}] ` : '';
+      return `${severity}${rf.issue}: ${rf.impact}`;
+    });
+  }
+
+  // Add diligence items as missing_data (they often overlap conceptually)
+  if (data.diligence_items && Array.isArray(data.diligence_items)) {
+    result.missing_data = data.diligence_items.filter(item => typeof item === 'string');
+  }
+
+  // Add turnaround info as calculation notes if present
+  if (data.turnaround && data.turnaround.required) {
+    result.calculation_notes.push(`Turnaround required: ${data.turnaround.top_initiatives?.join(', ') || 'See turnaround details'}`);
+  }
+
+  return result;
+}
+
 function flattenExtractedData(data) {
+  // Detect schema version: V7 uses facility_snapshot, older versions use facility_information
+  const isV7Schema = !!data.facility_snapshot || !!data.ttm_financials;
+
   const flat = {
     // Document types identified
     document_types_identified: data.document_types_identified || [],
+
+    // ============================================
+    // V7 NEW FIELDS - Overview/Screening Data
+    // ============================================
+
+    // Summary (1000 chars max overview)
+    summary_1000_chars: data.summary_1000_chars || null,
+
+    // Red flags array - [{issue, impact, severity}]
+    red_flags: data.red_flags || [],
+
+    // Strengths array - [{strength, value}]
+    strengths: data.strengths || [],
+
+    // Turnaround info - {required, top_initiatives, investment_needed, timeline_months, key_risk}
+    turnaround: data.turnaround || null,
+
+    // Diligence items array - prioritized list of items to verify
+    diligence_items: data.diligence_items || [],
+
+    // Operating trends - {period_comparison, revenue_trend, census_trend, net_income_trend, trend_summary}
+    operating_trends: data.operating_trends || null,
+
+    // Source citations - {revenue_source, census_source, rates_source}
+    source_citations: data.source_citations || null,
+
+    // ============================================
+    // FACILITY INFORMATION (V7: facility_snapshot, Legacy: facility_information)
+    // ============================================
+    facility_name: isV7Schema
+      ? data.facility_snapshot?.facility_name
+      : getValue(data.facility_information?.facility_name),
+    facility_type: isV7Schema
+      ? data.facility_snapshot?.facility_type
+      : getValue(data.facility_information?.facility_type),
+    city: isV7Schema
+      ? data.facility_snapshot?.city
+      : getValue(data.facility_information?.city),
+    state: isV7Schema
+      ? data.facility_snapshot?.state
+      : getValue(data.facility_information?.state),
+    no_of_beds: isV7Schema
+      ? data.facility_snapshot?.licensed_beds
+      : getValue(data.facility_information?.bed_count),
+    bed_count_method: isV7Schema
+      ? (data.facility_snapshot?.beds_source || 'explicit')
+      : (data.facility_information?.bed_count?.method || 'explicit'),
+    current_census: isV7Schema
+      ? data.facility_snapshot?.current_census
+      : getValue(data.census_and_occupancy?.average_daily_census),
+    current_occupancy: isV7Schema
+      ? data.facility_snapshot?.current_occupancy_pct
+      : getValue(data.census_and_occupancy?.occupancy_percentage),
+    ownership_type: isV7Schema
+      ? data.facility_snapshot?.ownership_type
+      : null,
+    year_built: isV7Schema
+      ? data.facility_snapshot?.year_built
+      : null,
+    last_renovation: isV7Schema
+      ? data.facility_snapshot?.last_renovation
+      : null,
+
+    // Legacy facility fields (still support if present)
+    street_address: getValue(data.facility_information?.street_address),
+    zip_code: getValue(data.facility_information?.zip_code),
+    unit_mix: getValue(data.facility_information?.unit_mix),
+
+    // ============================================
+    // TTM FINANCIALS (V7: ttm_financials, Legacy: financial_information_t12)
+    // ============================================
+
+    // Period info
+    ttm_period: isV7Schema ? data.ttm_financials?.period : null,
+    ttm_data_sources: isV7Schema ? data.ttm_financials?.data_sources : null,
+    financial_period_start: data.financial_information_t12?.period?.start || null,
+    financial_period_end: data.financial_information_t12?.period?.end || null,
+    financial_period_note: data.financial_information_t12?.period?.note || null,
+
+    // Core financials
+    annual_revenue: isV7Schema
+      ? data.ttm_financials?.revenue
+      : getValue(data.financial_information_t12?.total_revenue),
+    t12m_revenue: isV7Schema
+      ? data.ttm_financials?.revenue
+      : getValue(data.financial_information_t12?.total_revenue),
+    total_expenses: isV7Schema
+      ? data.ttm_financials?.expenses
+      : getValue(data.financial_information_t12?.total_expenses),
+    annual_expenses: isV7Schema
+      ? data.ttm_financials?.expenses
+      : getValue(data.financial_information_t12?.total_expenses),
+
+    // Net Income (V7 primary metric)
+    net_income: isV7Schema
+      ? data.ttm_financials?.net_income
+      : getValue(data.financial_information_t12?.net_income),
+    net_income_margin: isV7Schema
+      ? data.ttm_financials?.net_income_margin_pct
+      : null,
+
+    // Add-back components (V7 extracts these separately)
+    rent_lease_expense: isV7Schema
+      ? data.ttm_financials?.rent_lease
+      : getValue(data.financial_information_t12?.rent_lease_expense),
+    current_rent_lease_expense: isV7Schema
+      ? data.ttm_financials?.rent_lease
+      : getValue(data.financial_information_t12?.rent_lease_expense),
+    interest_expense: isV7Schema
+      ? data.ttm_financials?.interest
+      : getValue(data.financial_information_t12?.interest_expense),
+    depreciation: isV7Schema
+      ? data.ttm_financials?.depreciation
+      : getValue(data.financial_information_t12?.depreciation),
+
+    // Census metrics from TTM
+    average_daily_census: isV7Schema
+      ? data.ttm_financials?.avg_census
+      : getValue(data.census_and_occupancy?.average_daily_census),
+    revenue_per_resident_day: isV7Schema
+      ? data.ttm_financials?.revenue_per_resident_day
+      : null,
+
+    // Legacy EBITDAR/EBITDA/EBIT fields (may not be present in V7)
+    ebit: getValue(data.financial_information_t12?.ebit),
+    t12m_ebit: getValue(data.financial_information_t12?.ebit),
+    ebitda: getValue(data.financial_information_t12?.ebitda),
+    t12m_ebitda: getValue(data.financial_information_t12?.ebitda),
+    ebitdar: getValue(data.financial_information_t12?.ebitdar),
+    t12m_ebitdar: getValue(data.financial_information_t12?.ebitdar),
+    amortization: getValue(data.financial_information_t12?.amortization),
+    net_operating_income: getValue(data.financial_information_t12?.net_income),
+    calculation_details: data.financial_information_t12?.calculation_details || null,
+
+    // ============================================
+    // PAYER MIX (V7: payer_mix, Legacy: census_and_occupancy)
+    // ============================================
+    medicaid_percentage: isV7Schema
+      ? data.payer_mix?.medicaid_pct
+      : (getValue(data.census_and_occupancy?.payer_mix_by_census?.medicaid_pct) ||
+         getValue(data.census_and_occupancy?.payer_mix_by_revenue?.medicaid_pct)),
+    private_pay_percentage: isV7Schema
+      ? data.payer_mix?.private_pay_pct
+      : (getValue(data.census_and_occupancy?.payer_mix_by_census?.private_pay_pct) ||
+         getValue(data.census_and_occupancy?.payer_mix_by_revenue?.private_pay_pct)),
+    medicaid_revenue: isV7Schema
+      ? data.payer_mix?.medicaid_revenue
+      : getValue(data.financial_information_t12?.revenue_by_payer?.medicaid_revenue),
+    private_pay_revenue: isV7Schema
+      ? data.payer_mix?.private_pay_revenue
+      : getValue(data.financial_information_t12?.revenue_by_payer?.private_pay_revenue),
+
+    // Legacy payer mix fields
+    medicare_percentage: getValue(data.census_and_occupancy?.payer_mix_by_census?.medicare_pct) ||
+                         getValue(data.census_and_occupancy?.payer_mix_by_revenue?.medicare_pct),
+    other_payer_percentage: getValue(data.census_and_occupancy?.payer_mix_by_census?.other_pct) ||
+                            getValue(data.census_and_occupancy?.payer_mix_by_revenue?.other_pct),
+    medicare_revenue: getValue(data.financial_information_t12?.revenue_by_payer?.medicare_revenue),
+    other_revenue: getValue(data.financial_information_t12?.revenue_by_payer?.other_revenue),
+    payer_mix_census_source: data.census_and_occupancy?.payer_mix_by_census?.source || null,
+    payer_mix_revenue_source: data.census_and_occupancy?.payer_mix_by_revenue?.source || null,
+
+    // ============================================
+    // RATE INFORMATION (V7: simplified strings, Legacy: arrays)
+    // ============================================
+    rate_information: isV7Schema ? data.rate_information : null,
+    private_pay_rates: isV7Schema
+      ? data.rate_information?.private_pay_rates
+      : (getValue(data.rate_information?.private_pay_rates) ||
+         data.rate_information?.private_pay_rates?.value ||
+         data.rate_information?.private_pay_rates || []),
+    medicaid_rates: isV7Schema
+      ? data.rate_information?.medicaid_rates
+      : (getValue(data.rate_information?.medicaid_rates) ||
+         data.rate_information?.medicaid_rates?.value ||
+         data.rate_information?.medicaid_rates || []),
+    rate_gap: isV7Schema ? data.rate_information?.rate_gap : null,
+    average_daily_rate: getValue(data.rate_information?.average_daily_rate),
+    private_pay_rates_source: getSource(data.rate_information?.private_pay_rates),
+    medicaid_rates_source: getSource(data.rate_information?.medicaid_rates),
+
+    // ============================================
+    // LEGACY FIELDS (for backward compatibility)
+    // ============================================
 
     // Portfolio deal indicator
     is_portfolio_deal: data.is_portfolio_deal || false,
     facility_count: data.facility_count || 1,
 
-    // Deal information
+    // Deal information (legacy)
     deal_name: getValue(data.deal_information?.deal_name),
     deal_name_derived_from: data.deal_information?.deal_name?.derived_from || null,
     deal_type: getValue(data.deal_information?.deal_type),
@@ -760,69 +815,24 @@ function flattenExtractedData(data) {
     purchase_price: getValue(data.deal_information?.purchase_price),
     price_per_bed: getValue(data.deal_information?.price_per_bed),
 
-    // Facility information
-    facility_name: getValue(data.facility_information?.facility_name),
-    facility_type: getValue(data.facility_information?.facility_type),
-    street_address: getValue(data.facility_information?.street_address),
-    city: getValue(data.facility_information?.city),
-    state: getValue(data.facility_information?.state),
-    zip_code: getValue(data.facility_information?.zip_code),
-    no_of_beds: getValue(data.facility_information?.bed_count),
-    bed_count_method: data.facility_information?.bed_count?.method || 'explicit',
-    unit_mix: getValue(data.facility_information?.unit_mix),
-
-    // Contact information
+    // Contact information (legacy)
     primary_contact_name: getValue(data.contact_information?.primary_contact_name),
     title: getValue(data.contact_information?.title),
     phone_number: getValue(data.contact_information?.phone),
     email: getValue(data.contact_information?.email),
 
-    // Financial information (T12) - period info
-    financial_period_start: data.financial_information_t12?.period?.start || null,
-    financial_period_end: data.financial_information_t12?.period?.end || null,
-    financial_period_note: data.financial_information_t12?.period?.note || null,
-
-    // Financial information (T12) - main fields
-    annual_revenue: getValue(data.financial_information_t12?.total_revenue),
-    t12m_revenue: getValue(data.financial_information_t12?.total_revenue),
-    total_expenses: getValue(data.financial_information_t12?.total_expenses),
-
-    // Revenue by payer source - NEW
-    medicaid_revenue: getValue(data.financial_information_t12?.revenue_by_payer?.medicaid_revenue),
-    medicare_revenue: getValue(data.financial_information_t12?.revenue_by_payer?.medicare_revenue),
-    private_pay_revenue: getValue(data.financial_information_t12?.revenue_by_payer?.private_pay_revenue),
-    other_revenue: getValue(data.financial_information_t12?.revenue_by_payer?.other_revenue),
-
-    // Revenue breakdown by type
+    // Revenue breakdown by type (legacy)
     revenue_room_and_board: getValue(data.financial_information_t12?.revenue_breakdown?.room_and_board),
     revenue_care_level: getValue(data.financial_information_t12?.revenue_breakdown?.care_level_revenue),
     revenue_ancillary: getValue(data.financial_information_t12?.revenue_breakdown?.ancillary_revenue),
     revenue_other_income: getValue(data.financial_information_t12?.revenue_breakdown?.other_income),
 
-    // Expense details - NEW
+    // Expense details (legacy)
     operating_expenses: getValue(data.financial_information_t12?.operating_expenses),
     property_taxes: getValue(data.financial_information_t12?.property_taxes),
     property_insurance: getValue(data.financial_information_t12?.property_insurance),
 
-    // EBITDAR/EBITDA/EBIT
-    depreciation: getValue(data.financial_information_t12?.depreciation),
-    amortization: getValue(data.financial_information_t12?.amortization),
-    interest_expense: getValue(data.financial_information_t12?.interest_expense),
-    current_rent_lease_expense: getValue(data.financial_information_t12?.rent_lease_expense),
-    net_income: getValue(data.financial_information_t12?.net_income),
-    net_operating_income: getValue(data.financial_information_t12?.net_income),
-
-    ebit: getValue(data.financial_information_t12?.ebit),
-    t12m_ebit: getValue(data.financial_information_t12?.ebit),
-    ebitda: getValue(data.financial_information_t12?.ebitda),
-    t12m_ebitda: getValue(data.financial_information_t12?.ebitda),
-    ebitdar: getValue(data.financial_information_t12?.ebitdar),
-    t12m_ebitdar: getValue(data.financial_information_t12?.ebitdar),
-
-    // Calculation details for verification
-    calculation_details: data.financial_information_t12?.calculation_details || null,
-
-    // Expense ratios - NEW
+    // Expense ratios (legacy)
     expense_ratios: data.financial_information_t12?.expense_ratios || null,
     total_labor_cost: getValue(data.financial_information_t12?.expense_ratios?.total_labor_cost),
     labor_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.labor_pct_of_revenue),
@@ -838,13 +848,13 @@ function flattenExtractedData(data) {
     insurance_pct_of_revenue: getValue(data.financial_information_t12?.expense_ratios?.insurance_pct_of_revenue),
     insurance_per_bed: getValue(data.financial_information_t12?.expense_ratios?.insurance_per_bed),
 
-    // Benchmark comparison - NEW
+    // Benchmark comparison (legacy)
     benchmark_comparison: data.financial_information_t12?.benchmark_comparison || null,
 
-    // Expense detail - NEW (store the entire structured object)
+    // Expense detail (legacy)
     expense_detail: data.financial_information_t12?.expense_detail || null,
 
-    // YTD Performance - NEW
+    // YTD Performance (legacy)
     ytd_period_start: data.ytd_performance?.period?.start || null,
     ytd_period_end: data.ytd_performance?.period?.end || null,
     ytd_revenue: getValue(data.ytd_performance?.total_revenue),
@@ -855,37 +865,12 @@ function flattenExtractedData(data) {
     ytd_private_pay_days: getValue(data.ytd_performance?.private_pay_days),
     ytd_total_census_days: getValue(data.ytd_performance?.total_census_days),
 
-    // Census and occupancy
-    average_daily_census: getValue(data.census_and_occupancy?.average_daily_census),
-    current_occupancy: getValue(data.census_and_occupancy?.occupancy_percentage),
-    t12m_occupancy: getValue(data.census_and_occupancy?.occupancy_percentage),
+    // Occupancy (legacy aliases)
+    t12m_occupancy: isV7Schema
+      ? data.facility_snapshot?.current_occupancy_pct
+      : getValue(data.census_and_occupancy?.occupancy_percentage),
 
-    // Payer mix by census - handle new nested structure
-    medicare_percentage: getValue(data.census_and_occupancy?.payer_mix_by_census?.medicare_pct) ||
-                         getValue(data.census_and_occupancy?.payer_mix_by_revenue?.medicare_pct),
-    medicaid_percentage: getValue(data.census_and_occupancy?.payer_mix_by_census?.medicaid_pct) ||
-                         getValue(data.census_and_occupancy?.payer_mix_by_revenue?.medicaid_pct),
-    private_pay_percentage: getValue(data.census_and_occupancy?.payer_mix_by_census?.private_pay_pct) ||
-                            getValue(data.census_and_occupancy?.payer_mix_by_revenue?.private_pay_pct),
-    other_payer_percentage: getValue(data.census_and_occupancy?.payer_mix_by_census?.other_pct) ||
-                            getValue(data.census_and_occupancy?.payer_mix_by_revenue?.other_pct),
-
-    // Payer mix sources
-    payer_mix_census_source: data.census_and_occupancy?.payer_mix_by_census?.source || null,
-    payer_mix_revenue_source: data.census_and_occupancy?.payer_mix_by_revenue?.source || null,
-
-    // Rate information - handle new wrapped structure
-    average_daily_rate: getValue(data.rate_information?.average_daily_rate),
-    private_pay_rates: getValue(data.rate_information?.private_pay_rates) ||
-                       data.rate_information?.private_pay_rates?.value ||
-                       data.rate_information?.private_pay_rates || [],
-    medicaid_rates: getValue(data.rate_information?.medicaid_rates) ||
-                    data.rate_information?.medicaid_rates?.value ||
-                    data.rate_information?.medicaid_rates || [],
-    private_pay_rates_source: getSource(data.rate_information?.private_pay_rates),
-    medicaid_rates_source: getSource(data.rate_information?.medicaid_rates),
-
-    // Pro forma projections - handle new value/confidence structure
+    // Pro forma projections (legacy)
     proforma_year1_annual_revenue: getValue(data.pro_forma_projections?.year_1?.revenue),
     proforma_year1_annual_ebitdar: getValue(data.pro_forma_projections?.year_1?.ebitdar),
     proforma_year1_annual_rent: getValue(data.pro_forma_projections?.year_1?.rent_expense),
@@ -907,7 +892,7 @@ function flattenExtractedData(data) {
     proforma_year3_annual_ebit: getValue(data.pro_forma_projections?.year_3?.ebit),
     proforma_year3_average_occupancy: getValue(data.pro_forma_projections?.year_3?.occupancy_pct),
 
-    // Deal metrics
+    // Deal metrics (legacy)
     revenue_multiple: getValue(data.deal_metrics?.revenue_multiple),
     ebitda_multiple: getValue(data.deal_metrics?.ebitda_multiple),
     projected_cap_rate_percentage: getValue(data.deal_metrics?.cap_rate),
@@ -916,8 +901,10 @@ function flattenExtractedData(data) {
 
     // Data quality and observations
     data_quality_notes: data.data_quality_notes || [],
-    // key_observations can be either the new structured format or legacy array format
-    key_observations: normalizeKeyObservations(data.key_observations),
+    // key_observations - V7 uses red_flags/strengths instead, but keep for backward compat
+    key_observations: isV7Schema
+      ? convertV7ToKeyObservations(data)
+      : normalizeKeyObservations(data.key_observations),
 
     // Set defaults
     country: 'USA'

@@ -744,35 +744,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
 
     return (
       <div>
-        {/* Recommendation Badge - Top Priority */}
-        {overview.recommendation && (
-          <div style={{
-            marginBottom: '1.5rem',
-            padding: '1rem 1.5rem',
-            background: overview.recommendation.decision === 'PURSUE'
-              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-              : overview.recommendation.decision === 'PURSUE_WITH_CAUTION'
-              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-              : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-            borderRadius: '0.75rem',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-          }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 500, opacity: 0.9, marginBottom: '0.25rem' }}>
-                RECOMMENDATION
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.02em' }}>
-                {overview.recommendation.decision.replace(/_/g, ' ')}
-              </div>
-            </div>
-            <Target size={32} style={{ opacity: 0.8 }} />
-          </div>
-        )}
-
         {/* Executive Summary - 1000 Character Summary */}
         {overview.summary_1000_chars && (
           <div style={{
@@ -796,8 +767,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               Executive Summary
             </h3>
 
-            {/* Key Metrics Cards - at top of Executive Summary */}
-            {overview.ttm_financials?.summary_metrics && (
+            {/* Key Metrics Cards - V7: Net Income instead of EBITDAR */}
+            {overview.ttm_financials && (
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -811,10 +782,12 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                   border: '1px solid #e5e7eb',
                   boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                 }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>TTM Revenue</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                    TTM Revenue {overview.ttm_financials.period && <span style={{ fontWeight: 500 }}>({overview.ttm_financials.period})</span>}
+                  </div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                    ${overview.ttm_financials.summary_metrics.total_revenue
-                      ? (overview.ttm_financials.summary_metrics.total_revenue / 1000000).toFixed(2) + 'M'
+                    ${(overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue)
+                      ? ((overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue) / 1000000).toFixed(2) + 'M'
                       : 'N/A'}
                   </div>
                 </div>
@@ -825,14 +798,14 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                   border: '1px solid #e5e7eb',
                   boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                 }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Net Income</div>
                   <div style={{
                     fontSize: '1.5rem',
                     fontWeight: 700,
-                    color: (overview.ttm_financials.summary_metrics.ebitdar || 0) >= 0 ? '#10b981' : '#ef4444'
+                    color: (overview.ttm_financials.net_income || 0) >= 0 ? '#10b981' : '#ef4444'
                   }}>
-                    ${overview.ttm_financials.summary_metrics.ebitdar
-                      ? (overview.ttm_financials.summary_metrics.ebitdar / 1000).toFixed(0) + 'K'
+                    {overview.ttm_financials.net_income !== null && overview.ttm_financials.net_income !== undefined
+                      ? (overview.ttm_financials.net_income < 0 ? '-' : '') + '$' + Math.abs(overview.ttm_financials.net_income / 1000).toFixed(0) + 'K'
                       : 'N/A'}
                   </div>
                 </div>
@@ -843,13 +816,15 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                   border: '1px solid #e5e7eb',
                   boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                 }}>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>EBITDAR Margin</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Net Income Margin</div>
                   <div style={{
                     fontSize: '1.5rem',
                     fontWeight: 700,
-                    color: (overview.ttm_financials.summary_metrics.ebitdar_margin_pct || 0) >= 15 ? '#10b981' : '#ef4444'
+                    color: (overview.ttm_financials.net_income_margin_pct || 0) >= 0 ? '#10b981' : '#ef4444'
                   }}>
-                    {overview.ttm_financials.summary_metrics.ebitdar_margin_pct?.toFixed(1) || 'N/A'}%
+                    {overview.ttm_financials.net_income_margin_pct !== null && overview.ttm_financials.net_income_margin_pct !== undefined
+                      ? overview.ttm_financials.net_income_margin_pct.toFixed(1) + '%'
+                      : 'N/A'}
                   </div>
                 </div>
                 <div style={{
@@ -864,6 +839,38 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                     {overview.facility_snapshot?.current_occupancy_pct?.toFixed(1) || 'N/A'}%
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Add-backs Row - V7: Show rent/interest/depreciation separately */}
+            {overview.ttm_financials && (overview.ttm_financials.rent_lease || overview.ttm_financials.interest || overview.ttm_financials.depreciation) && (
+              <div style={{
+                display: 'flex',
+                gap: '1.5rem',
+                flexWrap: 'wrap',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#eff6ff',
+                borderRadius: '0.5rem',
+                border: '1px solid #93c5fd',
+                marginBottom: '1.5rem',
+                fontSize: '0.875rem'
+              }}>
+                <span style={{ fontWeight: 600, color: '#1e40af' }}>Add-backs:</span>
+                {overview.ttm_financials.rent_lease !== null && overview.ttm_financials.rent_lease !== undefined && (
+                  <span style={{ color: '#1e40af' }}>
+                    Rent ${(overview.ttm_financials.rent_lease / 1000).toFixed(0)}K
+                  </span>
+                )}
+                {overview.ttm_financials.interest !== null && overview.ttm_financials.interest !== undefined && (
+                  <span style={{ color: '#1e40af' }}>
+                    Interest ${(overview.ttm_financials.interest / 1000).toFixed(0)}K
+                  </span>
+                )}
+                {overview.ttm_financials.depreciation !== null && overview.ttm_financials.depreciation !== undefined && (
+                  <span style={{ color: '#1e40af' }}>
+                    Depreciation ${(overview.ttm_financials.depreciation / 1000).toFixed(0)}K
+                  </span>
+                )}
               </div>
             )}
 
@@ -979,7 +986,94 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               </div>
             </div>
 
-            {/* Valuation Summary */}
+            {/* Turnaround Analysis - V7 */}
+            {overview.turnaround?.required && (
+              <div style={{
+                marginBottom: '2rem',
+                padding: '1.25rem',
+                backgroundColor: '#fffbeb',
+                borderRadius: '0.75rem',
+                border: '1px solid #fcd34d'
+              }}>
+                <h3 style={{
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  color: '#92400e',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <Wrench size={20} style={{ color: '#f59e0b' }} />
+                  Turnaround Required
+                </h3>
+                {overview.turnaround.top_initiatives && overview.turnaround.top_initiatives.length > 0 && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#92400e', marginBottom: '0.5rem' }}>
+                      Top Initiatives:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                      {overview.turnaround.top_initiatives.map((initiative: string, index: number) => (
+                        <li key={index} style={{ fontSize: '0.875rem', color: '#78350f', marginBottom: '0.25rem' }}>
+                          {initiative}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '2rem', fontSize: '0.875rem', color: '#78350f' }}>
+                  {overview.turnaround.investment_needed && (
+                    <span>Investment: ${(overview.turnaround.investment_needed / 1000).toFixed(0)}K</span>
+                  )}
+                  {overview.turnaround.timeline_months && (
+                    <span>Timeline: {overview.turnaround.timeline_months} months</span>
+                  )}
+                </div>
+                {overview.turnaround.key_risk && (
+                  <div style={{ marginTop: '0.75rem', fontSize: '0.875rem', color: '#991b1b', fontStyle: 'italic' }}>
+                    Key Risk: {overview.turnaround.key_risk}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Diligence Items - V7 */}
+            {overview.diligence_items && overview.diligence_items.length > 0 && (
+              <div style={{
+                marginBottom: '2rem',
+                padding: '1.25rem',
+                backgroundColor: '#f8fafc',
+                borderRadius: '0.75rem',
+                border: '1px solid #e2e8f0'
+              }}>
+                <h3 style={{
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <ClipboardList size={20} style={{ color: '#3b82f6' }} />
+                  Key Diligence Items
+                </h3>
+                <ol style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                  {overview.diligence_items.map((item: string, index: number) => (
+                    <li key={index} style={{
+                      fontSize: '0.875rem',
+                      color: '#334155',
+                      marginBottom: '0.5rem',
+                      paddingLeft: '0.25rem'
+                    }}>
+                      {item}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {/* Valuation Summary - Legacy, kept for backward compatibility */}
             {overview.valuation && (
               <div style={{
                 marginBottom: '2rem',
