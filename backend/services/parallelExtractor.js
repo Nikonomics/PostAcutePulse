@@ -1056,7 +1056,8 @@ async function runParallelExtractions(combinedDocumentText, periodAnalysisSectio
     runFocusedExtraction(combinedDocumentText, overviewPromptWithPeriod, 'overview', MAX_TOKENS_OVERVIEW)
   ];
 
-  const results = await Promise.all(extractionPromises);
+  // Use allSettled to handle partial failures gracefully
+  const results = await Promise.allSettled(extractionPromises);
 
   const totalDuration = Date.now() - startTime;
   console.log(`All extractions completed in ${totalDuration}ms`);
@@ -1078,11 +1079,19 @@ async function runParallelExtractions(combinedDocumentText, periodAnalysisSectio
   };
 
   for (const result of results) {
-    if (result.success) {
-      organized[result.type] = result.data;
-      organized.metadata.successCount++;
+    if (result.status === 'fulfilled') {
+      const extractionResult = result.value;
+      if (extractionResult.success) {
+        organized[extractionResult.type] = extractionResult.data;
+        organized.metadata.successCount++;
+      } else {
+        organized.errors.push({ type: extractionResult.type, error: extractionResult.error });
+        organized.metadata.failureCount++;
+      }
     } else {
-      organized.errors.push({ type: result.type, error: result.error });
+      // Promise was rejected (crashed)
+      console.error(`[Extraction] Promise rejected:`, result.reason);
+      organized.errors.push({ type: 'unknown', error: result.reason?.message || 'Promise rejected' });
       organized.metadata.failureCount++;
     }
   }
