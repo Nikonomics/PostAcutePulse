@@ -37,6 +37,20 @@ async function runMigration(sequelize) {
       console.log('Migration: Added approved_at column to users');
     }
 
+    // Ensure all admin users are always approved
+    await sequelize.query(
+      `UPDATE users SET approval_status = 'approved' WHERE role = 'admin' AND (approval_status IS NULL OR approval_status = 'pending')`,
+      { type: sequelize.Sequelize.QueryTypes.UPDATE }
+    );
+    console.log('Migration: Ensured admin users are approved');
+
+    // Also ensure existing users with NULL approval_status are set to approved
+    await sequelize.query(
+      `UPDATE users SET approval_status = 'approved' WHERE approval_status IS NULL`,
+      { type: sequelize.Sequelize.QueryTypes.UPDATE }
+    );
+    console.log('Migration: Set existing users with NULL status to approved');
+
     console.log('Migration: User approval columns setup complete');
   } catch (error) {
     console.error('Migration error:', error.message);
