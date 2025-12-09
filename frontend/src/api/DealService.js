@@ -63,6 +63,11 @@ export const deleteDeal = async (id) => {
   return response.data;
 };
 
+export const bulkDeleteDeals = async (ids) => {
+  const response = await apiService.post(apiRoutes.bulkDeleteDeals, { ids });
+  return response.data;
+};
+
 export const formatSimpleDate = (isoString) => {
   if (!isoString) return "";
   const date = new Date(isoString);

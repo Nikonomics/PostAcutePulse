@@ -22,6 +22,7 @@ router.put('/update-deal-status', requireAuthentication, DealController.updateDe
 router.put('/:id/extraction-data', requireAuthentication, DealController.updateExtractionData);
 router.post('/update-deal', requireAuthentication, DealController.updateDeal);
 router.delete('/delete-deal/:id', requireAuthentication, DealController.deleteDeal);
+router.post('/bulk-delete-deals', requireAuthentication, DealController.bulkDeleteDeals);
 router.post('/add-deal-comment', requireAuthentication, DealController.addDealComment);
 router.get('/get-deal-comments', requireAuthentication, DealController.getDealComments);
 router.post('/add-deal-document', requireAuthentication, DealController.addDealDocument);

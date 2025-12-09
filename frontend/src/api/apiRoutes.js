@@ -26,6 +26,7 @@ const apiRoutes = {
     updateDealStatus: `${BASE_URL}/deal/update-deal-status`,
     updateDealPosition: `${BASE_URL}/deal/update-deal-position`,
     deleteDeal: `${BASE_URL}/deal/delete-deal`,
+    bulkDeleteDeals: `${BASE_URL}/deal/bulk-delete-deals`,
     addDealComment: `${BASE_URL}/deal/add-deal-comment`,
     deleteDealComment: `${BASE_URL}/deal/delete-deal-comment`,
     getDealComments: `${BASE_URL}/deal/get-deal-comments`,

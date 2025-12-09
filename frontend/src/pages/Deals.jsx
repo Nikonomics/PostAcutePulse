@@ -19,6 +19,7 @@ import {
   getDealStats,
   updateDealStatus,
   deleteDeal,
+  bulkDeleteDeals,
   formatSimpleDate,
   extractDealEnhanced,
 } from "../api/DealService";
@@ -247,6 +248,71 @@ const styles = `
     margin-bottom: 1rem;
   }
 
+  .selection-bar {
+    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.3);
+  }
+
+  .selection-bar-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .selection-bar-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-clear-selection {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+  }
+
+  .btn-clear-selection:hover {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+  }
+
+  .btn-delete-selected {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: white;
+  }
+
+  .btn-delete-selected:hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
+  }
+
+  .deal-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #7c3aed;
+  }
+
+  .checkbox-cell {
+    width: 40px;
+    text-align: center;
+  }
+
+  .deals-table tbody tr.selected {
+    background-color: #f5f3ff;
+  }
+
+  .deals-table tbody tr.selected:hover {
+    background-color: #ede9fe;
+  }
+
   .drag-overlay {
     position: fixed;
     top: 0;
@@ -296,6 +362,11 @@ const DealsList = () => {
   // Upload state
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+
+  // Multi-select state
+  const [selectedDeals, setSelectedDeals] = useState(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   const fetchDealsWithFilters = async (search, status, type, page) => {
     try {
@@ -376,6 +447,52 @@ const DealsList = () => {
       toast.error('Failed to update status');
     } finally {
       setStatusUpdatingId(null);
+    }
+  };
+
+  // Multi-select handlers
+  const handleSelectDeal = (dealId) => {
+    setSelectedDeals(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dealId)) {
+        newSet.delete(dealId);
+      } else {
+        newSet.add(dealId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedDeals.size === filteredDeals.length) {
+      setSelectedDeals(new Set());
+    } else {
+      setSelectedDeals(new Set(filteredDeals.map(deal => deal.id)));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedDeals(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleteLoading(true);
+    try {
+      const ids = Array.from(selectedDeals);
+      const response = await bulkDeleteDeals(ids);
+      if (response.success) {
+        toast.success(response.message);
+        setSelectedDeals(new Set());
+        fetchDealsWithFilters(searchTerm, statusFilter, typeFilter, currentPage);
+      } else {
+        toast.error(response.message || 'Failed to delete deals');
+      }
+    } catch (error) {
+      console.error('Failed to bulk delete deals', error);
+      toast.error('Failed to delete deals');
+    } finally {
+      setBulkDeleteLoading(false);
+      setShowBulkDeleteModal(false);
     }
   };
 
@@ -624,6 +741,34 @@ const DealsList = () => {
           </Row>
         </div>
 
+        {/* Selection Bar */}
+        {selectedDeals.size > 0 && (
+          <div className="selection-bar">
+            <div className="selection-bar-info">
+              <span className="fw-semibold">
+                {selectedDeals.size} deal{selectedDeals.size !== 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <div className="selection-bar-actions">
+              <Button
+                size="sm"
+                className="btn-clear-selection"
+                onClick={handleClearSelection}
+              >
+                Clear Selection
+              </Button>
+              <Button
+                size="sm"
+                className="btn-delete-selected d-flex align-items-center gap-1"
+                onClick={() => setShowBulkDeleteModal(true)}
+              >
+                <Trash2 size={14} />
+                Delete Selected
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Deals Table */}
         <div className="deals-table-card">
           {loading ? (
@@ -641,6 +786,15 @@ const DealsList = () => {
             <Table className="deals-table" hover responsive>
               <thead>
                 <tr>
+                  <th className="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      className="deal-checkbox"
+                      checked={selectedDeals.size === filteredDeals.length && filteredDeals.length > 0}
+                      onChange={handleSelectAll}
+                      title="Select all"
+                    />
+                  </th>
                   <th>Deal Name</th>
                   <th>Location</th>
                   <th>Value</th>
@@ -652,7 +806,15 @@ const DealsList = () => {
               </thead>
               <tbody>
                 {filteredDeals.map((deal) => (
-                  <tr key={deal.id}>
+                  <tr key={deal.id} className={selectedDeals.has(deal.id) ? 'selected' : ''}>
+                    <td className="checkbox-cell">
+                      <input
+                        type="checkbox"
+                        className="deal-checkbox"
+                        checked={selectedDeals.has(deal.id)}
+                        onChange={() => handleSelectDeal(deal.id)}
+                      />
+                    </td>
                     <td>
                       <div
                         className="deal-name"
@@ -839,6 +1001,33 @@ const DealsList = () => {
                 <Spinner animation="border" size="sm" />
               ) : (
                 "Delete"
+              )}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Bulk Delete Confirmation Modal */}
+        <Modal show={showBulkDeleteModal} onHide={() => setShowBulkDeleteModal(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Confirm Bulk Deletion</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <p>Are you sure you want to delete <strong>{selectedDeals.size} deal{selectedDeals.size !== 1 ? 's' : ''}</strong>?</p>
+            <p className="text-danger mb-0">This action cannot be undone.</p>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowBulkDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteLoading}
+            >
+              {bulkDeleteLoading ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                `Delete ${selectedDeals.size} Deal${selectedDeals.size !== 1 ? 's' : ''}`
               )}
             </Button>
           </Modal.Footer>

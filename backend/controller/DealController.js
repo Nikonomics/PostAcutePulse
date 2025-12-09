@@ -22,6 +22,7 @@ const { sendBrevoEmail } = require("../config/sendMail");
 const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
 const { runFullExtraction, storeExtractionResults } = require("../services/extractionOrchestrator");
 const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
+const { matchFacility } = require("../services/facilityMatcher");
 const {
   calculateDealMetrics: calcDealMetrics,
   calculatePortfolioMetrics: calcPortfolioMetrics,
@@ -486,6 +487,38 @@ module.exports = {
             deal.no_of_beds = deal.no_of_beds === '' || deal.no_of_beds === undefined ? null : (parseInt(deal.no_of_beds) || null);
             deal.deal_lead_id = deal.deal_lead_id === '' || deal.deal_lead_id === undefined ? null : (parseInt(deal.deal_lead_id) || null);
             deal.assistant_deal_lead_id = deal.assistant_deal_lead_id === '' || deal.assistant_deal_lead_id === undefined ? null : (parseInt(deal.assistant_deal_lead_id) || null);
+
+            // Attempt facility matching to auto-populate missing data
+            if (deal.facility_name && (!deal.no_of_beds || deal.no_of_beds === null)) {
+              try {
+                console.log(`[Facility Match] Attempting to match: "${deal.facility_name}"`);
+                const match = await matchFacility(
+                  deal.facility_name,
+                  deal.city || null,
+                  deal.state || null,
+                  0.85 // 85% minimum similarity
+                );
+
+                if (match && match.match_confidence === 'high') {
+                  console.log(`[Facility Match] High confidence match found: "${match.facility_name}" (${(match.match_score * 100).toFixed(1)}%)`);
+                  // Auto-populate bed count
+                  if (!deal.no_of_beds && match.capacity) {
+                    deal.no_of_beds = match.capacity;
+                    console.log(`  ✓ Auto-populated beds: ${match.capacity}`);
+                  }
+                  // Could also auto-populate other fields if needed:
+                  // if (!deal.city && match.city) deal.city = match.city;
+                  // if (!deal.state && match.state) deal.state = match.state;
+                } else if (match) {
+                  console.log(`[Facility Match] Match found but confidence too low (${match.match_confidence}: ${(match.match_score * 100).toFixed(1)}%)`);
+                } else {
+                  console.log(`[Facility Match] No match found in database`);
+                }
+              } catch (matchError) {
+                console.error('[Facility Match] Error during matching:', matchError.message);
+                // Continue with deal creation even if matching fails
+              }
+            }
 
             // create deal:
             // Get index to check if this is the first deal (for extraction_data)
@@ -1926,6 +1959,84 @@ module.exports = {
       });
     } catch (err) {
       console.error('[deleteDeal] Error:', err);
+      return helper.error(res, err);
+    }
+  },
+
+  // Bulk delete multiple deals
+  bulkDeleteDeals: async (req, res) => {
+    try {
+      const { ids } = req.body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return helper.error(res, "Please provide an array of deal IDs to delete");
+      }
+
+      const deletedIds = [];
+      const errors = [];
+
+      for (const id of ids) {
+        try {
+          // Fetch the deal
+          const deal = await Deal.findByPk(id);
+          if (!deal) {
+            errors.push({ id, error: "Deal not found" });
+            continue;
+          }
+
+          // Delete all related records
+          await DealComments.destroy({
+            where: {
+              deal_id: id,
+              parent_id: { [Op.ne]: null },
+            },
+          });
+          await DealComments.destroy({
+            where: {
+              deal_id: id,
+              parent_id: null,
+            },
+          });
+          await DealDocuments.destroy({ where: { deal_id: id } });
+          await DealTeamMembers.destroy({ where: { deal_id: id } });
+          await DealExternalAdvisors.destroy({ where: { deal_id: id } });
+          await DealFacilities.destroy({ where: { deal_id: id } });
+          await DealMonthlyFinancials.destroy({ where: { deal_id: id } });
+          await DealMonthlyCensus.destroy({ where: { deal_id: id } });
+          await DealMonthlyExpenses.destroy({ where: { deal_id: id } });
+          await DealRateSchedules.destroy({ where: { deal_id: id } });
+          await DealExpenseRatios.destroy({ where: { deal_id: id } });
+          await DealProformaScenarios.destroy({ where: { deal_id: id } });
+
+          if (db.deal_extracted_text) {
+            await db.deal_extracted_text.destroy({ where: { deal_id: id } });
+          }
+
+          // Delete change logs and user views if they exist
+          if (db.deal_change_logs) {
+            await db.deal_change_logs.destroy({ where: { deal_id: id } });
+          }
+          if (db.deal_user_views) {
+            await db.deal_user_views.destroy({ where: { deal_id: id } });
+          }
+
+          // Delete the deal
+          await deal.destroy();
+          deletedIds.push(id);
+        } catch (err) {
+          console.error(`[bulkDeleteDeals] Error deleting deal ${id}:`, err);
+          errors.push({ id, error: err.message });
+        }
+      }
+
+      return helper.success(res, `Successfully deleted ${deletedIds.length} deal(s)`, {
+        deletedIds,
+        errors,
+        totalRequested: ids.length,
+        totalDeleted: deletedIds.length,
+      });
+    } catch (err) {
+      console.error('[bulkDeleteDeals] Error:', err);
       return helper.error(res, err);
     }
   },
