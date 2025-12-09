@@ -126,7 +126,12 @@ async function matchFacility(facilityName, city = null, state = null, minSimilar
 
     query += ' LIMIT 1000'; // Limit search space for performance
 
+    console.log('[Facility Match] Query:', query);
+    console.log('[Facility Match] Replacements:', replacements);
+
     const [facilities] = await sequelize.query(query, { replacements });
+
+    console.log('[Facility Match] Found', facilities?.length || 0, 'facilities');
 
     if (!facilities || facilities.length === 0) {
       await sequelize.close();
