@@ -102,6 +102,7 @@ var apiUsersRouter = require('./routes/apiUsers');
 var contractsRouter = require('./routes/contracts');
 var taxonomyRouter = require('./routes/taxonomy');
 var dueDiligenceRouter = require('./routes/dueDiligence');
+var facilitiesRouter = require('./routes/facilities');
 
 app.use(fileUpload());
 
@@ -131,6 +132,9 @@ app.use('/api', taxonomyRouter);
 
 // Due Diligence API routes
 app.use('/api/due-diligence', dueDiligenceRouter);
+
+// ALF Facilities API routes
+app.use('/api/facilities', facilitiesRouter);
 
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);
