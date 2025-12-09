@@ -31,27 +31,25 @@ const FACILITY_PROMPT = `You are extracting facility and deal information from h
 EXTRACT ONLY:
 - Facility name
 - Facility type (SNF, ALF, Memory Care, Independent Living, CCRC)
-- Address (street, city, state, zip)
-- Bed/unit count
+- State ONLY (for facility matching with ALF database)
 - Contact information (name, title, phone, email)
 - Deal name (if mentioned)
 - Purchase price (if mentioned)
 
-LOCATION EXTRACTION RULES:
+IMPORTANT - DO NOT EXTRACT:
+- Street address, city, or zip code (will be auto-populated from ALF database)
+- Bed/unit count (will be auto-populated from ALF database)
+
+STATE EXTRACTION:
+- Extract only the state where the facility is located
 - State agencies (e.g., "Oregon DHS") indicate the state
-- Floor plans may have architect addresses - DO NOT use these as facility address
-- Look for PROJECT NAME boxes for facility location
-- If only city/state available, set street_address to null
+- This will be used to match against the ALF database
 
 Return JSON:
 {
   "facility_name": {"value": string|null, "confidence": "high"|"medium"|"low"|"not_found", "source": "document | location | snippet"},
   "facility_type": {"value": string|null, "confidence": string, "source": string},
-  "street_address": {"value": string|null, "confidence": string, "source": string},
-  "city": {"value": string|null, "confidence": string, "source": string},
   "state": {"value": string|null, "confidence": string, "source": string},
-  "zip_code": {"value": string|null, "confidence": string, "source": string},
-  "bed_count": {"value": number|null, "confidence": string, "source": string, "method": "explicit"|"inferred"},
   "contact_name": {"value": string|null, "confidence": string, "source": string},
   "contact_title": {"value": string|null, "confidence": string, "source": string},
   "contact_phone": {"value": string|null, "confidence": string, "source": string},
@@ -926,9 +924,9 @@ async function enrichFacilityData(organized) {
 
     console.log(`[Facility Match] Match found: "${match.facility_name}" (${(match.match_score * 100).toFixed(1)}% - ${match.match_confidence})`);
 
-    // Only auto-populate if high confidence (90%+)
-    if (match.match_confidence !== 'high') {
-      console.log(`[Facility Match] Confidence too low (${match.match_confidence}), skipping auto-population`);
+    // Only auto-populate if high or medium confidence (85%+)
+    if (match.match_confidence === 'low') {
+      console.log(`[Facility Match] Confidence too low (${match.match_confidence}, ${(match.match_score * 100).toFixed(1)}%), skipping auto-population`);
       // Store the match for manual review but don't auto-populate
       organized.overview.facility_match = {
         matched: true,
@@ -947,8 +945,8 @@ async function enrichFacilityData(organized) {
       return;
     }
 
-    // High confidence - auto-populate missing data
-    console.log('[Facility Match] High confidence - auto-populating missing data...');
+    // High or medium confidence (85%+) - auto-populate missing data
+    console.log(`[Facility Match] Sufficient confidence (${match.match_confidence}, ${(match.match_score * 100).toFixed(1)}%) - auto-populating missing data...`);
 
     // Track what was auto-populated
     const autoPopulated = [];
@@ -963,7 +961,13 @@ async function enrichFacilityData(organized) {
       }
     }
 
-    // Auto-fill address if missing
+    // Auto-fill address fields if missing
+    if (!facility.street_address && match.address) {
+      facility.street_address = match.address;
+      autoPopulated.push('street_address');
+      console.log(`  ✓ Street address: ${match.address}`);
+    }
+
     if (!facility.city && match.city) {
       facility.city = match.city;
       autoPopulated.push('city');
@@ -974,6 +978,12 @@ async function enrichFacilityData(organized) {
       facility.state = match.state;
       autoPopulated.push('state');
       console.log(`  ✓ State: ${match.state}`);
+    }
+
+    if (!facility.zip_code && match.zip_code) {
+      facility.zip_code = match.zip_code;
+      autoPopulated.push('zip_code');
+      console.log(`  ✓ Zip code: ${match.zip_code}`);
     }
 
     // Add GPS coordinates (new fields)
