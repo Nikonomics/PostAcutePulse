@@ -997,7 +997,29 @@ function buildFlatSummary(reconciled) {
 
     // DEAL OVERVIEW (Stage 1 Screening Analysis from 6th parallel extraction)
     // This is the full JSON object from the OVERVIEW_PROMPT extraction
-    deal_overview: reconciled.overview || null,
+    // IMPORTANT: Override ttm_financials with correct reconciled values
+    // The AI's overview prompt generates its own ttm_financials which may be incorrect
+    // We use the values from the reconciled monthly data instead
+    deal_overview: reconciled.overview ? {
+      ...reconciled.overview,
+      ttm_financials: reconciled.overview.ttm_financials ? {
+        ...reconciled.overview.ttm_financials,
+        // Override with correct values from reconciled TTM data
+        revenue: annualRevenue !== null ? annualRevenue : reconciled.overview.ttm_financials.revenue,
+        expenses: ttm.total_expenses !== null ? ttm.total_expenses : reconciled.overview.ttm_financials.expenses,
+        net_income: ttm.net_income !== null ? ttm.net_income : reconciled.overview.ttm_financials.net_income,
+        net_income_margin_pct: (ttm.net_income !== null && annualRevenue && annualRevenue > 0)
+          ? Math.round((ttm.net_income / annualRevenue) * 10000) / 100
+          : reconciled.overview.ttm_financials.net_income_margin_pct,
+        rent_lease: ttm.rent_expense !== null ? ttm.rent_expense : reconciled.overview.ttm_financials.rent_lease,
+        interest: ttm.interest_expense !== null ? ttm.interest_expense : reconciled.overview.ttm_financials.interest,
+        depreciation: ttm.depreciation !== null ? ttm.depreciation : reconciled.overview.ttm_financials.depreciation,
+        // Use period from reconciled data if available
+        period: ttm.period_start && ttm.period_end
+          ? formatPeriod(ttm.period_start, ttm.period_end)
+          : reconciled.overview.ttm_financials.period
+      } : reconciled.overview.ttm_financials
+    } : null,
 
     // SOURCE AND CONFIDENCE METADATA MAPS
     // These allow the frontend to display citations for each field
@@ -1005,6 +1027,28 @@ function buildFlatSummary(reconciled) {
     _sourceMap: Object.keys(sourceMap).length > 0 ? sourceMap : null,
     _confidenceMap: Object.keys(confidenceMap).length > 0 ? confidenceMap : null
   };
+}
+
+
+/**
+ * Format a period from YYYY-MM start/end to human readable format
+ * e.g., "2024-10", "2025-09" -> "Oct 2024 - Sep 2025"
+ */
+function formatPeriod(periodStart, periodEnd) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  try {
+    const [startYear, startMonth] = periodStart.split('-');
+    const [endYear, endMonth] = periodEnd.split('-');
+
+    const startMonthName = months[parseInt(startMonth, 10) - 1];
+    const endMonthName = months[parseInt(endMonth, 10) - 1];
+
+    return `${startMonthName} ${startYear} - ${endMonthName} ${endYear}`;
+  } catch (e) {
+    // If parsing fails, return raw values
+    return `${periodStart} - ${periodEnd}`;
+  }
 }
 
 
