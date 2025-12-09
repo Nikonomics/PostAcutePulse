@@ -412,235 +412,104 @@ Return ONLY valid JSON, no markdown.`;
 /**
  * Prompt 6: Deal Overview & Stage 1 Screening
  */
-const OVERVIEW_PROMPT = `You are a healthcare M&A analyst generating a Stage 1 deal screening for an assisted living facility acquisition. Your analysis should enable an operator to make a go/no-go decision on pursuing diligence.
+const OVERVIEW_PROMPT = `You are a healthcare M&A analyst generating a Stage 1 deal screening for an assisted living facility acquisition.
 
 ## CRITICAL: TTM FINANCIAL CONSTRUCTION
 
-**This is the most important analytical step. Do not skip or shortcut this process.**
+**Build the freshest possible trailing 12 months by combining multiple documents.**
 
-### Step 1: Identify All Financial Data Sources
-List every document containing monthly financial data (revenue, expenses, P&L line items):
-- Document name
-- Period covered (start month/year to end month/year)
-- Data granularity (monthly, quarterly, annual)
-
-### Step 2: Determine the Freshest Possible TTM Period
-Identify the most recent month with complete financial data across ALL documents. Then work backwards 12 months.
+### Process:
+1. List all documents with financial data and their date ranges
+2. Identify the most recent month with complete data
+3. Work backwards 12 months, pulling from the freshest source for each month
+4. Sum to get TTM totals
 
 **Example:**
-- T12 P&L covers: May 2024 - April 2025
-- YTD I&E covers: March 2025 - September 2025
-- **Freshest TTM:** October 2024 - September 2025
-  - Oct 2024 - Feb 2025: Pull from T12 P&L
-  - Mar 2025 - Sep 2025: Pull from YTD I&E
+- T12 P&L: May 2024 - April 2025
+- YTD I&E: March 2025 - September 2025
+- **Freshest TTM:** October 2024 - September 2025 (5 months from T12, 7 months from YTD)
 
-### Step 3: Construct Month-by-Month TTM
-Build a 12-month table pulling from the appropriate source document for each month. Include:
-- Revenue (by category if available)
-- Total Expenses
-- Net Income/Loss
-- Key line items needed for EBITDAR calculation (Interest, Depreciation, Rent/Lease)
-
-### Step 4: Calculate TTM Totals
-Sum all 12 months for each metric. Show your work.
-
-**NEVER use a pre-calculated T12 total when fresher monthly data is available from another document.**
+**NEVER use a pre-calculated T12 total when fresher monthly data exists.**
 
 ---
 
-## CRITICAL VALIDATION
+## LICENSED BEDS INFERENCE
 
-Before proceeding to output, verify:
-- EBITDAR >= EBITDA >= EBIT >= Net Income (less negative or more positive)
+If licensed beds not explicitly stated: use peak census rounded up to nearest 5. Mark as "inferred" in beds_source field.
+
+---
+
+## VALIDATION
+
+Before output, verify:
+- EBITDAR >= Net Income (less negative or more positive)
 - Occupancy % = (Current Census / Licensed Beds) * 100
-- Sum of payer mix percentages = 100%
-
-If validation fails, recheck your calculations.
+- Payer mix percentages sum to 100%
 
 ---
 
-## IMPORTANT: MISSING DATA HANDLING
+## MISSING DATA HANDLING
 
-If critical data is missing (licensed beds, TTM revenue, occupancy), still generate the analysis with null values and flag the missing items prominently in the red_flags section. Do NOT refuse to generate output.
-
-If market data (competitive set, market occupancy, demand indicators) is not provided in documents, flag as "Stage 2 Diligence Item" - do NOT attempt to infer or fabricate market data.
+If data missing: use null, flag in red_flags if critical. Do NOT refuse to generate output.
+If market data not in documents: do NOT fabricate.
 
 ---
 
 ## OUTPUT FORMAT
 
+**Target: 3000-5000 characters total JSON output.**
+
 Return your analysis as valid JSON with this structure:
 
 {
-  "data_completeness": {
-    "licensed_beds": "available|partial|missing",
-    "current_census": "available|partial|missing",
-    "ttm_revenue": "available|partial|missing",
-    "ttm_expenses": "available|partial|missing",
-    "payer_mix": "available|partial|missing",
-    "facility_type": "available|partial|missing",
-    "location": "available|partial|missing",
-    "building_info": "available|partial|missing"
-  },
   "facility_snapshot": {
     "facility_name": "string|null",
     "facility_type": "ALF|Memory Care|ALF + MC|CCRC|null",
-    "location": {
-      "city": "string|null",
-      "state": "string|null",
-      "zip": "string|null"
-    },
+    "city": "string|null",
+    "state": "string|null",
     "licensed_beds": number|null,
+    "beds_source": "explicit|inferred|null",
     "current_census": number|null,
     "current_occupancy_pct": number|null,
-    "unit_mix": {
-      "studio": number|null,
-      "one_bedroom": number|null,
-      "two_bedroom": number|null
-    },
-    "ownership_type": "Non-profit|For-profit|REIT|Private Equity|Family|Unknown",
-    "specialty_focus": "string|null",
-    "acuity_level_distribution": "string|null",
-    "regulatory_status": "string"
-  },
-  "building_info": {
+    "ownership_type": "string|null",
     "year_built": number|null,
-    "last_major_renovation": {
-      "year": number|null,
-      "scope": "string|null"
-    },
-    "building_type": "Single-story|Multi-story|Campus|Unknown",
-    "construction_type": "Wood frame|Steel|Concrete|Unknown",
-    "square_footage": number|null,
-    "architect_builder": "string|null",
-    "notable_features": ["string"],
-    "condition_notes": "string|null",
-    "source_document": "string|null"
+    "last_renovation": "string|null"
   },
   "ttm_financials": {
     "period_start": "YYYY-MM",
     "period_end": "YYYY-MM",
-    "data_sources": [
-      {
-        "months": "YYYY-MM to YYYY-MM",
-        "source_document": "string",
-        "notes": "string|null"
-      }
-    ],
-    "monthly_breakdown": [
-      {
-        "month": "YYYY-MM",
-        "revenue": number|null,
-        "expenses": number|null,
-        "net_income": number|null,
-        "interest": number|null,
-        "depreciation": number|null,
-        "rent_lease": number|null,
-        "source_document": "string"
-      }
-    ],
+    "data_sources_description": "string (e.g., 'T12 P&L (Oct-Feb), YTD I&E (Mar-Sep)')",
     "summary_metrics": {
       "total_revenue": number|null,
       "total_expenses": number|null,
       "net_income": number|null,
       "ebitdar": number|null,
       "ebitdar_margin_pct": number|null,
-      "ebitda": number|null,
-      "ebitda_margin_pct": number|null,
-      "ebit": number|null,
       "occupancy_pct": number|null
-    },
-    "ebitdar_calculation": {
-      "net_income": number|null,
-      "add_interest": number|null,
-      "equals_ebit": number|null,
-      "add_depreciation": number|null,
-      "add_amortization": number|null,
-      "equals_ebitda": number|null,
-      "add_rent_lease": number|null,
-      "equals_ebitdar": number|null
-    },
-    "benchmarks": {
-      "ebitdar_margin_target": 23,
-      "ebitda_margin_target": 9,
-      "occupancy_target": 85,
-      "ebitdar_margin_variance": number|null,
-      "ebitda_margin_variance": number|null,
-      "occupancy_variance": number|null
-    },
-    "unit_economics": {
-      "revenue_per_occupied_bed_annual": number|null,
-      "revenue_per_resident_day": number|null,
-      "expense_per_resident_day": number|null,
-      "labor_cost_pct_of_revenue": number|null,
-      "direct_care_cost_pct_of_revenue": number|null,
-      "agency_staffing_pct_of_direct_care": number|null
     },
     "revenue_by_payer": [
       {
-        "payer": "Medicaid|Medicare|Private Pay|Other",
+        "payer": "Medicaid|Private Pay|Medicare|Other",
         "revenue": number|null,
         "pct_of_total": number|null,
-        "census_days": number|null,
         "pct_of_census": number|null
       }
     ]
   },
   "operating_trends": {
-    "comparison_period": "string",
+    "comparison_period": "string (e.g., 'Recent 3mo vs Prior 3mo')",
     "metrics": [
       {
-        "metric": "Revenue|Census|EBITDAR|Private Pay %",
-        "prior_period_avg": number|null,
-        "recent_3mo_avg": number|null,
-        "change_pct": number|null,
-        "trend": "UP|FLAT|DOWN"
+        "metric": "Revenue|Census|Net Income",
+        "trend": "UP|FLAT|DOWN",
+        "change_pct": number|null
       }
-    ],
-    "trend_drivers": {
-      "census": "string",
-      "payer_mix": "string",
-      "staffing": "string|null",
-      "quality": "string|null"
-    },
-    "overall_assessment": "Improving|Stable|Deteriorating"
-  },
-  "rate_structure": {
-    "private_pay_rates": [
-      {
-        "unit_type": "string",
-        "monthly_base": number|null,
-        "care_level_range": "string"
-      }
-    ],
-    "medicaid_rates": [
-      {
-        "care_level": "string",
-        "monthly_rate": number|null,
-        "daily_rate": number|null
-      }
-    ],
-    "rate_gap_analysis": [
-      {
-        "care_level": "string",
-        "private_pay_rate": number|null,
-        "medicaid_rate": number|null,
-        "monthly_gap": number|null,
-        "annual_gap_per_resident": number|null
-      }
-    ],
-    "implication": "string"
-  },
-  "market_position": {
-    "competitive_set": "string or Stage 2 diligence item",
-    "market_occupancy": "string or Stage 2 diligence item",
-    "rate_positioning": "Premium|Mid-market|Commodity|Medicaid-focused|Unknown",
-    "demand_indicators": "string or Stage 2 diligence item"
+    ]
   },
   "red_flags": [
     {
       "issue": "string",
-      "impact": "string (quantified)",
+      "impact": "string (quantified, <50 chars)",
       "severity": "Critical|Significant|Moderate"
     }
   ],
@@ -655,224 +524,81 @@ Return your analysis as valid JSON with this structure:
       "income_approach_low": number|null,
       "income_approach_high": number|null,
       "per_bed_low": number|null,
-      "per_bed_high": number|null,
-      "basis": "string"
+      "per_bed_high": number|null
     },
     "stabilized_value": {
-      "target_occupancy_pct": number|null,
-      "target_occupancy_rationale": "string",
-      "target_payer_mix": "string",
-      "target_payer_mix_rationale": "string",
-      "target_ebitdar_margin_pct": number|null,
-      "target_ebitdar_margin_rationale": "string",
-      "stabilized_ebitdar": number|null,
-      "value_at_8pct_cap": number|null,
       "value_at_9pct_cap": number|null,
-      "value_at_10pct_cap": number|null,
-      "per_bed_at_8pct": number|null,
-      "per_bed_at_9pct": number|null,
-      "per_bed_at_10pct": number|null
+      "per_bed_at_9pct": number|null
     },
     "max_purchase_price": {
-      "stabilized_value": number|null,
-      "less_turnaround_investment": number|null,
-      "less_return_buffer": number|null,
       "max_price": number|null,
       "max_price_per_bed": number|null
     }
   },
   "turnaround_or_optimization": {
     "type": "turnaround|optimization",
-    "turnaround": {
-      "stabilization_targets": {
-        "current_occupancy_pct": number|null,
-        "target_occupancy_pct": number|null,
-        "occupancy_improvement_pts": number|null,
-        "current_private_pay_pct": number|null,
-        "target_private_pay_pct": number|null,
-        "payer_mix_improvement_pts": number|null,
-        "current_ebitdar_margin_pct": number|null,
-        "target_ebitdar_margin_pct": number|null,
-        "margin_improvement_pts": number|null,
-        "current_ebitdar": number|null,
-        "target_ebitdar": number|null,
-        "ebitdar_improvement": number|null
-      },
-      "key_initiatives": [
-        {
-          "priority": 1|2|3,
-          "initiative": "string",
-          "estimated_annual_impact": number|null,
-          "timeline_months": number|null,
-          "difficulty": "High|Medium|Low"
-        }
-      ],
-      "investment_required": {
-        "operating_losses": number|null,
-        "capex": number|null,
-        "working_capital": number|null,
-        "transition_costs": number|null,
-        "contingency": number|null,
-        "total": number|null
-      },
-      "risk_factors": ["string"],
-      "timeline_to_stabilization_months": number|null
-    },
-    "optimization": {
-      "opportunities": [
-        {
-          "opportunity": "string",
-          "estimated_impact": "string (quantified)"
-        }
-      ],
-      "risks_to_current_performance": ["string"]
-    }
+    "key_initiatives": ["string (max 3)"],
+    "investment_required_total": number|null,
+    "timeline_months": number|null
   },
   "open_diligence_items": [
     {
       "priority": 1|2|3|4|5,
-      "item": "string",
-      "why_it_matters": "string"
+      "item": "string"
     }
   ],
   "recommendation": {
     "decision": "PURSUE|PURSUE_WITH_CAUTION|PASS",
-    "rationale": "string (2-4 sentences explaining the recommendation, key value drivers, critical risks, and conditions for proceeding)"
+    "rationale": "string (2-3 sentences)"
   },
-  "summary_1000_chars": "string (Executive summary in exactly the format specified, maximum 1000 characters)",
-  "detailed_narrative_markdown": "string (Concise markdown-formatted Stage 1 analysis report, 4000-6000 characters, following the format specified below)"
+  "summary_1000_chars": "string (Executive summary, max 1000 chars)"
 }
 
 ## SUMMARY FORMAT (for summary_1000_chars field)
 
 Use this exact format, maximum 1000 characters:
 
-**[Facility Name]** - [X]-bed [Type], [City, State] ([X]% occupied)
+**[Facility Name]** — [X]-bed [Type], [City, State] ([X]% occupied)
 
-**TTM Performance ([Mon Year] - [Mon Year]):** Revenue $X.XM | EBITDAR $X | Margin X%
+**TTM ([Mon Year - Mon Year]):** Revenue $X.XM | EBITDAR $X | Margin X%
 
-**Trends:** Revenue [UP/FLAT/DOWN] | Census [UP/FLAT/DOWN] | Margins [UP/FLAT/DOWN]
+**Trends:** Revenue [↑/→/↓] | Census [↑/→/↓] | EBITDAR [↑/→/↓]
 
-**Key Issues:**
-- [Issue 1 - quantified]
-- [Issue 2 - quantified]
-- [Issue 3 - quantified]
+**Issues:**
+• [Issue 1 — quantified]
+• [Issue 2 — quantified]
+• [Issue 3 — quantified]
 
-**Upside:** [Key opportunity - quantified potential]
+**Upside:** [Opportunity — quantified potential]
 
-**Stabilized Potential:** $X EBITDAR at X% occ, X% margin
+**Value:** As-Is $X-XM | Stabilized $XM (9% cap) | Max Purchase $XM
 
-**Value:**
-- As-Is: $X-XM ($XK-XK/bed)
-- Stabilized: $X-XM ($XK-XK/bed)
-- Turnaround investment: ~$X.XM (if applicable)
-- Max purchase: ~$XM ($XK/bed)
-
-**Recommendation: [PURSUE / PURSUE WITH CAUTION / PASS]** - [1 sentence rationale + key diligence items]
-
----
-
-## DETAILED NARRATIVE FORMAT (for detailed_narrative_markdown field)
-
-Generate a concise markdown-formatted Stage 1 deal analysis report (4000-6000 characters) using this structure:
-
-# STAGE 1 DEAL EVALUATION
-## [Facility Name] Acquisition
-
----
-
-## FACILITY SNAPSHOT
-
-[Markdown table with key facility information: Beds, Type, Location, Current Census, Occupancy%]
-
----
-
-## TTM FINANCIAL PERFORMANCE
-**Period: [Month Year] - [Month Year]**
-
-### Summary Metrics
-
-[Compact table with TTM Revenue, Expenses, EBITDAR, Margin, Rev/Bed, Occupancy]
-
-### Key Trends
-
-[2-3 bullet points on revenue, census, or margin trends if notable]
-
----
-
-## RED FLAGS & STRENGTHS
-
-### 🔴 [CRITICAL/SIGNIFICANT] (Quantified Issues)
-
-> 🔴 **[Issue Title] — [Quantified impact] ([CRITICAL/SIGNIFICANT])**
-> [2-3 sentences with specific numbers and business impact]
-
-### 🟢 EXCEEDING (Quantified Strengths)
-
-> 🟢 **[Strength Title] — [Quantified benefit]**
-> [1-2 sentences explaining the advantage]
-
----
-
-## VALUATION SUMMARY
-
-### As-Is & Stabilized Value
-
-[Compact table: As-Is range, Stabilized value (at 9% cap), Max Purchase Price, $/bed for each]
-
-### Key Value Drivers
-
-[2-3 bullet points on what creates value or limits it]
-
----
-
-## NEXT STEPS
-
-[Priority-ranked list (3-5 items) of critical Stage 2 diligence requirements]
-
----
-
-**FORMATTING REQUIREMENTS:**
-- Use compact markdown tables (with | separators and --- headers)
-- Use > blockquotes for red flags and strengths
-- Use ** for bold emphasis on key numbers
-- Use 🔴 🟢 icons only (NO other emojis)
-- Keep language direct and analytical (no marketing fluff)
-- Quantify EVERYTHING - every claim needs a number
-- BE CONCISE - Target 4000-6000 characters total
-- Focus on insights, not data dumps
+**Recommendation: [PURSUE / PURSUE WITH CAUTION / PASS]** — [1 sentence rationale]
 
 ---
 
 ## CRITICAL RULES
 
-1. **Build the freshest TTM** - Combine multiple documents to get the most recent 12 months. Never use stale T12 totals when fresher monthly data exists.
+1. **Freshest TTM** — Combine documents. State period and sources in data_sources_description.
 
-2. **Show your math** - Include calculation details for EBITDAR, margins, trends. Include monthly breakdown for TTM.
+2. **Quantify everything** — Every red flag and strength needs a number. Impacts <50 chars.
 
-3. **Quantify everything** - No issue or opportunity without a dollar/percentage impact.
+3. **Keep it lean:**
+   - Max 5 red flags
+   - Max 3 strengths
+   - Max 3 initiatives
+   - Max 5 diligence items
 
-4. **Flag missing data explicitly** - Use null for missing values and flag in red_flags if critical.
-
-5. **Benchmark against targets:**
+4. **Benchmarks:**
    - EBITDAR margin: 23%
-   - EBITDA margin: 9%
    - Occupancy: 85%
    - Agency staffing: <5% of direct care
 
-6. **Extract building information prominently** - Any structural details (year built, renovations, construction type) should be captured.
+5. **Turnaround trigger** — Set type="turnaround" if EBITDAR margin <15%, else "optimization".
 
-7. **Conditional turnaround section** - If EBITDAR margin <15%, populate "turnaround" object. If >=15%, populate "optimization" object. Set "type" field accordingly.
+6. **No fabrication** — Use null for missing data. Flag critical gaps in red_flags.
 
-8. **Be direct** - State recommendation clearly; avoid hedging language.
-
-9. **Separate fact from inference** - Use confidence levels and source attribution.
-
-10. **Both outputs required** - Populate all JSON fields, generate 1000-char summary, AND generate detailed markdown narrative.
-
-11. **TTM period must be stated** - Always include exact month range in period_start and period_end.
-
-12. **Market data disclaimer** - If market competitive data not in documents, state "Stage 2 diligence item" - do not fabricate.
+7. **Output size** — Target 3000-5000 characters total. Be concise.
 
 Return ONLY valid JSON, no markdown.`;
 
