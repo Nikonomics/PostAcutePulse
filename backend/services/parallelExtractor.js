@@ -4,6 +4,7 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { matchFacility } = require('./facilityMatcher');
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -859,6 +860,137 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
 
 
 /**
+ * Enrich extraction data with ALF database match
+ * Auto-populates missing facility data when high-confidence match found
+ * @param {Object} organized - Organized extraction results
+ */
+async function enrichFacilityData(organized) {
+  try {
+    // Check if we have overview data with facility info
+    if (!organized.overview || !organized.overview.facility_snapshot) {
+      console.log('[Facility Match] No facility snapshot in overview, skipping enrichment');
+      return;
+    }
+
+    const facility = organized.overview.facility_snapshot;
+    const facilityName = facility.facility_name;
+
+    // Need at least a facility name to attempt matching
+    if (!facilityName) {
+      console.log('[Facility Match] No facility name found, skipping enrichment');
+      return;
+    }
+
+    console.log(`[Facility Match] Attempting to match: "${facilityName}"`);
+
+    // Attempt to match facility in ALF database
+    const match = await matchFacility(
+      facilityName,
+      facility.city || null,
+      facility.state || null,
+      0.85 // Require 85%+ similarity for auto-population
+    );
+
+    if (!match) {
+      console.log('[Facility Match] No match found in ALF database');
+      return;
+    }
+
+    console.log(`[Facility Match] Match found: "${match.facility_name}" (${(match.match_score * 100).toFixed(1)}% - ${match.match_confidence})`);
+
+    // Only auto-populate if high confidence (90%+)
+    if (match.match_confidence !== 'high') {
+      console.log(`[Facility Match] Confidence too low (${match.match_confidence}), skipping auto-population`);
+      // Store the match for manual review but don't auto-populate
+      organized.overview.facility_match = {
+        matched: true,
+        confidence: match.match_confidence,
+        score: match.match_score,
+        auto_populated: false,
+        facility_name: match.facility_name,
+        address: match.address,
+        city: match.city,
+        state: match.state,
+        zip_code: match.zip_code,
+        capacity: match.capacity,
+        latitude: match.latitude,
+        longitude: match.longitude
+      };
+      return;
+    }
+
+    // High confidence - auto-populate missing data
+    console.log('[Facility Match] High confidence - auto-populating missing data...');
+
+    // Track what was auto-populated
+    const autoPopulated = [];
+
+    // Auto-fill licensed beds if missing or inferred
+    if (!facility.licensed_beds || facility.beds_source === 'inferred') {
+      if (match.capacity) {
+        facility.licensed_beds = match.capacity;
+        facility.beds_source = 'alf_database';
+        autoPopulated.push('licensed_beds');
+        console.log(`  ✓ Licensed beds: ${match.capacity}`);
+      }
+    }
+
+    // Auto-fill address if missing
+    if (!facility.city && match.city) {
+      facility.city = match.city;
+      autoPopulated.push('city');
+      console.log(`  ✓ City: ${match.city}`);
+    }
+
+    if (!facility.state && match.state) {
+      facility.state = match.state;
+      autoPopulated.push('state');
+      console.log(`  ✓ State: ${match.state}`);
+    }
+
+    // Add GPS coordinates (new fields)
+    if (match.latitude && match.longitude) {
+      facility.latitude = match.latitude;
+      facility.longitude = match.longitude;
+      autoPopulated.push('coordinates');
+      console.log(`  ✓ Coordinates: (${match.latitude}, ${match.longitude})`);
+    }
+
+    // Add ownership type if available
+    if (match.ownership_type && !facility.ownership_type) {
+      facility.ownership_type = match.ownership_type;
+      autoPopulated.push('ownership_type');
+      console.log(`  ✓ Ownership type: ${match.ownership_type}`);
+    }
+
+    // Store the full match data for reference
+    organized.overview.facility_match = {
+      matched: true,
+      confidence: match.match_confidence,
+      score: match.match_score,
+      auto_populated: true,
+      auto_populated_fields: autoPopulated,
+      full_address: `${match.address}, ${match.city}, ${match.state} ${match.zip_code}`,
+      database_facility_name: match.facility_name,
+      database_capacity: match.capacity
+    };
+
+    console.log(`[Facility Match] ✅ Auto-populated ${autoPopulated.length} fields`);
+
+  } catch (error) {
+    console.error('[Facility Match] Error during enrichment:', error.message);
+    // Don't fail the entire extraction if matching fails
+    if (organized.overview) {
+      organized.overview.facility_match = {
+        matched: false,
+        error: error.message
+      };
+    }
+  }
+}
+
+
+/**
  * Run all extractions in parallel
  * @param {string} combinedDocumentText - Text from all documents, labeled
  * @returns {Promise<Object>} Combined extraction results
@@ -907,6 +1039,9 @@ async function runParallelExtractions(combinedDocumentText) {
       organized.metadata.failureCount++;
     }
   }
+
+  // Auto-populate facility data from ALF database
+  await enrichFacilityData(organized);
 
   return organized;
 }
