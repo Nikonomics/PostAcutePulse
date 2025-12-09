@@ -492,6 +492,7 @@ module.exports = {
             if (deal.facility_name && (!deal.no_of_beds || deal.no_of_beds === null)) {
               try {
                 console.log(`[Facility Match] Attempting to match: "${deal.facility_name}"`);
+                console.log(`[Facility Match] Search params - City: ${deal.city || 'null'}, State: ${deal.state || 'null'}`);
                 const match = await matchFacility(
                   deal.facility_name,
                   deal.city || null,
@@ -513,6 +514,7 @@ module.exports = {
                   console.log(`[Facility Match] Match found but confidence too low (${match.match_confidence}: ${(match.match_score * 100).toFixed(1)}%)`);
                 } else {
                   console.log(`[Facility Match] No match found in database`);
+                  console.log(`[Facility Match] This could mean: (1) No facilities in that state, (2) Name similarity < 85%, or (3) Database error`);
                 }
               } catch (matchError) {
                 console.error('[Facility Match] Error during matching:', matchError.message);

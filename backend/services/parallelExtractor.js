@@ -908,6 +908,7 @@ async function enrichFacilityData(organized) {
     }
 
     console.log(`[Facility Match] Attempting to match: "${facilityName}"`);
+    console.log(`[Facility Match] Search params - City: ${facility.city || 'null'}, State: ${facility.state || 'null'}`);
 
     // Attempt to match facility in ALF database
     const match = await matchFacility(
@@ -919,6 +920,7 @@ async function enrichFacilityData(organized) {
 
     if (!match) {
       console.log('[Facility Match] No match found in ALF database');
+      console.log('[Facility Match] This could mean: (1) No facilities in that state, (2) Name similarity < 85%, or (3) Database error');
       return;
     }
 
