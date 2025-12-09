@@ -10,9 +10,11 @@ const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const https = require('https');
 
 const DB_PATH = path.join(__dirname, '../database.sqlite');
 const CSV_PATH = '/tmp/alf_database.csv';
+const CSV_URL = 'https://raw.githubusercontent.com/antonstengel/assisted-living-data/main/assisted-living-facilities.csv';
 
 console.log('🏥 ALF Database Import Script');
 console.log('================================\n');
@@ -113,8 +115,55 @@ function convertValue(value) {
   return value;
 }
 
+// Download CSV from GitHub
+async function downloadCSV() {
+  // Check if CSV already exists
+  if (fs.existsSync(CSV_PATH)) {
+    console.log('✅ CSV file already exists at:', CSV_PATH);
+    console.log('   Skipping download.\n');
+    return;
+  }
+
+  console.log('📥 Downloading CSV from GitHub...');
+  console.log('   URL:', CSV_URL);
+
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(CSV_PATH);
+
+    https.get(CSV_URL, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
+        return;
+      }
+
+      const totalBytes = parseInt(response.headers['content-length'], 10);
+      let downloadedBytes = 0;
+
+      response.on('data', (chunk) => {
+        downloadedBytes += chunk.length;
+        const percent = ((downloadedBytes / totalBytes) * 100).toFixed(1);
+        process.stdout.write(`\r   Progress: ${percent}%`);
+      });
+
+      response.pipe(file);
+
+      file.on('finish', () => {
+        file.close();
+        console.log('\n✅ CSV downloaded successfully\n');
+        resolve();
+      });
+    }).on('error', (err) => {
+      fs.unlink(CSV_PATH, () => {});
+      reject(new Error(`Download failed: ${err.message}`));
+    });
+  });
+}
+
 async function importData() {
   try {
+    // Download CSV from GitHub
+    await downloadCSV();
+
     // Create table
     console.log('📋 Creating alf_facilities table...');
     await new Promise((resolve, reject) => {
