@@ -12,6 +12,12 @@ router.post('/extract-enhanced', requireAuthentication, DealController.extractDe
 // Re-extract existing deal and store time-series data
 router.post('/:dealId/reextract', requireAuthentication, DealController.reExtractDeal);
 
+// Select facility match from ALF database for a deal
+router.post('/:dealId/select-facility-match', requireAuthentication, DealController.selectFacilityMatch);
+
+// Get facility matches for a deal (for review modal)
+router.get('/:dealId/facility-matches', requireAuthentication, DealController.getFacilityMatches);
+
 router.post('/create-deals', requireAuthentication, DealController.createDeal);
 router.get('/get-deals', requireAuthentication, DealController.getDeal);
 router.get('/get-deal-stats', requireAuthentication, DealController.getDealStats);

@@ -3,7 +3,22 @@
     "allow": [
       "Bash(node:*)",
       "Bash(find:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(ls:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl:*)",
+      "Bash(sqlite3:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/psql:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(lsof:*)",
+      "Bash(python3:*)",
+      "Bash(kill:*)",
+      "Bash(psql:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

@@ -131,6 +131,21 @@ function levenshteinDistance(str1, str2) {
  * @returns {Promise<Object|null>} - Best matching facility or null
  */
 async function matchFacility(facilityName, city = null, state = null, minSimilarity = 0.7) {
+  const matches = await findFacilityMatches(facilityName, city, state, minSimilarity, 1);
+  return matches.length > 0 ? matches[0] : null;
+}
+
+/**
+ * Find multiple facility matches against the ALF database
+ *
+ * @param {string} facilityName - The facility name from the deal document
+ * @param {string} city - Optional city to narrow search
+ * @param {string} state - Optional state to narrow search
+ * @param {number} minSimilarity - Minimum similarity score (0-1), default 0.7
+ * @param {number} limit - Maximum number of matches to return (default 5)
+ * @returns {Promise<Array>} - Array of matching facilities sorted by score (highest first)
+ */
+async function findFacilityMatches(facilityName, city = null, state = null, minSimilarity = 0.7, limit = 5) {
   const sequelize = getSequelizeInstance();
 
   try {
@@ -165,38 +180,34 @@ async function matchFacility(facilityName, city = null, state = null, minSimilar
 
     if (!facilities || facilities.length === 0) {
       await sequelize.close();
-      return null;
+      return [];
     }
 
     // Normalize input name
     const normalizedInput = normalizeFacilityName(facilityName);
 
-    // Find best match
-    let bestMatch = null;
-    let bestScore = 0;
+    // Calculate similarity for all facilities
+    const scoredMatches = [];
 
     facilities.forEach(facility => {
       const normalizedDb = normalizeFacilityName(facility.facility_name);
       const similarity = calculateSimilarity(normalizedInput, normalizedDb);
 
-      if (similarity > bestScore) {
-        bestScore = similarity;
-        bestMatch = facility;
+      if (similarity >= minSimilarity) {
+        scoredMatches.push({
+          ...facility,
+          match_score: similarity,
+          match_confidence: similarity >= 0.9 ? 'high' : similarity >= 0.8 ? 'medium' : 'low'
+        });
       }
     });
 
     await sequelize.close();
 
-    // Return match if above threshold
-    if (bestScore >= minSimilarity) {
-      return {
-        ...bestMatch,
-        match_score: bestScore,
-        match_confidence: bestScore >= 0.9 ? 'high' : bestScore >= 0.8 ? 'medium' : 'low'
-      };
-    }
+    // Sort by score (highest first) and return top N
+    scoredMatches.sort((a, b) => b.match_score - a.match_score);
+    return scoredMatches.slice(0, limit);
 
-    return null;
   } catch (err) {
     await sequelize.close();
     throw new Error(`Query failed: ${err.message}`);
@@ -365,6 +376,7 @@ async function getFacilitiesInBoundingBox(latitude, longitude, radiusMiles, limi
 
 module.exports = {
   matchFacility,
+  findFacilityMatches,
   searchFacilities,
   getFacilitiesNearby,
   normalizeFacilityName,
