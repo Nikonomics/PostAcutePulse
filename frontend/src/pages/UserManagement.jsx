@@ -187,10 +187,13 @@ const UserManagement = () => {
     setPendingLoading(true);
     try {
       const response = await getPendingUsers();
-      setPendingUsers(response.body || []);
+      // Handle both response.body (array) and response.body.users patterns
+      const users = Array.isArray(response.body) ? response.body :
+                    Array.isArray(response.body?.users) ? response.body.users : [];
+      setPendingUsers(users);
     } catch (error) {
       console.error("Error fetching pending users:", error);
-      toast.error("Failed to load pending users");
+      setPendingUsers([]); // Reset to empty array on error
     } finally {
       setPendingLoading(false);
     }

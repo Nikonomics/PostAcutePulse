@@ -77,6 +77,22 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('Expense ratios constraint fix migration error:', err.message);
   }
+
+  try {
+    // Add user approval workflow columns
+    const { runMigration: runUserApprovalMigration } = require('../migrations/add-user-approval-columns');
+    await runUserApprovalMigration(sequelize);
+  } catch (err) {
+    console.log('User approval columns migration error:', err.message);
+  }
+
+  try {
+    // Add deal activity tracking columns and tables
+    const { runMigration: runDealActivityMigration } = require('../migrations/add-deal-activity-tracking');
+    await runDealActivityMigration(sequelize);
+  } catch (err) {
+    console.log('Deal activity tracking migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist
