@@ -24,8 +24,9 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getUsers, getUserStats, deleteUser } from "../api/userService";
 import { getRecentActivity } from "../api/DealService";
+import { getPendingUsers, approveUser, rejectUser } from "../api/authService";
 import { toast } from "react-toastify";
-import { Modal, Button } from "react-bootstrap";
+import { Modal, Button, Badge } from "react-bootstrap";
 
 
 const StatusBadge = ({ status }) => {
@@ -104,6 +105,12 @@ const UserManagement = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Pending users approval state
+  const [activeTab, setActiveTab] = useState("users"); // "users" or "pending"
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [approvalLoading, setApprovalLoading] = useState(null);
+
   const roleStats = [
     {
       role: "Admin",
@@ -175,6 +182,59 @@ const UserManagement = () => {
     setDeleteLoadingId(null);
   };
 
+  // Fetch pending users
+  const fetchPendingUsers = async () => {
+    setPendingLoading(true);
+    try {
+      const response = await getPendingUsers();
+      setPendingUsers(response.body || []);
+    } catch (error) {
+      console.error("Error fetching pending users:", error);
+      toast.error("Failed to load pending users");
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  // Handle approve user
+  const handleApproveUser = async (userId) => {
+    setApprovalLoading(userId);
+    try {
+      const response = await approveUser(userId);
+      if (response.success) {
+        toast.success(response.message || "User approved successfully");
+        fetchPendingUsers();
+        fetchData(); // Refresh main user list
+      } else {
+        toast.error(response.message || "Failed to approve user");
+      }
+    } catch (error) {
+      console.error("Error approving user:", error);
+      toast.error("Failed to approve user");
+    } finally {
+      setApprovalLoading(null);
+    }
+  };
+
+  // Handle reject user
+  const handleRejectUser = async (userId) => {
+    setApprovalLoading(userId);
+    try {
+      const response = await rejectUser(userId);
+      if (response.success) {
+        toast.success(response.message || "User rejected");
+        fetchPendingUsers();
+      } else {
+        toast.error(response.message || "Failed to reject user");
+      }
+    } catch (error) {
+      console.error("Error rejecting user:", error);
+      toast.error("Failed to reject user");
+    } finally {
+      setApprovalLoading(null);
+    }
+  };
+
   // handle delete deal
   const handleDeleteUser = async (id) => {
     setDeleteLoading(true);
@@ -200,6 +260,7 @@ const UserManagement = () => {
   // Fix: fetch paginated users from API, not all and then slice
   useEffect(() => {
     fetchData();
+    fetchPendingUsers(); // Also fetch pending users on load
   }, [
     currentPage,
     pageSize,
@@ -372,7 +433,124 @@ const UserManagement = () => {
               </div>
             </div>
 
-            {/* Stats Cards */}
+            {/* Tab Buttons */}
+            <div className="mb-4">
+              <div className="d-flex gap-2">
+                <button
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    activeTab === "users"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setActiveTab("users")}
+                >
+                  All Users
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-lg font-medium d-flex align-items-center gap-2 ${
+                    activeTab === "pending"
+                      ? "bg-orange-600 text-white"
+                      : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setActiveTab("pending")}
+                  style={activeTab === "pending" ? { backgroundColor: "#ea580c" } : {}}
+                >
+                  Pending Approvals
+                  {pendingUsers.length > 0 && (
+                    <Badge bg="danger" pill style={{ fontSize: "0.75rem" }}>
+                      {pendingUsers.length}
+                    </Badge>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Pending Users Section */}
+            {activeTab === "pending" && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-3">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 px-3">
+                  Users Awaiting Approval
+                </h3>
+                {pendingLoading ? (
+                  <div className="text-center py-5">
+                    <span className="spinner-border spinner-border-sm" role="status"></span>
+                    <span className="ms-2">Loading...</span>
+                  </div>
+                ) : pendingUsers.length === 0 ? (
+                  <div className="text-center py-5 text-gray-500">
+                    No pending users to approve
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Requested
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {pendingUsers.map((user) => (
+                          <tr key={user.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <UserAvatar name={user.first_name || user.email} />
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {user.first_name} {user.last_name}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {user.email}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {user.created_at ? new Date(user.created_at).toLocaleDateString() : "—"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="d-flex gap-2">
+                                <button
+                                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 border-0"
+                                  onClick={() => handleApproveUser(user.id)}
+                                  disabled={approvalLoading === user.id}
+                                >
+                                  {approvalLoading === user.id ? (
+                                    <span className="spinner-border spinner-border-sm" role="status"></span>
+                                  ) : (
+                                    "Approve"
+                                  )}
+                                </button>
+                                <button
+                                  className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 border-0"
+                                  onClick={() => handleRejectUser(user.id)}
+                                  disabled={approvalLoading === user.id}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Stats Cards - Only show on users tab */}
+            {activeTab === "users" && (
             <div className="row mb-4">
               <div className="col-sm-6 col-lg-4 mb-3 mb-lg-0">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -411,8 +589,10 @@ const UserManagement = () => {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Filters */}
+            {/* Filters - Only show on users tab */}
+            {activeTab === "users" && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <div className="row  align-items-baseline align-items-lg-center">
                 {/* Search */}
@@ -491,8 +671,11 @@ const UserManagement = () => {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Users Table */}
+            {/* Users Table - Only show on users tab */}
+            {activeTab === "users" && (
+            <>
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-3 ">
               <div className="table-responsive user-table">
                 <table className="w-full">
@@ -630,9 +813,8 @@ const UserManagement = () => {
                   </h3>
                   <div className="row">
                     {roleStats.map((role, index) => (
-                      <div className="col-md-6 mb-3">
+                      <div className="col-md-6 mb-3" key={index}>
                         <div
-                          key={index}
                           className={`${role.color} text-white rounded-lg text-center py-2`}
                         >
                           <div className="text-sm font-medium">{role.role}</div>
@@ -678,6 +860,9 @@ const UserManagement = () => {
                 </div>
               </div>
             </div>
+            </>
+            )}
+
           </div>
 
           {/* Delete User Modal */}
