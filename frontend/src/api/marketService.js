@@ -120,3 +120,32 @@ export const checkHealth = async () => {
   const response = await apiService.get(`${MARKET_BASE}/health`);
   return response.data;
 };
+
+/**
+ * Get CMS data freshness status
+ * @returns {Promise<Object>} Data status with last refresh dates and counts
+ */
+export const getDataStatus = async () => {
+  const response = await apiService.get(`${MARKET_BASE}/data-status`);
+  return response.data;
+};
+
+/**
+ * Trigger CMS data refresh
+ * @param {string} dataset - 'facilities', 'deficiencies', or 'all'
+ * @returns {Promise<Object>} Refresh start confirmation
+ */
+export const triggerRefresh = async (dataset = 'all') => {
+  const response = await apiService.post(`${MARKET_BASE}/refresh`, { dataset });
+  return response.data;
+};
+
+/**
+ * Get refresh history
+ * @param {number} limit - Number of records to fetch
+ * @returns {Promise<Array>} Array of refresh log entries
+ */
+export const getRefreshHistory = async (limit = 10) => {
+  const response = await apiService.get(`${MARKET_BASE}/refresh-history`, { limit });
+  return response.data;
+};

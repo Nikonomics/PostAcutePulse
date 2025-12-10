@@ -9,9 +9,8 @@ import {
   Users,
   TrendingUp,
 } from 'lucide-react';
-import { LocationSelector, StateSummary, MarketComparison } from '../components/MarketAnalysis';
+import { LocationSelector, StateSummary, MarketComparison, FacilityList, DataFreshness } from '../components/MarketAnalysis';
 import MarketMap from '../components/MarketDynamicsTab/MarketMap';
-import CompetitorTable from '../components/MarketDynamicsTab/CompetitorTable';
 import DemographicsPanel from '../components/MarketDynamicsTab/DemographicsPanel';
 import SupplyScorecard from '../components/MarketDynamicsTab/SupplyScorecard';
 import {
@@ -266,10 +265,11 @@ const MarketAnalysis = () => {
 
       try {
         if (selectedCounty) {
-          // Fetch county-level data
-          const [metricsRes, facilitiesRes] = await Promise.all([
+          // Fetch county-level data AND state summary for benchmarking
+          const [metricsRes, facilitiesRes, stateSummaryRes] = await Promise.all([
             getMarketMetrics(selectedState, selectedCounty, facilityType),
             getFacilitiesInCounty(selectedState, selectedCounty, facilityType),
+            getStateSummary(selectedState, facilityType),
           ]);
 
           if (metricsRes.success) {
@@ -278,9 +278,12 @@ const MarketAnalysis = () => {
           if (facilitiesRes.success) {
             setFacilities(facilitiesRes.data);
           }
-          setStateSummary(null);
+          // Keep state summary for county-level benchmarking
+          if (stateSummaryRes.success) {
+            setStateSummary(stateSummaryRes.data);
+          }
         } else {
-          // Fetch state-level summary
+          // Fetch state-level summary only
           const summaryRes = await getStateSummary(selectedState, facilityType);
           if (summaryRes.success) {
             setStateSummary(summaryRes.data);
@@ -430,6 +433,9 @@ const MarketAnalysis = () => {
         </div>
       </div>
 
+      {/* Data Freshness Status */}
+      <DataFreshness compact={true} showRefreshButton={false} />
+
       {/* Location Selector */}
       <div style={styles.card}>
         <div style={styles.cardHeader}>
@@ -532,6 +538,7 @@ const MarketAnalysis = () => {
               marketData={marketData}
               facilityType={facilityType}
               nationalBenchmarks={nationalBenchmarks}
+              stateSummary={stateSummary}
             />
           </div>
 
@@ -583,22 +590,12 @@ const MarketAnalysis = () => {
           </div>
 
           {/* Facilities Table */}
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <span style={styles.cardTitle}>
-                <Building2 size={16} />
-                Facilities in {selectedCounty} ({facilities.length})
-              </span>
-            </div>
-            <div style={{ ...styles.cardBody, padding: 0 }}>
-              <CompetitorTable
-                competitors={facilities}
-                facilityType={facilityType}
-                selectedCompetitor={selectedFacility}
-                onCompetitorSelect={setSelectedFacility}
-              />
-            </div>
-          </div>
+          <FacilityList
+            facilities={facilities}
+            facilityType={facilityType}
+            selectedFacility={selectedFacility}
+            onFacilitySelect={setSelectedFacility}
+          />
         </>
       )}
 

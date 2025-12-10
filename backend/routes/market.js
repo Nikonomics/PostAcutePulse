@@ -520,6 +520,76 @@ router.get('/facilities-in-county', async (req, res) => {
 });
 
 /**
+ * GET /api/market/facilities/:providerId/deficiencies
+ * Get deficiencies for a specific facility from CMS data
+ *
+ * URL Params:
+ * - providerId: Federal provider number
+ *
+ * Query Params:
+ * - prefix: Filter by deficiency prefix (F, G, K, E, etc.) - optional
+ * - years: Number of years of history (default: 3)
+ *
+ * Returns array of deficiencies with survey info
+ */
+router.get('/facilities/:providerId/deficiencies', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    const { prefix = 'all', years = 3 } = req.query;
+
+    const { Pool } = require('pg');
+    const connectionString = process.env.SNF_NEWS_DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+    const pool = new Pool({
+      connectionString,
+      ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
+    });
+
+    let query = `
+      SELECT
+        id,
+        federal_provider_number,
+        survey_date,
+        survey_type,
+        deficiency_tag,
+        deficiency_prefix,
+        scope_severity,
+        deficiency_text,
+        correction_date,
+        is_corrected
+      FROM cms_facility_deficiencies
+      WHERE federal_provider_number = $1
+        AND survey_date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
+    `;
+
+    const params = [providerId];
+
+    if (prefix !== 'all') {
+      query += ` AND deficiency_prefix = $2`;
+      params.push(prefix);
+    }
+
+    query += ` ORDER BY survey_date DESC, deficiency_tag ASC`;
+
+    const result = await pool.query(query, params);
+    await pool.end();
+
+    res.json({
+      success: true,
+      providerId,
+      count: result.rows.length,
+      deficiencies: result.rows
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getDeficiencies error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/market/health
  * Health check endpoint to verify database connectivity
  */
@@ -549,6 +619,153 @@ router.get('/health', async (req, res) => {
       success: false,
       error: 'Database connection failed',
       details: error.message
+    });
+  }
+});
+
+// =============================================================================
+// CMS Data Refresh Endpoints
+// =============================================================================
+
+const cmsRefreshService = require('../services/cmsDataRefreshService');
+
+/**
+ * GET /api/market/data-status
+ * Get CMS data freshness status
+ *
+ * Returns last refresh dates, record counts, and whether refresh is needed
+ */
+router.get('/data-status', async (req, res) => {
+  try {
+    const status = await cmsRefreshService.getRefreshStatus();
+
+    res.json({
+      success: true,
+      data: status
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getDataStatus error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/market/refresh
+ * Trigger a manual CMS data refresh
+ *
+ * Body:
+ * - dataset: 'facilities', 'deficiencies', or 'all' (default: 'all')
+ *
+ * Note: This is a long-running operation (can take 30+ minutes for full refresh)
+ */
+router.post('/refresh', async (req, res) => {
+  try {
+    const { dataset = 'all' } = req.body;
+
+    // Check if a refresh is already running
+    const status = await cmsRefreshService.getRefreshStatus();
+
+    const runningDatasets = Object.entries(status.datasets)
+      .filter(([key, ds]) => ds.status === 'running')
+      .map(([key]) => key);
+
+    if (runningDatasets.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: `Refresh already in progress for: ${runningDatasets.join(', ')}`,
+        runningDatasets
+      });
+    }
+
+    // Start refresh in background (don't await)
+    console.log(`[Market Routes] Starting CMS data refresh: ${dataset}`);
+
+    // Return immediately, refresh runs in background
+    res.json({
+      success: true,
+      message: `CMS data refresh started for: ${dataset}`,
+      dataset,
+      note: 'This operation can take 30+ minutes. Check /api/market/data-status for progress.'
+    });
+
+    // Run refresh in background
+    if (dataset === 'facilities') {
+      cmsRefreshService.refreshFacilities().catch(err => {
+        console.error('[Market Routes] Facilities refresh failed:', err);
+      });
+    } else if (dataset === 'deficiencies') {
+      cmsRefreshService.refreshDeficiencies().catch(err => {
+        console.error('[Market Routes] Deficiencies refresh failed:', err);
+      });
+    } else {
+      cmsRefreshService.refreshAllData().catch(err => {
+        console.error('[Market Routes] Full refresh failed:', err);
+      });
+    }
+
+  } catch (error) {
+    console.error('[Market Routes] refresh error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/refresh-history
+ * Get history of CMS data refresh operations
+ *
+ * Query:
+ * - limit: Number of records (default: 10)
+ */
+router.get('/refresh-history', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    const { Pool } = require('pg');
+    const connectionString = process.env.SNF_NEWS_DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+    const pool = new Pool({
+      connectionString,
+      ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 5000
+    });
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        dataset_name,
+        refresh_type,
+        started_at,
+        completed_at,
+        status,
+        records_fetched,
+        records_updated,
+        records_inserted,
+        error_count,
+        error_message,
+        EXTRACT(EPOCH FROM (completed_at - started_at)) as duration_seconds
+      FROM data_refresh_log
+      ORDER BY started_at DESC
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    await pool.end();
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getRefreshHistory error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

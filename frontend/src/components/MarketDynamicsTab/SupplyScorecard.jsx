@@ -151,34 +151,64 @@ const formatPercent = (num) => {
   return `${parseFloat(num).toFixed(1)}%`;
 };
 
-// Benchmark comparison component
-const BenchmarkBadge = ({ value, nationalValue, lowerIsBetter = false }) => {
+// Benchmark comparison component with state and national averages
+const BenchmarkBadge = ({ value, nationalValue, stateValue, lowerIsBetter = false }) => {
   const localNum = parseFloat(value);
   const nationalNum = parseFloat(nationalValue);
+  const stateNum = parseFloat(stateValue);
 
-  if (isNaN(localNum) || isNaN(nationalNum)) return null;
+  const hasNational = !isNaN(nationalNum);
+  const hasState = !isNaN(stateNum);
+  const hasLocal = !isNaN(localNum);
 
-  const diff = localNum - nationalNum;
-  const diffPercent = ((diff / nationalNum) * 100).toFixed(0);
-  const isPositive = lowerIsBetter ? diff < 0 : diff > 0;
+  if (!hasLocal || (!hasNational && !hasState)) return null;
+
+  // Calculate diffs
+  const nationalDiff = hasNational ? localNum - nationalNum : null;
+  const nationalDiffPercent = hasNational ? ((nationalDiff / nationalNum) * 100).toFixed(0) : null;
+  const isNationalPositive = hasNational ? (lowerIsBetter ? nationalDiff < 0 : nationalDiff > 0) : null;
+
+  const stateDiff = hasState ? localNum - stateNum : null;
+  const stateDiffPercent = hasState ? ((stateDiff / stateNum) * 100).toFixed(0) : null;
+  const isStatePositive = hasState ? (lowerIsBetter ? stateDiff < 0 : stateDiff > 0) : null;
 
   return (
     <div style={styles.benchmarkComparison}>
-      <div style={styles.nationalValue}>
-        National: {nationalNum.toFixed(1)}
-      </div>
-      <div style={{
-        ...styles.diffBadge,
-        ...(isPositive ? styles.diffPositive : styles.diffNegative),
-      }}>
-        {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-        {diff > 0 ? '+' : ''}{diffPercent}%
-      </div>
+      {/* State comparison */}
+      {hasState && (
+        <>
+          <div style={styles.nationalValue}>
+            State: {stateNum.toFixed(1)}
+          </div>
+          <div style={{
+            ...styles.diffBadge,
+            ...(isStatePositive ? styles.diffPositive : styles.diffNegative),
+          }}>
+            {isStatePositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+            {stateDiff > 0 ? '+' : ''}{stateDiffPercent}%
+          </div>
+        </>
+      )}
+      {/* National comparison */}
+      {hasNational && (
+        <>
+          <div style={{ ...styles.nationalValue, marginTop: hasState ? '0.25rem' : 0 }}>
+            National: {nationalNum.toFixed(1)}
+          </div>
+          <div style={{
+            ...styles.diffBadge,
+            ...(isNationalPositive ? styles.diffPositive : styles.diffNegative),
+          }}>
+            {isNationalPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+            {nationalDiff > 0 ? '+' : ''}{nationalDiffPercent}%
+          </div>
+        </>
+      )}
     </div>
   );
 };
 
-const SupplyScorecard = ({ marketData, facilityType, nationalBenchmarks }) => {
+const SupplyScorecard = ({ marketData, facilityType, nationalBenchmarks, stateSummary }) => {
   if (!marketData) return null;
 
   const { supply, metrics, demographics } = marketData;
@@ -233,18 +263,22 @@ const SupplyScorecard = ({ marketData, facilityType, nationalBenchmarks }) => {
       iconBg: iconColors.cyan,
       label: 'Beds per 1K 65+',
       value: metrics?.bedsPerThousand65Plus || '-',
-      subvalue: 'Supply density',
+      subvalue: 'Lower = less competition',
       nationalValue: nationalBenchmarks?.benchmarks?.bedsPerThousand65Plus,
+      stateValue: stateSummary?.metrics?.bedsPerThousand65Plus,
       showBenchmark: true,
+      lowerIsBetter: true,
     },
     {
       icon: Target,
       iconBg: iconColors.cyan,
       label: 'Beds per 1K 85+',
       value: metrics?.bedsPerThousand85Plus || '-',
-      subvalue: 'High-acuity density',
+      subvalue: 'Lower = less competition',
       nationalValue: nationalBenchmarks?.benchmarks?.bedsPerThousand85Plus,
+      stateValue: stateSummary?.metrics?.bedsPerThousand85Plus,
       showBenchmark: true,
+      lowerIsBetter: true,
     },
     {
       icon: metrics?.growthOutlook === 'Strong' ? TrendingUp : metrics?.growthOutlook === 'Slow' ? TrendingDown : Minus,
@@ -277,18 +311,22 @@ const SupplyScorecard = ({ marketData, facilityType, nationalBenchmarks }) => {
       iconBg: iconColors.cyan,
       label: 'Capacity per 1K 65+',
       value: metrics?.capacityPerThousand65Plus || '-',
-      subvalue: 'Supply density',
+      subvalue: 'Lower = less competition',
       nationalValue: nationalBenchmarks?.benchmarks?.capacityPerThousand65Plus,
+      stateValue: stateSummary?.metrics?.capacityPerThousand65Plus,
       showBenchmark: true,
+      lowerIsBetter: true,
     },
     {
       icon: Target,
       iconBg: iconColors.cyan,
       label: 'Capacity per 1K 85+',
       value: metrics?.capacityPerThousand85Plus || '-',
-      subvalue: 'High-acuity density',
+      subvalue: 'Lower = less competition',
       nationalValue: nationalBenchmarks?.benchmarks?.capacityPerThousand85Plus,
+      stateValue: stateSummary?.metrics?.capacityPerThousand85Plus,
       showBenchmark: true,
+      lowerIsBetter: true,
     },
     {
       icon: BarChart3,
@@ -325,10 +363,12 @@ const SupplyScorecard = ({ marketData, facilityType, nationalBenchmarks }) => {
             <div style={styles.cardSubvalue}>{card.subvalue}</div>
 
             {/* Benchmark comparison */}
-            {card.showBenchmark && card.nationalValue && (
+            {card.showBenchmark && (card.nationalValue || card.stateValue) && (
               <BenchmarkBadge
                 value={card.value}
                 nationalValue={card.nationalValue}
+                stateValue={card.stateValue}
+                lowerIsBetter={card.lowerIsBetter || false}
               />
             )}
 

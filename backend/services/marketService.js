@@ -1107,47 +1107,113 @@ async function getStateSummary(state, facilityType = 'SNF') {
  * @param {number} limit - Maximum results
  * @returns {Promise<Array>} Array of facilities with coordinates
  */
-async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit = 100) {
+async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit = 500) {
   const pool = getPoolInstance();
+
+  // Clean up county name for matching
+  const countyClean = county.replace(/\s+county$/i, '').trim();
+
+  // Calculate date 3 years ago for deficiency filtering
+  const threeYearsAgo = new Date();
+  threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+  const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
 
   try {
     if (facilityType === 'SNF') {
+      // Query facilities with LEFT JOIN to count deficiencies from last 3 years
       const result = await pool.query(`
         SELECT
-          id,
-          facility_name,
-          address,
-          city,
-          state,
-          county,
-          latitude,
-          longitude,
-          total_beds,
-          overall_rating,
-          occupancy_rate,
-          ownership_type
-        FROM snf_facilities
-        WHERE UPPER(state) = UPPER($1)
-          AND UPPER(county) LIKE UPPER($2)
-          AND latitude IS NOT NULL
-          AND longitude IS NOT NULL
-        ORDER BY total_beds DESC NULLS LAST
-        LIMIT $3
-      `, [state, `%${county.replace(/\s+county$/i, '')}%`, limit]);
+          f.id,
+          f.federal_provider_number,
+          f.facility_name,
+          f.address,
+          f.city,
+          f.state,
+          f.county,
+          f.latitude,
+          f.longitude,
+          f.total_beds,
+          f.certified_beds,
+          f.occupied_beds,
+          f.overall_rating,
+          f.health_inspection_rating,
+          f.quality_measure_rating,
+          f.staffing_rating,
+          f.occupancy_rate,
+          f.ownership_type,
+          f.provider_type,
+          f.parent_organization,
+          f.legal_business_name,
+          f.multi_facility_chain,
+          f.total_penalties_amount,
+          f.penalty_count,
+          f.special_focus_facility,
+          f.abuse_icon,
+          f.accepts_medicare,
+          f.accepts_medicaid,
+          COALESCE(d.deficiency_count_3yr, 0) as deficiency_count_3yr
+        FROM snf_facilities f
+        LEFT JOIN (
+          SELECT
+            federal_provider_number,
+            COUNT(*) as deficiency_count_3yr
+          FROM cms_facility_deficiencies
+          WHERE survey_date >= $6
+          GROUP BY federal_provider_number
+        ) d ON f.federal_provider_number = d.federal_provider_number
+        WHERE UPPER(f.state) = UPPER($1)
+          AND (
+            UPPER(f.county) = UPPER($2) OR
+            UPPER(f.county) = UPPER($3) OR
+            UPPER(f.county) LIKE UPPER($4)
+          )
+        ORDER BY f.total_beds DESC NULLS LAST
+        LIMIT $5
+      `, [state, county, countyClean, `${countyClean}%`, limit, threeYearsAgoStr]);
 
       return result.rows.map(row => ({
         id: row.id,
+        federalProviderNumber: row.federal_provider_number,
         facilityName: row.facility_name,
         address: row.address,
         city: row.city,
         state: row.state,
         county: row.county,
-        latitude: parseFloat(row.latitude),
-        longitude: parseFloat(row.longitude),
-        beds: { total: row.total_beds },
-        ratings: { overall: row.overall_rating },
-        occupancyRate: row.occupancy_rate,
-        ownership: { type: row.ownership_type }
+        latitude: row.latitude ? parseFloat(row.latitude) : null,
+        longitude: row.longitude ? parseFloat(row.longitude) : null,
+        beds: {
+          total: row.total_beds,
+          certified: row.certified_beds,
+          occupied: row.occupied_beds
+        },
+        ratings: {
+          overall: row.overall_rating,
+          healthInspection: row.health_inspection_rating,
+          qualityMeasure: row.quality_measure_rating,
+          staffing: row.staffing_rating
+        },
+        occupancyRate: row.occupancy_rate ? parseFloat(row.occupancy_rate) : null,
+        ownership: {
+          type: row.ownership_type,
+          parentOrganization: row.parent_organization,
+          legalBusinessName: row.legal_business_name,
+          isChain: row.multi_facility_chain
+        },
+        providerType: row.provider_type,
+        deficiencies: {
+          // Use the 3-year count from cms_facility_deficiencies
+          total: parseInt(row.deficiency_count_3yr) || 0
+        },
+        penalties: {
+          totalAmount: row.total_penalties_amount ? parseFloat(row.total_penalties_amount) : 0,
+          count: row.penalty_count || 0
+        },
+        flags: {
+          specialFocusFacility: row.special_focus_facility,
+          abuseIcon: row.abuse_icon,
+          acceptsMedicare: row.accepts_medicare,
+          acceptsMedicaid: row.accepts_medicaid
+        }
       }));
     } else {
       const result = await pool.query(`
@@ -1161,15 +1227,18 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           latitude,
           longitude,
           capacity,
-          ownership_type
+          ownership_type,
+          licensee
         FROM alf_facilities
         WHERE UPPER(state) = UPPER($1)
-          AND UPPER(county) LIKE UPPER($2)
-          AND latitude IS NOT NULL
-          AND longitude IS NOT NULL
+          AND (
+            UPPER(county) = UPPER($2) OR
+            UPPER(county) = UPPER($3) OR
+            UPPER(county) LIKE UPPER($4)
+          )
         ORDER BY capacity DESC NULLS LAST
-        LIMIT $3
-      `, [state, `%${county.replace(/\s+county$/i, '')}%`, limit]);
+        LIMIT $5
+      `, [state, county, countyClean, `${countyClean}%`, limit]);
 
       return result.rows.map(row => ({
         id: row.id,
@@ -1178,10 +1247,13 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
         city: row.city,
         state: row.state,
         county: row.county,
-        latitude: parseFloat(row.latitude),
-        longitude: parseFloat(row.longitude),
+        latitude: row.latitude ? parseFloat(row.latitude) : null,
+        longitude: row.longitude ? parseFloat(row.longitude) : null,
         capacity: row.capacity,
-        ownership: { type: row.ownership_type }
+        ownership: {
+          type: row.ownership_type,
+          licensee: row.licensee
+        }
       }));
     }
   } catch (error) {

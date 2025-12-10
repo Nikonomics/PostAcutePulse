@@ -310,7 +310,7 @@ const StateSummary = ({ data, facilityType, nationalBenchmarks }) => {
         <div style={styles.benchmarkSection}>
           <div style={styles.benchmarkTitle}>
             <Target size={16} />
-            Supply Density (Beds per 1,000 Population)
+            Supply Density (Lower = Less Competition)
           </div>
           <div style={styles.benchmarkGrid}>
             {isSNF ? (
@@ -319,11 +319,13 @@ const StateSummary = ({ data, facilityType, nationalBenchmarks }) => {
                   label="Beds per 1,000 Age 65+"
                   stateValue={data.metrics?.bedsPerThousand65Plus}
                   nationalValue={nationalBenchmarks?.benchmarks?.bedsPerThousand65Plus}
+                  lowerIsBetter={true}
                 />
                 <BenchmarkComparison
                   label="Beds per 1,000 Age 85+"
                   stateValue={data.metrics?.bedsPerThousand85Plus}
                   nationalValue={nationalBenchmarks?.benchmarks?.bedsPerThousand85Plus}
+                  lowerIsBetter={true}
                 />
               </>
             ) : (
@@ -332,11 +334,13 @@ const StateSummary = ({ data, facilityType, nationalBenchmarks }) => {
                   label="Capacity per 1,000 Age 65+"
                   stateValue={data.metrics?.capacityPerThousand65Plus}
                   nationalValue={nationalBenchmarks?.benchmarks?.capacityPerThousand65Plus}
+                  lowerIsBetter={true}
                 />
                 <BenchmarkComparison
                   label="Capacity per 1,000 Age 85+"
                   stateValue={data.metrics?.capacityPerThousand85Plus}
                   nationalValue={nationalBenchmarks?.benchmarks?.capacityPerThousand85Plus}
+                  lowerIsBetter={true}
                 />
               </>
             )}

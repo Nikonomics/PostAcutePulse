@@ -81,6 +81,7 @@ const permissionLabels = [
 const EditDeal = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -210,7 +211,7 @@ const EditDeal = () => {
     };
     fetchDeal();
     // eslint-disable-next-line
-  }, [id]);
+  }, [id, location.search]);
 
   // Get validation schema for current step
   const getCurrentStepValidationSchema = () => {
