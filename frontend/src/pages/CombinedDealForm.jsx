@@ -1415,7 +1415,8 @@ const CombinedDealForm = () => {
       if (response.code === 200) {
         toast.success("Facility data applied successfully!");
         setShowMatchModal(false);
-        navigate("/deals");
+        // Navigate directly to the deal detail page to show updated facility data
+        navigate(`/deals/edit-deal/${createdDealId}`);
       } else {
         toast.error(response.message || "Failed to apply facility match");
       }
