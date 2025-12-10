@@ -262,6 +262,10 @@ const UploadDeal = () => {
   };
 
   const handleSave = async () => {
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🚀 UPLOADDEAL.JSX v2.0 - FACILITY MATCHING REVIEW ENABLED');
+    console.log('═══════════════════════════════════════════════════════════');
+
     if (!extractedData) return;
 
     // Validate required fields
@@ -365,9 +369,16 @@ const UploadDeal = () => {
 
         toast.success("Deal created successfully!");
 
+        console.log('');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('🔍 CHECKING FOR FACILITY MATCHES (NEW CODE)');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('');
+
         // MANDATORY: Check for facility matches that need review
         if (createdDealId) {
-          console.log(`[UploadDeal] Checking facility matches for deal ${createdDealId}...`);
+          console.log(`[UploadDeal] ✅ Created deal ID: ${createdDealId}`);
+          console.log(`[UploadDeal] Fetching facility matches from API...`);
 
           try {
             const matchesResponse = await getFacilityMatches(createdDealId);

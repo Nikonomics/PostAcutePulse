@@ -882,37 +882,36 @@ const DealDetailPage = () => {
   };
 
   // Handler for field edits from DealExtractionViewer
+  // The DealExtractionViewer uses nested paths (e.g., 'deal_information.deal_name')
+  // but extraction_data in the database is stored flat (e.g., 'deal_name')
   const handleFieldEdit = async (fieldPath, newValue) => {
     try {
       // Deep clone the extraction data to avoid mutation issues
       const currentExtractionData = JSON.parse(JSON.stringify(deal.extraction_data || {}));
 
-      // Navigate to the correct nested field and update the value
+      // Convert nested path to flat field name
+      // e.g., 'deal_information.deal_name' -> 'deal_name'
+      // e.g., 'facility_information.bed_count' -> 'bed_count'
+      // e.g., 'contact_information.phone' -> 'contact_phone' (special case mapping)
       const pathParts = fieldPath.split('.');
-      let target = currentExtractionData;
+      let flatKey = pathParts[pathParts.length - 1]; // Default: use last part of path
 
-      for (let i = 0; i < pathParts.length - 1; i++) {
-        if (!target[pathParts[i]]) {
-          target[pathParts[i]] = {};
-        }
-        target = target[pathParts[i]];
+      // Handle special mappings for contact fields (canonical names differ from display names)
+      const contactFieldMappings = {
+        'title': 'contact_title',
+        'phone': 'contact_phone',
+        'email': 'contact_email'
+      };
+
+      // Check if this is a contact field that needs mapping
+      if (pathParts[0] === 'contact_information' && contactFieldMappings[flatKey]) {
+        flatKey = contactFieldMappings[flatKey];
       }
 
-      // Update the value in the extraction data structure
-      const lastKey = pathParts[pathParts.length - 1];
-      if (target[lastKey] && typeof target[lastKey] === 'object' && 'value' in target[lastKey]) {
-        // If it's an ExtractedField, update the value property
-        target[lastKey] = {
-          ...target[lastKey],
-          value: newValue,
-          confidence: 'user_edited'
-        };
-      } else {
-        // Direct value assignment
-        target[lastKey] = newValue;
-      }
+      // Update the flat extraction_data structure
+      currentExtractionData[flatKey] = newValue;
 
-      // Call the new API that only updates extraction_data
+      // Call the API that updates extraction_data
       const response = await updateExtractionData(deal.id, currentExtractionData);
 
       if (response.success) {

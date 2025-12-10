@@ -34,6 +34,7 @@ import {
   ChevronUp,
   ChevronDown,
   Download as DownloadIcon,
+  MapPin,
 } from 'lucide-react';
 import SNFalyzePanel from '../SNFalyzePanel';
 import {
@@ -44,6 +45,7 @@ import {
 } from './types';
 import DealCalculatorTab from '../DealCalculatorTab';
 import ProFormaTab from '../ProFormaTab/ProFormaTab';
+import MarketDynamicsTab from '../MarketDynamicsTab';
 import { formatTimestamp, formatPeriod, countExtractedFields } from './utils';
 import FieldCell from './FieldCell';
 import PayerMixChart from './PayerMixChart';
@@ -58,6 +60,7 @@ const TAB_CONFIGS = [
   { id: 'deal_overview', title: 'Deal Overview', icon: Lightbulb },
   { id: 'financials', title: 'Financials', icon: DollarSign },
   { id: 'census', title: 'Census & Rates', icon: Users },
+  { id: 'market', title: 'Market Dynamics', icon: MapPin },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
   { id: 'proforma', title: 'Pro Forma', icon: Target },
   { id: 'documents', title: 'Documents', icon: FolderOpen },
@@ -591,6 +594,16 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           <p>Pro Forma analysis requires extraction data</p>
         </div>
       )}
+    </div>
+  );
+
+  // Render Market Dynamics Tab
+  const renderMarketDynamicsTab = () => (
+    <div>
+      <MarketDynamicsTab
+        deal={deal}
+        extractionData={extractionData}
+      />
     </div>
   );
 
@@ -2174,6 +2187,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         return renderFinancialsTab();
       case 'census':
         return renderCensusTab();
+      case 'market':
+        return renderMarketDynamicsTab();
       case 'calculator':
         return renderCalculatorTab();
       case 'proforma':

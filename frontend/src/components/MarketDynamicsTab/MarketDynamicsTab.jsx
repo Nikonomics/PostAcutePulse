@@ -1,0 +1,430 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  MapPin,
+  Building2,
+  Users,
+  TrendingUp,
+  Star,
+  DollarSign,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+} from 'lucide-react';
+import axios from 'axios';
+import MarketMap from './MarketMap';
+import CompetitorTable from './CompetitorTable';
+import DemographicsPanel from './DemographicsPanel';
+import SupplyScorecard from './SupplyScorecard';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
+const styles = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '0.5rem',
+  },
+  title: {
+    fontSize: '1.25rem',
+    fontWeight: 600,
+    color: '#111827',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  subtitle: {
+    fontSize: '0.875rem',
+    color: '#6b7280',
+    marginTop: '0.25rem',
+  },
+  refreshButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem 1rem',
+    backgroundColor: '#f3f4f6',
+    border: '1px solid #d1d5db',
+    borderRadius: '0.375rem',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    color: '#374151',
+    transition: 'all 0.15s',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '1rem',
+  },
+  twoColumn: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '1.5rem',
+  },
+  card: {
+    backgroundColor: 'white',
+    border: '1px solid #e5e7eb',
+    borderRadius: '0.5rem',
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    padding: '1rem',
+    borderBottom: '1px solid #e5e7eb',
+    backgroundColor: '#f9fafb',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardTitle: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: '#111827',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  cardBody: {
+    padding: '1rem',
+  },
+  loading: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '3rem',
+    color: '#6b7280',
+    gap: '1rem',
+  },
+  error: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '1rem',
+    backgroundColor: '#fef2f2',
+    border: '1px solid #fecaca',
+    borderRadius: '0.375rem',
+    color: '#b91c1c',
+  },
+  noData: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '3rem',
+    color: '#9ca3af',
+    textAlign: 'center',
+    gap: '0.5rem',
+  },
+  radiusSelector: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  radiusLabel: {
+    fontSize: '0.75rem',
+    color: '#6b7280',
+  },
+  radiusSelect: {
+    padding: '0.25rem 0.5rem',
+    fontSize: '0.75rem',
+    border: '1px solid #d1d5db',
+    borderRadius: '0.25rem',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+  },
+  facilityTypeBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.25rem 0.75rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    borderRadius: '9999px',
+  },
+  snfBadge: {
+    backgroundColor: '#dbeafe',
+    color: '#1e40af',
+  },
+  alfBadge: {
+    backgroundColor: '#dcfce7',
+    color: '#166534',
+  },
+};
+
+const MarketDynamicsTab = ({ deal, extractionData }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [marketData, setMarketData] = useState(null);
+  const [competitors, setCompetitors] = useState([]);
+  const [radiusMiles, setRadiusMiles] = useState(25);
+  const [selectedCompetitor, setSelectedCompetitor] = useState(null);
+
+  // Determine facility type from deal or extraction data
+  const facilityType = useMemo(() => {
+    // Check deal.facilities or extraction data for type
+    if (deal?.facilities?.[0]?.facility_type) {
+      const type = deal.facilities[0].facility_type.toUpperCase();
+      if (type.includes('ALF') || type.includes('ASSISTED')) return 'ALF';
+      return 'SNF';
+    }
+    // Default to SNF
+    return 'SNF';
+  }, [deal]);
+
+  // Extract location from deal data
+  const location = useMemo(() => {
+    // Try to get from deal.facilities
+    if (deal?.facilities?.[0]) {
+      const fac = deal.facilities[0];
+      return {
+        latitude: parseFloat(fac.latitude) || null,
+        longitude: parseFloat(fac.longitude) || null,
+        state: fac.state,
+        county: fac.county,
+        city: fac.city,
+        facilityName: fac.facility_name,
+      };
+    }
+    // Try from extraction data
+    if (extractionData?.property_details) {
+      const pd = extractionData.property_details;
+      return {
+        latitude: null,
+        longitude: null,
+        state: pd.state?.value,
+        county: pd.county?.value,
+        city: pd.city?.value,
+        facilityName: pd.facility_name?.value,
+      };
+    }
+    return null;
+  }, [deal, extractionData]);
+
+  // Fetch market data
+  const fetchMarketData = async () => {
+    if (!location?.state || !location?.county) {
+      setError('Location data (state and county) is required for market analysis');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch market metrics
+      const metricsResponse = await axios.get(`${API_BASE}/api/market/metrics`, {
+        params: {
+          state: location.state,
+          county: location.county,
+          type: facilityType,
+        },
+      });
+
+      if (metricsResponse.data.success) {
+        setMarketData(metricsResponse.data.data);
+      }
+
+      // Fetch competitors if we have coordinates
+      if (location.latitude && location.longitude) {
+        const competitorsResponse = await axios.get(`${API_BASE}/api/market/competitors`, {
+          params: {
+            lat: location.latitude,
+            lon: location.longitude,
+            radius: radiusMiles,
+            type: facilityType,
+            limit: 50,
+          },
+        });
+
+        if (competitorsResponse.data.success) {
+          setCompetitors(competitorsResponse.data.data);
+        }
+      } else {
+        setCompetitors([]);
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching market data:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to fetch market data');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMarketData();
+  }, [location?.state, location?.county, facilityType, radiusMiles]);
+
+  const handleRefresh = () => {
+    fetchMarketData();
+  };
+
+  const handleRadiusChange = (e) => {
+    setRadiusMiles(parseInt(e.target.value));
+  };
+
+  const handleCompetitorSelect = (competitor) => {
+    setSelectedCompetitor(competitor);
+  };
+
+  if (!location) {
+    return (
+      <div style={styles.noData}>
+        <MapPin size={48} style={{ opacity: 0.3 }} />
+        <div style={{ fontSize: '1rem', fontWeight: 500 }}>No Location Data Available</div>
+        <div style={{ fontSize: '0.875rem' }}>
+          Add facility location information to see market dynamics
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div style={styles.loading}>
+        <Loader2 size={32} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+        <div>Loading market intelligence...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.container}>
+      {/* Header */}
+      <div style={styles.header}>
+        <div>
+          <div style={styles.title}>
+            <MapPin size={20} />
+            Market Dynamics
+            <span style={{
+              ...styles.facilityTypeBadge,
+              ...(facilityType === 'SNF' ? styles.snfBadge : styles.alfBadge),
+            }}>
+              {facilityType}
+            </span>
+          </div>
+          <div style={styles.subtitle}>
+            {location.facilityName ? `${location.facilityName} - ` : ''}
+            {location.county}{location.state ? `, ${location.state}` : ''}
+          </div>
+        </div>
+        <button style={styles.refreshButton} onClick={handleRefresh}>
+          <RefreshCw size={16} />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div style={styles.error}>
+          <AlertTriangle size={16} />
+          {error}
+        </div>
+      )}
+
+      {/* Supply Scorecard */}
+      {marketData && (
+        <SupplyScorecard
+          marketData={marketData}
+          facilityType={facilityType}
+        />
+      )}
+
+      {/* Map and Demographics Grid */}
+      <div style={styles.twoColumn}>
+        {/* Map Section */}
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>
+              <MapPin size={16} />
+              Competitor Map
+            </span>
+            <div style={styles.radiusSelector}>
+              <span style={styles.radiusLabel}>Radius:</span>
+              <select
+                style={styles.radiusSelect}
+                value={radiusMiles}
+                onChange={handleRadiusChange}
+              >
+                <option value="5">5 mi</option>
+                <option value="10">10 mi</option>
+                <option value="15">15 mi</option>
+                <option value="25">25 mi</option>
+                <option value="50">50 mi</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ ...styles.cardBody, padding: 0, height: '350px' }}>
+            {location.latitude && location.longitude ? (
+              <MarketMap
+                centerLat={location.latitude}
+                centerLon={location.longitude}
+                competitors={competitors}
+                facilityType={facilityType}
+                selectedCompetitor={selectedCompetitor}
+                onCompetitorSelect={handleCompetitorSelect}
+                facilityName={location.facilityName}
+              />
+            ) : (
+              <div style={styles.noData}>
+                <MapPin size={32} style={{ opacity: 0.3 }} />
+                <div>No coordinates available for map display</div>
+                <div style={{ fontSize: '0.75rem' }}>
+                  Add latitude/longitude to see competitor locations
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Demographics Panel */}
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>
+              <Users size={16} />
+              County Demographics
+            </span>
+          </div>
+          <div style={styles.cardBody}>
+            {marketData?.demographics ? (
+              <DemographicsPanel demographics={marketData.demographics} />
+            ) : (
+              <div style={styles.noData}>
+                <Users size={32} style={{ opacity: 0.3 }} />
+                <div>No demographics data available</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Competitor Table */}
+      <div style={styles.card}>
+        <div style={styles.cardHeader}>
+          <span style={styles.cardTitle}>
+            <Building2 size={16} />
+            Nearby Competitors ({competitors.length})
+          </span>
+        </div>
+        <div style={{ ...styles.cardBody, padding: 0 }}>
+          <CompetitorTable
+            competitors={competitors}
+            facilityType={facilityType}
+            selectedCompetitor={selectedCompetitor}
+            onCompetitorSelect={handleCompetitorSelect}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MarketDynamicsTab;
