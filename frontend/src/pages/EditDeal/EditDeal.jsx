@@ -6,7 +6,7 @@ import renderStep2 from "./editrenderStep2";
 import renderStep3 from "./editrenderStep3";
 import renderStep4 from "./editrenderStep4";
 import { getDealById, updateDeal } from "../../api/DealService";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { getActiveUsers } from "../../api/authService";
 
