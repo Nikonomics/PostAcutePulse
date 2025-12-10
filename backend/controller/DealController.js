@@ -4478,11 +4478,11 @@ module.exports = {
       console.log(`[selectFacilityMatch] Selected: ${selectedMatch.facility_name} (${selectedMatch.match_confidence})`);
 
       // Find or create facility record for this deal
-      let facility = await DealFacility.findOne({ where: { deal_id: dealId } });
+      let facility = await DealFacilities.findOne({ where: { deal_id: dealId } });
 
       if (!facility) {
         // Create new facility record
-        facility = await DealFacility.create({
+        facility = await DealFacilities.create({
           deal_id: dealId,
           facility_name: selectedMatch.facility_name,
           street_address: selectedMatch.address,
