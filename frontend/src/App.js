@@ -22,6 +22,7 @@ import LocationTest from "./pages/LocationTest";
 import CreateDealChoice from "./pages/CreateDealChoice";
 import UploadDeal from "./pages/UploadDeal";
 import Profile from "./pages/Profile";
+import MarketAnalysis from "./pages/MarketAnalysis";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
 //   const { isLoggedIn } = useAuth();
@@ -196,6 +197,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        {/* Market Analysis route */}
+        <Route
+          path="/market-analysis"
+          element={
+            <ProtectedRoute>
+              <MarketAnalysis />
             </ProtectedRoute>
           }
         />

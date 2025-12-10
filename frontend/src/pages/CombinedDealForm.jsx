@@ -6,10 +6,11 @@ import * as Yup from "yup";
 //   geocodeByPlaceId,
 //   getLatLng,
 // } from "react-google-places-autocomplete";
-import { createBatchDeals, extractDealEnhanced } from "../api/DealService";
+import { createBatchDeals, extractDealEnhanced, getFacilityMatches, selectFacilityMatch } from "../api/DealService";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { getActiveUsers } from "../api/authService";
+import FacilityMatchModal from "../components/FacilityMatchModal";
 // import LocationMultiSelect from "../components/ui/LocationMultiSelect";
 
 // --- Validation Schema ---
@@ -209,6 +210,12 @@ const CombinedDealForm = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Facility matching state
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [facilityMatches, setFacilityMatches] = useState([]);
+  const [matchSearchName, setMatchSearchName] = useState('');
+  const [createdDealId, setCreatedDealId] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -1326,6 +1333,53 @@ const CombinedDealForm = () => {
         const response = await createBatchDeals(payload);
         if (response.success === true && response.code === 200) {
           toast.success(response.message || "Deal created successfully!");
+
+          console.log('═══════════════════════════════════════════════════════════');
+          console.log('🔍 CHECKING FOR FACILITY MATCHES (COMBINED DEAL FORM)');
+          console.log('═══════════════════════════════════════════════════════════');
+
+          // MANDATORY: Check for facility matches that need review
+          const createdDeals = response.body?.deals || [];
+          const firstDealId = createdDeals[0]?.id;
+
+          if (firstDealId) {
+            console.log(`[CombinedDealForm] ✅ Created deal ID: ${firstDealId}`);
+            console.log(`[CombinedDealForm] Fetching facility matches from API...`);
+
+            try {
+              const matchesResponse = await getFacilityMatches(firstDealId);
+              console.log('[CombinedDealForm] Facility matches response:', matchesResponse);
+
+              if (matchesResponse.code === 200 && matchesResponse.body) {
+                const matchData = matchesResponse.body;
+                console.log('[CombinedDealForm] Match data status:', matchData.status);
+                console.log('[CombinedDealForm] Number of matches:', matchData.matches?.length || 0);
+
+                // Show modal if there are matches pending review
+                if (matchData.status === 'pending_review' && matchData.matches && matchData.matches.length > 0) {
+                  console.log(`[CombinedDealForm] ✅ SHOWING MODAL with ${matchData.matches.length} matches`);
+                  setCreatedDealId(firstDealId);
+                  setFacilityMatches(matchData.matches);
+                  setMatchSearchName(matchData.search_name || 'this facility');
+                  setShowMatchModal(true);
+                  return; // CRITICAL: Don't navigate yet - wait for user to review matches
+                } else {
+                  console.log('[CombinedDealForm] No matches found or already reviewed - navigating to deals');
+                }
+              } else {
+                console.warn('[CombinedDealForm] Unexpected response code:', matchesResponse.code);
+              }
+            } catch (matchError) {
+              console.error("[CombinedDealForm] Error fetching facility matches:", matchError);
+              console.error("[CombinedDealForm] Error details:", matchError.message);
+              // Continue to navigate on error (don't block user)
+            }
+          } else {
+            console.warn('[CombinedDealForm] No deal ID in response - cannot check facility matches');
+          }
+
+          // No matches to review, already reviewed, or error occurred - navigate to deals
+          console.log('[CombinedDealForm] Navigating to /deals');
           navigate("/deals");
         } else {
           toast.error(
@@ -1348,6 +1402,57 @@ const CombinedDealForm = () => {
   const handleBackFromPreview = () => {
     setShowPreview(false);
     setPreviewData(null);
+  };
+
+  // Facility match modal handlers
+  const handleSelectFacilityMatch = async (facilityId) => {
+    try {
+      const response = await selectFacilityMatch(createdDealId, {
+        facility_id: facilityId,
+        action: 'select'
+      });
+
+      if (response.code === 200) {
+        toast.success("Facility data applied successfully!");
+        setShowMatchModal(false);
+        navigate("/deals");
+      } else {
+        toast.error(response.message || "Failed to apply facility match");
+      }
+    } catch (error) {
+      console.error("Error selecting facility match:", error);
+      toast.error(error.message || "Failed to apply facility match");
+    }
+  };
+
+  const handleSkipFacilityMatch = async () => {
+    try {
+      await selectFacilityMatch(createdDealId, {
+        action: 'skip'
+      });
+      setShowMatchModal(false);
+      navigate("/deals");
+    } catch (error) {
+      console.error("Error skipping facility match:", error);
+      // Navigate anyway
+      setShowMatchModal(false);
+      navigate("/deals");
+    }
+  };
+
+  const handleNotSureFacilityMatch = async () => {
+    try {
+      await selectFacilityMatch(createdDealId, {
+        action: 'not_sure'
+      });
+      setShowMatchModal(false);
+      navigate("/deals");
+    } catch (error) {
+      console.error("Error marking facility match as not sure:", error);
+      // Navigate anyway
+      setShowMatchModal(false);
+      navigate("/deals");
+    }
   };
 
   const getFieldError = (field) => validationErrors[field];
@@ -4155,6 +4260,16 @@ const CombinedDealForm = () => {
           </div>
         )}
       </div>
+
+      {/* Facility Match Review Modal */}
+      <FacilityMatchModal
+        open={showMatchModal}
+        matches={facilityMatches}
+        searchName={matchSearchName}
+        onSelect={handleSelectFacilityMatch}
+        onSkip={handleSkipFacilityMatch}
+        onNotSure={handleNotSureFacilityMatch}
+      />
     </div>
   );
 };

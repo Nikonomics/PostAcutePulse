@@ -8,6 +8,7 @@ import {
   Minus,
   AlertTriangle,
   BarChart3,
+  Target,
 } from 'lucide-react';
 
 const styles = {
@@ -53,6 +54,34 @@ const styles = {
     fontSize: '0.625rem',
     color: '#9ca3af',
     marginTop: '0.25rem',
+  },
+  benchmarkComparison: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+    marginTop: '0.25rem',
+  },
+  nationalValue: {
+    fontSize: '0.625rem',
+    color: '#6b7280',
+  },
+  diffBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.125rem',
+    padding: '0.125rem 0.375rem',
+    borderRadius: '0.25rem',
+    fontSize: '0.625rem',
+    fontWeight: 500,
+    width: 'fit-content',
+  },
+  diffPositive: {
+    backgroundColor: '#dcfce7',
+    color: '#166534',
+  },
+  diffNegative: {
+    backgroundColor: '#fef2f2',
+    color: '#991b1b',
   },
   ratingDistribution: {
     display: 'flex',
@@ -107,6 +136,7 @@ const iconColors = {
   purple: { bg: '#f3e8ff', color: '#9333ea' },
   red: { bg: '#fee2e2', color: '#dc2626' },
   gray: { bg: '#f3f4f6', color: '#6b7280' },
+  cyan: { bg: '#cffafe', color: '#0891b2' },
 };
 
 // Format number with commas
@@ -121,7 +151,34 @@ const formatPercent = (num) => {
   return `${parseFloat(num).toFixed(1)}%`;
 };
 
-const SupplyScorecard = ({ marketData, facilityType }) => {
+// Benchmark comparison component
+const BenchmarkBadge = ({ value, nationalValue, lowerIsBetter = false }) => {
+  const localNum = parseFloat(value);
+  const nationalNum = parseFloat(nationalValue);
+
+  if (isNaN(localNum) || isNaN(nationalNum)) return null;
+
+  const diff = localNum - nationalNum;
+  const diffPercent = ((diff / nationalNum) * 100).toFixed(0);
+  const isPositive = lowerIsBetter ? diff < 0 : diff > 0;
+
+  return (
+    <div style={styles.benchmarkComparison}>
+      <div style={styles.nationalValue}>
+        National: {nationalNum.toFixed(1)}
+      </div>
+      <div style={{
+        ...styles.diffBadge,
+        ...(isPositive ? styles.diffPositive : styles.diffNegative),
+      }}>
+        {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+        {diff > 0 ? '+' : ''}{diffPercent}%
+      </div>
+    </div>
+  );
+};
+
+const SupplyScorecard = ({ marketData, facilityType, nationalBenchmarks }) => {
   if (!marketData) return null;
 
   const { supply, metrics, demographics } = marketData;
@@ -172,11 +229,22 @@ const SupplyScorecard = ({ marketData, facilityType }) => {
       showRatingDist: true,
     },
     {
-      icon: TrendingUp,
-      iconBg: iconColors.blue,
+      icon: Target,
+      iconBg: iconColors.cyan,
       label: 'Beds per 1K 65+',
       value: metrics?.bedsPerThousand65Plus || '-',
       subvalue: 'Supply density',
+      nationalValue: nationalBenchmarks?.benchmarks?.bedsPerThousand65Plus,
+      showBenchmark: true,
+    },
+    {
+      icon: Target,
+      iconBg: iconColors.cyan,
+      label: 'Beds per 1K 85+',
+      value: metrics?.bedsPerThousand85Plus || '-',
+      subvalue: 'High-acuity density',
+      nationalValue: nationalBenchmarks?.benchmarks?.bedsPerThousand85Plus,
+      showBenchmark: true,
     },
     {
       icon: metrics?.growthOutlook === 'Strong' ? TrendingUp : metrics?.growthOutlook === 'Slow' ? TrendingDown : Minus,
@@ -205,11 +273,22 @@ const SupplyScorecard = ({ marketData, facilityType }) => {
       subvalue: `Avg ${supply?.avgCapacity ? Math.round(supply.avgCapacity) : '-'} per facility`,
     },
     {
-      icon: TrendingUp,
-      iconBg: iconColors.blue,
+      icon: Target,
+      iconBg: iconColors.cyan,
       label: 'Capacity per 1K 65+',
       value: metrics?.capacityPerThousand65Plus || '-',
       subvalue: 'Supply density',
+      nationalValue: nationalBenchmarks?.benchmarks?.capacityPerThousand65Plus,
+      showBenchmark: true,
+    },
+    {
+      icon: Target,
+      iconBg: iconColors.cyan,
+      label: 'Capacity per 1K 85+',
+      value: metrics?.capacityPerThousand85Plus || '-',
+      subvalue: 'High-acuity density',
+      nationalValue: nationalBenchmarks?.benchmarks?.capacityPerThousand85Plus,
+      showBenchmark: true,
     },
     {
       icon: BarChart3,
@@ -244,6 +323,14 @@ const SupplyScorecard = ({ marketData, facilityType }) => {
             <div style={styles.cardLabel}>{card.label}</div>
             <div style={styles.cardValue}>{card.value}</div>
             <div style={styles.cardSubvalue}>{card.subvalue}</div>
+
+            {/* Benchmark comparison */}
+            {card.showBenchmark && card.nationalValue && (
+              <BenchmarkBadge
+                value={card.value}
+                nationalValue={card.nationalValue}
+              />
+            )}
 
             {/* Rating distribution for SNF */}
             {card.showRatingDist && supply?.ratingDistribution && totalRated > 0 && (

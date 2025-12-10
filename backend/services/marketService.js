@@ -61,7 +61,10 @@ async function getDemographics(state, county) {
   const pool = getPoolInstance();
 
   try {
-    // First try exact match
+    // Clean up county name - remove "County" suffix if present
+    const countyClean = county.replace(/\s+county$/i, '').trim();
+
+    // First try exact match (with and without " County" suffix)
     let result = await pool.query(`
       SELECT
         county_fips,
@@ -88,24 +91,27 @@ async function getDemographics(state, county) {
         total_al_need
       FROM county_demographics
       WHERE UPPER(state_code) = UPPER($1)
-        AND UPPER(county_name) LIKE UPPER($2)
+        AND (
+          UPPER(county_name) = UPPER($2) OR
+          UPPER(county_name) = UPPER($3) OR
+          UPPER(county_name) = UPPER($4)
+        )
       LIMIT 1
-    `, [state, `%${county}%`]);
+    `, [state, county, countyClean, `${countyClean} County`]);
 
     if (result.rows.length === 0) {
-      // Try with "County" suffix removed
-      const countyClean = county.replace(/\s+county$/i, '').trim();
+      // Fallback: try partial match but require word boundary (county name starts with the search term)
+      // Use more restrictive matching to avoid Ada matching Adams
       result = await pool.query(`
         SELECT *
         FROM county_demographics
         WHERE UPPER(state_code) = UPPER($1)
           AND (
-            UPPER(county_name) = UPPER($2) OR
-            UPPER(county_name) = UPPER($3) OR
-            UPPER(county_name) LIKE UPPER($4)
+            UPPER(county_name) = UPPER($2 || ' County') OR
+            UPPER(county_name) ~ ('^' || UPPER($2) || '( County)?$')
           )
         LIMIT 1
-      `, [state, county, countyClean, `${countyClean}%`]);
+      `, [state, countyClean]);
     }
 
     if (result.rows.length === 0) {
@@ -628,13 +634,24 @@ async function getMarketMetrics(state, county, facilityType = 'SNF') {
       return null;
     }
 
-    // Calculate derived metrics
-    const bedsPerThousand65Plus = demographics.population.age65Plus && supply.beds?.total
-      ? ((supply.beds.total / demographics.population.age65Plus) * 1000).toFixed(2)
+    // Calculate derived metrics for 65+
+    const pop65Plus = parseInt(demographics.population.age65Plus) || 0;
+    const pop85Plus = parseInt(demographics.population.age85Plus) || 0;
+
+    const bedsPerThousand65Plus = pop65Plus && supply.beds?.total
+      ? ((supply.beds.total / pop65Plus) * 1000).toFixed(2)
       : null;
 
-    const capacityPerThousand65Plus = demographics.population.age65Plus && supply.totalCapacity
-      ? ((supply.totalCapacity / demographics.population.age65Plus) * 1000).toFixed(2)
+    const bedsPerThousand85Plus = pop85Plus && supply.beds?.total
+      ? ((supply.beds.total / pop85Plus) * 1000).toFixed(2)
+      : null;
+
+    const capacityPerThousand65Plus = pop65Plus && supply.totalCapacity
+      ? ((supply.totalCapacity / pop65Plus) * 1000).toFixed(2)
+      : null;
+
+    const capacityPerThousand85Plus = pop85Plus && supply.totalCapacity
+      ? ((supply.totalCapacity / pop85Plus) * 1000).toFixed(2)
       : null;
 
     return {
@@ -642,13 +659,533 @@ async function getMarketMetrics(state, county, facilityType = 'SNF') {
       supply,
       metrics: {
         bedsPerThousand65Plus: facilityType === 'SNF' ? bedsPerThousand65Plus : null,
+        bedsPerThousand85Plus: facilityType === 'SNF' ? bedsPerThousand85Plus : null,
         capacityPerThousand65Plus: facilityType === 'ALF' ? capacityPerThousand65Plus : null,
+        capacityPerThousand85Plus: facilityType === 'ALF' ? capacityPerThousand85Plus : null,
         marketCompetition: supply.uniqueOperators > 5 ? 'High' : supply.uniqueOperators > 2 ? 'Medium' : 'Low',
         growthOutlook: demographics.projections.growthRate65Plus > 15 ? 'Strong' : demographics.projections.growthRate65Plus > 8 ? 'Moderate' : 'Slow'
       }
     };
   } catch (error) {
     console.error('[MarketService] getMarketMetrics error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get list of all states with facility counts
+ *
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise<Array>} Array of states with counts
+ */
+async function getStates(facilityType = 'SNF') {
+  const pool = getPoolInstance();
+
+  try {
+    const table = facilityType === 'ALF' ? 'alf_facilities' : 'snf_facilities';
+    const capacityField = facilityType === 'ALF' ? 'SUM(capacity)' : 'SUM(total_beds)';
+
+    const result = await pool.query(`
+      SELECT
+        state,
+        COUNT(*) as facility_count,
+        ${capacityField} as total_capacity
+      FROM ${table}
+      WHERE state IS NOT NULL AND state != ''
+      GROUP BY state
+      ORDER BY state
+    `);
+
+    return result.rows.map(row => ({
+      stateCode: row.state,
+      facilityCount: parseInt(row.facility_count) || 0,
+      totalCapacity: parseInt(row.total_capacity) || 0
+    }));
+  } catch (error) {
+    console.error('[MarketService] getStates error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get counties for a state with facility counts
+ *
+ * @param {string} state - State code (2 letters)
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise<Array>} Array of counties with counts
+ */
+async function getCounties(state, facilityType = 'SNF') {
+  const pool = getPoolInstance();
+
+  try {
+    const table = facilityType === 'ALF' ? 'alf_facilities' : 'snf_facilities';
+    const capacityField = facilityType === 'ALF' ? 'SUM(capacity)' : 'SUM(total_beds)';
+    const avgRatingField = facilityType === 'SNF' ? ', AVG(overall_rating) as avg_rating' : '';
+
+    const result = await pool.query(`
+      SELECT
+        county,
+        COUNT(*) as facility_count,
+        ${capacityField} as total_capacity
+        ${avgRatingField}
+      FROM ${table}
+      WHERE UPPER(state) = UPPER($1)
+        AND county IS NOT NULL AND county != ''
+      GROUP BY county
+      ORDER BY county
+    `, [state]);
+
+    return result.rows.map(row => ({
+      countyName: row.county,
+      facilityCount: parseInt(row.facility_count) || 0,
+      totalCapacity: parseInt(row.total_capacity) || 0,
+      avgRating: row.avg_rating ? parseFloat(row.avg_rating).toFixed(2) : null
+    }));
+  } catch (error) {
+    console.error('[MarketService] getCounties error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Search facilities by name (for autocomplete)
+ *
+ * @param {string} query - Search query
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @param {number} limit - Maximum results to return
+ * @returns {Promise<Array>} Array of matching facilities
+ */
+async function searchFacilities(query, facilityType = 'SNF', limit = 20) {
+  const pool = getPoolInstance();
+
+  try {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    if (facilityType === 'SNF') {
+      const result = await pool.query(`
+        SELECT
+          id,
+          facility_name,
+          city,
+          state,
+          county,
+          latitude,
+          longitude,
+          total_beds,
+          overall_rating
+        FROM snf_facilities
+        WHERE LOWER(facility_name) LIKE LOWER($1)
+        ORDER BY facility_name
+        LIMIT $2
+      `, [`%${query}%`, limit]);
+
+      return result.rows.map(row => ({
+        id: row.id,
+        facilityName: row.facility_name,
+        city: row.city,
+        state: row.state,
+        county: row.county,
+        latitude: row.latitude ? parseFloat(row.latitude) : null,
+        longitude: row.longitude ? parseFloat(row.longitude) : null,
+        beds: row.total_beds,
+        rating: row.overall_rating
+      }));
+    } else {
+      const result = await pool.query(`
+        SELECT
+          id,
+          facility_name,
+          city,
+          state,
+          county,
+          latitude,
+          longitude,
+          capacity
+        FROM alf_facilities
+        WHERE LOWER(facility_name) LIKE LOWER($1)
+        ORDER BY facility_name
+        LIMIT $2
+      `, [`%${query}%`, limit]);
+
+      return result.rows.map(row => ({
+        id: row.id,
+        facilityName: row.facility_name,
+        city: row.city,
+        state: row.state,
+        county: row.county,
+        latitude: row.latitude ? parseFloat(row.latitude) : null,
+        longitude: row.longitude ? parseFloat(row.longitude) : null,
+        capacity: row.capacity
+      }));
+    }
+  } catch (error) {
+    console.error('[MarketService] searchFacilities error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get national benchmark statistics
+ *
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise<Object>} National benchmark statistics
+ */
+async function getNationalBenchmarks(facilityType = 'SNF') {
+  const pool = getPoolInstance();
+
+  try {
+    // Get total national population 65+ and 85+
+    const popResult = await pool.query(`
+      SELECT
+        SUM(population_65_plus) as total_65_plus,
+        SUM(population_85_plus) as total_85_plus,
+        SUM(total_population) as total_population
+      FROM state_demographics
+    `);
+
+    const pop = popResult.rows[0];
+    const total65Plus = parseInt(pop.total_65_plus) || 0;
+    const total85Plus = parseInt(pop.total_85_plus) || 0;
+
+    if (facilityType === 'SNF') {
+      // Get total national SNF beds
+      const bedsResult = await pool.query(`
+        SELECT
+          SUM(total_beds) as total_beds,
+          COUNT(*) as facility_count,
+          AVG(overall_rating) as avg_rating,
+          AVG(occupancy_rate) as avg_occupancy
+        FROM snf_facilities
+      `);
+
+      const beds = bedsResult.rows[0];
+      const totalBeds = parseInt(beds.total_beds) || 0;
+
+      return {
+        facilityType: 'SNF',
+        population: {
+          total65Plus,
+          total85Plus
+        },
+        supply: {
+          totalFacilities: parseInt(beds.facility_count) || 0,
+          totalBeds,
+          avgRating: beds.avg_rating ? parseFloat(beds.avg_rating).toFixed(2) : null,
+          avgOccupancy: beds.avg_occupancy ? parseFloat(beds.avg_occupancy).toFixed(1) : null
+        },
+        benchmarks: {
+          bedsPerThousand65Plus: total65Plus > 0 ? ((totalBeds / total65Plus) * 1000).toFixed(2) : null,
+          bedsPerThousand85Plus: total85Plus > 0 ? ((totalBeds / total85Plus) * 1000).toFixed(2) : null
+        }
+      };
+    } else {
+      // Get total national ALF capacity
+      const capacityResult = await pool.query(`
+        SELECT
+          SUM(capacity) as total_capacity,
+          COUNT(*) as facility_count
+        FROM alf_facilities
+      `);
+
+      const capacity = capacityResult.rows[0];
+      const totalCapacity = parseInt(capacity.total_capacity) || 0;
+
+      return {
+        facilityType: 'ALF',
+        population: {
+          total65Plus,
+          total85Plus
+        },
+        supply: {
+          totalFacilities: parseInt(capacity.facility_count) || 0,
+          totalCapacity
+        },
+        benchmarks: {
+          capacityPerThousand65Plus: total65Plus > 0 ? ((totalCapacity / total65Plus) * 1000).toFixed(2) : null,
+          capacityPerThousand85Plus: total85Plus > 0 ? ((totalCapacity / total85Plus) * 1000).toFixed(2) : null
+        }
+      };
+    }
+  } catch (error) {
+    console.error('[MarketService] getNationalBenchmarks error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get state-level summary statistics
+ *
+ * @param {string} state - State code (2 letters)
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise<Object>} State summary statistics
+ */
+async function getStateSummary(state, facilityType = 'SNF') {
+  const pool = getPoolInstance();
+
+  try {
+    // Get state demographics
+    const demoResult = await pool.query(`
+      SELECT
+        population_65_plus,
+        population_85_plus,
+        total_population,
+        percent_65_plus,
+        percent_85_plus,
+        projected_65_plus_2030,
+        projected_85_plus_2030,
+        growth_rate_65_plus,
+        growth_rate_85_plus
+      FROM state_demographics
+      WHERE UPPER(state_code) = UPPER($1)
+    `, [state]);
+
+    const demo = demoResult.rows[0] || {};
+    const pop65Plus = parseInt(demo.population_65_plus) || 0;
+    const pop85Plus = parseInt(demo.population_85_plus) || 0;
+
+    if (facilityType === 'SNF') {
+      // Get overall state stats
+      const statsResult = await pool.query(`
+        SELECT
+          COUNT(*) as facility_count,
+          SUM(total_beds) as total_beds,
+          SUM(certified_beds) as certified_beds,
+          SUM(occupied_beds) as occupied_beds,
+          AVG(occupancy_rate) as avg_occupancy,
+          AVG(overall_rating) as avg_rating,
+          AVG(average_daily_rate) as avg_daily_rate,
+          SUM(CASE WHEN special_focus_facility = true THEN 1 ELSE 0 END) as special_focus_count,
+          COUNT(DISTINCT parent_organization) as unique_operators,
+          COUNT(DISTINCT county) as county_count
+        FROM snf_facilities
+        WHERE UPPER(state) = UPPER($1)
+      `, [state]);
+
+      const stats = statsResult.rows[0];
+      const totalBeds = parseInt(stats.total_beds) || 0;
+
+      // Get rating distribution
+      const ratingResult = await pool.query(`
+        SELECT overall_rating, COUNT(*) as count
+        FROM snf_facilities
+        WHERE UPPER(state) = UPPER($1) AND overall_rating IS NOT NULL
+        GROUP BY overall_rating
+        ORDER BY overall_rating
+      `, [state]);
+
+      const ratingDistribution = {};
+      ratingResult.rows.forEach(r => {
+        ratingDistribution[`star${r.overall_rating}`] = parseInt(r.count);
+      });
+
+      // Get top counties by facility count
+      const countiesResult = await pool.query(`
+        SELECT
+          county,
+          COUNT(*) as facility_count,
+          SUM(total_beds) as total_beds,
+          AVG(overall_rating) as avg_rating
+        FROM snf_facilities
+        WHERE UPPER(state) = UPPER($1) AND county IS NOT NULL
+        GROUP BY county
+        ORDER BY facility_count DESC
+        LIMIT 10
+      `, [state]);
+
+      return {
+        stateCode: state.toUpperCase(),
+        facilityCount: parseInt(stats.facility_count) || 0,
+        countyCount: parseInt(stats.county_count) || 0,
+        beds: {
+          total: totalBeds,
+          certified: parseInt(stats.certified_beds) || 0,
+          occupied: parseInt(stats.occupied_beds) || 0
+        },
+        demographics: {
+          population65Plus: pop65Plus,
+          population85Plus: pop85Plus,
+          totalPopulation: parseInt(demo.total_population) || 0,
+          percent65Plus: demo.percent_65_plus ? parseFloat(demo.percent_65_plus).toFixed(1) : null,
+          percent85Plus: demo.percent_85_plus ? parseFloat(demo.percent_85_plus).toFixed(2) : null,
+          projected65Plus2030: parseInt(demo.projected_65_plus_2030) || null,
+          projected85Plus2030: parseInt(demo.projected_85_plus_2030) || null,
+          growthRate65Plus: demo.growth_rate_65_plus ? parseFloat(demo.growth_rate_65_plus).toFixed(2) : null,
+          growthRate85Plus: demo.growth_rate_85_plus ? parseFloat(demo.growth_rate_85_plus).toFixed(2) : null
+        },
+        metrics: {
+          bedsPerThousand65Plus: pop65Plus > 0 ? ((totalBeds / pop65Plus) * 1000).toFixed(2) : null,
+          bedsPerThousand85Plus: pop85Plus > 0 ? ((totalBeds / pop85Plus) * 1000).toFixed(2) : null
+        },
+        avgOccupancy: stats.avg_occupancy ? parseFloat(stats.avg_occupancy).toFixed(1) : null,
+        avgRating: stats.avg_rating ? parseFloat(stats.avg_rating).toFixed(2) : null,
+        avgDailyRate: stats.avg_daily_rate ? parseFloat(stats.avg_daily_rate).toFixed(2) : null,
+        specialFocusCount: parseInt(stats.special_focus_count) || 0,
+        uniqueOperators: parseInt(stats.unique_operators) || 0,
+        ratingDistribution,
+        topCounties: countiesResult.rows.map(row => ({
+          countyName: row.county,
+          facilityCount: parseInt(row.facility_count) || 0,
+          totalBeds: parseInt(row.total_beds) || 0,
+          avgRating: row.avg_rating ? parseFloat(row.avg_rating).toFixed(2) : null
+        }))
+      };
+
+    } else {
+      // ALF state summary
+      const statsResult = await pool.query(`
+        SELECT
+          COUNT(*) as facility_count,
+          SUM(capacity) as total_capacity,
+          AVG(capacity) as avg_capacity,
+          COUNT(DISTINCT ownership_type) as ownership_types,
+          COUNT(DISTINCT licensee) as unique_operators,
+          COUNT(DISTINCT county) as county_count
+        FROM alf_facilities
+        WHERE UPPER(state) = UPPER($1)
+      `, [state]);
+
+      const stats = statsResult.rows[0];
+      const totalCapacity = parseInt(stats.total_capacity) || 0;
+
+      // Get top counties by facility count
+      const countiesResult = await pool.query(`
+        SELECT
+          county,
+          COUNT(*) as facility_count,
+          SUM(capacity) as total_capacity
+        FROM alf_facilities
+        WHERE UPPER(state) = UPPER($1) AND county IS NOT NULL
+        GROUP BY county
+        ORDER BY facility_count DESC
+        LIMIT 10
+      `, [state]);
+
+      return {
+        stateCode: state.toUpperCase(),
+        facilityCount: parseInt(stats.facility_count) || 0,
+        countyCount: parseInt(stats.county_count) || 0,
+        totalCapacity,
+        demographics: {
+          population65Plus: pop65Plus,
+          population85Plus: pop85Plus,
+          totalPopulation: parseInt(demo.total_population) || 0,
+          percent65Plus: demo.percent_65_plus ? parseFloat(demo.percent_65_plus).toFixed(1) : null,
+          percent85Plus: demo.percent_85_plus ? parseFloat(demo.percent_85_plus).toFixed(2) : null,
+          projected65Plus2030: parseInt(demo.projected_65_plus_2030) || null,
+          projected85Plus2030: parseInt(demo.projected_85_plus_2030) || null,
+          growthRate65Plus: demo.growth_rate_65_plus ? parseFloat(demo.growth_rate_65_plus).toFixed(2) : null,
+          growthRate85Plus: demo.growth_rate_85_plus ? parseFloat(demo.growth_rate_85_plus).toFixed(2) : null
+        },
+        metrics: {
+          capacityPerThousand65Plus: pop65Plus > 0 ? ((totalCapacity / pop65Plus) * 1000).toFixed(2) : null,
+          capacityPerThousand85Plus: pop85Plus > 0 ? ((totalCapacity / pop85Plus) * 1000).toFixed(2) : null
+        },
+        avgCapacity: stats.avg_capacity ? parseFloat(stats.avg_capacity).toFixed(1) : null,
+        ownershipTypes: parseInt(stats.ownership_types) || 0,
+        uniqueOperators: parseInt(stats.unique_operators) || 0,
+        topCounties: countiesResult.rows.map(row => ({
+          countyName: row.county,
+          facilityCount: parseInt(row.facility_count) || 0,
+          totalCapacity: parseInt(row.total_capacity) || 0
+        }))
+      };
+    }
+  } catch (error) {
+    console.error('[MarketService] getStateSummary error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get facilities in a county (for map display without specific coordinates)
+ *
+ * @param {string} state - State code
+ * @param {string} county - County name
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @param {number} limit - Maximum results
+ * @returns {Promise<Array>} Array of facilities with coordinates
+ */
+async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit = 100) {
+  const pool = getPoolInstance();
+
+  try {
+    if (facilityType === 'SNF') {
+      const result = await pool.query(`
+        SELECT
+          id,
+          facility_name,
+          address,
+          city,
+          state,
+          county,
+          latitude,
+          longitude,
+          total_beds,
+          overall_rating,
+          occupancy_rate,
+          ownership_type
+        FROM snf_facilities
+        WHERE UPPER(state) = UPPER($1)
+          AND UPPER(county) LIKE UPPER($2)
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+        ORDER BY total_beds DESC NULLS LAST
+        LIMIT $3
+      `, [state, `%${county.replace(/\s+county$/i, '')}%`, limit]);
+
+      return result.rows.map(row => ({
+        id: row.id,
+        facilityName: row.facility_name,
+        address: row.address,
+        city: row.city,
+        state: row.state,
+        county: row.county,
+        latitude: parseFloat(row.latitude),
+        longitude: parseFloat(row.longitude),
+        beds: { total: row.total_beds },
+        ratings: { overall: row.overall_rating },
+        occupancyRate: row.occupancy_rate,
+        ownership: { type: row.ownership_type }
+      }));
+    } else {
+      const result = await pool.query(`
+        SELECT
+          id,
+          facility_name,
+          address,
+          city,
+          state,
+          county,
+          latitude,
+          longitude,
+          capacity,
+          ownership_type
+        FROM alf_facilities
+        WHERE UPPER(state) = UPPER($1)
+          AND UPPER(county) LIKE UPPER($2)
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+        ORDER BY capacity DESC NULLS LAST
+        LIMIT $3
+      `, [state, `%${county.replace(/\s+county$/i, '')}%`, limit]);
+
+      return result.rows.map(row => ({
+        id: row.id,
+        facilityName: row.facility_name,
+        address: row.address,
+        city: row.city,
+        state: row.state,
+        county: row.county,
+        latitude: parseFloat(row.latitude),
+        longitude: parseFloat(row.longitude),
+        capacity: row.capacity,
+        ownership: { type: row.ownership_type }
+      }));
+    }
+  } catch (error) {
+    console.error('[MarketService] getFacilitiesInCounty error:', error);
     throw error;
   }
 }
@@ -669,5 +1206,11 @@ module.exports = {
   getSupplySummary,
   getFacilityDetail,
   getMarketMetrics,
+  getStates,
+  getCounties,
+  searchFacilities,
+  getStateSummary,
+  getFacilitiesInCounty,
+  getNationalBenchmarks,
   closePool
 };

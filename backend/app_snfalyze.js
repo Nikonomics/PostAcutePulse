@@ -137,8 +137,9 @@ app.use('/api/due-diligence', dueDiligenceRouter);
 // ALF Facilities API routes
 app.use('/api/facilities', facilitiesRouter);
 
-// Market Dynamics API routes
+// Market Dynamics API routes (available at both /api/market and /api/v1/market)
 app.use('/api/market', marketRouter);
+app.use('/api/v1/market', marketRouter);
 
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);

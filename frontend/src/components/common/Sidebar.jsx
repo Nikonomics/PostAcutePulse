@@ -8,7 +8,8 @@ import {
   FileBarChart,
   Settings,
   Bot,
-  User
+  User,
+  MapPin,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -19,18 +20,19 @@ const Sidebar = ({ isOpen }) => {
   const allMenuItems = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/deals', icon: Handshake, label: 'Deals' },
+    { path: '/market-analysis', icon: MapPin, label: 'Market Analysis' },
     { path: '/user-management', icon: User, label: 'User Management' },
     { path: '/ai-deals', icon: Bot, label: 'AI Assistant' },
   ];
 
-  // If admin, show all menu items. If not admin, show only dashboard, deals, ai tabs.
+  // If admin, show all menu items. If not admin, show only dashboard, deals, market analysis, ai tabs.
   let menuItems = [];
   if (user?.role === 'admin') {
     menuItems = allMenuItems;
   } else {
-    // Only show dashboard, deals, ai tabs for non-admins
+    // Only show dashboard, deals, market analysis, ai tabs for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/deals', '/ai-deals'].includes(item.path)
+      ['/dashboard', '/deals', '/market-analysis', '/ai-deals'].includes(item.path)
     );
   }
 

@@ -12,7 +12,13 @@ const {
   getCompetitors,
   getSupplySummary,
   getFacilityDetail,
-  getMarketMetrics
+  getMarketMetrics,
+  getStates,
+  getCounties,
+  searchFacilities,
+  getStateSummary,
+  getFacilitiesInCounty,
+  getNationalBenchmarks
 } = require('../services/marketService');
 
 /**
@@ -268,6 +274,244 @@ router.get('/metrics', async (req, res) => {
 
   } catch (error) {
     console.error('[Market Routes] getMarketMetrics error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/national-benchmarks
+ * Get national benchmark statistics for comparison
+ *
+ * Query Params:
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ *
+ * Returns national totals and beds/capacity per 1,000 population
+ */
+router.get('/national-benchmarks', async (req, res) => {
+  try {
+    const { type = 'SNF' } = req.query;
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+
+    const benchmarks = await getNationalBenchmarks(facilityType);
+
+    res.json({
+      success: true,
+      data: benchmarks
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getNationalBenchmarks error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/states
+ * Get list of all states with facility counts
+ *
+ * Query Params:
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ *
+ * Returns array of states with facility counts
+ */
+router.get('/states', async (req, res) => {
+  try {
+    const { type = 'SNF' } = req.query;
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+
+    const states = await getStates(facilityType);
+
+    res.json({
+      success: true,
+      facilityType,
+      count: states.length,
+      data: states
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getStates error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/counties
+ * Get counties for a state with facility counts
+ *
+ * Query Params:
+ * - state: State code (required)
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ *
+ * Returns array of counties with facility counts
+ */
+router.get('/counties', async (req, res) => {
+  try {
+    const { state, type = 'SNF' } = req.query;
+
+    if (!state) {
+      return res.status(400).json({
+        success: false,
+        error: 'State is required'
+      });
+    }
+
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+    const counties = await getCounties(state, facilityType);
+
+    res.json({
+      success: true,
+      facilityType,
+      state: state.toUpperCase(),
+      count: counties.length,
+      data: counties
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getCounties error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/facilities/search
+ * Search facilities by name (for autocomplete)
+ *
+ * Query Params:
+ * - q: Search query (required, min 2 characters)
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ * - limit: Maximum results (default: 20)
+ *
+ * Returns array of matching facilities
+ */
+router.get('/facilities/search', async (req, res) => {
+  try {
+    const { q, type = 'SNF', limit = 20 } = req.query;
+
+    if (!q || q.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query (q) must be at least 2 characters'
+      });
+    }
+
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+    const facilities = await searchFacilities(q, facilityType, parseInt(limit));
+
+    res.json({
+      success: true,
+      facilityType,
+      query: q,
+      count: facilities.length,
+      data: facilities
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] searchFacilities error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/state-summary/:state
+ * Get state-level summary statistics
+ *
+ * URL Params:
+ * - state: State code (e.g., "CA", "TX")
+ *
+ * Query Params:
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ *
+ * Returns state-level aggregated statistics
+ */
+router.get('/state-summary/:state', async (req, res) => {
+  try {
+    const { state } = req.params;
+    const { type = 'SNF' } = req.query;
+
+    if (!state) {
+      return res.status(400).json({
+        success: false,
+        error: 'State is required'
+      });
+    }
+
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+    const summary = await getStateSummary(state, facilityType);
+
+    if (!summary || summary.facilityCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No ${facilityType} facilities found in ${state.toUpperCase()}`
+      });
+    }
+
+    res.json({
+      success: true,
+      facilityType,
+      data: summary
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getStateSummary error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/facilities-in-county
+ * Get facilities in a county (for map display)
+ *
+ * Query Params:
+ * - state: State code (required)
+ * - county: County name (required)
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ * - limit: Maximum results (default: 100)
+ *
+ * Returns array of facilities with coordinates
+ */
+router.get('/facilities-in-county', async (req, res) => {
+  try {
+    const { state, county, type = 'SNF', limit = 100 } = req.query;
+
+    if (!state || !county) {
+      return res.status(400).json({
+        success: false,
+        error: 'State and county are required'
+      });
+    }
+
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+    const facilities = await getFacilitiesInCounty(state, county, facilityType, parseInt(limit));
+
+    res.json({
+      success: true,
+      facilityType,
+      state: state.toUpperCase(),
+      county,
+      count: facilities.length,
+      data: facilities
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getFacilitiesInCounty error:', error);
     res.status(500).json({
       success: false,
       error: error.message
