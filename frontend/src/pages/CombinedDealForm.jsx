@@ -1339,7 +1339,7 @@ const CombinedDealForm = () => {
           console.log('═══════════════════════════════════════════════════════════');
 
           // MANDATORY: Check for facility matches that need review
-          const createdDeals = response.body?.deals || [];
+          const createdDeals = response.body?.dealData || [];
           const firstDealId = createdDeals[0]?.id;
 
           if (firstDealId) {
