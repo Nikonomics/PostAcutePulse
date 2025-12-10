@@ -488,68 +488,8 @@ module.exports = {
             deal.deal_lead_id = deal.deal_lead_id === '' || deal.deal_lead_id === undefined ? null : (parseInt(deal.deal_lead_id) || null);
             deal.assistant_deal_lead_id = deal.assistant_deal_lead_id === '' || deal.assistant_deal_lead_id === undefined ? null : (parseInt(deal.assistant_deal_lead_id) || null);
 
-            // Attempt facility matching to auto-populate missing data
-            if (deal.facility_name && (!deal.no_of_beds || deal.no_of_beds === null)) {
-              try {
-                console.log(`[Facility Match] Attempting to match: "${deal.facility_name}"`);
-                console.log(`[Facility Match] Search params - City: ${deal.city || 'null'}, State: ${deal.state || 'null'}`);
-                const match = await matchFacility(
-                  deal.facility_name,
-                  deal.city || null,
-                  deal.state || null,
-                  0.85 // 85% minimum similarity
-                );
-
-                if (match && match.match_confidence === 'high') {
-                  console.log(`[Facility Match] High confidence match found: "${match.facility_name}" (${(match.match_score * 100).toFixed(1)}%)`);
-
-                  // Auto-populate missing fields from ALF database
-                  let fieldsPopulated = 0;
-
-                  if (!deal.no_of_beds && match.capacity) {
-                    deal.no_of_beds = match.capacity;
-                    console.log(`  ✓ Auto-populated beds: ${match.capacity}`);
-                    fieldsPopulated++;
-                  }
-
-                  if (!deal.address && match.address) {
-                    deal.address = match.address;
-                    console.log(`  ✓ Auto-populated address: ${match.address}`);
-                    fieldsPopulated++;
-                  }
-
-                  if (!deal.city && match.city) {
-                    deal.city = match.city;
-                    console.log(`  ✓ Auto-populated city: ${match.city}`);
-                    fieldsPopulated++;
-                  }
-
-                  if (!deal.zip_code && match.zip_code) {
-                    deal.zip_code = match.zip_code;
-                    console.log(`  ✓ Auto-populated zip: ${match.zip_code}`);
-                    fieldsPopulated++;
-                  }
-
-                  if (!deal.phone_number && match.phone_number) {
-                    deal.phone_number = match.phone_number;
-                    console.log(`  ✓ Auto-populated phone: ${match.phone_number}`);
-                    fieldsPopulated++;
-                  }
-
-                  if (fieldsPopulated > 0) {
-                    console.log(`[Facility Match] ✅ Auto-populated ${fieldsPopulated} field${fieldsPopulated > 1 ? 's' : ''}`);
-                  }
-                } else if (match) {
-                  console.log(`[Facility Match] Match found but confidence too low (${match.match_confidence}: ${(match.match_score * 100).toFixed(1)}%)`);
-                } else {
-                  console.log(`[Facility Match] No match found in database`);
-                  console.log(`[Facility Match] This could mean: (1) No facilities in that state, (2) Name similarity < 85%, or (3) Database error`);
-                }
-              } catch (matchError) {
-                console.error('[Facility Match] Error during matching:', matchError.message);
-                // Continue with deal creation even if matching fails
-              }
-            }
+            // Note: Facility matching now happens during extraction (parallelExtractor.js)
+            // and is reviewed manually via FacilityMatchModal. See selectFacilityMatch() endpoint.
 
             // create deal:
             // Get index to check if this is the first deal (for extraction_data)
@@ -2225,67 +2165,8 @@ module.exports = {
         (originalDeal.facility_name !== requiredData.facility_name && requiredData.no_of_beds <= 0)
       );
 
-      if (shouldMatch) {
-        try {
-          console.log(`[Facility Match] Attempting to match: "${requiredData.facility_name}"`);
-          console.log(`[Facility Match] Search params - City: ${requiredData.city || 'null'}, State: ${requiredData.state || 'null'}`);
-          const match = await matchFacility(
-            requiredData.facility_name,
-            requiredData.city || null,
-            requiredData.state || null,
-            0.85 // 85% minimum similarity
-          );
-
-          if (match && match.match_confidence === 'high') {
-            console.log(`[Facility Match] High confidence match found: "${match.facility_name}" (${(match.match_score * 100).toFixed(1)}%)`);
-
-            // Auto-populate missing fields from ALF database
-            let fieldsPopulated = 0;
-
-            if (!requiredData.no_of_beds && match.capacity) {
-              requiredData.no_of_beds = match.capacity;
-              console.log(`  ✓ Auto-populated beds: ${match.capacity}`);
-              fieldsPopulated++;
-            }
-
-            if (!requiredData.address && match.address) {
-              requiredData.address = match.address;
-              console.log(`  ✓ Auto-populated address: ${match.address}`);
-              fieldsPopulated++;
-            }
-
-            if (!requiredData.city && match.city) {
-              requiredData.city = match.city;
-              console.log(`  ✓ Auto-populated city: ${match.city}`);
-              fieldsPopulated++;
-            }
-
-            if (!requiredData.zip_code && match.zip_code) {
-              requiredData.zip_code = match.zip_code;
-              console.log(`  ✓ Auto-populated zip: ${match.zip_code}`);
-              fieldsPopulated++;
-            }
-
-            if (!requiredData.phone_number && match.phone_number) {
-              requiredData.phone_number = match.phone_number;
-              console.log(`  ✓ Auto-populated phone: ${match.phone_number}`);
-              fieldsPopulated++;
-            }
-
-            if (fieldsPopulated > 0) {
-              console.log(`[Facility Match] ✅ Auto-populated ${fieldsPopulated} field${fieldsPopulated > 1 ? 's' : ''}`);
-            }
-          } else if (match) {
-            console.log(`[Facility Match] Match found but confidence too low (${match.match_confidence}: ${(match.match_score * 100).toFixed(1)}%)`);
-          } else {
-            console.log(`[Facility Match] No match found in database`);
-            console.log(`[Facility Match] This could mean: (1) No facilities in that state, (2) Name similarity < 85%, or (3) Database error`);
-          }
-        } catch (matchError) {
-          console.error('[Facility Match] Error during matching:', matchError.message);
-          // Continue with deal update even if matching fails
-        }
-      }
+      // Note: Facility matching removed from updateDeal - it should only happen during extraction
+      // Manual facility selection via FacilityMatchModal is handled by selectFacilityMatch() endpoint
 
       // Update the deal
       await deal.update(requiredData);

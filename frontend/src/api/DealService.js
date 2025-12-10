@@ -593,3 +593,26 @@ export const getDealChangeHistory = async (dealId, page = 1) => {
   );
   return response.data;
 };
+
+/**
+ * Get facility matches from ALF database for a deal
+ * @param {number} dealId - The deal ID
+ * @returns {Promise} - Facility matches data
+ */
+export const getFacilityMatches = async (dealId) => {
+  const response = await apiService.get(`/deal/${dealId}/facility-matches`);
+  return response.data;
+};
+
+/**
+ * Select a facility match for a deal
+ * @param {number} dealId - The deal ID
+ * @param {Object} payload - Selection payload
+ * @param {string} payload.facility_id - The facility ID to select
+ * @param {string} payload.action - Action: 'select' | 'skip' | 'not_sure'
+ * @returns {Promise} - Result of selection
+ */
+export const selectFacilityMatch = async (dealId, payload) => {
+  const response = await apiService.post(`/deal/${dealId}/select-facility-match`, payload);
+  return response.data;
+};

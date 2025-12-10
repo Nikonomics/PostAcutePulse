@@ -13,8 +13,9 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import { extractDealEnhanced, createBatchDeals, addDealDocument } from "../api/DealService";
+import { extractDealEnhanced, createBatchDeals, addDealDocument, getFacilityMatches, selectFacilityMatch } from "../api/DealService";
 import { getActiveUsers } from "../api/authService";
+import FacilityMatchModal from "../components/FacilityMatchModal";
 
 // Field display configuration
 const FIELD_GROUPS = {
@@ -79,6 +80,11 @@ const UploadDeal = () => {
   const [uploadedFileInfo, setUploadedFileInfo] = useState([]);
   // Enhanced extraction data
   const [enhancedData, setEnhancedData] = useState(null);
+  // Facility matching modal
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [facilityMatches, setFacilityMatches] = useState([]);
+  const [matchSearchName, setMatchSearchName] = useState('');
+  const [createdDealId, setCreatedDealId] = useState(null);
 
   // Check if we have pre-extracted data from Deals page
   useEffect(() => {
@@ -356,7 +362,34 @@ const UploadDeal = () => {
             }
           }
         }
+
         toast.success("Deal created successfully!");
+
+        // Check for facility matches that need review
+        if (createdDealId) {
+          try {
+            const matchesResponse = await getFacilityMatches(createdDealId);
+
+            if (matchesResponse.code === 200 && matchesResponse.body) {
+              const matchData = matchesResponse.body;
+
+              // Show modal if there are matches pending review
+              if (matchData.status === 'pending_review' && matchData.matches && matchData.matches.length > 0) {
+                console.log(`[Facility Match] Found ${matchData.matches.length} matches for review`);
+                setCreatedDealId(createdDealId);
+                setFacilityMatches(matchData.matches);
+                setMatchSearchName(matchData.search_name || 'this facility');
+                setShowMatchModal(true);
+                return; // Don't navigate yet - wait for user to review matches
+              }
+            }
+          } catch (matchError) {
+            console.error("Error fetching facility matches:", matchError);
+            // Continue to navigate even if match fetch fails
+          }
+        }
+
+        // No matches to review or error occurred - navigate to deals
         navigate("/deals");
       } else {
         toast.error(response.message || "Failed to create deal");
@@ -366,6 +399,57 @@ const UploadDeal = () => {
       toast.error(error.message || "Failed to save deal");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Facility match modal handlers
+  const handleSelectFacilityMatch = async (facilityId) => {
+    try {
+      const response = await selectFacilityMatch(createdDealId, {
+        facility_id: facilityId,
+        action: 'select'
+      });
+
+      if (response.code === 200) {
+        toast.success("Facility data applied successfully!");
+        setShowMatchModal(false);
+        navigate("/deals");
+      } else {
+        toast.error(response.message || "Failed to apply facility match");
+      }
+    } catch (error) {
+      console.error("Error selecting facility match:", error);
+      toast.error(error.message || "Failed to apply facility match");
+    }
+  };
+
+  const handleSkipFacilityMatch = async () => {
+    try {
+      await selectFacilityMatch(createdDealId, {
+        action: 'skip'
+      });
+      setShowMatchModal(false);
+      navigate("/deals");
+    } catch (error) {
+      console.error("Error skipping facility match:", error);
+      // Navigate anyway
+      setShowMatchModal(false);
+      navigate("/deals");
+    }
+  };
+
+  const handleNotSureFacilityMatch = async () => {
+    try {
+      await selectFacilityMatch(createdDealId, {
+        action: 'not_sure'
+      });
+      setShowMatchModal(false);
+      navigate("/deals");
+    } catch (error) {
+      console.error("Error marking facility match as not sure:", error);
+      // Navigate anyway
+      setShowMatchModal(false);
+      navigate("/deals");
     }
   };
 
@@ -657,6 +741,16 @@ const UploadDeal = () => {
           )}
         </div>
       </div>
+
+      {/* Facility Match Review Modal */}
+      <FacilityMatchModal
+        open={showMatchModal}
+        matches={facilityMatches}
+        searchName={matchSearchName}
+        onSelect={handleSelectFacilityMatch}
+        onSkip={handleSkipFacilityMatch}
+        onNotSure={handleNotSureFacilityMatch}
+      />
     </div>
   );
 };
