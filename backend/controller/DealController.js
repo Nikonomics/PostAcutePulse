@@ -4514,7 +4514,7 @@ module.exports = {
       await deal.update({
         facility_name: selectedMatch.facility_name,
         no_of_beds: selectedMatch.capacity, // Licensed beds from ALF database
-        address: selectedMatch.address,
+        street_address: selectedMatch.address,
         city: selectedMatch.city,
         state: selectedMatch.state,
         zip_code: selectedMatch.zip_code,
