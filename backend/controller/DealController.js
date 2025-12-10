@@ -4501,6 +4501,21 @@ module.exports = {
         });
       }
 
+      // CRITICAL: Update the main deals table with ALF database data
+      // This ensures the General Info tab and Calculator use accurate facility data
+      await deal.update({
+        facility_name: selectedMatch.facility_name,
+        no_of_beds: selectedMatch.capacity, // Licensed beds from ALF database
+        address: selectedMatch.address,
+        city: selectedMatch.city,
+        state: selectedMatch.state,
+        zip_code: selectedMatch.zip_code,
+        latitude: selectedMatch.latitude,
+        longitude: selectedMatch.longitude
+      });
+
+      console.log(`[selectFacilityMatch] ✅ Updated deals table: ${selectedMatch.capacity} beds, ${selectedMatch.address}`);
+
       // Update extraction data to mark as selected
       if (enhancedData?.extractedData?.overview?.facility_matches) {
         enhancedData.extractedData.overview.facility_matches.status = 'selected';

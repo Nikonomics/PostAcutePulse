@@ -381,15 +381,17 @@ const UploadDeal = () => {
                 setMatchSearchName(matchData.search_name || 'this facility');
                 setShowMatchModal(true);
                 return; // Don't navigate yet - wait for user to review matches
+              } else {
+                console.log('[Facility Match] No matches found or already reviewed');
               }
             }
           } catch (matchError) {
             console.error("Error fetching facility matches:", matchError);
-            // Continue to navigate even if match fetch fails
+            // Don't navigate away - just log the error and continue to navigate below
           }
         }
 
-        // No matches to review or error occurred - navigate to deals
+        // No matches to review, already reviewed, or error occurred - navigate to deals
         navigate("/deals");
       } else {
         toast.error(response.message || "Failed to create deal");
