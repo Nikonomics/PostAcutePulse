@@ -4341,10 +4341,12 @@ module.exports = {
   getFacilityMatches: async (req, res) => {
     try {
       const dealId = req.params.dealId;
+      console.log(`[getFacilityMatches] Fetching matches for deal ${dealId}`);
 
       // Find the deal
       const deal = await Deal.findByPk(dealId);
       if (!deal) {
+        console.log(`[getFacilityMatches] Deal ${dealId} not found`);
         return helper.error(res, "Deal not found", 404);
       }
 
@@ -4377,13 +4379,19 @@ module.exports = {
         || extractionData?.deal_overview?.facility_matches
         || extractionData?.overview?.facility_matches;
 
+      console.log(`[getFacilityMatches] Found facility matches:`, facilityMatches ? 'YES' : 'NO');
+      console.log(`[getFacilityMatches] Status:`, facilityMatches?.status || 'N/A');
+      console.log(`[getFacilityMatches] Match count:`, facilityMatches?.matches?.length || 0);
+
       if (!facilityMatches) {
+        console.log(`[getFacilityMatches] No facility matches in extraction data for deal ${dealId}`);
         return helper.success(res, "No facility matches found", {
           status: 'no_matches',
           matches: []
         });
       }
 
+      console.log(`[getFacilityMatches] ✅ Returning ${facilityMatches.matches?.length || 0} matches with status: ${facilityMatches.status}`);
       return helper.success(res, "Facility matches retrieved", facilityMatches);
 
     } catch (err) {

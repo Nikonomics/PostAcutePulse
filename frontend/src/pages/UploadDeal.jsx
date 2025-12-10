@@ -365,33 +365,44 @@ const UploadDeal = () => {
 
         toast.success("Deal created successfully!");
 
-        // Check for facility matches that need review
+        // MANDATORY: Check for facility matches that need review
         if (createdDealId) {
+          console.log(`[UploadDeal] Checking facility matches for deal ${createdDealId}...`);
+
           try {
             const matchesResponse = await getFacilityMatches(createdDealId);
+            console.log('[UploadDeal] Facility matches response:', matchesResponse);
 
             if (matchesResponse.code === 200 && matchesResponse.body) {
               const matchData = matchesResponse.body;
+              console.log('[UploadDeal] Match data status:', matchData.status);
+              console.log('[UploadDeal] Number of matches:', matchData.matches?.length || 0);
 
               // Show modal if there are matches pending review
               if (matchData.status === 'pending_review' && matchData.matches && matchData.matches.length > 0) {
-                console.log(`[Facility Match] Found ${matchData.matches.length} matches for review`);
+                console.log(`[UploadDeal] ✅ SHOWING MODAL with ${matchData.matches.length} matches`);
                 setCreatedDealId(createdDealId);
                 setFacilityMatches(matchData.matches);
                 setMatchSearchName(matchData.search_name || 'this facility');
                 setShowMatchModal(true);
-                return; // Don't navigate yet - wait for user to review matches
+                return; // CRITICAL: Don't navigate yet - wait for user to review matches
               } else {
-                console.log('[Facility Match] No matches found or already reviewed');
+                console.log('[UploadDeal] No matches found or already reviewed - navigating to deals');
               }
+            } else {
+              console.warn('[UploadDeal] Unexpected response code:', matchesResponse.code);
             }
           } catch (matchError) {
-            console.error("Error fetching facility matches:", matchError);
-            // Don't navigate away - just log the error and continue to navigate below
+            console.error("[UploadDeal] Error fetching facility matches:", matchError);
+            console.error("[UploadDeal] Error details:", matchError.message);
+            // Continue to navigate on error (don't block user)
           }
+        } else {
+          console.warn('[UploadDeal] No createdDealId - cannot check facility matches');
         }
 
         // No matches to review, already reviewed, or error occurred - navigate to deals
+        console.log('[UploadDeal] Navigating to /deals');
         navigate("/deals");
       } else {
         toast.error(response.message || "Failed to create deal");
