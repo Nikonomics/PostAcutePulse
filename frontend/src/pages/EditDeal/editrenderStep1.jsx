@@ -301,23 +301,12 @@ const renderStep1 = (formData, handleInputChange, validationErrors = {}, touched
             <div className="form-row">
               <div className="form-group mb-3 streetaddress " style={{ gridColumn: 'span 2' }}>
                 <label className="form-label required">Street Address</label>
-                <GooglePlacesAutocomplete
-                  apiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
-                  selectProps={{
-                    value: selectedPlace,
-                    onChange: handlePlaceSelect,
-                    placeholder: 'Search for an address...',
-                    isClearable: true,
-                    styles: customStyles,
-                    className: 'google-places-autocomplete',
-                  }}
-                  autocompletionRequest={{
-                    types: ['address'],
-                    componentRestrictions: {
-                      country: ['us', 'ca'], // US and Canada
-                    },
-                  }}
-                  debounce={300}
+                <input
+                  type="text"
+                  className={`form-input ${touched?.street_address && validationErrors.street_address ? 'error' : ''}`}
+                  value={formData.street_address || ''}
+                  onChange={(e) => handleInputChange('street_address', e.target.value)}
+                  placeholder="Enter street address"
                 />
                 {touched?.street_address && validationErrors.street_address && (
                   <span className="error-message">{validationErrors.street_address}</span>

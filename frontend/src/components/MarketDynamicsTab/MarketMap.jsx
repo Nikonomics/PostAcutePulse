@@ -110,10 +110,28 @@ const MarketMap = ({
   onCompetitorSelect,
   facilityName,
 }) => {
+  const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+
+  // Skip loading if no API key is configured
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
+    googleMapsApiKey: apiKey || 'NO_API_KEY',
   });
+
+  // Early return if no API key is configured
+  if (!apiKey) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={{ textAlign: 'center' }}>
+          <MapPin size={32} style={{ color: '#9ca3af', marginBottom: '0.5rem' }} />
+          <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>Google Maps API key not configured</div>
+          <div style={{ color: '#9ca3af', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+            {competitors?.length || 0} facilities in this area
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const center = useMemo(() => ({
     lat: centerLat,
