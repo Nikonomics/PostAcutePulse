@@ -1195,7 +1195,7 @@ const DealDetailPage = () => {
               {/* Multi-Facility Management Section (new) */}
               <FacilitiesSection
                 dealId={deal.id}
-                facilities={deal.facilities || []}
+                facilities={deal.deal_facility || []}
               />
 
               {/* Legacy Facility Information (from flat deal structure - will be deprecated) */}

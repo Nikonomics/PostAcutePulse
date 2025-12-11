@@ -169,9 +169,9 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
 
   // Determine facility type from deal or extraction data
   const facilityType = useMemo(() => {
-    // Check deal.facilities or extraction data for type
-    if (deal?.facilities?.[0]?.facility_type) {
-      const type = deal.facilities[0].facility_type.toUpperCase();
+    // Check deal.deal_facility or extraction data for type
+    if (deal?.deal_facility?.[0]?.facility_type) {
+      const type = deal.deal_facility[0].facility_type.toUpperCase();
       if (type.includes('ALF') || type.includes('ASSISTED')) return 'ALF';
       return 'SNF';
     }
@@ -181,9 +181,9 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
 
   // Extract location from deal data
   const location = useMemo(() => {
-    // Try to get from deal.facilities
-    if (deal?.facilities?.[0]) {
-      const fac = deal.facilities[0];
+    // Try to get from deal.deal_facility
+    if (deal?.deal_facility?.[0]) {
+      const fac = deal.deal_facility[0];
       return {
         latitude: parseFloat(fac.latitude) || null,
         longitude: parseFloat(fac.longitude) || null,
