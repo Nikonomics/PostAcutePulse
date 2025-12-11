@@ -51,7 +51,183 @@ const HAVERSINE_SQL = `
 `;
 
 /**
- * Get county demographics data
+ * Get CBSA (market) demographics by aggregating all counties in the CBSA
+ *
+ * @param {string} state - State code (2 letters)
+ * @param {string} county - County name (used to look up CBSA)
+ * @returns {Promise<Object>} Market-level demographics data
+ */
+async function getMarketDemographics(state, county) {
+  const pool = getPoolInstance();
+
+  try {
+    // Clean up county name - remove "County" suffix if present
+    const countyClean = county.replace(/\s+county$/i, '').trim();
+
+    // Step 1: Find the county FIPS code
+    let countyFipsResult = await pool.query(`
+      SELECT county_fips
+      FROM county_demographics
+      WHERE UPPER(state_code) = UPPER($1)
+        AND (
+          UPPER(county_name) = UPPER($2) OR
+          UPPER(county_name) = UPPER($3) OR
+          UPPER(county_name) = UPPER($4)
+        )
+      LIMIT 1
+    `, [state, county, countyClean, `${countyClean} County`]);
+
+    if (countyFipsResult.rows.length === 0) {
+      // Fallback to partial match
+      countyFipsResult = await pool.query(`
+        SELECT county_fips
+        FROM county_demographics
+        WHERE UPPER(state_code) = UPPER($1)
+          AND UPPER(county_name) ~ ('^' || UPPER($2) || '( County)?$')
+        LIMIT 1
+      `, [state, countyClean]);
+    }
+
+    if (countyFipsResult.rows.length === 0) {
+      console.log(`[MarketService] No county found for ${county}, ${state}`);
+      return null;
+    }
+
+    const countyFips = countyFipsResult.rows[0].county_fips;
+
+    // Step 2: Look up the CBSA this county belongs to
+    const cbsaResult = await pool.query(`
+      SELECT cbsa_code, cbsa_title
+      FROM county_cbsa_crosswalk
+      WHERE county_fips = $1
+    `, [countyFips]);
+
+    // If county is not in a CBSA (rural), fall back to single county
+    if (cbsaResult.rows.length === 0 || !cbsaResult.rows[0].cbsa_code) {
+      console.log(`[MarketService] County ${countyFips} not in a CBSA, using single county`);
+      const singleCountyData = await getDemographics(state, county);
+      if (singleCountyData) {
+        singleCountyData.marketType = 'rural';
+        singleCountyData.marketName = `${singleCountyData.countyName}, ${singleCountyData.stateCode}`;
+        singleCountyData.countyCount = 1;
+        singleCountyData.counties = [{
+          countyFips: singleCountyData.countyFips,
+          countyName: singleCountyData.countyName,
+          stateCode: singleCountyData.stateCode
+        }];
+      }
+      return singleCountyData;
+    }
+
+    const cbsaCode = cbsaResult.rows[0].cbsa_code;
+    const cbsaTitle = cbsaResult.rows[0].cbsa_title;
+
+    // Step 3: Get all counties in the CBSA
+    const cbsaCountiesResult = await pool.query(`
+      SELECT county_fips, county_name, state_code, is_central_county
+      FROM county_cbsa_crosswalk
+      WHERE cbsa_code = $1
+      ORDER BY is_central_county DESC, state_code, county_name
+    `, [cbsaCode]);
+
+    const cbsaCountyFips = cbsaCountiesResult.rows.map(r => r.county_fips);
+
+    // Step 4: Aggregate demographics for all counties in the CBSA
+    const aggregateResult = await pool.query(`
+      SELECT
+        COUNT(*) as county_count,
+        SUM(total_population) as total_population,
+        SUM(population_65_plus) as population_65_plus,
+        SUM(population_85_plus) as population_85_plus,
+        SUM(projected_65_plus_2030) as projected_65_plus_2030,
+        SUM(projected_85_plus_2030) as projected_85_plus_2030,
+        SUM(total_al_need) as total_al_need,
+        -- Weighted averages (by population)
+        SUM(median_household_income * total_population) / NULLIF(SUM(total_population), 0) as weighted_median_income,
+        SUM(median_home_value * total_population) / NULLIF(SUM(total_population), 0) as weighted_median_home_value,
+        SUM(homeownership_rate * total_population) / NULLIF(SUM(total_population), 0) as weighted_homeownership_rate,
+        SUM(poverty_rate * total_population) / NULLIF(SUM(total_population), 0) as weighted_poverty_rate,
+        SUM(unemployment_rate * total_population) / NULLIF(SUM(total_population), 0) as weighted_unemployment_rate,
+        SUM(college_education_rate * total_population) / NULLIF(SUM(total_population), 0) as weighted_college_rate,
+        SUM(less_than_hs_rate * total_population) / NULLIF(SUM(total_population), 0) as weighted_less_than_hs_rate,
+        SUM(median_age * total_population) / NULLIF(SUM(total_population), 0) as weighted_median_age
+      FROM county_demographics
+      WHERE county_fips = ANY($1)
+    `, [cbsaCountyFips]);
+
+    const agg = aggregateResult.rows[0];
+
+    // Calculate percentages and growth rates
+    const totalPop = parseInt(agg.total_population) || 0;
+    const pop65Plus = parseInt(agg.population_65_plus) || 0;
+    const pop85Plus = parseInt(agg.population_85_plus) || 0;
+    const projected65Plus2030 = parseInt(agg.projected_65_plus_2030) || 0;
+    const projected85Plus2030 = parseInt(agg.projected_85_plus_2030) || 0;
+
+    const percent65Plus = totalPop > 0 ? (pop65Plus / totalPop) * 100 : 0;
+    const percent85Plus = totalPop > 0 ? (pop85Plus / totalPop) * 100 : 0;
+    const growthRate65Plus = pop65Plus > 0 ? ((projected65Plus2030 - pop65Plus) / pop65Plus) * 100 : 0;
+    const growthRate85Plus = pop85Plus > 0 ? ((projected85Plus2030 - pop85Plus) / pop85Plus) * 100 : 0;
+
+    // Get CBSA type (Metropolitan/Micropolitan)
+    const cbsaTypeResult = await pool.query(`
+      SELECT cbsa_type FROM cbsas WHERE cbsa_code = $1
+    `, [cbsaCode]);
+    const cbsaType = cbsaTypeResult.rows.length > 0 ? cbsaTypeResult.rows[0].cbsa_type : 'Unknown';
+
+    return {
+      marketType: cbsaType === 'Metropolitan' ? 'metro' : 'micro',
+      marketName: cbsaTitle,
+      cbsaCode: cbsaCode,
+      cbsaType: cbsaType,
+      countyCount: parseInt(agg.county_count) || 0,
+      counties: cbsaCountiesResult.rows.map(r => ({
+        countyFips: r.county_fips,
+        countyName: r.county_name,
+        stateCode: r.state_code,
+        isCentralCounty: r.is_central_county
+      })),
+      // The original county that was looked up
+      sourceCounty: {
+        countyFips: countyFips,
+        countyName: county,
+        stateCode: state
+      },
+      population: {
+        total: totalPop,
+        age65Plus: pop65Plus,
+        age85Plus: pop85Plus,
+        percent65Plus: percent65Plus.toFixed(1),
+        percent85Plus: percent85Plus.toFixed(2)
+      },
+      projections: {
+        age65Plus2030: projected65Plus2030,
+        age85Plus2030: projected85Plus2030,
+        growthRate65Plus: growthRate65Plus.toFixed(2),
+        growthRate85Plus: growthRate85Plus.toFixed(2)
+      },
+      economics: {
+        medianHouseholdIncome: Math.round(parseFloat(agg.weighted_median_income)) || null,
+        medianHomeValue: Math.round(parseFloat(agg.weighted_median_home_value)) || null,
+        homeownershipRate: parseFloat(agg.weighted_homeownership_rate)?.toFixed(1) || null,
+        povertyRate: parseFloat(agg.weighted_poverty_rate)?.toFixed(1) || null,
+        unemploymentRate: parseFloat(agg.weighted_unemployment_rate)?.toFixed(1) || null
+      },
+      education: {
+        collegeRate: parseFloat(agg.weighted_college_rate)?.toFixed(1) || null,
+        lessThanHsRate: parseFloat(agg.weighted_less_than_hs_rate)?.toFixed(1) || null
+      },
+      medianAge: parseFloat(agg.weighted_median_age)?.toFixed(1) || null,
+      totalAlNeed: parseInt(agg.total_al_need) || null
+    };
+  } catch (error) {
+    console.error('[MarketService] getMarketDemographics error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get county demographics data (single county - legacy)
  *
  * @param {string} state - State code (2 letters)
  * @param {string} county - County name
@@ -616,6 +792,7 @@ async function getFacilityDetail(facilityType, facilityId) {
 
 /**
  * Get market metrics for a specific location
+ * Uses CBSA-level demographics (aggregating all counties in the market)
  * Combines demographics + supply data for scorecard display
  *
  * @param {string} state - State code
@@ -625,13 +802,21 @@ async function getFacilityDetail(facilityType, facilityId) {
  */
 async function getMarketMetrics(state, county, facilityType = 'SNF') {
   try {
-    const [demographics, supply] = await Promise.all([
-      getDemographics(state, county),
-      getSupplySummary(null, facilityType, state, county)
-    ]);
+    // Use CBSA-level demographics for market-wide view
+    const demographics = await getMarketDemographics(state, county);
 
     if (!demographics) {
       return null;
+    }
+
+    // Get supply data for either the CBSA counties or single county
+    let supply;
+    if (demographics.counties && demographics.counties.length > 1) {
+      // Aggregate supply across all CBSA counties
+      supply = await getSupplySummaryForCBSA(demographics.counties.map(c => c.countyFips), facilityType);
+    } else {
+      // Single county (rural area)
+      supply = await getSupplySummary(null, facilityType, state, county);
     }
 
     // Calculate derived metrics for 65+
@@ -663,11 +848,100 @@ async function getMarketMetrics(state, county, facilityType = 'SNF') {
         capacityPerThousand65Plus: facilityType === 'ALF' ? capacityPerThousand65Plus : null,
         capacityPerThousand85Plus: facilityType === 'ALF' ? capacityPerThousand85Plus : null,
         marketCompetition: supply.uniqueOperators > 5 ? 'High' : supply.uniqueOperators > 2 ? 'Medium' : 'Low',
-        growthOutlook: demographics.projections.growthRate65Plus > 15 ? 'Strong' : demographics.projections.growthRate65Plus > 8 ? 'Moderate' : 'Slow'
+        growthOutlook: parseFloat(demographics.projections.growthRate65Plus) > 15 ? 'Strong' : parseFloat(demographics.projections.growthRate65Plus) > 8 ? 'Moderate' : 'Slow'
       }
     };
   } catch (error) {
     console.error('[MarketService] getMarketMetrics error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get supply summary statistics for multiple counties (CBSA)
+ *
+ * @param {string[]} countyFipsList - Array of county FIPS codes
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise<Object>} Aggregated supply statistics
+ */
+async function getSupplySummaryForCBSA(countyFipsList, facilityType = 'SNF') {
+  const pool = getPoolInstance();
+
+  try {
+    if (facilityType === 'SNF') {
+      const query = `
+        SELECT
+          COUNT(*) as facility_count,
+          SUM(total_beds) as total_beds,
+          SUM(certified_beds) as certified_beds,
+          SUM(occupied_beds) as occupied_beds,
+          AVG(occupancy_rate) as avg_occupancy,
+          AVG(overall_rating) as avg_rating,
+          AVG(average_daily_rate) as avg_daily_rate,
+          SUM(CASE WHEN special_focus_facility = true THEN 1 ELSE 0 END) as special_focus_count,
+          COUNT(DISTINCT parent_organization) as unique_operators
+        FROM snf_facilities
+        WHERE county_fips = ANY($1)
+      `;
+
+      const result = await pool.query(query, [countyFipsList]);
+      const row = result.rows[0];
+
+      // Get rating distribution
+      const ratingResult = await pool.query(`
+        SELECT overall_rating, COUNT(*) as count
+        FROM snf_facilities
+        WHERE county_fips = ANY($1) AND overall_rating IS NOT NULL
+        GROUP BY overall_rating
+        ORDER BY overall_rating
+      `, [countyFipsList]);
+
+      const ratingDistribution = {};
+      ratingResult.rows.forEach(r => {
+        ratingDistribution[`star${r.overall_rating}`] = parseInt(r.count);
+      });
+
+      return {
+        facilityCount: parseInt(row.facility_count) || 0,
+        beds: {
+          total: parseInt(row.total_beds) || 0,
+          certified: parseInt(row.certified_beds) || 0,
+          occupied: parseInt(row.occupied_beds) || 0
+        },
+        avgOccupancy: row.avg_occupancy ? parseFloat(row.avg_occupancy).toFixed(1) : null,
+        avgRating: row.avg_rating ? parseFloat(row.avg_rating).toFixed(2) : null,
+        avgDailyRate: row.avg_daily_rate ? parseFloat(row.avg_daily_rate).toFixed(2) : null,
+        specialFocusCount: parseInt(row.special_focus_count) || 0,
+        uniqueOperators: parseInt(row.unique_operators) || 0,
+        ratingDistribution
+      };
+
+    } else {
+      // ALF supply summary
+      const query = `
+        SELECT
+          COUNT(*) as facility_count,
+          SUM(capacity) as total_capacity,
+          AVG(capacity) as avg_capacity,
+          COUNT(DISTINCT ownership_type) as ownership_types,
+          COUNT(DISTINCT licensee) as unique_operators
+        FROM alf_facilities
+        WHERE county_fips = ANY($1)
+      `;
+
+      const result = await pool.query(query, [countyFipsList]);
+      const row = result.rows[0];
+
+      return {
+        facilityCount: parseInt(row.facility_count) || 0,
+        totalCapacity: parseInt(row.total_capacity) || 0,
+        avgCapacity: row.avg_capacity ? parseFloat(row.avg_capacity).toFixed(1) : null,
+        ownershipTypes: parseInt(row.ownership_types) || 0,
+        uniqueOperators: parseInt(row.unique_operators) || 0
+      };
+    }
+  } catch (error) {
+    console.error('[MarketService] getSupplySummaryForCBSA error:', error);
     throw error;
   }
 }
@@ -1274,8 +1548,10 @@ async function closePool() {
 
 module.exports = {
   getDemographics,
+  getMarketDemographics,
   getCompetitors,
   getSupplySummary,
+  getSupplySummaryForCBSA,
   getFacilityDetail,
   getMarketMetrics,
   getStates,

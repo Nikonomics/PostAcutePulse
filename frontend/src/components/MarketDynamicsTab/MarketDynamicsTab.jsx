@@ -390,7 +390,20 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
           <div style={styles.cardHeader}>
             <span style={styles.cardTitle}>
               <Users size={16} />
-              County Demographics
+              Market Demographics
+              {marketData?.demographics?.cbsaCode && (
+                <span style={{
+                  marginLeft: '0.5rem',
+                  fontSize: '0.7rem',
+                  padding: '0.125rem 0.5rem',
+                  backgroundColor: '#e0e7ff',
+                  color: '#3730a3',
+                  borderRadius: '9999px',
+                  fontWeight: 400
+                }}>
+                  {marketData.demographics.countyCount} counties
+                </span>
+              )}
             </span>
           </div>
           <div style={styles.cardBody}>

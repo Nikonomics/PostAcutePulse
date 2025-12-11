@@ -101,10 +101,30 @@ const DemographicsPanel = ({ demographics }) => {
     return <div style={styles.noData}>No demographics data available</div>;
   }
 
-  const { population, projections, economics, education } = demographics;
+  const { population, projections, economics, education, marketName, cbsaCode, countyCount, marketType } = demographics;
 
   return (
     <div style={styles.container}>
+      {/* Market Name Header */}
+      {marketName && (
+        <div style={{
+          padding: '0.5rem 0.75rem',
+          marginBottom: '0.5rem',
+          backgroundColor: marketType === 'metro' ? '#eff6ff' : marketType === 'micro' ? '#f0fdf4' : '#fef3c7',
+          borderRadius: '0.375rem',
+          borderLeft: `3px solid ${marketType === 'metro' ? '#3b82f6' : marketType === 'micro' ? '#22c55e' : '#f59e0b'}`,
+        }}>
+          <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
+            {marketName}
+          </div>
+          <div style={{ fontSize: '0.625rem', color: '#6b7280', marginTop: '0.125rem' }}>
+            {marketType === 'metro' ? 'Metropolitan' : marketType === 'micro' ? 'Micropolitan' : 'Rural'} Market
+            {countyCount > 1 ? ` • ${countyCount} counties` : ''}
+            {cbsaCode ? ` • CBSA ${cbsaCode}` : ''}
+          </div>
+        </div>
+      )}
+
       {/* Population Section */}
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
