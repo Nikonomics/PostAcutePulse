@@ -1621,7 +1621,7 @@ module.exports = {
           },
           {
             model: DealFacilities,
-            as: "facilities",
+            as: "deal_facility",
             order: [['display_order', 'ASC'], ['created_at', 'ASC']]
           },
         ],
