@@ -1,6 +1,5 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
-import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
 
 const renderStep1 = (formData, handleInputChange, validationErrors = {}, touched = {}, selectedPlace, setSelectedPlace) => {
   console.log(selectedPlace, "selectedPlace");
