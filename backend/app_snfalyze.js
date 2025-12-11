@@ -105,6 +105,7 @@ var dueDiligenceRouter = require('./routes/dueDiligence');
 var facilitiesRouter = require('./routes/facilities');
 var marketRouter = require('./routes/market');
 var wagesRouter = require('./routes/wages');
+var marketsRouter = require('./routes/markets');
 
 app.use(fileUpload());
 
@@ -144,6 +145,9 @@ app.use('/api/v1/market', marketRouter);
 
 // BLS Wages API routes
 app.use('/api/wages', wagesRouter);
+
+// CBSA Markets API routes
+app.use('/api/markets', marketsRouter);
 
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);
