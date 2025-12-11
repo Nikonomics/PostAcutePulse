@@ -770,4 +770,62 @@ router.get('/refresh-history', async (req, res) => {
   }
 });
 
+// ============================================
+// Census ACS Data Refresh Endpoints
+// ============================================
+
+const censusService = require('../services/censusDataRefreshService');
+
+/**
+ * GET /api/market/census-status
+ * Get Census data refresh status and coverage statistics
+ */
+router.get('/census-status', async (req, res) => {
+  try {
+    const status = await censusService.getCensusRefreshStatus();
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    console.error('[Market Routes] getCensusStatus error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/market/census-refresh
+ * Trigger Census ACS data refresh
+ * Fetches all county economic/demographic data from Census Bureau API
+ */
+router.post('/census-refresh', async (req, res) => {
+  try {
+    // Return immediately, run refresh in background
+    res.json({
+      success: true,
+      message: 'Census data refresh started. This will take 1-2 minutes.',
+      checkStatus: '/api/market/census-status'
+    });
+
+    // Run refresh asynchronously
+    censusService.refreshCensusData((progress) => {
+      console.log(`[Census Refresh] ${progress.stage || ''}: ${progress.message || ''} ${progress.percent ? progress.percent + '%' : ''}`);
+    }).then(result => {
+      console.log('[Census Refresh] Complete:', result);
+    }).catch(err => {
+      console.error('[Census Refresh] Failed:', err);
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] censusRefresh error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

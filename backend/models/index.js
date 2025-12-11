@@ -10,16 +10,26 @@ const db = {};
 let sequelize;
 
 if (process.env.DATABASE_URL) {
-  // Production: Use PostgreSQL via DATABASE_URL
+  // PostgreSQL: Use snfalyze schema with fallback to public
+  const schema = process.env.PGSCHEMA || 'snfalyze';
+  const isProduction = process.env.NODE_ENV === 'production';
+
   sequelize = new Sequelize(process.env.DATABASE_URL, {
     dialect: 'postgres',
     protocol: 'postgres',
     logging: false,
+    define: {
+      schema: schema
+    },
     dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
+      ...(isProduction ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      } : {}),
+      // Set search_path to use snfalyze schema first, then public for shared data
+      options: `-c search_path=${schema},public`
     }
   });
 } else {
@@ -93,13 +103,45 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('Deal activity tracking migration error:', err.message);
   }
+
+  try {
+    // Add facility search indexes for performance
+    const { runMigration: runFacilityIndexesMigration } = require('../migrations/add-facility-search-indexes');
+    await runFacilityIndexesMigration(sequelize);
+  } catch (err) {
+    console.log('Facility search indexes migration error:', err.message);
+  }
+
+  try {
+    // Add extraction status tracking columns
+    const { runMigration: runExtractionStatusMigration } = require('../migrations/add-extraction-status-tracking');
+    await runExtractionStatusMigration(sequelize);
+  } catch (err) {
+    console.log('Extraction status tracking migration error:', err.message);
+  }
+
+  try {
+    // Standardize bed_count field name
+    const { runMigration: runBedCountMigration } = require('../migrations/standardize-bed-count-field');
+    await runBedCountMigration(sequelize);
+  } catch (err) {
+    console.log('Bed count standardization migration error:', err.message);
+  }
+
+  try {
+    // Add extraction history table for audit trail
+    const { runMigration: runExtractionHistoryMigration } = require('../migrations/add-extraction-history-table');
+    await runExtractionHistoryMigration(sequelize);
+  } catch (err) {
+    console.log('Extraction history table migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist
 // Note: alter:true causes issues with SQLite due to backup tables and foreign keys
-// Only use alter:true for PostgreSQL in production
+// Disabled alter:true for PostgreSQL since tables are already created via migration
 const isPostgres = !!process.env.DATABASE_URL;
-const syncOptions = isPostgres ? { alter: true, force: false } : {};
+const syncOptions = {}; // No alter or force - tables already exist
 
 runMigrations()
   .then(() => db.sequelize.sync(syncOptions))

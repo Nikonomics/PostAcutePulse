@@ -23,7 +23,7 @@ const combinedValidationSchema = Yup.object().shape({
     .required("Facility name is required")
     .min(2, "Facility name must be at least 2 characters"),
   facility_type: Yup.string().required("Facility type is required"),
-  no_of_beds: Yup.number()
+  bed_count: Yup.number()
     .typeError("Number of beds must be a number")
     .required("Number of beds is required"),
   purchase_price: Yup.number()
@@ -130,7 +130,7 @@ const getInitialDealData = () => ({
   deal_source: "",
   facility_name: "",
   facility_type: "Skilled Nursing",
-  no_of_beds: "",
+  bed_count: "",
   primary_contact_name: "",
   phone_number: "",
   email: "",
@@ -229,7 +229,7 @@ const EditCombinedDealForm = () => {
               target_close_date: deal.target_close_date ? 
                 new Date(deal.target_close_date).toISOString().split('T')[0] : '',
               // Ensure numeric fields are strings for form inputs
-              no_of_beds: deal.no_of_beds?.toString() || '',
+              bed_count: deal.bed_count?.toString() || '',
               purchase_price: deal.purchase_price?.toString() || '',
               annual_revenue: deal.annual_revenue?.toString() || '',
               ebitda: deal.ebitda?.toString() || '',
@@ -1164,16 +1164,16 @@ const EditCombinedDealForm = () => {
                         <label className="form-label required">Number of Beds</label>
                         <input
                           type="text"
-                          className={`form-input ${isFieldTouched(deal.id, 'no_of_beds') && getFieldError(deal.id, 'no_of_beds') ? 'error' : ''
+                          className={`form-input ${isFieldTouched(deal.id, 'bed_count') && getFieldError(deal.id, 'bed_count') ? 'error' : ''
                             }`}
-                          value={deal.data.no_of_beds}
-                          onChange={(e) => handleInputChange(deal.id, 'no_of_beds', e.target.value)}
-                          onBlur={() => markFieldAsTouched(deal.id, 'no_of_beds')}
+                          value={deal.data.bed_count}
+                          onChange={(e) => handleInputChange(deal.id, 'bed_count', e.target.value)}
+                          onBlur={() => markFieldAsTouched(deal.id, 'bed_count')}
                           placeholder="145"
                           min={0}
                         />
-                        {isFieldTouched(deal.id, 'no_of_beds') && getFieldError(deal.id, 'no_of_beds') && (
-                          <span className="error-message">{getFieldError(deal.id, 'no_of_beds')}</span>
+                        {isFieldTouched(deal.id, 'bed_count') && getFieldError(deal.id, 'bed_count') && (
+                          <span className="error-message">{getFieldError(deal.id, 'bed_count')}</span>
                         )}
                       </div>
                     </div>
@@ -1732,7 +1732,7 @@ const EditCombinedDealForm = () => {
                           <ul className="list-unstyled">
                             <li><strong>Facility Name:</strong> {deal.data.facility_name}</li>
                             <li><strong>Facility Type:</strong> {deal.data.facility_type}</li>
-                            <li><strong>Number of Beds:</strong> {deal.data.no_of_beds}</li>
+                            <li><strong>Number of Beds:</strong> {deal.data.bed_count}</li>
                           </ul>
                         </div>
 

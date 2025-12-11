@@ -15,7 +15,7 @@ const FIELD_LABELS = {
   // Facility Info
   facility_name: 'Facility Name',
   facility_type: 'Facility Type',
-  no_of_beds: 'Number of Beds',
+  bed_count: 'Number of Beds',
   street_address: 'Street Address',
   city: 'City',
   state: 'State',

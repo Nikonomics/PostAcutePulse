@@ -1285,8 +1285,8 @@ const CombinedDealForm = () => {
             ...mapFinancialParameters(cleanedFacility),
             // Ensure facility_type is set as comma-separated string after mapping
             facility_type: facilityTypeString,
-            // Set no_of_beds as total count string (backend expects STRING)
-            no_of_beds: noOfBedsStr,
+            // Set bed_count as total count (backend expects INTEGER)
+            bed_count: totalBedCount || null,
             // Include address fields on deal level (backend uses these for deal.street_address, deal.city, etc.)
             street_address: facility.address || "",
             city: facility.city || dealData.city || "",
@@ -1417,7 +1417,7 @@ const CombinedDealForm = () => {
         setShowMatchModal(false);
         // Navigate to the deal profile page with tabs (General Info, Pro Forma, etc.)
         // Add timestamp to force page to refetch data
-        navigate(`/deals/edit-combined-deal/${createdDealId}?refresh=${Date.now()}`);
+        navigate(`/deals/deal-detail/${createdDealId}?refresh=${Date.now()}`);
       } else {
         toast.error(response.message || "Failed to apply facility match");
       }

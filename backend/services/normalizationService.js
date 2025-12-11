@@ -1241,7 +1241,7 @@ function calculateNormalizedMetrics(deal) {
 
   // Call new service
   const result = NormalizationService.normalize(extractionData, {
-    bed_count: parseInt(deal.no_of_beds) || 0,
+    bed_count: parseInt(deal.bed_count) || 0,
     total_revenue: parseFloat(deal.annual_revenue) || parseFloat(extractionData.t12m_revenue) || 0
   });
 
@@ -1291,7 +1291,7 @@ function calculateNormalizedMetrics(deal) {
 function generateBenchmarkFlags(deal) {
   const extractionData = deal.extraction_data || {};
   const result = NormalizationService.normalize(extractionData, {
-    bed_count: parseInt(deal.no_of_beds) || 0,
+    bed_count: parseInt(deal.bed_count) || 0,
     total_revenue: parseFloat(deal.annual_revenue) || 0
   });
 

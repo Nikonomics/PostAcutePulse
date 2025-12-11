@@ -312,7 +312,7 @@ const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
     state: '',
     zip_code: '',
     county: '',
-    total_beds: '',
+    bed_count: '',
     licensed_beds: '',
     certified_beds: '',
     purchase_price: '',
@@ -342,7 +342,7 @@ const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
         state: facility.state || '',
         zip_code: facility.zip_code || '',
         county: facility.county || '',
-        total_beds: facility.total_beds || '',
+        bed_count: facility.bed_count || '',
         licensed_beds: facility.licensed_beds || '',
         certified_beds: facility.certified_beds || '',
         purchase_price: facility.purchase_price || '',
@@ -369,7 +369,7 @@ const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
         state: '',
         zip_code: '',
         county: '',
-        total_beds: '',
+        bed_count: '',
         licensed_beds: '',
         certified_beds: '',
         purchase_price: '',
@@ -521,8 +521,8 @@ const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
                 <Form.Label>Total Beds</Form.Label>
                 <Form.Control
                   type="number"
-                  name="total_beds"
-                  value={formData.total_beds}
+                  name="bed_count"
+                  value={formData.bed_count}
                   onChange={handleChange}
                 />
               </Form.Group>
@@ -769,7 +769,7 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand }) 
         <div className="facility-metrics">
           <div className="facility-metric">
             <div className="facility-metric-label">Beds</div>
-            <div className="facility-metric-value">{formatNumber(facility.total_beds)}</div>
+            <div className="facility-metric-value">{formatNumber(facility.bed_count)}</div>
           </div>
           <div className="facility-metric">
             <div className="facility-metric-label">Price</div>
@@ -834,7 +834,7 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand }) 
             </div>
             <div className="facility-detail-item">
               <span className="facility-detail-label">Total Beds</span>
-              <span className="facility-detail-value">{formatNumber(facility.total_beds)}</span>
+              <span className="facility-detail-value">{formatNumber(facility.bed_count)}</span>
             </div>
             <div className="facility-detail-item">
               <span className="facility-detail-label">Licensed Beds</span>
@@ -936,7 +936,7 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
 
   // Calculate portfolio summary
   const portfolioSummary = {
-    totalBeds: facilities.reduce((sum, f) => sum + (parseFloat(f.total_beds) || 0), 0),
+    totalBeds: facilities.reduce((sum, f) => sum + (parseFloat(f.bed_count) || 0), 0),
     totalPrice: facilities.reduce((sum, f) => sum + (parseFloat(f.purchase_price) || 0), 0),
     totalRevenue: facilities.reduce((sum, f) => sum + (parseFloat(f.annual_revenue) || 0), 0),
     totalEbitda: facilities.reduce((sum, f) => sum + (parseFloat(f.ebitda) || 0), 0),

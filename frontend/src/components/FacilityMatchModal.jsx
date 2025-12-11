@@ -29,11 +29,9 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
   };
 
   const handleSelectMatch = (facilityId) => {
+    // Only update the visual selection - don't call API yet
+    // User must click "Confirm Selection" button to actually submit
     setSelectedId(facilityId);
-    // Give visual feedback before calling API
-    setTimeout(() => {
-      onSelect(facilityId);
-    }, 300);
   };
 
   return (

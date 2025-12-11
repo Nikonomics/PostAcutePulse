@@ -39,7 +39,7 @@ module.exports = function (sequelize, DataTypes) {
       type: DataTypes.STRING(255),
       allowNull: true
     },
-    no_of_beds: {
+    bed_count: {
       type: DataTypes.INTEGER,
       allowNull: true
     },

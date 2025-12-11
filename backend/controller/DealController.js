@@ -36,6 +36,7 @@ const {
   DEFAULT_BENCHMARKS
 } = require("../services/proformaService");
 const { detectChanges, formatChangeSummary } = require("../services/dealChangeTracker");
+const { isValidFlatFormat, sanitizeExtractionData } = require("../services/extractionValidator");
 const User = db.users;
 const Deal = db.deals;
 const DealTeamMembers = db.deal_team_members;
@@ -67,7 +68,7 @@ Deal.hasMany(DealExternalAdvisors, {
 });
 Deal.hasMany(DealFacilities, {
   foreignKey: "deal_id",
-  as: "facilities",
+  as: "deal_facility",
   onDelete: 'CASCADE',
 });
 DealFacilities.belongsTo(Deal, {
@@ -107,6 +108,221 @@ DealComments.belongsToMany(User, {
   foreignKey: "comment_id",
   otherKey: "mentioned_user_id",
 });
+const ExtractionHistory = db.extraction_history;
+
+/**
+ * Record extraction data changes for audit trail
+ *
+ * @param {number} dealId - The deal ID
+ * @param {Object} extractionData - The extraction data to store
+ * @param {string} source - Source of change: 'ai_extraction', 'manual_edit', 'alf_match', 'facility_sync', 'bulk_import'
+ * @param {Array} changedFields - Array of field names that changed
+ * @param {string} createdBy - User email or system identifier
+ * @param {Object} transaction - Optional Sequelize transaction
+ */
+async function recordExtractionHistory(dealId, extractionData, source, changedFields = [], createdBy = 'system', transaction = null) {
+  try {
+    const queryOptions = transaction ? { transaction } : {};
+
+    // Ensure ExtractionHistory model exists (may not be loaded yet on first run)
+    if (!ExtractionHistory) {
+      console.log('[ExtractionHistory] Model not available, skipping history record');
+      return null;
+    }
+
+    const historyRecord = await ExtractionHistory.create({
+      deal_id: dealId,
+      extraction_data: extractionData,
+      source: source,
+      changed_fields: changedFields,
+      created_by: createdBy,
+      created_at: new Date()
+    }, queryOptions);
+
+    console.log(`[ExtractionHistory] Recorded ${source} change for deal ${dealId} (${changedFields.length} fields)`);
+    return historyRecord;
+  } catch (err) {
+    // Don't fail the main operation if history recording fails
+    console.error('[ExtractionHistory] Failed to record history:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Centralized facility data sync across deals, deal_facilities, and extraction_data
+ * Ensures all three data stores stay consistent when facility information changes.
+ *
+ * @param {number} dealId - The deal ID to sync
+ * @param {Object} facilityData - Facility fields to sync
+ * @param {string} facilityData.facility_name - Facility name
+ * @param {string} facilityData.street_address - Street address
+ * @param {string} facilityData.city - City
+ * @param {string} facilityData.state - State
+ * @param {string} facilityData.zip_code - ZIP code
+ * @param {number} facilityData.bed_count - Number of beds
+ * @param {number} facilityData.latitude - Latitude coordinate
+ * @param {number} facilityData.longitude - Longitude coordinate
+ * @param {string} facilityData.facility_type - Facility type (SNF, ALF, etc.)
+ * @param {string} source - Source of the data: 'Manual Edit' | 'ALF Database' | 'AI Extraction'
+ * @param {Object} transaction - Optional Sequelize transaction for atomic updates
+ * @returns {Object} - { deal, facility } - Updated deal and facility records
+ */
+async function syncFacilityData(dealId, facilityData, source, transaction = null) {
+  const queryOptions = transaction ? { transaction } : {};
+
+  // Extract facility fields
+  const {
+    facility_name,
+    street_address,
+    city,
+    state,
+    zip_code,
+    bed_count,
+    latitude,
+    longitude,
+    facility_type
+  } = facilityData;
+
+  // 1. Update deals table flat columns
+  const deal = await Deal.findByPk(dealId, queryOptions);
+  if (!deal) {
+    throw new Error(`Deal ${dealId} not found`);
+  }
+
+  const dealUpdateFields = {};
+  if (facility_name !== undefined) dealUpdateFields.facility_name = facility_name;
+  if (street_address !== undefined) dealUpdateFields.street_address = street_address;
+  if (city !== undefined) dealUpdateFields.city = city;
+  if (state !== undefined) dealUpdateFields.state = state;
+  if (zip_code !== undefined) dealUpdateFields.zip_code = zip_code;
+  if (bed_count !== undefined) dealUpdateFields.bed_count = bed_count;
+  if (latitude !== undefined) dealUpdateFields.latitude = latitude;
+  if (longitude !== undefined) dealUpdateFields.longitude = longitude;
+
+  if (Object.keys(dealUpdateFields).length > 0) {
+    await deal.update(dealUpdateFields, queryOptions);
+  }
+
+  // 2. Update deal_facilities record (create if doesn't exist)
+  let facility = await DealFacilities.findOne({ where: { deal_id: dealId }, ...queryOptions });
+
+  const facilityUpdateFields = {};
+  if (facility_name !== undefined) facilityUpdateFields.facility_name = facility_name;
+  if (street_address !== undefined) facilityUpdateFields.street_address = street_address;
+  if (city !== undefined) facilityUpdateFields.city = city;
+  if (state !== undefined) facilityUpdateFields.state = state;
+  if (zip_code !== undefined) facilityUpdateFields.zip_code = zip_code;
+  if (bed_count !== undefined) facilityUpdateFields.bed_count = bed_count;
+  if (latitude !== undefined) facilityUpdateFields.latitude = latitude;
+  if (longitude !== undefined) facilityUpdateFields.longitude = longitude;
+  if (facility_type !== undefined) facilityUpdateFields.facility_type = facility_type;
+
+  if (facility) {
+    await facility.update(facilityUpdateFields, queryOptions);
+  } else if (Object.keys(facilityUpdateFields).length > 0) {
+    // Create facility record if it doesn't exist
+    facility = await DealFacilities.create({
+      deal_id: dealId,
+      ...facilityUpdateFields
+    }, queryOptions);
+  }
+
+  // 3. Update extraction_data JSON (update flat fields, _sourceMap, and _confidenceMap)
+  const confidenceLevel = 'high'; // All synced data is high confidence
+
+  // Try enhanced_extraction_data first, then extraction_data
+  let extractionData = null;
+  let useEnhanced = false;
+
+  if (deal.enhanced_extraction_data) {
+    try {
+      extractionData = typeof deal.enhanced_extraction_data === 'string'
+        ? JSON.parse(deal.enhanced_extraction_data)
+        : deal.enhanced_extraction_data;
+      useEnhanced = true;
+    } catch (e) {
+      console.error('[SYNC] Failed to parse enhanced_extraction_data:', e);
+    }
+  }
+
+  if (!extractionData && deal.extraction_data) {
+    try {
+      extractionData = typeof deal.extraction_data === 'string'
+        ? JSON.parse(deal.extraction_data)
+        : deal.extraction_data;
+    } catch (e) {
+      console.error('[SYNC] Failed to parse extraction_data:', e);
+    }
+  }
+
+  if (extractionData) {
+    // For enhanced data, update extractedData sub-object; otherwise update root
+    const targetData = useEnhanced && extractionData.extractedData ? extractionData.extractedData : extractionData;
+
+    // Quick validation check - warn if data structure seems invalid
+    if (!isValidFlatFormat(targetData)) {
+      console.warn(`[SYNC] Deal ${dealId}: extraction_data may have nested structure - check data integrity`);
+    }
+
+    // Update flat field values
+    if (facility_name !== undefined) targetData.facility_name = facility_name;
+    if (street_address !== undefined) targetData.street_address = street_address;
+    if (city !== undefined) targetData.city = city;
+    if (state !== undefined) targetData.state = state;
+    if (zip_code !== undefined) targetData.zip_code = zip_code;
+    if (bed_count !== undefined) targetData.bed_count = bed_count;
+
+    // Initialize maps if they don't exist
+    if (!targetData._confidenceMap) targetData._confidenceMap = {};
+    if (!targetData._sourceMap) targetData._sourceMap = {};
+
+    // Update confidence and source maps for changed fields
+    // Maps input field names to extraction_data field names
+    const fieldMappings = [
+      { input: 'facility_name', extraction: 'facility_name' },
+      { input: 'street_address', extraction: 'street_address' },
+      { input: 'city', extraction: 'city' },
+      { input: 'state', extraction: 'state' },
+      { input: 'zip_code', extraction: 'zip_code' },
+      { input: 'bed_count', extraction: 'bed_count' }
+    ];
+
+    fieldMappings.forEach(({ input, extraction }) => {
+      if (facilityData[input] !== undefined) {
+        targetData._confidenceMap[extraction] = confidenceLevel;
+        targetData._sourceMap[extraction] = source;
+      }
+    });
+
+    // Save back to deal
+    if (useEnhanced) {
+      deal.enhanced_extraction_data = JSON.stringify(extractionData);
+    } else {
+      deal.extraction_data = JSON.stringify(extractionData);
+    }
+    await deal.save(queryOptions);
+
+    // Record extraction history for the changed fields
+    const changedFieldNames = fieldMappings
+      .filter(({ input }) => facilityData[input] !== undefined)
+      .map(({ extraction }) => extraction);
+
+    if (changedFieldNames.length > 0) {
+      await recordExtractionHistory(
+        dealId,
+        targetData,
+        source === 'ALF Database' ? 'alf_match' : 'facility_sync',
+        changedFieldNames,
+        'system',
+        transaction
+      );
+    }
+  }
+
+  console.log(`[SYNC] Deal ${dealId}: Updated facility data from ${source}`);
+
+  return { deal, facility };
+}
 
 /**
  * Helper function to store time-series data from enhanced extraction
@@ -484,7 +700,7 @@ module.exports = {
             deal.exit_multiple = deal.exit_multiple ? deal.exit_multiple : 0;
 
             // Sanitize integer fields - convert empty strings to null
-            deal.no_of_beds = deal.no_of_beds === '' || deal.no_of_beds === undefined ? null : (parseInt(deal.no_of_beds) || null);
+            deal.bed_count = deal.bed_count === '' || deal.bed_count === undefined ? null : (parseInt(deal.bed_count) || null);
             deal.deal_lead_id = deal.deal_lead_id === '' || deal.deal_lead_id === undefined ? null : (parseInt(deal.deal_lead_id) || null);
             deal.assistant_deal_lead_id = deal.assistant_deal_lead_id === '' || deal.assistant_deal_lead_id === undefined ? null : (parseInt(deal.assistant_deal_lead_id) || null);
 
@@ -646,7 +862,7 @@ module.exports = {
               state: facility.state,
               zip_code: facility.zip_code,
               county: facility.county,
-              total_beds: facility.total_beds,
+              bed_count: facility.bed_count || facility.total_beds,
               licensed_beds: facility.licensed_beds,
               certified_beds: facility.certified_beds,
               purchase_price: facility.purchase_price,
@@ -1494,7 +1710,7 @@ module.exports = {
           raw: true,
         }),
 
-        Deal.sum("no_of_beds", { where: { ...whereClause } }),
+        Deal.sum("bed_count", { where: { ...whereClause } }),
         Deal.sum("annual_revenue", { where: { ...whereClause } }),
 
         Deal.findOne({
@@ -1640,7 +1856,7 @@ module.exports = {
             : dealResponse.extraction_data;
 
           // Get bed_count for calculating ADC from occupancy
-          const bedCount = extractionData.bed_count || extractionData.no_of_beds || null;
+          const bedCount = extractionData.bed_count || null;
 
           // Fetch monthly census data for trends chart
           const monthlyCensus = await DealMonthlyCensus.findAll({
@@ -2022,7 +2238,7 @@ module.exports = {
         deal_type,
         facility_name,
         facility_type,
-        no_of_beds,
+        bed_count,
         city,
         state,
         zip_code,
@@ -2070,7 +2286,7 @@ module.exports = {
         deal_type,
         facility_name,
         facility_type,
-        no_of_beds,
+        bed_count,
         city,
         state,
         country,
@@ -2159,16 +2375,35 @@ module.exports = {
       // Attempt facility matching to auto-populate missing data
       // Run if: (1) no beds, (2) beds is 0, OR (3) facility name changed and beds <= 0
       const shouldMatch = requiredData.facility_name && (
-        !requiredData.no_of_beds ||
-        requiredData.no_of_beds === null ||
-        requiredData.no_of_beds === 0 ||
-        (originalDeal.facility_name !== requiredData.facility_name && requiredData.no_of_beds <= 0)
+        !requiredData.bed_count ||
+        requiredData.bed_count === null ||
+        requiredData.bed_count === 0 ||
+        (originalDeal.facility_name !== requiredData.facility_name && requiredData.bed_count <= 0)
       );
 
       // Note: Facility matching removed from updateDeal - it should only happen during extraction
       // Manual facility selection via FacilityMatchModal is handled by selectFacilityMatch() endpoint
 
-      // Update the deal
+      // Check if any facility fields are being updated - if so, use three-way sync
+      const facilityFields = ['facility_name', 'street_address', 'city', 'state', 'zip_code', 'bed_count'];
+      const hasFacilityChanges = facilityFields.some(field =>
+        requiredData[field] !== undefined && requiredData[field] !== originalDeal[field]
+      );
+
+      if (hasFacilityChanges) {
+        // Use syncFacilityData for three-way sync (deals, deal_facilities, extraction_data)
+        await syncFacilityData(deal.id, {
+          facility_name: requiredData.facility_name,
+          street_address: requiredData.street_address,
+          city: requiredData.city,
+          state: requiredData.state,
+          zip_code: requiredData.zip_code,
+          bed_count: requiredData.bed_count,
+          facility_type: requiredData.facility_type
+        }, 'Manual Edit');
+      }
+
+      // Update the deal (all fields including non-facility fields)
       await deal.update(requiredData);
 
       // Detect and log field changes
@@ -2334,8 +2569,41 @@ module.exports = {
         return helper.error(res, "Deal not found");
       }
 
+      // Get existing extraction data to detect changed fields
+      let oldExtractionData = {};
+      if (deal.extraction_data) {
+        try {
+          oldExtractionData = typeof deal.extraction_data === 'string'
+            ? JSON.parse(deal.extraction_data)
+            : deal.extraction_data;
+        } catch (e) { /* ignore */ }
+      }
+
+      // Parse new extraction data
+      const newExtractionData = typeof extraction_data === 'string'
+        ? JSON.parse(extraction_data)
+        : extraction_data;
+
+      // Detect changed fields
+      const changedFields = Object.keys(newExtractionData).filter(key => {
+        const oldVal = JSON.stringify(oldExtractionData[key]);
+        const newVal = JSON.stringify(newExtractionData[key]);
+        return oldVal !== newVal;
+      });
+
       // Update only the extraction_data field
       await deal.update({ extraction_data: extraction_data });
+
+      // Record extraction history for audit trail
+      if (changedFields.length > 0) {
+        await recordExtractionHistory(
+          id,
+          newExtractionData,
+          'manual_edit',
+          changedFields,
+          req.user?.email || 'system'
+        );
+      }
 
       // Return the updated deal
       return helper.success(res, "Extraction data updated successfully", {
@@ -3106,7 +3374,7 @@ module.exports = {
       const deal = await Deal.findByPk(dealId, {
         include: [{
           model: DealFacilities,
-          as: 'facilities',
+          as: 'deal_facility',
           order: [['display_order', 'ASC']]
         }]
       });
@@ -3120,7 +3388,7 @@ module.exports = {
       if (dealData.facilities && dealData.facilities.length > 0) {
         // Aggregate facility data for multi-facility deals
         const aggregated = dealData.facilities.reduce((acc, facility) => {
-          acc.total_beds += parseFloat(facility.total_beds) || 0;
+          acc.total_beds += parseFloat(facility.bed_count) || 0;
           acc.total_revenue += parseFloat(facility.annual_revenue) || 0;
           acc.total_ebitda += parseFloat(facility.ebitda) || 0;
           acc.total_ebitdar += parseFloat(facility.ebitdar) || 0;
@@ -3142,7 +3410,7 @@ module.exports = {
 
         // Override deal fields with aggregated values if not already set or if aggregated is higher
         if (aggregated.total_beds > 0) {
-          dealData.no_of_beds = dealData.no_of_beds || aggregated.total_beds;
+          dealData.bed_count = dealData.bed_count || aggregated.total_beds;
         }
         if (aggregated.total_revenue > 0) {
           dealData.annual_revenue = dealData.annual_revenue || aggregated.total_revenue;
@@ -3312,8 +3580,7 @@ module.exports = {
         zip_code: facilityData.zip_code,
         latitude: facilityData.latitude,
         longitude: facilityData.longitude,
-        no_of_beds: facilityData.no_of_beds,
-        total_beds: facilityData.total_beds,
+        bed_count: facilityData.bed_count || facilityData.total_beds,
         purchase_price: facilityData.purchase_price,
         price_per_bed: facilityData.price_per_bed,
         annual_revenue: facilityData.annual_revenue,
@@ -3384,8 +3651,7 @@ module.exports = {
         zip_code: facilityData.zip_code ?? facility.zip_code,
         latitude: facilityData.latitude ?? facility.latitude,
         longitude: facilityData.longitude ?? facility.longitude,
-        no_of_beds: facilityData.no_of_beds ?? facility.no_of_beds,
-        total_beds: facilityData.total_beds ?? facility.total_beds,
+        bed_count: facilityData.bed_count ?? facilityData.total_beds ?? facility.bed_count,
         purchase_price: facilityData.purchase_price ?? facility.purchase_price,
         price_per_bed: facilityData.price_per_bed ?? facility.price_per_bed,
         annual_revenue: facilityData.annual_revenue ?? facility.annual_revenue,
@@ -4016,6 +4282,13 @@ module.exports = {
         return helper.error(res, "Deal not found");
       }
 
+      // Mark extraction as started
+      await deal.update({
+        extraction_status: 'processing',
+        extraction_started_at: new Date(),
+        extraction_error: null
+      });
+
       // Get uploaded files from deal_documents table (more reliable than getDealFiles)
       const dealDocuments = await DealDocuments.findAll({
         where: { deal_id: dealId },
@@ -4073,6 +4346,10 @@ module.exports = {
       }
 
       if (fileBuffers.length === 0) {
+        await deal.update({
+          extraction_status: 'failed',
+          extraction_error: 'Could not read any document files. Files may have been moved or deleted.'
+        });
         return helper.error(res, "Could not read any document files. Files may have been moved or deleted.");
       }
 
@@ -4082,6 +4359,10 @@ module.exports = {
       const result = await runFullExtraction(fileBuffers);
 
       if (!result.success) {
+        await deal.update({
+          extraction_status: 'failed',
+          extraction_error: result.error || 'Extraction failed'
+        });
         return helper.error(res, result.error || "Extraction failed");
       }
 
@@ -4089,13 +4370,28 @@ module.exports = {
       console.log(`[reExtractDeal] Storing time-series data...`);
       await storeTimeSeriesData(dealId, result);
 
-      // Update deal's extraction_data
+      // Update deal's extraction_data and mark as completed
       await Deal.update(
         {
           extraction_data: JSON.stringify(result.extractedData),
+          extraction_status: 'completed',
+          extraction_completed_at: new Date(),
+          extraction_error: null,
           updated_at: new Date()
         },
         { where: { id: dealId } }
+      );
+
+      // Record extraction history for audit trail
+      const extractedFields = Object.keys(result.extractedData || {}).filter(
+        key => result.extractedData[key] !== null && result.extractedData[key] !== undefined
+      );
+      await recordExtractionHistory(
+        dealId,
+        result.extractedData,
+        'ai_extraction',
+        extractedFields,
+        req.user?.email || 'system'
       );
 
       console.log(`[reExtractDeal] Re-extraction complete for deal ${dealId}`);
@@ -4109,6 +4405,23 @@ module.exports = {
 
     } catch (err) {
       console.error("Re-extract deal error:", err);
+
+      // Mark extraction as failed
+      const { dealId } = req.params;
+      if (dealId) {
+        try {
+          await Deal.update(
+            {
+              extraction_status: 'failed',
+              extraction_error: err.message || "Unknown error"
+            },
+            { where: { id: dealId } }
+          );
+        } catch (updateErr) {
+          console.error("Failed to update extraction status:", updateErr);
+        }
+      }
+
       return helper.error(res, err.message || "Failed to re-extract deal");
     }
   },
@@ -4136,7 +4449,7 @@ module.exports = {
         attributes: ['id', 'deal_name', 'deal_status'],
         include: [{
           model: DealFacilities,
-          as: 'facilities',
+          as: 'deal_facility',
           attributes: ['id', 'facility_name', 'street_address', 'city', 'state', 'latitude', 'longitude'],
           where: {
             [Op.or]: [
@@ -4234,8 +4547,8 @@ module.exports = {
           },
           {
             model: DealFacilities,
-            as: 'facilities',
-            attributes: ['id', 'facility_type', 'no_of_beds', 'city', 'state', 'purchase_price'],
+            as: 'deal_facility',
+            attributes: ['id', 'facility_type', 'bed_count', 'city', 'state', 'purchase_price'],
             required: false
           }
         ],
@@ -4477,67 +4790,72 @@ module.exports = {
 
       console.log(`[selectFacilityMatch] Selected: ${selectedMatch.facility_name} (${selectedMatch.match_confidence})`);
 
-      // Find or create facility record for this deal
-      let facility = await DealFacilities.findOne({ where: { deal_id: dealId } });
-
-      if (!facility) {
-        // Create new facility record
-        facility = await DealFacilities.create({
-          deal_id: dealId,
-          facility_name: selectedMatch.facility_name,
-          street_address: selectedMatch.address,
-          city: selectedMatch.city,
-          state: selectedMatch.state,
-          zip_code: selectedMatch.zip_code,
-          no_of_beds: selectedMatch.capacity?.toString() || null,
-          latitude: selectedMatch.latitude,
-          longitude: selectedMatch.longitude,
-          facility_type: selectedMatch.facility_type
-        });
-      } else {
-        // Update existing facility record with ALF database data
-        await facility.update({
-          facility_name: selectedMatch.facility_name,
-          street_address: selectedMatch.address,
-          city: selectedMatch.city,
-          state: selectedMatch.state,
-          zip_code: selectedMatch.zip_code,
-          no_of_beds: selectedMatch.capacity?.toString() || facility.no_of_beds,
-          latitude: selectedMatch.latitude,
-          longitude: selectedMatch.longitude,
-          facility_type: selectedMatch.facility_type || facility.facility_type
-        });
+      // If city is missing but we have zip code, try to derive city from the ALF database
+      // by finding another facility with the same zip code that has a city
+      if (!selectedMatch.city && selectedMatch.zip_code) {
+        try {
+          const [result] = await db.sequelize.query(
+            'SELECT city FROM alf_facilities WHERE zip_code = ? AND city IS NOT NULL AND city != \'\' LIMIT 1',
+            { replacements: [selectedMatch.zip_code], type: db.sequelize.QueryTypes.SELECT }
+          );
+          if (result && result.city) {
+            selectedMatch.city = result.city;
+            console.log(`[selectFacilityMatch] Derived city from zip code: ${result.city}`);
+          }
+        } catch (err) {
+          console.error('[selectFacilityMatch] Failed to derive city from zip code:', err);
+        }
       }
 
-      // CRITICAL: Update the main deals table with ALF database data
-      // This ensures the General Info tab and Calculator use accurate facility data
-      await deal.update({
+      // Use centralized syncFacilityData for three-way sync (deals, deal_facilities, extraction_data)
+      const { facility } = await syncFacilityData(dealId, {
         facility_name: selectedMatch.facility_name,
-        no_of_beds: selectedMatch.capacity, // Licensed beds from ALF database
         street_address: selectedMatch.address,
         city: selectedMatch.city,
         state: selectedMatch.state,
         zip_code: selectedMatch.zip_code,
+        bed_count: selectedMatch.capacity,
         latitude: selectedMatch.latitude,
-        longitude: selectedMatch.longitude
-      });
+        longitude: selectedMatch.longitude,
+        facility_type: selectedMatch.facility_type
+      }, 'ALF Database');
 
-      console.log(`[selectFacilityMatch] ✅ Updated deals table: ${selectedMatch.capacity} beds, ${selectedMatch.address}`);
+      // Additionally update facility_matches status in extraction_data (specific to this endpoint)
+      // Re-fetch deal to get updated extraction_data from syncFacilityData
+      await deal.reload();
 
-      // Update extraction data to mark as selected
-      if (enhancedData?.extractedData?.overview?.facility_matches) {
-        enhancedData.extractedData.overview.facility_matches.status = 'selected';
-        enhancedData.extractedData.overview.facility_matches.selected_facility_id = facility_id;
-        enhancedData.extractedData.overview.facility_matches.selected_match = selectedMatch;
-        deal.enhanced_extraction_data = JSON.stringify(enhancedData);
-      } else if (extractionData?.overview?.facility_matches) {
-        extractionData.overview.facility_matches.status = 'selected';
-        extractionData.overview.facility_matches.selected_facility_id = facility_id;
-        extractionData.overview.facility_matches.selected_match = selectedMatch;
-        deal.extraction_data = JSON.stringify(extractionData);
+      let updatedEnhancedData = null;
+      let updatedExtractionData = null;
+
+      if (deal.enhanced_extraction_data) {
+        try {
+          updatedEnhancedData = typeof deal.enhanced_extraction_data === 'string'
+            ? JSON.parse(deal.enhanced_extraction_data)
+            : deal.enhanced_extraction_data;
+        } catch (e) { /* ignore */ }
+      }
+      if (deal.extraction_data) {
+        try {
+          updatedExtractionData = typeof deal.extraction_data === 'string'
+            ? JSON.parse(deal.extraction_data)
+            : deal.extraction_data;
+        } catch (e) { /* ignore */ }
       }
 
-      await deal.save();
+      // Mark facility_matches as selected
+      if (updatedEnhancedData?.extractedData?.overview?.facility_matches) {
+        updatedEnhancedData.extractedData.overview.facility_matches.status = 'selected';
+        updatedEnhancedData.extractedData.overview.facility_matches.selected_facility_id = facility_id;
+        updatedEnhancedData.extractedData.overview.facility_matches.selected_match = selectedMatch;
+        deal.enhanced_extraction_data = JSON.stringify(updatedEnhancedData);
+        await deal.save();
+      } else if (updatedExtractionData?.overview?.facility_matches) {
+        updatedExtractionData.overview.facility_matches.status = 'selected';
+        updatedExtractionData.overview.facility_matches.selected_facility_id = facility_id;
+        updatedExtractionData.overview.facility_matches.selected_match = selectedMatch;
+        deal.extraction_data = JSON.stringify(updatedExtractionData);
+        await deal.save();
+      }
 
       console.log(`[selectFacilityMatch] ✅ Applied facility data for deal ${dealId}`);
 
@@ -4549,7 +4867,7 @@ module.exports = {
           city: facility.city,
           state: facility.state,
           zip_code: facility.zip_code,
-          capacity: facility.no_of_beds,
+          capacity: facility.bed_count,
           match_score: selectedMatch.match_score,
           match_confidence: selectedMatch.match_confidence
         }
@@ -4558,6 +4876,113 @@ module.exports = {
     } catch (err) {
       console.error('[selectFacilityMatch] Error:', err);
       return helper.error(res, err.message || "Failed to apply facility match");
+    }
+  },
+
+  /**
+   * Get extraction history for a deal
+   * GET /api/deals/:id/extraction-history
+   * Returns array of history records ordered by created_at DESC
+   */
+  getExtractionHistory: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { limit = 50, offset = 0 } = req.query;
+
+      if (!id) {
+        return helper.error(res, "Deal ID is required");
+      }
+
+      // Verify deal exists
+      const deal = await Deal.findByPk(id);
+      if (!deal) {
+        return helper.error(res, "Deal not found");
+      }
+
+      // Check if ExtractionHistory model is available
+      if (!ExtractionHistory) {
+        return helper.error(res, "Extraction history not available");
+      }
+
+      // Fetch history records
+      const history = await ExtractionHistory.findAll({
+        where: { deal_id: id },
+        order: [['created_at', 'DESC']],
+        limit: parseInt(limit, 10),
+        offset: parseInt(offset, 10)
+      });
+
+      // Get total count for pagination
+      const totalCount = await ExtractionHistory.count({
+        where: { deal_id: id }
+      });
+
+      return helper.success(res, "Extraction history retrieved successfully", {
+        deal_id: id,
+        history: history.map(record => ({
+          id: record.id,
+          source: record.source,
+          changed_fields: record.changed_fields,
+          created_by: record.created_by,
+          created_at: record.created_at,
+          // Only include extraction_data summary to avoid large payloads
+          extraction_data_summary: {
+            field_count: Object.keys(record.extraction_data || {}).length,
+            has_facility_info: !!(record.extraction_data?.facility_name),
+            has_financial_info: !!(record.extraction_data?.annual_revenue || record.extraction_data?.purchase_price),
+            has_census_info: !!(record.extraction_data?.bed_count || record.extraction_data?.current_occupancy)
+          }
+        })),
+        total_count: totalCount,
+        limit: parseInt(limit, 10),
+        offset: parseInt(offset, 10)
+      });
+    } catch (err) {
+      console.error('[getExtractionHistory] Error:', err);
+      return helper.error(res, err.message || "Failed to retrieve extraction history");
+    }
+  },
+
+  /**
+   * Get a specific extraction history record with full extraction data
+   * GET /api/deals/:id/extraction-history/:historyId
+   */
+  getExtractionHistoryDetail: async (req, res) => {
+    try {
+      const { id, historyId } = req.params;
+
+      if (!id || !historyId) {
+        return helper.error(res, "Deal ID and History ID are required");
+      }
+
+      // Check if ExtractionHistory model is available
+      if (!ExtractionHistory) {
+        return helper.error(res, "Extraction history not available");
+      }
+
+      const record = await ExtractionHistory.findOne({
+        where: {
+          id: historyId,
+          deal_id: id
+        }
+      });
+
+      if (!record) {
+        return helper.error(res, "History record not found");
+      }
+
+      return helper.success(res, "Extraction history detail retrieved successfully", {
+        id: record.id,
+        deal_id: record.deal_id,
+        source: record.source,
+        changed_fields: record.changed_fields,
+        created_by: record.created_by,
+        created_at: record.created_at,
+        extraction_data: record.extraction_data
+      });
+    } catch (err) {
+      console.error('[getExtractionHistoryDetail] Error:', err);
+      return helper.error(res, err.message || "Failed to retrieve extraction history detail");
     }
   },
 };

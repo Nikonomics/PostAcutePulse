@@ -200,7 +200,7 @@ Facility Name: ${deal.facility_name || 'N/A'}
 Facility Type: ${deal.facility_type || 'N/A'}
 Location: ${deal.city || 'N/A'}, ${deal.state || 'N/A'} ${deal.zip_code || ''}
 Address: ${deal.street_address || 'N/A'}
-Number of Beds: ${formatBeds(deal.no_of_beds)}
+Number of Beds: ${formatBeds(deal.bed_count)}
 
 FINANCIAL METRICS
 =================

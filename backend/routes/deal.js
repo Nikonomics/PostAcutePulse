@@ -77,4 +77,8 @@ router.post('/:dealId/proforma', requireAuthentication, DealController.createPro
 router.put('/:dealId/proforma/:scenarioId', requireAuthentication, DealController.updateProformaScenario);
 router.delete('/:dealId/proforma/:scenarioId', requireAuthentication, DealController.deleteProformaScenario);
 
+// Extraction History (audit trail)
+router.get('/:id/extraction-history', requireAuthentication, DealController.getExtractionHistory);
+router.get('/:id/extraction-history/:historyId', requireAuthentication, DealController.getExtractionHistoryDetail);
+
 module.exports = router

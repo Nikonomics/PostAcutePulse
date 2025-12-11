@@ -54,29 +54,8 @@ module.exports = function (sequelize, DataTypes) {
       type: DataTypes.FLOAT,
       allowNull: true
     },
-    // Bed information - stored as JSON array
-    // e.g., [{ "type": "SNF", "count": 80 }, { "type": "ALF", "count": 40 }]
-    no_of_beds: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      get() {
-        const rawValue = this.getDataValue('no_of_beds');
-        if (!rawValue) return null;
-        try {
-          return JSON.parse(rawValue);
-        } catch {
-          return rawValue;
-        }
-      },
-      set(value) {
-        if (value && typeof value === 'object') {
-          this.setDataValue('no_of_beds', JSON.stringify(value));
-        } else {
-          this.setDataValue('no_of_beds', value);
-        }
-      }
-    },
-    total_beds: {
+    // Bed count - total number of beds in the facility
+    bed_count: {
       type: DataTypes.INTEGER,
       allowNull: true
     },

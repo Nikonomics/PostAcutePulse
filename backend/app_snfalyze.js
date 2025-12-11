@@ -104,6 +104,7 @@ var taxonomyRouter = require('./routes/taxonomy');
 var dueDiligenceRouter = require('./routes/dueDiligence');
 var facilitiesRouter = require('./routes/facilities');
 var marketRouter = require('./routes/market');
+var wagesRouter = require('./routes/wages');
 
 app.use(fileUpload());
 
@@ -141,6 +142,9 @@ app.use('/api/facilities', facilitiesRouter);
 app.use('/api/market', marketRouter);
 app.use('/api/v1/market', marketRouter);
 
+// BLS Wages API routes
+app.use('/api/wages', wagesRouter);
+
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);
 
@@ -162,6 +166,16 @@ const { Server } = require('socket.io');
 const PORT = process.env.PORT || process.env.APP_PORT || 5000;
 let socketConnection = server.listen(PORT, function () {
   console.log('App Server is running on port ' + PORT);
+
+  // Quarterly Census data auto-refresh check (runs in background after startup)
+  setTimeout(async () => {
+    try {
+      const censusService = require('./services/censusDataRefreshService');
+      await censusService.autoRefreshIfNeeded();
+    } catch (err) {
+      console.error('[Census] Auto-refresh check failed:', err.message);
+    }
+  }, 5000); // Wait 5 seconds after server start before checking
 });
 
 // Set global socket

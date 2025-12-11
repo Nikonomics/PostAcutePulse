@@ -1201,7 +1201,7 @@ const DealDetailPage = () => {
               {/* Legacy Facility Information (from flat deal structure - will be deprecated) */}
               {deal.deal_facility && deal.deal_facility.length > 0 &&
                 deal.deal_facility.map((facility, index) => (
-                  <>
+                  <React.Fragment key={facility.id || index}>
                     <div className="card">
                       <div className="card">
                         <h2 className="card-title">
@@ -1220,24 +1220,14 @@ const DealDetailPage = () => {
                               {facility.facility_type}
                             </span>
                           </div>
-                          {Array.isArray(facility.no_of_beds) &&
-                          facility.no_of_beds.length > 0 ? (
-                            facility.no_of_beds.map((bed, idx) => (
-                              <div className="info-item" key={idx}>
-                                <span className="info-label">
-                                  Number of Beds {bed.type}:
-                                </span>
-                                <span className="info-value">{bed.count}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="info-item">
-                              <span className="info-label">
-                                Number of Beds:
-                              </span>
-                              <span className="info-value">N/A</span>
-                            </div>
-                          )}
+                          <div className="info-item">
+                            <span className="info-label">
+                              Number of Beds:
+                            </span>
+                            <span className="info-value">
+                              {facility.bed_count || 'N/A'}
+                            </span>
+                          </div>
 
                           <div className="info-item">
                             <span className="info-label">Address:</span>
@@ -1593,7 +1583,7 @@ const DealDetailPage = () => {
                         </div>
                       </div> */}
                     </div>
-                  </>
+                  </React.Fragment>
                 ))}
 
               {/* Uploaded Documents */}

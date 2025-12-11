@@ -823,7 +823,7 @@ const DealsList = () => {
                         {deal.deal_name}
                       </div>
                       <div className="deal-info">
-                        {deal.deal_facility?.[0]?.facility_type || 'SNF'} • {deal.deal_facility?.[0]?.no_of_beds || deal.no_of_beds || '—'} beds
+                        {deal.deal_facility?.[0]?.facility_type || 'SNF'} • {deal.deal_facility?.[0]?.bed_count || deal.bed_count || '—'} beds
                       </div>
                     </td>
                     <td>

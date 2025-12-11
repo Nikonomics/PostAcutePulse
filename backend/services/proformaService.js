@@ -106,9 +106,8 @@ function extractActuals(deal) {
                     parseFloat(extractionData.occupancy_pct) ||  // Canonical field from reconciler
                     parseFloat(extractionData.current_occupancy) ||
                     parseFloat(extractionData.occupancy) || 0;
-  const beds = parseInt(deal.no_of_beds) ||
-               parseInt(extractionData.bed_count) ||
-               parseInt(extractionData.no_of_beds) || 0;
+  const beds = parseInt(deal.bed_count) ||
+               parseInt(extractionData.bed_count) || 0;
   const purchasePrice = parseFloat(deal.purchase_price) || 0;
 
   // Calculate EBITDA margin if not directly available

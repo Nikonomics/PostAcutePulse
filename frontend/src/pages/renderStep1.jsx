@@ -308,15 +308,15 @@ const renderStep1 = (formData, handleInputChange, validationErrors = {}, touched
                 <input
                   type="text"
                   className={`form-input ${
-                    touched?.no_of_beds && validationErrors.no_of_beds ? 'error' : ''
+                    touched?.bed_count && validationErrors.bed_count ? 'error' : ''
                   }`}
-                  value={formData.no_of_beds}
-                  onChange={(e) => handleInputChange('no_of_beds', e.target.value)}
+                  value={formData.bed_count}
+                  onChange={(e) => handleInputChange('bed_count', e.target.value)}
                   placeholder="145"
                   min={0}
                 />
-                {touched?.no_of_beds && validationErrors.no_of_beds && (
-                  <span className="error-message">{validationErrors.no_of_beds}</span>
+                {touched?.bed_count && validationErrors.bed_count && (
+                  <span className="error-message">{validationErrors.bed_count}</span>
                 )}
               </div>
             </div>
@@ -636,7 +636,7 @@ const renderStep1 = (formData, handleInputChange, validationErrors = {}, touched
                   </div>
                   <div>• Type: {formData.facility_type}</div>
                   <div>
-                    • Beds: {formData.no_of_beds || 'Not provided'}
+                    • Beds: {formData.bed_count || 'Not provided'}
                   </div>
                   <div>
                     • Location:{' '}

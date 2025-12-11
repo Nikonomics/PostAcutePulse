@@ -68,15 +68,19 @@ const getSequelizeInstance = () => {
 
   if (config.type === 'postgres') {
     console.log('[getSequelizeInstance] Creating PostgreSQL connection');
+    const isProduction = process.env.NODE_ENV === 'production';
+
     return new Sequelize(config.url, {
       dialect: 'postgres',
       protocol: 'postgres',
       logging: false,
       dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
+        ...(isProduction ? {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false
+          }
+        } : {})
       }
     });
   } else {

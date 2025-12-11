@@ -19,7 +19,7 @@ const step1ValidationSchema = Yup.object().shape({
     .required("Facility name is required")
     .min(2, "Facility name must be at least 2 characters"),
   facility_type: Yup.string().required("Facility type is required"),
-  no_of_beds: Yup.number()
+  bed_count: Yup.number()
     .typeError("Number of beds must be a number")
     .required("Number of beds is required"),
   street_address: Yup.string().required("Street address is required"),
@@ -97,7 +97,7 @@ const EditDeal = () => {
     deal_source: dealData?.deal_source || "",
     facility_name: dealData?.facility_name || "",
     facility_type: dealData?.facility_type || "Skilled Nursing",
-    no_of_beds: dealData?.no_of_beds || "",
+    bed_count: dealData?.bed_count || "",
     street_address: dealData?.street_address || "",
     country: dealData?.country || "",
     city: dealData?.city || "",

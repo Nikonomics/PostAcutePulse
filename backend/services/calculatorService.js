@@ -27,7 +27,7 @@ function calculateDealMetrics(deal) {
     // Input values
     inputs: {
       purchasePrice: parseFloat(deal.purchase_price) || 0,
-      numberOfBeds: parseInt(deal.no_of_beds) || 0,
+      numberOfBeds: parseInt(deal.bed_count) || 0,
       annualRevenue: parseFloat(deal.annual_revenue) || parseFloat(extractionData.t12m_revenue) || 0,
       ebitda: parseFloat(deal.ebitda) || parseFloat(extractionData.t12m_ebitda) || 0,
       ebitdar: parseFloat(extractionData.t12m_ebitdar) || parseFloat(extractionData.ebitdar) || 0,

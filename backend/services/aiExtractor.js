@@ -11,6 +11,9 @@ const XLSX = require('xlsx');
 // Period analyzer for detecting financial document time periods
 const { analyzeFinancialPeriods, generatePromptSection, shouldAnalyzePeriods } = require('./periodAnalyzer');
 
+// Extraction data validator for ensuring flat structure
+const { validateFlatStructure, sanitizeExtractionData } = require('./extractionValidator');
+
 // pdf-parse v1.x - simple function-based API that accepts buffers
 const pdfParse = require('pdf-parse');
 console.log('pdf-parse loaded:', typeof pdfParse === 'function' ? 'success' : 'failed');
@@ -503,7 +506,7 @@ function flattenFacility(facilityData) {
     state: getValue(facilityData.state),
     zip_code: getValue(facilityData.zip_code),
     county: getValue(facilityData.county),
-    total_beds: getValue(facilityData.total_beds),
+    bed_count: getValue(facilityData.total_beds || facilityData.bed_count),
     licensed_beds: getValue(facilityData.licensed_beds),
     certified_beds: getValue(facilityData.certified_beds),
     purchase_price: getValue(facilityData.purchase_price),
@@ -658,7 +661,7 @@ function flattenExtractedData(data) {
     state: isV7Schema
       ? data.facility_snapshot?.state
       : getValue(data.facility_information?.state),
-    no_of_beds: isV7Schema
+    bed_count: isV7Schema
       ? data.facility_snapshot?.licensed_beds
       : getValue(data.facility_information?.bed_count),
     bed_count_method: isV7Schema
@@ -944,7 +947,7 @@ function flattenExtractedData(data) {
     city: getConfidence(data.facility_information?.city),
     state: getConfidence(data.facility_information?.state),
     zip_code: getConfidence(data.facility_information?.zip_code),
-    no_of_beds: getConfidence(data.facility_information?.bed_count),
+    bed_count: getConfidence(data.facility_information?.bed_count),
     unit_mix: getConfidence(data.facility_information?.unit_mix),
 
     // Contact information
@@ -1031,7 +1034,7 @@ function flattenExtractedData(data) {
     city: getSource(data.facility_information?.city),
     state: getSource(data.facility_information?.state),
     zip_code: getSource(data.facility_information?.zip_code),
-    no_of_beds: getSource(data.facility_information?.bed_count),
+    bed_count: getSource(data.facility_information?.bed_count),
     unit_mix: getSource(data.facility_information?.unit_mix),
 
     // Contact information
@@ -1101,7 +1104,17 @@ function flattenExtractedData(data) {
     proforma_year3_average_occupancy: getSource(data.pro_forma_projections?.year_3?.occupancy_pct),
   };
 
-  return flat;
+  // Validate the flattened structure
+  const validation = validateFlatStructure(flat);
+  if (!validation.isValid) {
+    console.error('[flattenExtractedData] Validation ERRORS:', validation.errors);
+  }
+  if (validation.warnings.length > 0) {
+    console.warn('[flattenExtractedData] Validation warnings:', validation.warnings);
+  }
+
+  // Sanitize and return
+  return sanitizeExtractionData(flat);
 }
 
 /**
@@ -1317,8 +1330,8 @@ If only city/state shown (no street address):
  */
 function postProcessExtraction(data) {
   // Calculate price_per_bed if missing
-  if (!data.price_per_bed && data.purchase_price && data.no_of_beds) {
-    data.price_per_bed = Math.round(data.purchase_price / data.no_of_beds);
+  if (!data.price_per_bed && data.purchase_price && data.bed_count) {
+    data.price_per_bed = Math.round(data.purchase_price / data.bed_count);
   }
 
   // Calculate EBITDA margin if missing
@@ -1343,7 +1356,7 @@ function postProcessExtraction(data) {
 
   // Clean up any string numbers
   const numericFields = [
-    'no_of_beds', 'purchase_price', 'annual_revenue', 'ebitda', 'ebitda_margin',
+    'bed_count', 'purchase_price', 'annual_revenue', 'ebitda', 'ebitda_margin',
     'net_operating_income', 'current_occupancy', 'average_daily_rate',
     'medicare_percentage', 'medicaid_percentage', 'private_pay_percentage',
     'other_payer_percentage', 'price_per_bed',
@@ -1385,7 +1398,7 @@ function postProcessExtraction(data) {
  */
 function calculateConfidence(data) {
   const importantFields = [
-    'deal_name', 'facility_name', 'facility_type', 'no_of_beds',
+    'deal_name', 'facility_name', 'facility_type', 'bed_count',
     'city', 'state', 'purchase_price', 'annual_revenue', 'ebitda',
     'current_occupancy', 'medicaid_percentage', 'private_pay_percentage'
   ];
