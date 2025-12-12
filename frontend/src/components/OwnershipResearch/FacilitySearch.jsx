@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Search, Loader, MapPin, Building2, Star, Users, AlertCircle, X } from 'lucide-react';
 import { GoogleMap, useLoadScript, Marker, InfoWindow } from '@react-google-maps/api';
-import { facilityNLSearch, getFacilityDeficiencies } from '../../api/ownershipService';
+import { facilityNLSearch, getFacilityDeficiencies, getOwnershipProfile } from '../../api/ownershipService';
 import DeficiencyModal from './DeficiencyModal';
+import OwnershipProfileModal from './OwnershipProfileModal';
 import './FacilitySearch.css';
 
 const GOOGLE_MAPS_LIBRARIES = ['places', 'geocoding'];
@@ -54,6 +55,8 @@ function FacilitySearch() {
   const [availableChains, setAvailableChains] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [deficiencyModalFacility, setDeficiencyModalFacility] = useState(null);
+  const [ownershipProfile, setOwnershipProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   // Post-search filters
   const [minRating, setMinRating] = useState(0);
@@ -115,6 +118,22 @@ function FacilitySearch() {
   const handleExampleClick = (exampleQuery) => {
     setQuery(exampleQuery);
     handleSearch(exampleQuery);
+  };
+
+  const handleChainClick = async (chainName) => {
+    if (!chainName || chainName === 'Independent / Other') return;
+
+    setLoadingProfile(true);
+    try {
+      const response = await getOwnershipProfile(chainName);
+      if (response.success) {
+        setOwnershipProfile(response);
+      }
+    } catch (err) {
+      console.error('Error loading ownership profile:', err);
+    } finally {
+      setLoadingProfile(false);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -272,7 +291,13 @@ function FacilitySearch() {
           <div className="facility-name-section">
             <h3>{facility.facility_name}</h3>
             {facility.ownership_chain && (
-              <span className="chain-badge">
+              <span
+                className="chain-badge clickable"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleChainClick(facility.ownership_chain);
+                }}
+              >
                 <Building2 size={14} />
                 {facility.ownership_chain}
                 {facility.chain_facility_count && ` (${facility.chain_facility_count} facilities)`}
@@ -688,7 +713,21 @@ function FacilitySearch() {
                     <div className="ownership-header">
                       <div className="ownership-info">
                         <Building2 size={20} />
-                        <h3>{chain}</h3>
+                        <h3>
+                          {chain !== 'Independent / Other' ? (
+                            <a
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleChainClick(chain);
+                              }}
+                            >
+                              {chain}
+                            </a>
+                          ) : (
+                            chain
+                          )}
+                        </h3>
                         <span className="facility-count">{facilities.length} facilities</span>
                       </div>
                       {chain !== 'Independent / Other' && facilities[0]?.chain_facility_count && (
@@ -722,6 +761,15 @@ function FacilitySearch() {
         <DeficiencyModal
           facility={deficiencyModalFacility}
           onClose={() => setDeficiencyModalFacility(null)}
+        />
+      )}
+
+      {/* Ownership Profile Modal */}
+      {(ownershipProfile || loadingProfile) && (
+        <OwnershipProfileModal
+          profile={ownershipProfile}
+          loading={loadingProfile}
+          onClose={() => setOwnershipProfile(null)}
         />
       )}
     </div>

@@ -406,76 +406,77 @@ Return ONLY valid JSON with no additional text:`;
 async function searchFacilitiesAdvanced(filters) {
   const pool = getPoolInstance();
 
-  let whereConditions = ['active = true'];
+  // Use f. prefix for all conditions since main query uses 'f' as alias
+  let whereConditions = ['f.active = true'];
   let params = [];
   let paramIndex = 1;
 
   // State filter
   if (filters.states && filters.states.length > 0) {
-    whereConditions.push(`state = ANY($${paramIndex})`);
+    whereConditions.push(`f.state = ANY($${paramIndex})`);
     params.push(filters.states);
     paramIndex++;
   }
 
   // Rating filters
   if (filters.minOverallRating) {
-    whereConditions.push(`overall_rating >= $${paramIndex}`);
+    whereConditions.push(`f.overall_rating >= $${paramIndex}`);
     params.push(filters.minOverallRating);
     paramIndex++;
   }
   if (filters.maxOverallRating) {
-    whereConditions.push(`overall_rating <= $${paramIndex}`);
+    whereConditions.push(`f.overall_rating <= $${paramIndex}`);
     params.push(filters.maxOverallRating);
     paramIndex++;
   }
 
   // Bed count filters
   if (filters.minBeds) {
-    whereConditions.push(`total_beds >= $${paramIndex}`);
+    whereConditions.push(`f.total_beds >= $${paramIndex}`);
     params.push(filters.minBeds);
     paramIndex++;
   }
   if (filters.maxBeds) {
-    whereConditions.push(`total_beds <= $${paramIndex}`);
+    whereConditions.push(`f.total_beds <= $${paramIndex}`);
     params.push(filters.maxBeds);
     paramIndex++;
   }
 
   // Occupancy filters
   if (filters.minOccupancy) {
-    whereConditions.push(`occupancy_rate >= $${paramIndex}`);
+    whereConditions.push(`f.occupancy_rate >= $${paramIndex}`);
     params.push(filters.minOccupancy);
     paramIndex++;
   }
   if (filters.maxOccupancy) {
-    whereConditions.push(`occupancy_rate <= $${paramIndex}`);
+    whereConditions.push(`f.occupancy_rate <= $${paramIndex}`);
     params.push(filters.maxOccupancy);
     paramIndex++;
   }
 
   // Deficiency filter
   if (filters.maxDeficiencies !== undefined && filters.maxDeficiencies !== null) {
-    whereConditions.push(`COALESCE(health_deficiencies, 0) <= $${paramIndex}`);
+    whereConditions.push(`COALESCE(f.health_deficiencies, 0) <= $${paramIndex}`);
     params.push(filters.maxDeficiencies);
     paramIndex++;
   }
 
   // Ownership type filter
   if (filters.ownershipTypes && filters.ownershipTypes.length > 0) {
-    whereConditions.push(`ownership_type = ANY($${paramIndex})`);
+    whereConditions.push(`f.ownership_type = ANY($${paramIndex})`);
     params.push(filters.ownershipTypes);
     paramIndex++;
   }
 
   // Chain size filters (via subquery)
   if (filters.chainSizeMin || filters.chainSizeMax || filters.multiFacilityChain !== undefined) {
-    // First get chain sizes
+    // First get chain sizes - use different alias (sf) to avoid ambiguity
     const chainSizeSubquery = `
-      ownership_chain IN (
-        SELECT ownership_chain
-        FROM snf_facilities
-        WHERE active = true AND ownership_chain IS NOT NULL AND ownership_chain != ''
-        GROUP BY ownership_chain
+      f.ownership_chain IN (
+        SELECT sf.ownership_chain
+        FROM snf_facilities sf
+        WHERE sf.active = true AND sf.ownership_chain IS NOT NULL AND sf.ownership_chain != ''
+        GROUP BY sf.ownership_chain
         HAVING COUNT(*) ${filters.chainSizeMin ? `>= ${parseInt(filters.chainSizeMin)}` : '>= 1'}
         ${filters.chainSizeMax ? `AND COUNT(*) <= ${parseInt(filters.chainSizeMax)}` : ''}
       )
@@ -486,13 +487,13 @@ async function searchFacilitiesAdvanced(filters) {
     } else if (filters.multiFacilityChain === false) {
       // Independent facilities
       whereConditions.push(`(
-        ownership_chain IS NULL
-        OR ownership_chain = ''
-        OR ownership_chain IN (
-          SELECT ownership_chain
-          FROM snf_facilities
-          WHERE active = true AND ownership_chain IS NOT NULL AND ownership_chain != ''
-          GROUP BY ownership_chain
+        f.ownership_chain IS NULL
+        OR f.ownership_chain = ''
+        OR f.ownership_chain IN (
+          SELECT sf.ownership_chain
+          FROM snf_facilities sf
+          WHERE sf.active = true AND sf.ownership_chain IS NOT NULL AND sf.ownership_chain != ''
+          GROUP BY sf.ownership_chain
           HAVING COUNT(*) = 1
         )
       )`);
@@ -503,19 +504,19 @@ async function searchFacilitiesAdvanced(filters) {
 
   // Special focus facility
   if (filters.specialFocusFacility !== undefined) {
-    whereConditions.push(`special_focus_facility = $${paramIndex}`);
+    whereConditions.push(`f.special_focus_facility = $${paramIndex}`);
     params.push(filters.specialFocusFacility);
     paramIndex++;
   }
 
   // Medicare/Medicaid
   if (filters.acceptsMedicare !== undefined) {
-    whereConditions.push(`accepts_medicare = $${paramIndex}`);
+    whereConditions.push(`f.accepts_medicare = $${paramIndex}`);
     params.push(filters.acceptsMedicare);
     paramIndex++;
   }
   if (filters.acceptsMedicaid !== undefined) {
-    whereConditions.push(`accepts_medicaid = $${paramIndex}`);
+    whereConditions.push(`f.accepts_medicaid = $${paramIndex}`);
     params.push(filters.acceptsMedicaid);
     paramIndex++;
   }
@@ -523,8 +524,8 @@ async function searchFacilitiesAdvanced(filters) {
   // Search term
   if (filters.searchTerm) {
     whereConditions.push(`(
-      LOWER(facility_name) LIKE LOWER($${paramIndex})
-      OR LOWER(ownership_chain) LIKE LOWER($${paramIndex})
+      LOWER(f.facility_name) LIKE LOWER($${paramIndex})
+      OR LOWER(f.ownership_chain) LIKE LOWER($${paramIndex})
     )`);
     params.push(`%${filters.searchTerm}%`);
     paramIndex++;
@@ -891,11 +892,6 @@ router.get('/profiles/:id', async (req, res) => {
           for_profit: profile.for_profit_count,
           non_profit: profile.non_profit_count,
           government: profile.government_count
-        },
-        payer_mix: {
-          avg_medicare: profile.avg_medicare_percentage ? parseFloat(profile.avg_medicare_percentage) : null,
-          avg_medicaid: profile.avg_medicaid_percentage ? parseFloat(profile.avg_medicaid_percentage) : null,
-          avg_private_pay: profile.avg_private_pay_percentage ? parseFloat(profile.avg_private_pay_percentage) : null
         },
         last_refreshed_at: profile.last_refreshed_at
       },

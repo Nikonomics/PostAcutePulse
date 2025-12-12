@@ -2,19 +2,28 @@
  * Market Dynamics Service
  *
  * Provides market intelligence data for the Market Dynamics tab.
- * Connects to the snf_platform PostgreSQL database containing:
+ * Connects to a shared market database containing:
  * - snf_facilities: Skilled Nursing Facility data with CMS ratings
  * - alf_facilities: Assisted Living Facility data
  * - county_demographics: Population and economic data by county
+ * - county_cbsa_crosswalk: Maps counties to CBSA codes
+ * - cbsas: CBSA definitions and metadata
+ *
+ * Database Configuration:
+ * - Uses MARKET_DATABASE_URL if set (for shared market database)
+ * - Falls back to DATABASE_URL (for unified local development)
+ * - Local default: postgresql://localhost:5432/snf_platform
  */
 
 const { Pool } = require('pg');
 
-// Database connection configuration
-// Local: postgresql://localhost:5432/snf_platform
-// Production: Uses DATABASE_URL environment variable
+// Database connection configuration for market data
+// Prioritizes MARKET_DATABASE_URL for shared market database
+// Falls back to DATABASE_URL or local default
 const getPool = () => {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
+  const connectionString = process.env.MARKET_DATABASE_URL ||
+                          process.env.DATABASE_URL ||
+                          'postgresql://localhost:5432/snf_platform';
   const isProduction = connectionString.includes('render.com');
 
   return new Pool({

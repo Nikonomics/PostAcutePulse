@@ -61,7 +61,7 @@ export const getOwnerDetails = async (ownerName) => {
  */
 export const facilityNLSearch = async (query) => {
   const response = await apiService.post(`${OWNERSHIP_BASE}/facility-search`, { query });
-  return response;
+  return response.data;
 };
 
 /**
@@ -73,5 +73,45 @@ export const facilityNLSearch = async (query) => {
  */
 export const getFacilityDeficiencies = async (providerId, prefix = 'all', years = 3) => {
   const response = await apiService.get(`${OWNERSHIP_BASE}/facilities/${providerId}/deficiencies`, { prefix, years });
+  return response.data;
+};
+
+// ============================================================================
+// OWNERSHIP PROFILES API
+// Pre-computed aggregates for parent organizations with 2+ facilities
+// ============================================================================
+
+/**
+ * Get ownership profile by ID or organization name
+ * @param {string|number} idOrName - Profile ID or parent organization name
+ * @returns {Promise<Object>} Ownership profile with facilities
+ */
+export const getOwnershipProfile = async (idOrName) => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/profiles/${encodeURIComponent(idOrName)}`);
+  return response.data;
+};
+
+/**
+ * List ownership profiles with optional filtering
+ * @param {Object} params - Query parameters
+ * @param {string} params.search - Search term for organization name
+ * @param {number} params.min_facilities - Minimum facility count (default 2)
+ * @param {string} params.sort - Sort field (facility_count, total_beds, avg_overall_rating, state_count)
+ * @param {string} params.order - Sort order (asc, desc)
+ * @param {number} params.limit - Results per page (default 100)
+ * @param {number} params.offset - Pagination offset
+ * @returns {Promise<Object>} List of profiles with pagination info
+ */
+export const listOwnershipProfiles = async (params = {}) => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/profiles`, params);
+  return response.data;
+};
+
+/**
+ * Get ownership profile statistics
+ * @returns {Promise<Object>} Overall stats about ownership profiles
+ */
+export const getOwnershipProfileStats = async () => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/profiles/stats`);
   return response.data;
 };
