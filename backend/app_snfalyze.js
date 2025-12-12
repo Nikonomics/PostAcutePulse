@@ -25,19 +25,21 @@ const EventMatches = db.event_matches;
 db.sequelize.sync().then(async () => {
   console.log('Database synced successfully');
 
-  // Check if database is empty and seed if needed
+  // Ensure default admin user exists
   try {
-    const userCount = await db.users.count();
-    if (userCount === 0) {
-      console.log('Database is empty, running seed...');
-      const bcrypt = require('bcryptjs');
+    const bcrypt = require('bcryptjs');
+    const adminEmail = 'admin@snfalyze.com';
+
+    const existingAdmin = await db.users.findOne({ where: { email: adminEmail } });
+
+    if (!existingAdmin) {
+      console.log('Creating default admin user...');
       const passwordHash = await bcrypt.hash('password123', 10);
 
-      // Create default admin user
       await db.users.create({
         first_name: 'Admin',
         last_name: 'User',
-        email: 'admin@snfalyze.com',
+        email: adminEmail,
         password: passwordHash,
         role: 'admin',
         status: 'active',
@@ -45,6 +47,8 @@ db.sequelize.sync().then(async () => {
         department: 'Administration'
       });
       console.log('Created default admin user: admin@snfalyze.com / password123');
+    } else {
+      console.log('Default admin user already exists');
     }
   } catch (seedErr) {
     console.error('Auto-seed check error:', seedErr);
