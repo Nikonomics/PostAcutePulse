@@ -14,6 +14,20 @@ import MarketMap from '../components/MarketDynamicsTab/MarketMap';
 import DemographicsPanel from '../components/MarketDynamicsTab/DemographicsPanel';
 import SupplyScorecard from '../components/MarketDynamicsTab/SupplyScorecard';
 import {
+  OverallGradeHeader,
+  CategoryScorecard,
+  OperatingMarginPanel,
+  RisksOpportunitiesPanel,
+} from '../components/MarketScorecard';
+import {
+  calculateScores,
+  calculateOverallGrade,
+  calculateImpliedMonthlyBudget,
+  calculateLaborCostPerBed,
+  generateRisksOpportunities,
+  calculateDataConfidence,
+} from '../utils/marketScoreCalculations';
+import {
   getStateSummary,
   getMarketMetrics,
   getFacilitiesInCounty,
@@ -214,6 +228,176 @@ const styles = {
     alignItems: 'center',
     gap: '0.5rem',
   },
+  twoColumnUnequal: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',
+    marginBottom: '16px',
+  },
+};
+
+// County-Level Content Component with Scorecard
+const CountyLevelContent = ({
+  marketData,
+  facilityType,
+  selectedState,
+  selectedCounty,
+  facilities,
+  selectedFacility,
+  setSelectedFacility,
+  mapCenter,
+  isInComparison,
+  comparisonMarkets,
+  handleAddToComparison,
+  nationalBenchmarks,
+  stateSummary,
+}) => {
+  // Calculate scores using the market data
+  const laborData = useMemo(() => {
+    // Extract labor data from market data or use defaults
+    const demographics = marketData?.demographics;
+    return {
+      state_cna_wage: marketData?.labor?.cnaWage || 15.50,
+      state_lpn_wage: marketData?.labor?.lpnWage || 23.00,
+      state_rn_wage: marketData?.labor?.rnWage || 36.00,
+      cbsa_wage_index: marketData?.labor?.wageIndex || 1.0,
+      healthcare_unemployment: marketData?.labor?.healthcareUnemployment || 3.0,
+    };
+  }, [marketData]);
+
+  // Pass marketData directly - the CategoryScorecard handles the nested structure
+  const preparedMarketData = useMemo(() => {
+    if (!marketData) return null;
+    // Return the marketData as-is since it already has the correct nested structure
+    // (demographics.population.age65Plus, demographics.economics.medianHouseholdIncome, etc.)
+    return marketData;
+  }, [marketData]);
+
+  const scores = useMemo(() => {
+    return calculateScores(preparedMarketData, facilityType, laborData);
+  }, [preparedMarketData, facilityType, laborData]);
+
+  const overallGrade = useMemo(() => {
+    return calculateOverallGrade(scores, facilityType);
+  }, [scores, facilityType]);
+
+  const dataConfidence = useMemo(() => {
+    return calculateDataConfidence(preparedMarketData);
+  }, [preparedMarketData]);
+
+  const risksOpportunities = useMemo(() => {
+    return generateRisksOpportunities(preparedMarketData, facilityType, scores, laborData);
+  }, [preparedMarketData, facilityType, scores, laborData]);
+
+  const impliedRevenue = useMemo(() => {
+    const income = preparedMarketData?.demographics?.medianHouseholdIncome || 0;
+    return calculateImpliedMonthlyBudget(income);
+  }, [preparedMarketData]);
+
+  const laborCost = useMemo(() => {
+    return calculateLaborCostPerBed(laborData);
+  }, [laborData]);
+
+  return (
+    <>
+      {/* Overall Grade Header */}
+      <OverallGradeHeader
+        grade={overallGrade}
+        confidence={dataConfidence}
+        countyName={selectedCounty}
+        stateName={selectedState}
+        facilityType={facilityType}
+        onAddCompare={handleAddToComparison}
+        isInComparison={isInComparison}
+        comparisonFull={comparisonMarkets.length >= 3}
+      />
+
+      {/* Main Layout: Map on left (50%), Scorecards in 2 columns on right (50%) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '1rem',
+        marginBottom: '1rem',
+      }}>
+        {/* Left Column: Map */}
+        <div style={{ ...styles.card, display: 'flex', flexDirection: 'column', minHeight: '450px' }}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>
+              <MapPin size={16} />
+              Facilities Map
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+              {facilities.length} facilities
+            </span>
+          </div>
+          <div style={{ ...styles.cardBody, padding: 0, flex: 1 }}>
+            {mapCenter ? (
+              <MarketMap
+                centerLat={mapCenter.lat}
+                centerLon={mapCenter.lon}
+                competitors={facilities}
+                facilityType={facilityType}
+                selectedCompetitor={selectedFacility}
+                onCompetitorSelect={setSelectedFacility}
+                facilityName={null}
+              />
+            ) : (
+              <div style={styles.noSelection}>
+                <MapPin size={32} style={styles.noSelectionIcon} />
+                <div>No facilities with coordinates</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Scorecards in 2 columns */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {/* Category Scorecards - 2 column grid */}
+          {scores && (
+            <CategoryScorecard
+              scores={scores}
+              marketData={preparedMarketData}
+              facilityType={facilityType}
+              laborData={laborData}
+            />
+          )}
+
+          {/* Operating Margin and Risks side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <OperatingMarginPanel
+              impliedRevenue={impliedRevenue}
+              laborCost={laborCost}
+            />
+            <RisksOpportunitiesPanel
+              risks={risksOpportunities.risks}
+              opportunities={risksOpportunities.opportunities}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Demographics Panel */}
+      <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
+        <div style={styles.cardHeader}>
+          <span style={styles.cardTitle}>
+            <Users size={16} />
+            Market Demographics
+          </span>
+        </div>
+        <div style={styles.cardBody}>
+          <DemographicsPanel demographics={marketData.demographics} />
+        </div>
+      </div>
+
+      {/* Facilities Table */}
+      <FacilityList
+        facilities={facilities}
+        facilityType={facilityType}
+        selectedFacility={selectedFacility}
+        onFacilitySelect={setSelectedFacility}
+      />
+    </>
+  );
 };
 
 const MarketAnalysis = () => {
@@ -507,97 +691,21 @@ const MarketAnalysis = () => {
 
       {/* County-Level Content */}
       {!loading && selectedCounty && marketData && (
-        <>
-          {/* Current Market Header with Compare Button */}
-          <div style={styles.currentMarketHeader}>
-            <div style={styles.currentMarketTitle}>
-              <MapPin size={18} />
-              {selectedCounty}, {selectedState}
-              <span style={{
-                ...styles.badge,
-                ...(facilityType === 'SNF' ? styles.snfBadge : styles.alfBadge),
-              }}>
-                {marketData.supply?.facilityCount || 0} facilities
-              </span>
-            </div>
-            <button
-              style={{
-                ...styles.compareButton,
-                ...(isInComparison || comparisonMarkets.length >= 3 ? styles.compareButtonDisabled : {}),
-              }}
-              onClick={handleAddToComparison}
-              disabled={isInComparison || comparisonMarkets.length >= 3}
-            >
-              <Plus size={14} />
-              {isInComparison ? 'In Comparison' : 'Add to Compare'}
-            </button>
-          </div>
-
-          {/* Supply Scorecard */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <SupplyScorecard
-              marketData={marketData}
-              facilityType={facilityType}
-              nationalBenchmarks={nationalBenchmarks}
-              stateSummary={stateSummary}
-            />
-          </div>
-
-          {/* Map and Demographics */}
-          <div style={styles.twoColumn}>
-            {/* Map */}
-            <div style={{ ...styles.card, display: 'flex', flexDirection: 'column' }}>
-              <div style={styles.cardHeader}>
-                <span style={styles.cardTitle}>
-                  <MapPin size={16} />
-                  Facilities Map
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                  {facilities.length} facilities
-                </span>
-              </div>
-              <div style={{ ...styles.cardBody, padding: 0, flex: 1, minHeight: '350px' }}>
-                {mapCenter ? (
-                  <MarketMap
-                    centerLat={mapCenter.lat}
-                    centerLon={mapCenter.lon}
-                    competitors={facilities}
-                    facilityType={facilityType}
-                    selectedCompetitor={selectedFacility}
-                    onCompetitorSelect={setSelectedFacility}
-                    facilityName={null}
-                  />
-                ) : (
-                  <div style={styles.noSelection}>
-                    <MapPin size={32} style={styles.noSelectionIcon} />
-                    <div>No facilities with coordinates</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Demographics */}
-            <div style={{ ...styles.card, display: 'flex', flexDirection: 'column' }}>
-              <div style={styles.cardHeader}>
-                <span style={styles.cardTitle}>
-                  <Users size={16} />
-                  Market Demographics
-                </span>
-              </div>
-              <div style={{ ...styles.cardBody, flex: 1 }}>
-                <DemographicsPanel demographics={marketData.demographics} />
-              </div>
-            </div>
-          </div>
-
-          {/* Facilities Table */}
-          <FacilityList
-            facilities={facilities}
-            facilityType={facilityType}
-            selectedFacility={selectedFacility}
-            onFacilitySelect={setSelectedFacility}
-          />
-        </>
+        <CountyLevelContent
+          marketData={marketData}
+          facilityType={facilityType}
+          selectedState={selectedState}
+          selectedCounty={selectedCounty}
+          facilities={facilities}
+          selectedFacility={selectedFacility}
+          setSelectedFacility={setSelectedFacility}
+          mapCenter={mapCenter}
+          isInComparison={isInComparison}
+          comparisonMarkets={comparisonMarkets}
+          handleAddToComparison={handleAddToComparison}
+          nationalBenchmarks={nationalBenchmarks}
+          stateSummary={stateSummary}
+        />
       )}
 
       {/* Market Comparison Panel */}
