@@ -23,6 +23,7 @@ import CreateDealChoice from "./pages/CreateDealChoice";
 import UploadDeal from "./pages/UploadDeal";
 import Profile from "./pages/Profile";
 import MarketAnalysis from "./pages/MarketAnalysis";
+import OwnershipResearch from "./pages/OwnershipResearch";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
 //   const { isLoggedIn } = useAuth();
@@ -206,6 +207,15 @@ function App() {
           element={
             <ProtectedRoute>
               <MarketAnalysis />
+            </ProtectedRoute>
+          }
+        />
+        {/* Ownership Research route */}
+        <Route
+          path="/ownership-research"
+          element={
+            <ProtectedRoute>
+              <OwnershipResearch />
             </ProtectedRoute>
           }
         />

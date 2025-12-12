@@ -124,6 +124,7 @@ const styles = {
     gridTemplateColumns: '1fr 1fr',
     gap: '1.5rem',
     marginBottom: '1.5rem',
+    alignItems: 'stretch',
   },
   loading: {
     display: 'flex',
@@ -545,7 +546,7 @@ const MarketAnalysis = () => {
           {/* Map and Demographics */}
           <div style={styles.twoColumn}>
             {/* Map */}
-            <div style={styles.card}>
+            <div style={{ ...styles.card, display: 'flex', flexDirection: 'column' }}>
               <div style={styles.cardHeader}>
                 <span style={styles.cardTitle}>
                   <MapPin size={16} />
@@ -555,7 +556,7 @@ const MarketAnalysis = () => {
                   {facilities.length} facilities
                 </span>
               </div>
-              <div style={{ ...styles.cardBody, padding: 0, height: '350px' }}>
+              <div style={{ ...styles.cardBody, padding: 0, flex: 1, minHeight: '350px' }}>
                 {mapCenter ? (
                   <MarketMap
                     centerLat={mapCenter.lat}
@@ -576,14 +577,14 @@ const MarketAnalysis = () => {
             </div>
 
             {/* Demographics */}
-            <div style={styles.card}>
+            <div style={{ ...styles.card, display: 'flex', flexDirection: 'column' }}>
               <div style={styles.cardHeader}>
                 <span style={styles.cardTitle}>
                   <Users size={16} />
-                  County Demographics
+                  Market Demographics
                 </span>
               </div>
-              <div style={styles.cardBody}>
+              <div style={{ ...styles.cardBody, flex: 1 }}>
                 <DemographicsPanel demographics={marketData.demographics} />
               </div>
             </div>

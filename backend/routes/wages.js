@@ -11,7 +11,7 @@ const { Pool } = require('pg');
 
 // Database connection
 const getPool = () => {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+  const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
   return new Pool({
     connectionString,
     ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,

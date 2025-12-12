@@ -106,6 +106,7 @@ var facilitiesRouter = require('./routes/facilities');
 var marketRouter = require('./routes/market');
 var wagesRouter = require('./routes/wages');
 var marketsRouter = require('./routes/markets');
+var ownershipRouter = require('./routes/ownership');
 
 app.use(fileUpload());
 
@@ -148,6 +149,9 @@ app.use('/api/wages', wagesRouter);
 
 // CBSA Markets API routes
 app.use('/api/markets', marketsRouter);
+
+// Ownership Research API routes
+app.use('/api/v1/ownership', ownershipRouter);
 
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);

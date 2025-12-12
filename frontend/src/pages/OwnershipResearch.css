@@ -1,0 +1,121 @@
+.ownership-research-page {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+}
+
+/* Page Header - matching SNFalyze pattern */
+.ownership-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.ownership-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ownership-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.ownership-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Tab Navigation - Card Style */
+.ownership-tab-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.ownership-tab-navigation {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.ownership-tab-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ownership-tab-button:hover {
+  color: #111827;
+  background: #f3f4f6;
+}
+
+.ownership-tab-button.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  background: white;
+}
+
+.ownership-tab-button svg {
+  opacity: 0.7;
+}
+
+.ownership-tab-button.active svg {
+  opacity: 1;
+}
+
+/* Tab Content */
+.ownership-tab-content {
+  padding: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ownership-research-page {
+    padding: 1rem;
+  }
+
+  .ownership-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .ownership-title {
+    font-size: 1.25rem;
+  }
+
+  .ownership-tab-navigation {
+    overflow-x: auto;
+  }
+
+  .ownership-tab-button {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+}

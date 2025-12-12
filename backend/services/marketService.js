@@ -2,7 +2,7 @@
  * Market Dynamics Service
  *
  * Provides market intelligence data for the Market Dynamics tab.
- * Connects to the snf_news PostgreSQL database containing:
+ * Connects to the snf_platform PostgreSQL database containing:
  * - snf_facilities: Skilled Nursing Facility data with CMS ratings
  * - alf_facilities: Assisted Living Facility data
  * - county_demographics: Population and economic data by county
@@ -11,10 +11,10 @@
 const { Pool } = require('pg');
 
 // Database connection configuration
-// Local: postgresql://localhost:5432/snf_news
-// Production: Uses SNF_NEWS_DATABASE_URL environment variable
+// Local: postgresql://localhost:5432/snf_platform
+// Production: Uses DATABASE_URL environment variable
 const getPool = () => {
-  const connectionString = process.env.SNF_NEWS_DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+  const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
   const isProduction = connectionString.includes('render.com');
 
   return new Pool({

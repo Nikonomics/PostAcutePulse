@@ -538,7 +538,7 @@ router.get('/facilities/:providerId/deficiencies', async (req, res) => {
     const { prefix = 'all', years = 3 } = req.query;
 
     const { Pool } = require('pg');
-    const connectionString = process.env.SNF_NEWS_DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
     const pool = new Pool({
       connectionString,
       ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
@@ -597,7 +597,7 @@ router.get('/health', async (req, res) => {
   try {
     // Quick test query
     const { Pool } = require('pg');
-    const connectionString = process.env.SNF_NEWS_DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
     const pool = new Pool({
       connectionString,
       ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
@@ -728,7 +728,7 @@ router.get('/refresh-history', async (req, res) => {
     const { limit = 10 } = req.query;
 
     const { Pool } = require('pg');
-    const connectionString = process.env.SNF_NEWS_DATABASE_URL || 'postgresql://localhost:5432/snf_news';
+    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
     const pool = new Pool({
       connectionString,
       ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
