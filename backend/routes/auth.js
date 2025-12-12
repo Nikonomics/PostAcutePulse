@@ -55,8 +55,10 @@ router.post('/login', async (req, res) => {
       success: true,
       message: 'Login successful',
       body: {
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        token: accessToken,           // Frontend expects 'token'
+        access_token: accessToken,    // Also include for compatibility
+        refresh: refreshToken,        // Frontend expects 'refresh'
+        refresh_token: refreshToken,  // Also include for compatibility
         user: {
           id: user.id,
           full_name: user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
@@ -280,6 +282,41 @@ router.post('/refresh-token', async (req, res) => {
     });
   } catch (error) {
     console.error('Refresh token error:', error);
+    res.status(401).json({ success: false, message: 'Invalid refresh token' });
+  }
+});
+
+// GET /api/auth/generate-access-token - Frontend compatibility endpoint
+router.get('/generate-access-token', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const refreshToken = authHeader && authHeader.split(' ')[1];
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token required'
+      });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+
+    // Generate new access token
+    const accessToken = jwt.sign(
+      { data: { id: decoded.data.id, email: decoded.data.email } },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    res.json({
+      success: true,
+      body: {
+        token: accessToken
+      }
+    });
+  } catch (error) {
+    console.error('Generate access token error:', error);
     res.status(401).json({ success: false, message: 'Invalid refresh token' });
   }
 });

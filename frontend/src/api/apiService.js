@@ -32,7 +32,7 @@ const refreshToken = async () => {
     const response = await generateAccessToken(refreshToken);
 
     // Try different possible response structures
-    let newToken = response.body.accessToken;
+    let newToken = response.body?.token || response.body?.accessToken || response.body?.access_token;
 
     if (newToken) {
       localStorage.setItem("authToken", newToken);
