@@ -11,6 +11,7 @@ import {
   User,
   MapPin,
   Building2,
+  Bookmark,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -23,18 +24,19 @@ const Sidebar = ({ isOpen }) => {
     { path: '/deals', icon: Handshake, label: 'Deals' },
     { path: '/market-analysis', icon: MapPin, label: 'Market Analysis' },
     { path: '/ownership-research', icon: Building2, label: 'Ownership Research' },
+    { path: '/saved-items', icon: Bookmark, label: 'My Saved Items' },
     { path: '/user-management', icon: User, label: 'User Management' },
     { path: '/ai-deals', icon: Bot, label: 'AI Assistant' },
   ];
 
-  // If admin, show all menu items. If not admin, show only dashboard, deals, market analysis, ownership research, ai tabs.
+  // If admin, show all menu items. If not admin, show only dashboard, deals, market analysis, ownership research, saved items, ai tabs.
   let menuItems = [];
   if (user?.role === 'admin') {
     menuItems = allMenuItems;
   } else {
-    // Only show dashboard, deals, market analysis, ownership research, ai tabs for non-admins
+    // Only show dashboard, deals, market analysis, ownership research, saved items, ai tabs for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/ai-deals'].includes(item.path)
+      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/saved-items', '/ai-deals'].includes(item.path)
     );
   }
 

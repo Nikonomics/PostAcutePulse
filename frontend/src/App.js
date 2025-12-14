@@ -24,6 +24,8 @@ import UploadDeal from "./pages/UploadDeal";
 import Profile from "./pages/Profile";
 import MarketAnalysis from "./pages/MarketAnalysis";
 import OwnershipResearch from "./pages/OwnershipResearch";
+import OwnershipProfile from "./pages/OwnershipProfile";
+import SavedItems from "./pages/SavedItems";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
 //   const { isLoggedIn } = useAuth();
@@ -201,6 +203,15 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Saved Items route */}
+        <Route
+          path="/saved-items"
+          element={
+            <ProtectedRoute>
+              <SavedItems />
+            </ProtectedRoute>
+          }
+        />
         {/* Market Analysis route */}
         <Route
           path="/market-analysis"
@@ -216,6 +227,15 @@ function App() {
           element={
             <ProtectedRoute>
               <OwnershipResearch />
+            </ProtectedRoute>
+          }
+        />
+        {/* Ownership Profile route */}
+        <Route
+          path="/ownership/:id"
+          element={
+            <ProtectedRoute>
+              <OwnershipProfile />
             </ProtectedRoute>
           }
         />

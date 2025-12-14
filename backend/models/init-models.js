@@ -12,6 +12,10 @@ var _master_deals = require("./master_deals")
 var _deal_facilities = require("./deal_facilities")
 var _benchmark_configurations = require("./benchmark_configurations")
 var _deal_proforma_scenarios = require("./deal_proforma_scenarios")
+var _ownership_contacts = require("./ownership_contacts")
+var _ownership_comments = require("./ownership_comments")
+var _ownership_comment_mentions = require("./ownership_comment_mentions")
+var _ownership_change_logs = require("./ownership_change_logs")
 
 function initModels(sequelize) {
   var users = _users(sequelize, DataTypes);
@@ -27,6 +31,10 @@ function initModels(sequelize) {
   var deal_facilities = _deal_facilities(sequelize, DataTypes)
   var benchmark_configurations = _benchmark_configurations(sequelize, DataTypes)
   var deal_proforma_scenarios = _deal_proforma_scenarios(sequelize, DataTypes)
+  var ownership_contacts = _ownership_contacts(sequelize, DataTypes)
+  var ownership_comments = _ownership_comments(sequelize, DataTypes)
+  var ownership_comment_mentions = _ownership_comment_mentions(sequelize, DataTypes)
+  var ownership_change_logs = _ownership_change_logs(sequelize, DataTypes)
 
   return {
     users,
@@ -41,7 +49,11 @@ function initModels(sequelize) {
     master_deals,
     deal_facilities,
     benchmark_configurations,
-    deal_proforma_scenarios
+    deal_proforma_scenarios,
+    ownership_contacts,
+    ownership_comments,
+    ownership_comment_mentions,
+    ownership_change_logs
   };
 }
 module.exports = initModels;

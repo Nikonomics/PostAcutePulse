@@ -135,6 +135,14 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('Extraction history table migration error:', err.message);
   }
+
+  try {
+    // Add CMS staffing, turnover, and chain data columns
+    const { runMigration: runCmsStaffingMigration } = require('../migrations/add-cms-staffing-columns');
+    await runCmsStaffingMigration(sequelize);
+  } catch (err) {
+    console.log('CMS staffing columns migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist

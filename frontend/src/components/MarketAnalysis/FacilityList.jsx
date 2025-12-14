@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Star,
   ChevronUp,
@@ -221,7 +222,13 @@ const styles = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    color: '#6b7280',
+    color: '#2563eb',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  ownershipCellHover: {
+    color: '#1e40af',
+    textDecoration: 'underline',
   },
   typeBadge: {
     display: 'inline-flex',
@@ -527,8 +534,10 @@ const FacilityList = ({
   selectedFacility,
   onFacilitySelect,
 }) => {
+  const navigate = useNavigate();
   const [sortConfig, setSortConfig] = useState({ key: 'beds', direction: 'desc' });
   const [hoveredRow, setHoveredRow] = useState(null);
+  const [hoveredOwnership, setHoveredOwnership] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [ratingFilter, setRatingFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
@@ -589,9 +598,12 @@ const FacilityList = ({
       });
     }
 
-    // Ownership type filter
+    // Ownership filter - filter by ownership name (parent organization or licensee)
     if (ownershipFilter !== 'all') {
-      filtered = filtered.filter(f => f.ownership?.type === ownershipFilter);
+      filtered = filtered.filter(f => {
+        const ownershipName = f.ownership?.parentOrganization || f.ownership?.licensee;
+        return ownershipName === ownershipFilter;
+      });
     }
 
     // Sort
@@ -667,6 +679,15 @@ const FacilityList = ({
 
   const handleRowClick = (facility) => {
     onFacilitySelect(selectedFacility?.id === facility.id ? null : facility);
+  };
+
+  const handleOwnershipClick = (e, ownershipName) => {
+    e.stopPropagation(); // Prevent row selection
+    const ownership = ownershipName || '';
+    if (ownership && ownership !== '-') {
+      // Navigate to the ownership profile page
+      navigate(`/ownership/${encodeURIComponent(ownership)}`);
+    }
   };
 
   // Fetch deficiencies for a facility
@@ -928,7 +949,16 @@ const FacilityList = ({
 
                   {/* Ownership Company */}
                   <td style={styles.td}>
-                    <div style={styles.ownershipCell} title={facility.ownership?.parentOrganization}>
+                    <div
+                      style={{
+                        ...styles.ownershipCell,
+                        ...(hoveredOwnership === facility.id ? styles.ownershipCellHover : {}),
+                      }}
+                      title={facility.ownership?.parentOrganization || facility.ownership?.licensee}
+                      onClick={(e) => handleOwnershipClick(e, facility.ownership?.parentOrganization || facility.ownership?.licensee)}
+                      onMouseEnter={() => setHoveredOwnership(facility.id)}
+                      onMouseLeave={() => setHoveredOwnership(null)}
+                    >
                       {facility.ownership?.parentOrganization || facility.ownership?.licensee || '-'}
                     </div>
                   </td>

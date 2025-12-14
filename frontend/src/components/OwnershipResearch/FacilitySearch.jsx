@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Loader, MapPin, Building2, Star, Users, AlertCircle, X } from 'lucide-react';
 import { GoogleMap, useLoadScript, Marker, InfoWindow } from '@react-google-maps/api';
 import { facilityNLSearch, getFacilityDeficiencies, getOwnershipProfile } from '../../api/ownershipService';
@@ -47,6 +48,7 @@ const mapStyles = [
 ];
 
 function FacilitySearch() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -120,20 +122,10 @@ function FacilitySearch() {
     handleSearch(exampleQuery);
   };
 
-  const handleChainClick = async (chainName) => {
+  const handleChainClick = (chainName) => {
     if (!chainName || chainName === 'Independent / Other') return;
-
-    setLoadingProfile(true);
-    try {
-      const response = await getOwnershipProfile(chainName);
-      if (response.success) {
-        setOwnershipProfile(response);
-      }
-    } catch (err) {
-      console.error('Error loading ownership profile:', err);
-    } finally {
-      setLoadingProfile(false);
-    }
+    // Navigate to the ownership profile page
+    navigate(`/ownership/${encodeURIComponent(chainName)}`);
   };
 
   const handleKeyPress = (e) => {

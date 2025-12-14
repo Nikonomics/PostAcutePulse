@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Building2, MapPin, Star, ChevronRight, Loader } from 'lucide-react';
-import { getTopChains, searchOwnership, getOwnerDetails } from '../../api/ownershipService';
+import { getTopChains, searchOwnership, getOwnerDetails, starItem, unstarItem, getStarredItems } from '../../api/ownershipService';
 import OwnerDetailsModal from './OwnerDetailsModal';
 import './OwnershipSearch.css';
 
 function OwnershipSearch() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [ownershipData, setOwnershipData] = useState([]);
@@ -18,16 +20,35 @@ function OwnershipSearch() {
   });
   const [topChains, setTopChains] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [topChainsSortBy, setTopChainsSortBy] = useState('beds');
+  const [starredChains, setStarredChains] = useState(new Set());
 
-  // Load top chains on mount
+  // Load top chains on mount and when sort changes
   useEffect(() => {
     loadTopChains();
+  }, [topChainsSortBy]);
+
+  // Load starred items on mount
+  useEffect(() => {
+    loadStarredItems();
   }, []);
+
+  const loadStarredItems = async () => {
+    try {
+      const response = await getStarredItems('ownership_chain');
+      if (response.success) {
+        const starredSet = new Set(response.data.map(item => item.item_identifier));
+        setStarredChains(starredSet);
+      }
+    } catch (error) {
+      console.error('Error loading starred items:', error);
+    }
+  };
 
   const loadTopChains = async () => {
     setInitialLoading(true);
     try {
-      const response = await getTopChains(20);
+      const response = await getTopChains(20, topChainsSortBy);
       if (response.success) {
         setTopChains(response.data);
       }
@@ -44,15 +65,21 @@ function OwnershipSearch() {
 
     setLoading(true);
     try {
+      console.log('Searching for:', searchTerm, 'with filters:', filters);
       const response = await searchOwnership({
         search: searchTerm,
         ...filters
       });
+      console.log('Search response:', response);
       if (response.success) {
         setOwnershipData(response.data);
+      } else {
+        console.error('Search failed:', response);
+        setOwnershipData([]);
       }
     } catch (error) {
       console.error('Error searching ownership:', error);
+      setOwnershipData([]);
     } finally {
       setLoading(false);
     }
@@ -81,13 +108,34 @@ function OwnershipSearch() {
   };
 
   const handleChainClick = (chain) => {
-    setSearchTerm(chain.ownership_chain);
-    loadOwnerDetails(chain.ownership_chain);
+    // Navigate to the ownership profile page
+    navigate(`/ownership/${encodeURIComponent(chain.ownership_chain || chain.parent_organization)}`);
   };
 
   const handleClearSearch = () => {
     setSearchTerm('');
     setOwnershipData([]);
+  };
+
+  const handleToggleStar = async (e, chainName) => {
+    e.stopPropagation(); // Prevent card click
+    const isCurrentlyStarred = starredChains.has(chainName);
+
+    try {
+      if (isCurrentlyStarred) {
+        await unstarItem('ownership_chain', chainName);
+        setStarredChains(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(chainName);
+          return newSet;
+        });
+      } else {
+        await starItem('ownership_chain', chainName, chainName);
+        setStarredChains(prev => new Set([...prev, chainName]));
+      }
+    } catch (error) {
+      console.error('Error toggling star:', error);
+    }
   };
 
   return (
@@ -194,40 +242,69 @@ function OwnershipSearch() {
               {/* Top Chains List - show when no search */}
               {!searchTerm && topChains.length > 0 && (
                 <div className="top-chains-section">
-                  <h2>Top 20 SNF Chains Nationwide</h2>
-                  <div className="chains-list">
-                    {topChains.map((chain, index) => (
-                      <div
-                        key={index}
-                        className="chain-card"
-                        onClick={() => handleChainClick(chain)}
-                      >
-                        <div className="chain-rank">#{chain.ranking || index + 1}</div>
-                        <div className="chain-info">
-                          <div className="chain-name">{chain.ownership_chain}</div>
-                          <div className="chain-stats">
-                            <span className="chain-stat">
-                              <Building2 size={14} />
-                              {chain.facility_count} facilities
-                            </span>
-                            <span className="chain-stat">
-                              {parseInt(chain.total_beds || 0).toLocaleString()} beds
-                            </span>
-                            <span className="chain-stat">
-                              <MapPin size={14} />
-                              {chain.state_count} states
-                            </span>
-                            {chain.avg_rating && (
-                              <span className="chain-stat">
-                                <Star size={14} fill="#fbbf24" stroke="#fbbf24" />
-                                {parseFloat(chain.avg_rating).toFixed(1)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <ChevronRight size={20} className="chain-arrow" />
+                  <div className="top-chains-header">
+                    <h2>Top 20 SNF Chains Nationwide</h2>
+                    <div className="sort-toggle">
+                      <span className="sort-label">Sort by:</span>
+                      <div className="toggle-buttons">
+                        <button
+                          className={`toggle-btn ${topChainsSortBy === 'beds' ? 'active' : ''}`}
+                          onClick={() => setTopChainsSortBy('beds')}
+                        >
+                          Beds
+                        </button>
+                        <button
+                          className={`toggle-btn ${topChainsSortBy === 'facilities' ? 'active' : ''}`}
+                          onClick={() => setTopChainsSortBy('facilities')}
+                        >
+                          Facilities
+                        </button>
                       </div>
-                    ))}
+                    </div>
+                  </div>
+                  <div className="chains-list">
+                    {topChains.map((chain, index) => {
+                      const isStarred = starredChains.has(chain.ownership_chain);
+                      return (
+                        <div
+                          key={index}
+                          className="chain-card"
+                          onClick={() => handleChainClick(chain)}
+                        >
+                          <button
+                            className={`star-btn ${isStarred ? 'starred' : ''}`}
+                            onClick={(e) => handleToggleStar(e, chain.ownership_chain)}
+                            title={isStarred ? 'Remove from starred' : 'Add to starred'}
+                          >
+                            <Star size={18} fill={isStarred ? '#fbbf24' : 'none'} stroke={isStarred ? '#fbbf24' : '#9ca3af'} />
+                          </button>
+                          <div className="chain-rank">#{chain.ranking || index + 1}</div>
+                          <div className="chain-info">
+                            <div className="chain-name">{chain.ownership_chain}</div>
+                            <div className="chain-stats">
+                              <span className="chain-stat">
+                                <Building2 size={14} />
+                                {chain.facility_count} facilities
+                              </span>
+                              <span className="chain-stat">
+                                {parseInt(chain.total_beds || 0).toLocaleString()} beds
+                              </span>
+                              <span className="chain-stat">
+                                <MapPin size={14} />
+                                {chain.state_count} states
+                              </span>
+                              {chain.avg_rating && (
+                                <span className="chain-stat">
+                                  <Star size={14} fill="#fbbf24" stroke="#fbbf24" />
+                                  {parseFloat(chain.avg_rating).toFixed(1)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight size={20} className="chain-arrow" />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -301,6 +378,11 @@ function OwnershipSearch() {
           owner={selectedOwner}
           onClose={() => setSelectedOwner(null)}
           loading={loadingDetails}
+          onDeepResearch={(owner) => {
+            // TODO: Implement deep research functionality
+            console.log('Deep research requested for:', owner.chainName);
+            alert(`Deep Research for "${owner.chainName}" coming soon!\n\nThis will run AI-powered research to gather comprehensive information about this organization.`);
+          }}
         />
       )}
     </div>

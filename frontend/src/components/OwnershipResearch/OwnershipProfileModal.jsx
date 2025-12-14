@@ -1,10 +1,20 @@
 import { useState } from 'react';
-import { X, Building2, MapPin, Star, Users, AlertCircle, DollarSign, Loader } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Building2, MapPin, Star, Users, AlertCircle, DollarSign, Loader, ExternalLink } from 'lucide-react';
 import './OwnershipProfileModal.css';
 
 function OwnershipProfileModal({ profile, loading, onClose }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [stateFilter, setStateFilter] = useState('all');
+
+  const handleViewFullProfile = () => {
+    const orgName = profile?.profile?.parent_organization;
+    if (orgName) {
+      onClose();
+      navigate(`/ownership/${encodeURIComponent(orgName)}`);
+    }
+  };
 
   if (loading) {
     return (
@@ -79,9 +89,15 @@ function OwnershipProfileModal({ profile, loading, onClose }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="close-btn" aria-label="Close modal">
-            <X size={24} />
-          </button>
+          <div className="header-actions">
+            <button onClick={handleViewFullProfile} className="view-full-profile-btn">
+              <ExternalLink size={16} />
+              View Full Profile
+            </button>
+            <button onClick={onClose} className="close-btn" aria-label="Close modal">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}

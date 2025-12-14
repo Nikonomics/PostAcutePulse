@@ -13,10 +13,11 @@ const OWNERSHIP_BASE = '/ownership';
 /**
  * Get top SNF chains nationwide
  * @param {number} limit - Maximum chains to return (default 20)
+ * @param {string} sortBy - Sort by 'facilities' or 'beds' (default 'beds')
  * @returns {Promise<Array>} Array of top chains with stats
  */
-export const getTopChains = async (limit = 20) => {
-  const response = await apiService.get(`${OWNERSHIP_BASE}/top-chains`, { limit });
+export const getTopChains = async (limit = 20, sortBy = 'beds') => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/top-chains`, { limit, sortBy });
   return response.data;
 };
 
@@ -113,5 +114,189 @@ export const listOwnershipProfiles = async (params = {}) => {
  */
 export const getOwnershipProfileStats = async () => {
   const response = await apiService.get(`${OWNERSHIP_BASE}/profiles/stats`);
+  return response.data;
+};
+
+// ============================================================================
+// STARRED ITEMS API
+// Allow users to star/bookmark ownership chains and facilities
+// ============================================================================
+
+/**
+ * Get all starred items for the current user
+ * @param {string} type - Optional filter: 'ownership_chain' or 'facility'
+ * @returns {Promise<Array>} Array of starred items
+ */
+export const getStarredItems = async (type = null) => {
+  const params = type ? { type } : {};
+  const response = await apiService.get(`${OWNERSHIP_BASE}/starred`, params);
+  return response.data;
+};
+
+/**
+ * Star an item (ownership chain or facility)
+ * @param {string} itemType - 'ownership_chain' or 'facility'
+ * @param {string} itemIdentifier - Chain name or federal_provider_number
+ * @param {string} itemName - Display name for convenience
+ * @param {string} notes - Optional notes
+ * @returns {Promise<Object>} Created starred item
+ */
+export const starItem = async (itemType, itemIdentifier, itemName = null, notes = null) => {
+  const response = await apiService.post(`${OWNERSHIP_BASE}/starred`, {
+    itemType,
+    itemIdentifier,
+    itemName,
+    notes
+  });
+  return response.data;
+};
+
+/**
+ * Unstar an item
+ * @param {string} itemType - 'ownership_chain' or 'facility'
+ * @param {string} itemIdentifier - Chain name or federal_provider_number
+ * @returns {Promise<Object>} Deletion result
+ */
+export const unstarItem = async (itemType, itemIdentifier) => {
+  const response = await apiService.delete(
+    `${OWNERSHIP_BASE}/starred/${itemType}/${encodeURIComponent(itemIdentifier)}`
+  );
+  return response.data;
+};
+
+/**
+ * Check if items are starred (batch check)
+ * @param {Array} items - Array of {itemType, itemIdentifier}
+ * @returns {Promise<Object>} Map of item keys to boolean
+ */
+export const checkStarredItems = async (items) => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/starred/check`, {
+    items: JSON.stringify(items)
+  });
+  return response.data;
+};
+
+// ============================================================================
+// OWNERSHIP PROFILE EDITABLE API
+// User-editable profile fields, contacts, comments
+// ============================================================================
+
+/**
+ * Create a custom ownership profile (not from CMS)
+ * @param {Object} profileData - Profile data
+ * @returns {Promise<Object>} Created profile
+ */
+export const createOwnershipProfile = async (profileData) => {
+  const response = await apiService.post(`${OWNERSHIP_BASE}/profiles`, profileData);
+  return response.data;
+};
+
+/**
+ * Update ownership profile editable fields
+ * @param {number} profileId - Profile ID
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<Object>} Updated profile
+ */
+export const updateOwnershipProfile = async (profileId, updates) => {
+  const response = await apiService.put(`${OWNERSHIP_BASE}/profiles/${profileId}`, updates);
+  return response.data;
+};
+
+// ============================================================================
+// OWNERSHIP CONTACTS API
+// ============================================================================
+
+/**
+ * Get contacts for an ownership profile
+ * @param {number} profileId - Profile ID
+ * @returns {Promise<Array>} Array of contacts
+ */
+export const getOwnershipContacts = async (profileId) => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/profiles/${profileId}/contacts`);
+  return response.data;
+};
+
+/**
+ * Add a contact to an ownership profile
+ * @param {number} profileId - Profile ID
+ * @param {Object} contactData - Contact data
+ * @returns {Promise<Object>} Created contact
+ */
+export const addOwnershipContact = async (profileId, contactData) => {
+  const response = await apiService.post(`${OWNERSHIP_BASE}/profiles/${profileId}/contacts`, contactData);
+  return response.data;
+};
+
+/**
+ * Update a contact
+ * @param {number} profileId - Profile ID
+ * @param {number} contactId - Contact ID
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<Object>} Updated contact
+ */
+export const updateOwnershipContact = async (profileId, contactId, updates) => {
+  const response = await apiService.put(`${OWNERSHIP_BASE}/profiles/${profileId}/contacts/${contactId}`, updates);
+  return response.data;
+};
+
+/**
+ * Delete a contact
+ * @param {number} profileId - Profile ID
+ * @param {number} contactId - Contact ID
+ * @returns {Promise<Object>} Deletion result
+ */
+export const deleteOwnershipContact = async (profileId, contactId) => {
+  const response = await apiService.delete(`${OWNERSHIP_BASE}/profiles/${profileId}/contacts/${contactId}`);
+  return response.data;
+};
+
+// ============================================================================
+// OWNERSHIP COMMENTS API
+// ============================================================================
+
+/**
+ * Get comments for an ownership profile (threaded)
+ * @param {number} profileId - Profile ID
+ * @returns {Promise<Array>} Array of threaded comments
+ */
+export const getOwnershipComments = async (profileId) => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/profiles/${profileId}/comments`);
+  return response.data;
+};
+
+/**
+ * Add a comment to an ownership profile
+ * @param {number} profileId - Profile ID
+ * @param {Object} commentData - { comment, parentId?, mentions? }
+ * @returns {Promise<Object>} Created comment
+ */
+export const addOwnershipComment = async (profileId, commentData) => {
+  const response = await apiService.post(`${OWNERSHIP_BASE}/profiles/${profileId}/comments`, commentData);
+  return response.data;
+};
+
+/**
+ * Delete a comment
+ * @param {number} profileId - Profile ID
+ * @param {number} commentId - Comment ID
+ * @returns {Promise<Object>} Deletion result
+ */
+export const deleteOwnershipComment = async (profileId, commentId) => {
+  const response = await apiService.delete(`${OWNERSHIP_BASE}/profiles/${profileId}/comments/${commentId}`);
+  return response.data;
+};
+
+// ============================================================================
+// OWNERSHIP ACTIVITY API
+// ============================================================================
+
+/**
+ * Get activity/change log for an ownership profile
+ * @param {number} profileId - Profile ID
+ * @param {Object} params - { limit, offset }
+ * @returns {Promise<Object>} Activity feed
+ */
+export const getOwnershipActivity = async (profileId, params = {}) => {
+  const response = await apiService.get(`${OWNERSHIP_BASE}/profiles/${profileId}/activity`, params);
   return response.data;
 };

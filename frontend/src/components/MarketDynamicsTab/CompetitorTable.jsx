@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Star,
   ChevronUp,
@@ -151,8 +152,16 @@ const CompetitorTable = ({
   selectedCompetitor,
   onCompetitorSelect,
 }) => {
+  const navigate = useNavigate();
   const [sortConfig, setSortConfig] = useState({ key: 'distanceMiles', direction: 'asc' });
   const [hoveredRow, setHoveredRow] = useState(null);
+
+  const handleOwnershipClick = (e, ownershipName) => {
+    e.stopPropagation(); // Prevent row selection
+    if (ownershipName && ownershipName !== '-') {
+      navigate(`/ownership/${encodeURIComponent(ownershipName)}`);
+    }
+  };
 
   // Sort competitors
   const sortedCompetitors = useMemo(() => {
@@ -354,7 +363,18 @@ const CompetitorTable = ({
 
                     {/* Owner */}
                     <td style={styles.td}>
-                      <div style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={competitor.ownership?.parentOrganization}>
+                      <div
+                        style={{
+                          maxWidth: '150px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: competitor.ownership?.parentOrganization ? '#2563eb' : undefined,
+                          cursor: competitor.ownership?.parentOrganization ? 'pointer' : undefined,
+                        }}
+                        title={competitor.ownership?.parentOrganization}
+                        onClick={(e) => handleOwnershipClick(e, competitor.ownership?.parentOrganization)}
+                      >
                         {competitor.ownership?.parentOrganization || '-'}
                       </div>
                     </td>
@@ -385,7 +405,18 @@ const CompetitorTable = ({
 
                     {/* Licensee */}
                     <td style={styles.td}>
-                      <div style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={competitor.ownership?.licensee}>
+                      <div
+                        style={{
+                          maxWidth: '150px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          color: competitor.ownership?.licensee ? '#2563eb' : undefined,
+                          cursor: competitor.ownership?.licensee ? 'pointer' : undefined,
+                        }}
+                        title={competitor.ownership?.licensee}
+                        onClick={(e) => handleOwnershipClick(e, competitor.ownership?.licensee)}
+                      >
                         {competitor.ownership?.licensee || '-'}
                       </div>
                     </td>

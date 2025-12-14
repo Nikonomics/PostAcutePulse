@@ -9,6 +9,8 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const Anthropic = require('@anthropic-ai/sdk');
+const requireAuthentication = require("../passport").authenticateUser;
+const db = require('../models');
 
 // Database connection configuration
 const getPool = () => {
@@ -40,12 +42,18 @@ const anthropic = new Anthropic({
 
 /**
  * GET /api/v1/ownership/top-chains
- * Get top SNF chains nationwide ranked by facility count
+ * Get top SNF chains nationwide ranked by facility count or beds
+ * @query {number} limit - Number of chains to return (default 20)
+ * @query {string} sortBy - Sort by 'facilities' or 'beds' (default 'beds')
  */
 router.get('/top-chains', async (req, res) => {
   try {
-    const { limit = 20 } = req.query;
+    const { limit = 20, sortBy = 'beds' } = req.query;
     const pool = getPoolInstance();
+
+    // Determine sort column and ranking based on sortBy parameter
+    const sortColumn = sortBy === 'facilities' ? 'COUNT(*)' : 'SUM(total_beds)';
+    const orderColumn = sortBy === 'facilities' ? 'facility_count' : 'total_beds';
 
     const result = await pool.query(`
       SELECT
@@ -56,13 +64,13 @@ router.get('/top-chains', async (req, res) => {
         AVG(overall_rating) as avg_rating,
         AVG(occupancy_rate) as avg_occupancy,
         AVG(health_deficiencies) as avg_deficiencies,
-        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as ranking
+        ROW_NUMBER() OVER (ORDER BY ${sortColumn} DESC) as ranking
       FROM snf_facilities
       WHERE active = true
         AND ownership_chain IS NOT NULL
         AND ownership_chain != ''
       GROUP BY ownership_chain
-      ORDER BY facility_count DESC
+      ORDER BY ${orderColumn} DESC
       LIMIT $1
     `, [parseInt(limit)]);
 
@@ -121,8 +129,8 @@ router.get('/search', async (req, res) => {
     const {
       search = '',
       ownershipType = 'all',
-      minFacilities = 0,
-      minBeds = 0,
+      minFacilities = '0',
+      minBeds = '0',
       sortBy = 'facilities'
     } = req.query;
 
@@ -141,18 +149,22 @@ router.get('/search', async (req, res) => {
         break;
     }
 
+    // Parse numeric filters, defaulting to 0 for empty/invalid values
+    const minFacilitiesNum = parseInt(minFacilities) || 0;
+    const minBedsNum = parseInt(minBeds) || 0;
+
     // Build dynamic query
     let whereConditions = [`
       active = true
       AND ownership_chain IS NOT NULL
       AND ownership_chain != ''
     `];
-    let params = [parseInt(minFacilities), parseInt(minBeds)];
+    let params = [minFacilitiesNum, minBedsNum];
     let paramIndex = 3;
 
     if (ownershipType !== 'all') {
-      whereConditions.push(`ownership_type = $${paramIndex}`);
-      params.push(ownershipType);
+      whereConditions.push(`ownership_type ILIKE $${paramIndex}`);
+      params.push(`%${ownershipType}%`);
       paramIndex++;
     }
 
@@ -163,25 +175,30 @@ router.get('/search', async (req, res) => {
     }
 
     const result = await pool.query(`
-      WITH ranked_chains AS (
+      WITH chain_stats AS (
         SELECT
           ownership_chain,
-          ownership_type,
           COUNT(*) as facility_count,
           SUM(total_beds) as total_beds,
           COUNT(DISTINCT state) as state_count,
           AVG(overall_rating) as avg_rating,
           AVG(occupancy_rate) as avg_occupancy,
           AVG(health_deficiencies) as avg_deficiencies,
-          ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as ranking
+          -- Get the most common ownership type for this chain
+          MODE() WITHIN GROUP (ORDER BY ownership_type) as ownership_type
         FROM snf_facilities
         WHERE ${whereConditions.join(' AND ')}
-        GROUP BY ownership_chain, ownership_type
+        GROUP BY ownership_chain
+      ),
+      ranked_chains AS (
+        SELECT *,
+          ROW_NUMBER() OVER (ORDER BY facility_count DESC) as ranking
+        FROM chain_stats
+        WHERE facility_count >= $1
+          AND COALESCE(total_beds, 0) >= $2
       )
       SELECT *
       FROM ranked_chains
-      WHERE facility_count >= $1
-        AND COALESCE(total_beds, 0) >= $2
       ORDER BY ${orderBy}
       LIMIT 100
     `, params);
@@ -847,6 +864,13 @@ router.get('/profiles/:id', async (req, res) => {
       recent_deficiencies: deficiencyMap.get(f.federal_provider_number) || null
     }));
 
+    // Get contacts for this profile
+    const contactsResult = await pool.query(`
+      SELECT * FROM ownership_contacts
+      WHERE ownership_profile_id = $1
+      ORDER BY is_primary DESC, last_name, first_name
+    `, [profile.id]);
+
     res.json({
       success: true,
       profile: {
@@ -858,6 +882,22 @@ router.get('/profiles/:id', async (req, res) => {
         states_operated: profile.states_operated,
         state_count: profile.state_count,
         cbsa_count: profile.cbsa_count,
+        // Editable fields
+        is_cms_sourced: profile.is_cms_sourced !== false,
+        notes: profile.notes,
+        headquarters: {
+          address: profile.headquarters_address,
+          city: profile.headquarters_city,
+          state: profile.headquarters_state,
+          zip: profile.headquarters_zip
+        },
+        company_website: profile.company_website,
+        phone: profile.phone,
+        founded_year: profile.founded_year,
+        company_description: profile.company_description,
+        logo_url: profile.logo_url,
+        last_edited_by: profile.last_edited_by,
+        last_edited_at: profile.last_edited_at,
         ratings: {
           avg_overall: profile.avg_overall_rating ? parseFloat(profile.avg_overall_rating) : null,
           avg_health_inspection: profile.avg_health_inspection_rating ? parseFloat(profile.avg_health_inspection_rating) : null,
@@ -895,6 +935,7 @@ router.get('/profiles/:id', async (req, res) => {
         },
         last_refreshed_at: profile.last_refreshed_at
       },
+      contacts: contactsResult.rows,
       facilities
     });
   } catch (error) {
@@ -1001,6 +1042,827 @@ router.post('/profiles/refresh', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/v1/ownership/profiles
+ * Create a custom (non-CMS) ownership profile
+ */
+router.post('/profiles', requireAuthentication, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      parent_organization,
+      notes,
+      headquarters_address,
+      headquarters_city,
+      headquarters_state,
+      headquarters_zip,
+      company_website,
+      phone,
+      founded_year,
+      company_description
+    } = req.body;
+
+    if (!parent_organization) {
+      return res.status(400).json({
+        success: false,
+        error: 'parent_organization is required'
+      });
+    }
+
+    const pool = getPoolInstance();
+
+    // Check if profile already exists
+    const existingCheck = await pool.query(
+      'SELECT id FROM ownership_profiles WHERE parent_organization = $1',
+      [parent_organization]
+    );
+
+    if (existingCheck.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'An ownership profile with this name already exists',
+        existing_id: existingCheck.rows[0].id
+      });
+    }
+
+    // Create new profile
+    const result = await pool.query(`
+      INSERT INTO ownership_profiles (
+        parent_organization,
+        is_cms_sourced,
+        notes,
+        headquarters_address,
+        headquarters_city,
+        headquarters_state,
+        headquarters_zip,
+        company_website,
+        phone,
+        founded_year,
+        company_description,
+        created_by,
+        last_edited_by,
+        last_edited_at,
+        facility_count,
+        total_beds,
+        state_count
+      ) VALUES ($1, FALSE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, NOW(), 0, 0, 0)
+      RETURNING *
+    `, [
+      parent_organization,
+      notes,
+      headquarters_address,
+      headquarters_city,
+      headquarters_state,
+      headquarters_zip,
+      company_website,
+      phone,
+      founded_year,
+      company_description,
+      userId
+    ]);
+
+    // Log the creation
+    await pool.query(`
+      INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
+      VALUES ($1, $2, 'profile_created', $3)
+    `, [result.rows[0].id, userId, JSON.stringify({ parent_organization })]);
+
+    res.status(201).json({
+      success: true,
+      profile: result.rows[0]
+    });
+  } catch (error) {
+    console.error('[Ownership API] create profile error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/v1/ownership/profiles/:id
+ * Update editable fields on an ownership profile
+ */
+router.put('/profiles/:id', requireAuthentication, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const {
+      notes,
+      headquarters_address,
+      headquarters_city,
+      headquarters_state,
+      headquarters_zip,
+      company_website,
+      phone,
+      founded_year,
+      company_description,
+      logo_url
+    } = req.body;
+
+    const pool = getPoolInstance();
+
+    // Get current profile
+    const isNumeric = /^\d+$/.test(id);
+    const currentQuery = isNumeric
+      ? 'SELECT * FROM ownership_profiles WHERE id = $1'
+      : 'SELECT * FROM ownership_profiles WHERE parent_organization = $1';
+
+    const currentResult = await pool.query(currentQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const currentProfile = currentResult.rows[0];
+
+    // Build dynamic update
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    const fieldsToUpdate = {
+      notes,
+      headquarters_address,
+      headquarters_city,
+      headquarters_state,
+      headquarters_zip,
+      company_website,
+      phone,
+      founded_year,
+      company_description,
+      logo_url
+    };
+
+    // Track changes for audit log
+    const changes = [];
+
+    for (const [field, value] of Object.entries(fieldsToUpdate)) {
+      if (value !== undefined) {
+        const oldValue = currentProfile[field];
+        if (oldValue !== value) {
+          updates.push(`${field} = $${paramIndex}`);
+          values.push(value);
+          paramIndex++;
+          changes.push({ field, old_value: oldValue, new_value: value });
+        }
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No changes to save',
+        profile: currentProfile
+      });
+    }
+
+    // Add audit fields
+    updates.push(`last_edited_by = $${paramIndex}`);
+    values.push(userId);
+    paramIndex++;
+
+    updates.push(`last_edited_at = NOW()`);
+
+    // Add profile ID to params
+    values.push(currentProfile.id);
+
+    const updateResult = await pool.query(`
+      UPDATE ownership_profiles
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `, values);
+
+    // Log each change
+    for (const change of changes) {
+      await pool.query(`
+        INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, field_name, old_value, new_value)
+        VALUES ($1, $2, 'profile_updated', $3, $4, $5)
+      `, [currentProfile.id, userId, change.field, change.old_value?.toString() || null, change.new_value?.toString() || null]);
+    }
+
+    res.json({
+      success: true,
+      profile: updateResult.rows[0],
+      changes_made: changes.length
+    });
+  } catch (error) {
+    console.error('[Ownership API] update profile error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================================================
+// CONTACTS ENDPOINTS
+// =============================================================================
+
+/**
+ * GET /api/v1/ownership/profiles/:id/contacts
+ * Get all contacts for an ownership profile
+ */
+router.get('/profiles/:id/contacts', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    const result = await pool.query(`
+      SELECT c.*, u.first_name as created_by_name, u.last_name as created_by_last
+      FROM ownership_contacts c
+      LEFT JOIN users u ON c.created_by = u.id
+      WHERE c.ownership_profile_id = $1
+      ORDER BY c.is_primary DESC, c.last_name, c.first_name
+    `, [profileId]);
+
+    res.json({
+      success: true,
+      contacts: result.rows
+    });
+  } catch (error) {
+    console.error('[Ownership API] get contacts error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/ownership/profiles/:id/contacts
+ * Add a contact to an ownership profile
+ */
+router.post('/profiles/:id/contacts', requireAuthentication, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const {
+      first_name,
+      last_name,
+      title,
+      email,
+      phone,
+      mobile,
+      linkedin_url,
+      contact_type,
+      is_primary,
+      notes
+    } = req.body;
+
+    if (!first_name || !last_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'first_name and last_name are required'
+      });
+    }
+
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    // If this is set as primary, unset other primaries
+    if (is_primary) {
+      await pool.query(
+        'UPDATE ownership_contacts SET is_primary = FALSE WHERE ownership_profile_id = $1',
+        [profileId]
+      );
+    }
+
+    const result = await pool.query(`
+      INSERT INTO ownership_contacts (
+        ownership_profile_id, first_name, last_name, title, email, phone, mobile,
+        linkedin_url, contact_type, is_primary, notes, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+      RETURNING *
+    `, [profileId, first_name, last_name, title, email, phone, mobile, linkedin_url, contact_type || 'other', is_primary || false, notes, userId]);
+
+    // Log the addition
+    await pool.query(`
+      INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
+      VALUES ($1, $2, 'contact_added', $3)
+    `, [profileId, userId, JSON.stringify({ contact_id: result.rows[0].id, name: `${first_name} ${last_name}` })]);
+
+    res.status(201).json({
+      success: true,
+      contact: result.rows[0]
+    });
+  } catch (error) {
+    console.error('[Ownership API] add contact error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/v1/ownership/profiles/:id/contacts/:contactId
+ * Update a contact
+ */
+router.put('/profiles/:id/contacts/:contactId', requireAuthentication, async (req, res) => {
+  try {
+    const { id, contactId } = req.params;
+    const userId = req.user.id;
+    const {
+      first_name,
+      last_name,
+      title,
+      email,
+      phone,
+      mobile,
+      linkedin_url,
+      contact_type,
+      is_primary,
+      notes
+    } = req.body;
+
+    const pool = getPoolInstance();
+
+    // Verify contact exists and belongs to this profile
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    const contactCheck = await pool.query(
+      'SELECT * FROM ownership_contacts WHERE id = $1 AND ownership_profile_id = $2',
+      [contactId, profileId]
+    );
+
+    if (contactCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Contact not found' });
+    }
+
+    // If this is set as primary, unset other primaries
+    if (is_primary) {
+      await pool.query(
+        'UPDATE ownership_contacts SET is_primary = FALSE WHERE ownership_profile_id = $1 AND id != $2',
+        [profileId, contactId]
+      );
+    }
+
+    const result = await pool.query(`
+      UPDATE ownership_contacts SET
+        first_name = COALESCE($1, first_name),
+        last_name = COALESCE($2, last_name),
+        title = $3,
+        email = $4,
+        phone = $5,
+        mobile = $6,
+        linkedin_url = $7,
+        contact_type = COALESCE($8, contact_type),
+        is_primary = COALESCE($9, is_primary),
+        notes = $10,
+        updated_by = $11,
+        updated_at = NOW()
+      WHERE id = $12
+      RETURNING *
+    `, [first_name, last_name, title, email, phone, mobile, linkedin_url, contact_type, is_primary, notes, userId, contactId]);
+
+    // Log the update
+    await pool.query(`
+      INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
+      VALUES ($1, $2, 'contact_updated', $3)
+    `, [profileId, userId, JSON.stringify({ contact_id: contactId, name: `${result.rows[0].first_name} ${result.rows[0].last_name}` })]);
+
+    res.json({
+      success: true,
+      contact: result.rows[0]
+    });
+  } catch (error) {
+    console.error('[Ownership API] update contact error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/v1/ownership/profiles/:id/contacts/:contactId
+ * Delete a contact
+ */
+router.delete('/profiles/:id/contacts/:contactId', requireAuthentication, async (req, res) => {
+  try {
+    const { id, contactId } = req.params;
+    const userId = req.user.id;
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    // Get contact info before deleting
+    const contactInfo = await pool.query(
+      'SELECT first_name, last_name FROM ownership_contacts WHERE id = $1 AND ownership_profile_id = $2',
+      [contactId, profileId]
+    );
+
+    if (contactInfo.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Contact not found' });
+    }
+
+    await pool.query(
+      'DELETE FROM ownership_contacts WHERE id = $1 AND ownership_profile_id = $2',
+      [contactId, profileId]
+    );
+
+    // Log the deletion
+    await pool.query(`
+      INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
+      VALUES ($1, $2, 'contact_deleted', $3)
+    `, [profileId, userId, JSON.stringify({
+      contact_id: contactId,
+      name: `${contactInfo.rows[0].first_name} ${contactInfo.rows[0].last_name}`
+    })]);
+
+    res.json({
+      success: true,
+      deleted: true
+    });
+  } catch (error) {
+    console.error('[Ownership API] delete contact error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================================================
+// COMMENTS ENDPOINTS
+// =============================================================================
+
+/**
+ * GET /api/v1/ownership/profiles/:id/comments
+ * Get all comments for an ownership profile
+ */
+router.get('/profiles/:id/comments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    // Get comments with user info
+    const result = await pool.query(`
+      SELECT
+        c.id, c.comment, c.parent_id, c.created_at, c.updated_at,
+        c.user_id,
+        u.first_name, u.last_name, u.profile_url
+      FROM ownership_comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.ownership_profile_id = $1
+      ORDER BY c.created_at DESC
+    `, [profileId]);
+
+    // Get mentions for all comments
+    const commentIds = result.rows.map(c => c.id);
+    let mentions = [];
+    if (commentIds.length > 0) {
+      const mentionsResult = await pool.query(`
+        SELECT m.comment_id, m.mentioned_user_id, u.first_name, u.last_name
+        FROM ownership_comment_mentions m
+        JOIN users u ON m.mentioned_user_id = u.id
+        WHERE m.comment_id = ANY($1)
+      `, [commentIds]);
+      mentions = mentionsResult.rows;
+    }
+
+    // Group mentions by comment
+    const mentionsByComment = {};
+    mentions.forEach(m => {
+      if (!mentionsByComment[m.comment_id]) {
+        mentionsByComment[m.comment_id] = [];
+      }
+      mentionsByComment[m.comment_id].push({
+        user_id: m.mentioned_user_id,
+        name: `${m.first_name} ${m.last_name}`
+      });
+    });
+
+    // Organize into threaded structure
+    const commentsMap = new Map();
+    const topLevelComments = [];
+
+    result.rows.forEach(row => {
+      const comment = {
+        id: row.id,
+        comment: row.comment,
+        parent_id: row.parent_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        user: {
+          id: row.user_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          profile_url: row.profile_url
+        },
+        mentioned_users: mentionsByComment[row.id] || [],
+        replies: []
+      };
+      commentsMap.set(row.id, comment);
+    });
+
+    // Build tree structure
+    commentsMap.forEach(comment => {
+      if (comment.parent_id) {
+        const parent = commentsMap.get(comment.parent_id);
+        if (parent) {
+          parent.replies.push(comment);
+        }
+      } else {
+        topLevelComments.push(comment);
+      }
+    });
+
+    // Sort replies by date
+    const sortReplies = (comments) => {
+      comments.forEach(c => {
+        c.replies.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        sortReplies(c.replies);
+      });
+    };
+    sortReplies(topLevelComments);
+
+    res.json({
+      success: true,
+      comments: topLevelComments
+    });
+  } catch (error) {
+    console.error('[Ownership API] get comments error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/ownership/profiles/:id/comments
+ * Add a comment to an ownership profile
+ */
+router.post('/profiles/:id/comments', requireAuthentication, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { comment, mentioned_user_ids, parent_id } = req.body;
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Comment text is required'
+      });
+    }
+
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id, parent_organization FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id, parent_organization FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+    const parentOrg = profileResult.rows[0].parent_organization;
+
+    // Verify parent comment exists if provided
+    if (parent_id) {
+      const parentCheck = await pool.query(
+        'SELECT id FROM ownership_comments WHERE id = $1 AND ownership_profile_id = $2',
+        [parent_id, profileId]
+      );
+      if (parentCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, error: 'Parent comment not found' });
+      }
+    }
+
+    // Insert comment
+    const result = await pool.query(`
+      INSERT INTO ownership_comments (ownership_profile_id, user_id, comment, parent_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [profileId, userId, comment.trim(), parent_id || null]);
+
+    const newComment = result.rows[0];
+
+    // Handle mentions
+    if (mentioned_user_ids && mentioned_user_ids.length > 0) {
+      for (const mentionedUserId of mentioned_user_ids) {
+        await pool.query(`
+          INSERT INTO ownership_comment_mentions (comment_id, mentioned_user_id)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [newComment.id, mentionedUserId]);
+
+        // Create notification for mentioned user
+        await db.user_notifications.create({
+          to_id: mentionedUserId,
+          from_id: userId,
+          notification_type: 'mention',
+          title: 'You were mentioned in a comment',
+          content: `${req.user.first_name} ${req.user.last_name} mentioned you in a comment on ${parentOrg}`,
+          ref_type: 'ownership_profile',
+          ref_id: profileId,
+          is_read: false
+        });
+      }
+    }
+
+    // Log the comment
+    await pool.query(`
+      INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
+      VALUES ($1, $2, 'comment_added', $3)
+    `, [profileId, userId, JSON.stringify({ comment_id: newComment.id, preview: comment.substring(0, 100) })]);
+
+    // Get user info for response
+    const userInfo = await pool.query(
+      'SELECT first_name, last_name, profile_url FROM users WHERE id = $1',
+      [userId]
+    );
+
+    res.status(201).json({
+      success: true,
+      comment: {
+        ...newComment,
+        user: userInfo.rows[0],
+        mentioned_users: [],
+        replies: []
+      }
+    });
+  } catch (error) {
+    console.error('[Ownership API] add comment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/v1/ownership/profiles/:id/comments/:commentId
+ * Delete a comment (and its replies)
+ */
+router.delete('/profiles/:id/comments/:commentId', requireAuthentication, async (req, res) => {
+  try {
+    const { id, commentId } = req.params;
+    const userId = req.user.id;
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    // Verify comment exists and user owns it (or is admin)
+    const commentCheck = await pool.query(
+      'SELECT user_id, comment FROM ownership_comments WHERE id = $1 AND ownership_profile_id = $2',
+      [commentId, profileId]
+    );
+
+    if (commentCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Comment not found' });
+    }
+
+    // Only allow deletion by comment owner or admin
+    if (commentCheck.rows[0].user_id !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Not authorized to delete this comment' });
+    }
+
+    // Delete comment (CASCADE will handle replies and mentions)
+    await pool.query(
+      'DELETE FROM ownership_comments WHERE id = $1',
+      [commentId]
+    );
+
+    // Log the deletion
+    await pool.query(`
+      INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
+      VALUES ($1, $2, 'comment_deleted', $3)
+    `, [profileId, userId, JSON.stringify({ comment_id: commentId, preview: commentCheck.rows[0].comment.substring(0, 100) })]);
+
+    res.json({
+      success: true,
+      deleted: true
+    });
+  } catch (error) {
+    console.error('[Ownership API] delete comment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================================================
+// ACTIVITY / CHANGE LOG ENDPOINT
+// =============================================================================
+
+/**
+ * GET /api/v1/ownership/profiles/:id/activity
+ * Get activity/change log for an ownership profile
+ */
+router.get('/profiles/:id/activity', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+    const pool = getPoolInstance();
+
+    const isNumeric = /^\d+$/.test(id);
+    const profileQuery = isNumeric
+      ? 'SELECT id FROM ownership_profiles WHERE id = $1'
+      : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
+
+    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Profile not found' });
+    }
+
+    const profileId = profileResult.rows[0].id;
+
+    const result = await pool.query(`
+      SELECT
+        cl.id, cl.change_type, cl.field_name, cl.old_value, cl.new_value, cl.metadata, cl.created_at,
+        u.id as user_id, u.first_name, u.last_name, u.profile_url
+      FROM ownership_change_logs cl
+      JOIN users u ON cl.user_id = u.id
+      WHERE cl.ownership_profile_id = $1
+      ORDER BY cl.created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [profileId, parseInt(limit), parseInt(offset)]);
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM ownership_change_logs WHERE ownership_profile_id = $1',
+      [profileId]
+    );
+
+    res.json({
+      success: true,
+      total: parseInt(countResult.rows[0].count),
+      activities: result.rows.map(row => ({
+        id: row.id,
+        change_type: row.change_type,
+        field_name: row.field_name,
+        old_value: row.old_value,
+        new_value: row.new_value,
+        metadata: row.metadata,
+        created_at: row.created_at,
+        user: {
+          id: row.user_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          profile_url: row.profile_url
+        }
+      }))
+    });
+  } catch (error) {
+    console.error('[Ownership API] get activity error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // =============================================================================
 // FACILITY DEFICIENCIES ENDPOINT
 // =============================================================================
@@ -1062,6 +1924,178 @@ router.get('/facilities/:id/deficiencies', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// ============================================================================
+// STARRED ITEMS API
+// Allow users to star/bookmark ownership chains and facilities
+// ============================================================================
+
+/**
+ * GET /api/v1/ownership/starred
+ * Get all starred items for the current user
+ */
+router.get('/starred', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { type } = req.query; // Optional filter by type
+    const pool = getPoolInstance();
+
+    let query = `
+      SELECT id, item_type, item_identifier, item_name, notes, created_at
+      FROM user_starred_items
+      WHERE user_id = $1
+    `;
+    const params = [userId];
+
+    if (type) {
+      query += ` AND item_type = $2`;
+      params.push(type);
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('[Ownership Routes] getStarredItems error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/ownership/starred
+ * Star an item (ownership chain or facility)
+ */
+router.post('/starred', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { itemType, itemIdentifier, itemName, notes } = req.body;
+
+    if (!itemType || !itemIdentifier) {
+      return res.status(400).json({
+        success: false,
+        error: 'itemType and itemIdentifier are required'
+      });
+    }
+
+    if (!['ownership_chain', 'facility'].includes(itemType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'itemType must be "ownership_chain" or "facility"'
+      });
+    }
+
+    const pool = getPoolInstance();
+
+    const result = await pool.query(`
+      INSERT INTO user_starred_items (user_id, item_type, item_identifier, item_name, notes)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (user_id, item_type, item_identifier) DO UPDATE
+      SET item_name = EXCLUDED.item_name, notes = EXCLUDED.notes
+      RETURNING id, item_type, item_identifier, item_name, notes, created_at
+    `, [userId, itemType, itemIdentifier, itemName || null, notes || null]);
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('[Ownership Routes] starItem error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/v1/ownership/starred/:itemType/:itemIdentifier
+ * Unstar an item
+ */
+router.delete('/starred/:itemType/:itemIdentifier', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { itemType, itemIdentifier } = req.params;
+    const pool = getPoolInstance();
+
+    const result = await pool.query(`
+      DELETE FROM user_starred_items
+      WHERE user_id = $1 AND item_type = $2 AND item_identifier = $3
+      RETURNING id
+    `, [userId, itemType, decodeURIComponent(itemIdentifier)]);
+
+    res.json({
+      success: true,
+      deleted: result.rowCount > 0
+    });
+  } catch (error) {
+    console.error('[Ownership Routes] unstarItem error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/v1/ownership/starred/check
+ * Check if items are starred (batch check)
+ */
+router.get('/starred/check', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const { items } = req.query; // JSON array of {itemType, itemIdentifier}
+    if (!items) {
+      return res.json({ success: true, data: {} });
+    }
+
+    const pool = getPoolInstance();
+    const itemsArray = JSON.parse(items);
+
+    // Build query to check multiple items at once
+    const result = await pool.query(`
+      SELECT item_type, item_identifier
+      FROM user_starred_items
+      WHERE user_id = $1
+    `, [userId]);
+
+    // Create a map of starred items
+    const starredMap = {};
+    result.rows.forEach(row => {
+      const key = `${row.item_type}:${row.item_identifier}`;
+      starredMap[key] = true;
+    });
+
+    // Check each requested item
+    const checkedItems = {};
+    itemsArray.forEach(item => {
+      const key = `${item.itemType}:${item.itemIdentifier}`;
+      checkedItems[key] = !!starredMap[key];
+    });
+
+    res.json({
+      success: true,
+      data: checkedItems
+    });
+  } catch (error) {
+    console.error('[Ownership Routes] checkStarred error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

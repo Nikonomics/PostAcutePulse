@@ -129,6 +129,8 @@ var marketRouter = require('./routes/market');
 var wagesRouter = require('./routes/wages');
 var marketsRouter = require('./routes/markets');
 var ownershipRouter = require('./routes/ownership');
+var savedItemsRouter = require('./routes/savedItems');
+var userRouter = require('./routes/user');
 
 app.use(fileUpload());
 
@@ -174,6 +176,12 @@ app.use('/api/markets', marketsRouter);
 
 // Ownership Research API routes
 app.use('/api/v1/ownership', ownershipRouter);
+
+// Saved Items API routes (bookmarks for deals, facilities, markets)
+app.use('/api/v1/saved-items', savedItemsRouter);
+
+// User API routes (activity feed, associated deals)
+app.use('/api/v1/user', userRouter);
 
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);

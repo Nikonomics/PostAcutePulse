@@ -62,6 +62,32 @@
   margin: 0.25rem 0 0;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.view-full-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.view-full-profile-btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
 .close-btn {
   background: none;
   border: none;

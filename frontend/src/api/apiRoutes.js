@@ -74,6 +74,23 @@ const apiRoutes = {
     getDealsWithActivity: `${BASE_URL}/deal/get-deals-with-activity`,
     markDealViewed: `${BASE_URL}/deal`, // Usage: POST `${markDealViewed}/${dealId}/mark-viewed`
     getDealChangeHistory: `${BASE_URL}/deal`, // Usage: GET `${getDealChangeHistory}/${dealId}/change-history`
+    // Multi-Facility Portfolio Support
+    detectFacilities: `${BASE_URL}/deal/detect-facilities`, // POST - AI detects facilities from document text
+    matchFacility: `${BASE_URL}/deal/match-facility`, // POST - Match facility against SNF/ALF database
+    searchFacilities: `${BASE_URL}/deal/search-facilities`, // GET - Manual facility search
+    extractPortfolio: `${BASE_URL}/deal/extract-portfolio`, // POST - Extract portfolio with confirmed facilities
+    facilityDbStats: `${BASE_URL}/deal/facility-db-stats`, // GET - Database statistics
+    extractDocumentText: `${BASE_URL}/deal/extract-text`, // POST - Extract text from documents (no AI)
+    // Saved Items
+    savedItems: `${BASE_URL}/saved-items`, // GET, POST
+    savedItemById: `${BASE_URL}/saved-items`, // Usage: PUT/DELETE `${savedItemById}/${id}`
+    checkSavedItems: `${BASE_URL}/saved-items/check`, // GET - check if items are saved
+    // User Activity Feed
+    userActivityFeed: `${BASE_URL}/user/activity-feed`, // GET - get user's activity feed
+    userAssociatedDeals: `${BASE_URL}/user/associated-deals`, // GET - get user's associated deals
+    // User Notifications (existing via deal routes)
+    getUserNotifications: `${BASE_URL}/deal/get-user-notifications`, // GET
+    markNotificationRead: `${BASE_URL}/deal/read-notification`, // POST
 };
 
 export default apiRoutes;
