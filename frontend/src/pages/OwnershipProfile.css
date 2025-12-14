@@ -852,3 +852,103 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Facilities Map Styles */
+.facilities-map-container {
+  position: relative;
+  padding: 1rem;
+}
+
+.map-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  color: #6b7280;
+}
+
+.map-placeholder p {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.map-placeholder-count {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.map-legend {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  background: white;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-size: 0.75rem;
+  z-index: 10;
+}
+
+.map-legend-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  color: #6b7280;
+}
+
+.map-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Map Info Window Styles */
+.map-info-window {
+  padding: 0.25rem;
+  min-width: 180px;
+}
+
+.map-info-window h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+}
+
+.map-info-location {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0 0 0.5rem 0;
+}
+
+.map-info-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #374151;
+}
+
+.map-info-rating {
+  display: flex;
+  gap: 1px;
+}
+
+.map-info-occupancy {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0 0;
+}

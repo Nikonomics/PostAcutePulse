@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Star, Users, AlertCircle, DollarSign,
   Loader, ArrowLeft, Edit2, Save, X, Plus, Trash2, Mail,
   Phone, Globe, Linkedin, MessageSquare, Clock, ChevronRight,
-  Send, User, Bookmark, BookmarkCheck
+  Send, User, Bookmark, BookmarkCheck, Map
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import {
   getOwnershipProfile,
   updateOwnershipProfile,
@@ -67,6 +68,16 @@ function OwnershipProfile() {
   // Comment state
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Map state
+  const [selectedFacility, setSelectedFacility] = useState(null);
+  const [showMap, setShowMap] = useState(true);
+
+  // Google Maps loader
+  const { isLoaded: mapLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
+  });
 
   // Save/bookmark state
   const [isSaved, setIsSaved] = useState(false);
@@ -309,6 +320,45 @@ function OwnershipProfile() {
   const filteredFacilities = stateFilter === 'all'
     ? facilities
     : facilities.filter(f => f.state === stateFilter);
+
+  // Facilities with valid coordinates for map
+  const mappableFacilities = useMemo(() =>
+    filteredFacilities.filter(f => f.latitude && f.longitude && !isNaN(f.latitude) && !isNaN(f.longitude)),
+    [filteredFacilities]
+  );
+
+  // Calculate map center from facilities
+  const mapCenter = useMemo(() => {
+    if (mappableFacilities.length === 0) {
+      return { lat: 39.8283, lng: -98.5795 }; // Center of US
+    }
+    const avgLat = mappableFacilities.reduce((sum, f) => sum + parseFloat(f.latitude), 0) / mappableFacilities.length;
+    const avgLng = mappableFacilities.reduce((sum, f) => sum + parseFloat(f.longitude), 0) / mappableFacilities.length;
+    return { lat: avgLat, lng: avgLng };
+  }, [mappableFacilities]);
+
+  // Color scheme for star ratings
+  const getRatingColor = (rating) => {
+    const colors = {
+      5: '#22c55e', // Green
+      4: '#84cc16', // Light green
+      3: '#eab308', // Yellow
+      2: '#f97316', // Orange
+      1: '#ef4444', // Red
+    };
+    return colors[rating] || '#9ca3af'; // Gray for no rating
+  };
+
+  // Fit map bounds to show all markers
+  const onMapLoad = useCallback((map) => {
+    if (mappableFacilities.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      mappableFacilities.forEach(f => {
+        bounds.extend({ lat: parseFloat(f.latitude), lng: parseFloat(f.longitude) });
+      });
+      map.fitBounds(bounds, { padding: 50 });
+    }
+  }, [mappableFacilities]);
 
   // Loading state
   if (loading) {
@@ -741,28 +791,161 @@ function OwnershipProfile() {
 
         {/* Facilities Tab */}
         {activeTab === 'facilities' && (
-          <div className="ownership-card">
-            <div className="ownership-card-header">
-              <h3 className="ownership-card-title">
-                <Building2 size={18} /> Facilities
-              </h3>
+          <>
+            {/* Facilities Map */}
+            <div className="ownership-card">
+              <div className="ownership-card-header">
+                <h3 className="ownership-card-title">
+                  <Map size={18} /> Facility Locations
+                </h3>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowMap(!showMap)}
+                >
+                  {showMap ? 'Hide Map' : 'Show Map'}
+                </button>
+              </div>
+
+              {showMap && (
+                <div className="facilities-map-container">
+                  {!process.env.REACT_APP_GOOGLE_MAPS_API_KEY ? (
+                    <div className="map-placeholder">
+                      <MapPin size={48} className="empty-state-icon" />
+                      <p>Google Maps API key not configured</p>
+                      <span className="map-placeholder-count">
+                        {mappableFacilities.length} facilities with coordinates
+                      </span>
+                    </div>
+                  ) : !mapLoaded ? (
+                    <div className="map-placeholder">
+                      <Loader size={32} className="loading-spinner" />
+                      <p>Loading map...</p>
+                    </div>
+                  ) : mappableFacilities.length === 0 ? (
+                    <div className="map-placeholder">
+                      <MapPin size={48} className="empty-state-icon" />
+                      <p>No facilities with coordinates</p>
+                    </div>
+                  ) : (
+                    <GoogleMap
+                      mapContainerStyle={{ width: '100%', height: '400px', borderRadius: '0.5rem' }}
+                      center={mapCenter}
+                      zoom={4}
+                      onLoad={onMapLoad}
+                      options={{
+                        mapTypeControl: false,
+                        streetViewControl: false,
+                        fullscreenControl: true,
+                      }}
+                    >
+                      {mappableFacilities.map((facility) => (
+                        <Marker
+                          key={facility.federal_provider_number || facility.id}
+                          position={{
+                            lat: parseFloat(facility.latitude),
+                            lng: parseFloat(facility.longitude)
+                          }}
+                          icon={{
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            fillColor: getRatingColor(facility.overall_rating),
+                            fillOpacity: 1,
+                            strokeColor: selectedFacility?.federal_provider_number === facility.federal_provider_number ? '#1e40af' : 'white',
+                            strokeWeight: selectedFacility?.federal_provider_number === facility.federal_provider_number ? 3 : 2,
+                            scale: selectedFacility?.federal_provider_number === facility.federal_provider_number ? 10 : 8,
+                          }}
+                          title={facility.facility_name}
+                          onClick={() => setSelectedFacility(facility)}
+                        />
+                      ))}
+
+                      {selectedFacility && (
+                        <InfoWindow
+                          position={{
+                            lat: parseFloat(selectedFacility.latitude),
+                            lng: parseFloat(selectedFacility.longitude)
+                          }}
+                          onCloseClick={() => setSelectedFacility(null)}
+                        >
+                          <div className="map-info-window">
+                            <h4>{selectedFacility.facility_name}</h4>
+                            <p className="map-info-location">
+                              {selectedFacility.city}, {selectedFacility.state}
+                            </p>
+                            <div className="map-info-details">
+                              <span>Beds: {selectedFacility.total_beds || 'N/A'}</span>
+                              {selectedFacility.overall_rating && (
+                                <span className="map-info-rating">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      size={10}
+                                      fill={i < selectedFacility.overall_rating ? '#fbbf24' : 'none'}
+                                      stroke={i < selectedFacility.overall_rating ? '#fbbf24' : '#d1d5db'}
+                                    />
+                                  ))}
+                                </span>
+                              )}
+                            </div>
+                            {selectedFacility.occupancy_rate && (
+                              <p className="map-info-occupancy">
+                                Occupancy: {parseFloat(selectedFacility.occupancy_rate).toFixed(0)}%
+                              </p>
+                            )}
+                          </div>
+                        </InfoWindow>
+                      )}
+                    </GoogleMap>
+                  )}
+
+                  {/* Map Legend */}
+                  {mapLoaded && mappableFacilities.length > 0 && (
+                    <div className="map-legend">
+                      <div className="map-legend-title">Star Rating</div>
+                      {[5, 4, 3, 2, 1].map((rating) => (
+                        <div key={rating} className="map-legend-item">
+                          <span
+                            className="map-legend-dot"
+                            style={{ backgroundColor: getRatingColor(rating) }}
+                          />
+                          <span>{rating} Star</span>
+                        </div>
+                      ))}
+                      <div className="map-legend-item">
+                        <span
+                          className="map-legend-dot"
+                          style={{ backgroundColor: '#9ca3af' }}
+                        />
+                        <span>No Rating</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="facilities-filter-bar">
-              <select
-                value={stateFilter}
-                onChange={(e) => setStateFilter(e.target.value)}
-              >
-                <option value="all">All States ({facilities.length})</option>
-                {states.map(state => (
-                  <option key={state} value={state}>
-                    {state} ({facilities.filter(f => f.state === state).length})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Facilities Table */}
+            <div className="ownership-card">
+              <div className="ownership-card-header">
+                <h3 className="ownership-card-title">
+                  <Building2 size={18} /> Facilities
+                </h3>
+              </div>
 
-            <table className="facilities-table">
+              <div className="facilities-filter-bar">
+                <select
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                >
+                  <option value="all">All States ({facilities.length})</option>
+                  {states.map(state => (
+                    <option key={state} value={state}>
+                      {state} ({facilities.filter(f => f.state === state).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <table className="facilities-table">
               <thead>
                 <tr>
                   <th>Facility Name</th>
@@ -806,14 +989,15 @@ function OwnershipProfile() {
               </tbody>
             </table>
 
-            {filteredFacilities.length === 0 && (
-              <div className="empty-state">
-                <Building2 size={48} className="empty-state-icon" />
-                <h4>No facilities found</h4>
-                <p>Try changing the state filter</p>
-              </div>
-            )}
-          </div>
+              {filteredFacilities.length === 0 && (
+                <div className="empty-state">
+                  <Building2 size={48} className="empty-state-icon" />
+                  <h4>No facilities found</h4>
+                  <p>Try changing the state filter</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Contacts Tab */}
