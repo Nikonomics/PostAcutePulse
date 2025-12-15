@@ -955,11 +955,18 @@ const DealDetailPage = () => {
       const response = await updateExtractionData(deal.id, currentExtractionData);
 
       if (response.success) {
-        // Update local state
-        setDeal(prev => ({
-          ...prev,
+        // Update local state - sync deal_name to core deal field for consistency
+        const updatedDeal = {
+          ...deal,
           extraction_data: currentExtractionData
-        }));
+        };
+
+        // If deal_name is being edited, also update the deal's core deal_name field
+        if (flatKey === 'deal_name' && newValue) {
+          updatedDeal.deal_name = newValue;
+        }
+
+        setDeal(updatedDeal);
         toast.success('Field updated successfully');
       } else {
         toast.error(response.message || 'Failed to update field');
@@ -1288,14 +1295,14 @@ const DealDetailPage = () => {
                 </div>
               )}
 
-              {/* Multi-Facility Management Section (new) */}
+              {/* Multi-Facility Management Section */}
               <FacilitiesSection
                 dealId={deal.id}
                 facilities={deal.deal_facility || []}
               />
 
-              {/* Legacy Facility Information (from flat deal structure - will be deprecated) */}
-              {deal.deal_facility && deal.deal_facility.length > 0 &&
+              {/* Note: Legacy per-facility cards removed - all facility info now in FacilitiesSection above */}
+              {false && deal.deal_facility && deal.deal_facility.length > 0 &&
                 deal.deal_facility.map((facility, index) => (
                   <React.Fragment key={facility.id || index}>
                     <div className="card">

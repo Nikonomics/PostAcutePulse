@@ -2613,8 +2613,20 @@ module.exports = {
         return oldVal !== newVal;
       });
 
-      // Update only the extraction_data field
-      await deal.update({ extraction_data: extraction_data });
+      // Build update object - always update extraction_data
+      const updateData = { extraction_data: extraction_data };
+
+      // Also sync key fields to deal's core columns for consistency
+      // This ensures the deal_name shown in lists matches the extraction view
+      if (newExtractionData.deal_name !== undefined) {
+        updateData.deal_name = newExtractionData.deal_name;
+      }
+      if (newExtractionData.facility_name !== undefined) {
+        updateData.facility_name = newExtractionData.facility_name;
+      }
+
+      // Update the deal
+      await deal.update(updateData);
 
       // Record extraction history for audit trail
       if (changedFields.length > 0) {

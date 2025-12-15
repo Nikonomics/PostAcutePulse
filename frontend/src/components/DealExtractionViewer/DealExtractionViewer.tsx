@@ -331,56 +331,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Overview Tab
   const renderOverviewTab = () => (
     <div>
-      {/* Ask SNFalyze Button */}
-      <div style={{
-        marginBottom: '1.5rem',
-        padding: '1rem',
-        background: 'linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)',
-        borderRadius: '0.75rem',
-        border: '1px solid #c4b5fd',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div>
-          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#5b21b6' }}>
-            Get AI-Powered Deal Insights
-          </h4>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#7c3aed' }}>
-            Ask SNFalyze to analyze this deal's financial health, risks, and opportunities
-          </p>
-        </div>
-        <button
-          onClick={() => setSnfalyzePanelOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.625rem 1.25rem',
-            background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-            border: 'none',
-            borderRadius: '0.5rem',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            color: 'white',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.4)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.3)';
-          }}
-        >
-          <Brain size={18} />
-          Ask SNFalyze
-        </button>
-      </div>
-
       {/* Deal Information */}
       <h3 style={sectionHeaderStyle}>Deal Information</h3>
       <div style={gridStyle}>
@@ -440,18 +390,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         <FieldCell label="Price Per Bed" field={extractionData.deal_information.price_per_bed} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.price_per_bed" onEdit={(value) => handleFieldEdit('deal_information.price_per_bed', value)} />
       </div>
 
-      {/* Facility Information */}
-      <h3 style={{ ...sectionHeaderStyle, marginTop: '2rem' }}>Facility Information</h3>
-      <div style={gridStyle}>
-        <FieldCell label="Facility Name" field={extractionData.facility_information.facility_name} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.facility_name" onEdit={(value) => handleFieldEdit('facility_information.facility_name', value)} />
-        <FieldCell label="Facility Type" field={extractionData.facility_information.facility_type} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.facility_type" onEdit={(value) => handleFieldEdit('facility_information.facility_type', value)} />
-        <FieldCell label="Street Address" field={extractionData.facility_information.street_address} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.street_address" onEdit={(value) => handleFieldEdit('facility_information.street_address', value)} />
-        <FieldCell label="City" field={extractionData.facility_information.city} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.city" onEdit={(value) => handleFieldEdit('facility_information.city', value)} />
-        <FieldCell label="State" field={extractionData.facility_information.state} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.state" onEdit={(value) => handleFieldEdit('facility_information.state', value)} />
-        <FieldCell label="Zip Code" field={extractionData.facility_information.zip_code} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.zip_code" onEdit={(value) => handleFieldEdit('facility_information.zip_code', value)} />
-        <FieldCell label="Bed Count" field={extractionData.facility_information.bed_count} format="number" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="facility_information.bed_count" onEdit={(value) => handleFieldEdit('facility_information.bed_count', value)} />
-      </div>
-
       {/* Contact Information */}
       <h3 style={{ ...sectionHeaderStyle, marginTop: '2rem' }}>Contact Information</h3>
       <div style={gridStyle}>
@@ -459,6 +397,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         <FieldCell label="Title" field={extractionData.contact_information.title} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.title" onEdit={(value) => handleFieldEdit('contact_information.title', value)} />
         <FieldCell label="Phone" field={extractionData.contact_information.phone} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.phone" onEdit={(value) => handleFieldEdit('contact_information.phone', value)} />
         <FieldCell label="Email" field={extractionData.contact_information.email} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.email" onEdit={(value) => handleFieldEdit('contact_information.email', value)} />
+        <FieldCell label="Ownership" field={extractionData.contact_information.ownership || { value: null, confidence: 'not_found' }} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="contact_information.ownership" onEdit={(value) => handleFieldEdit('contact_information.ownership', value)} />
       </div>
     </div>
   );
