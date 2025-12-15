@@ -20,8 +20,10 @@ import {
   X,
   Eye,
   Download as DownloadIcon,
+  Bookmark,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import SaveButton from "../components/common/SaveButton";
 import {
   getDealById,
   addDealComment,
@@ -1212,6 +1214,12 @@ const DealDetailPage = () => {
               </div>
             </div>
             <div className="header-actions">
+              {/* Save/Bookmark Button */}
+              <SaveButton
+                itemType="deal"
+                itemId={deal.id}
+                size="medium"
+              />
               {/* Upload Documents Button */}
               <label className="upload-btn-inline">
                 <Upload size={16} />
