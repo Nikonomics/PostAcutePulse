@@ -189,10 +189,14 @@ const EditCombinedDealForm = () => {
   const fetchMasterDeal = async () => {
     try {
       setInitialLoading(true);
+      console.log('EditCombinedDealForm: Fetching master deal with ID:', id);
       const response = await getMasterDealById(id);
-      
+      console.log('EditCombinedDealForm: API response:', response);
+
       if (response.success && response.body) {
         const masterDeal = response.body;
+        console.log('EditCombinedDealForm: Master deal data:', masterDeal);
+        console.log('EditCombinedDealForm: Deals in master deal:', masterDeal.deals);
         setMasterDealData(masterDeal);
 
         // Set location data
@@ -220,6 +224,8 @@ const EditCombinedDealForm = () => {
 
         // Set deals data
         if (masterDeal.deals && masterDeal.deals.length > 0) {
+          console.log('EditCombinedDealForm: Formatting deals, first deal:', masterDeal.deals[0]);
+          console.log('EditCombinedDealForm: First deal deal_name:', masterDeal.deals[0]?.deal_name);
           const formattedDeals = masterDeal.deals.map((deal, index) => ({
             id: deal.id || index + 1,
             data: {

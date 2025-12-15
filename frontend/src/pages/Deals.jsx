@@ -894,7 +894,10 @@ const DealsList = () => {
                         </button>
                         <button
                           className="action-btn edit"
-                          onClick={() => navigate(`/deals/edit-combined-deal/${deal.master_deal_id || deal.id}`)}
+                          onClick={() => {
+                            console.log('Edit clicked - deal.id:', deal.id, 'deal.master_deal_id:', deal.master_deal_id);
+                            navigate(`/deals/edit-combined-deal/${deal.master_deal_id || deal.id}`);
+                          }}
                           title="Edit Deal"
                         >
                           <Edit3 size={16} />
