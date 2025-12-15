@@ -8,7 +8,10 @@ import {
   AlertTriangle,
   ExternalLink,
   Building2,
+  Users,
+  TrendingDown,
 } from 'lucide-react';
+import DataTooltip from './DataTooltip';
 
 const styles = {
   container: {
@@ -118,6 +121,30 @@ const styles = {
     fontSize: '0.625rem',
     fontWeight: 500,
   },
+  staffingCell: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.125rem',
+  },
+  staffingValue: {
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: '#111827',
+  },
+  staffingLabel: {
+    fontSize: '0.5rem',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+  },
+  turnoverBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.125rem 0.375rem',
+    borderRadius: '0.25rem',
+    fontSize: '0.625rem',
+    fontWeight: 500,
+  },
   noData: {
     padding: '2rem',
     textAlign: 'center',
@@ -144,6 +171,26 @@ const getOccupancyColor = (rate) => {
   if (rate >= 80) return '#84cc16';
   if (rate >= 70) return '#eab308';
   return '#ef4444';
+};
+
+// Get staffing color based on total nurse hours per resident day
+// CMS recommends 4.1+ hours total nursing per resident day
+const getStaffingColor = (hours) => {
+  if (!hours) return '#9ca3af';
+  if (hours >= 4.1) return '#22c55e';  // Excellent
+  if (hours >= 3.5) return '#84cc16';  // Good
+  if (hours >= 3.0) return '#eab308';  // Fair
+  return '#ef4444';  // Low
+};
+
+// Get turnover color (lower is better)
+// National average is ~52%, under 40% is good, under 25% is excellent
+const getTurnoverColor = (rate) => {
+  if (!rate) return '#9ca3af';
+  if (rate <= 25) return '#22c55e';   // Excellent (low turnover)
+  if (rate <= 40) return '#84cc16';   // Good
+  if (rate <= 52) return '#eab308';   // Average
+  return '#ef4444';  // High turnover
 };
 
 const CompetitorTable = ({
@@ -189,6 +236,14 @@ const CompetitorTable = ({
         case 'occupancy':
           aVal = parseFloat(a.occupancyRate) || 0;
           bVal = parseFloat(b.occupancyRate) || 0;
+          break;
+        case 'staffing':
+          aVal = a.staffing?.totalNurseHours || 0;
+          bVal = b.staffing?.totalNurseHours || 0;
+          break;
+        case 'turnover':
+          aVal = a.turnover?.totalNursing || 999; // Sort null turnover last
+          bVal = b.turnover?.totalNursing || 999;
           break;
         default:
           aVal = a[sortConfig.key];
@@ -254,6 +309,46 @@ const CompetitorTable = ({
     );
   };
 
+  const renderStaffing = (staffing) => {
+    if (!staffing?.totalNurseHours) return <span style={{ color: '#9ca3af' }}>-</span>;
+
+    const total = staffing.totalNurseHours;
+    const color = getStaffingColor(total);
+
+    return (
+      <div style={styles.staffingCell} title={`RN: ${staffing.rnHours?.toFixed(2) || '-'} | LPN: ${staffing.lpnHours?.toFixed(2) || '-'} | CNA: ${staffing.cnaHours?.toFixed(2) || '-'}`}>
+        <span style={{ ...styles.staffingValue, color }}>
+          {total.toFixed(2)}
+        </span>
+        <span style={styles.staffingLabel}>hrs/res/day</span>
+      </div>
+    );
+  };
+
+  const renderTurnover = (turnover) => {
+    if (!turnover?.totalNursing) return <span style={{ color: '#9ca3af' }}>-</span>;
+
+    const rate = turnover.totalNursing;
+    const color = getTurnoverColor(rate);
+    const bgColor = color === '#22c55e' ? '#dcfce7' :
+                    color === '#84cc16' ? '#ecfccb' :
+                    color === '#eab308' ? '#fef9c3' : '#fef2f2';
+
+    return (
+      <span
+        style={{
+          ...styles.turnoverBadge,
+          backgroundColor: bgColor,
+          color: color,
+        }}
+        title={`RN Turnover: ${turnover.rn ? turnover.rn.toFixed(0) + '%' : '-'}`}
+      >
+        <TrendingDown size={10} />
+        {rate.toFixed(0)}%
+      </span>
+    );
+  };
+
   if (competitors.length === 0) {
     return (
       <div style={styles.noData}>
@@ -266,16 +361,18 @@ const CompetitorTable = ({
     );
   }
 
-  // SNF columns
+  // SNF columns with tooltip definitions
   const snfColumns = [
     { key: 'facilityName', label: 'Facility', sortable: true },
     { key: 'distanceMiles', label: 'Distance', sortable: true },
-    { key: 'rating', label: 'Rating', sortable: true },
+    { key: 'rating', label: 'Rating', sortable: true, tooltip: 'overall_rating' },
     { key: 'beds', label: 'Beds', sortable: true },
-    { key: 'occupancy', label: 'Occupancy', sortable: true },
+    { key: 'occupancy', label: 'Occupancy', sortable: true, tooltip: 'occupancy_rate' },
+    { key: 'staffing', label: 'Staffing', sortable: true, tooltip: 'total_nurse_staffing_hours' },
+    { key: 'turnover', label: 'Turnover', sortable: true, tooltip: 'total_nursing_turnover' },
     { key: 'city', label: 'City', sortable: false },
     { key: 'owner', label: 'Owner/Operator', sortable: false },
-    { key: 'special', label: 'Flags', sortable: false },
+    { key: 'special', label: 'Flags', sortable: false, tooltip: 'special_focus_facility' },
   ];
 
   // ALF columns
@@ -301,7 +398,13 @@ const CompetitorTable = ({
                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
               >
                 <span style={styles.thSortable}>
-                  {col.label}
+                  {col.tooltip ? (
+                    <DataTooltip fieldName={col.tooltip} size={10}>
+                      {col.label}
+                    </DataTooltip>
+                  ) : (
+                    col.label
+                  )}
                   {col.sortable && renderSortIcon(col.key)}
                 </span>
               </th>
@@ -354,6 +457,16 @@ const CompetitorTable = ({
                     {/* Occupancy */}
                     <td style={styles.td}>
                       {renderOccupancy(competitor.occupancyRate)}
+                    </td>
+
+                    {/* Staffing */}
+                    <td style={styles.td}>
+                      {renderStaffing(competitor.staffing)}
+                    </td>
+
+                    {/* Turnover */}
+                    <td style={styles.td}>
+                      {renderTurnover(competitor.turnover)}
                     </td>
 
                     {/* City */}

@@ -1,7 +1,47 @@
-import { Building2, MapPin, Star, TrendingUp, AlertTriangle, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Building2, MapPin, Star, TrendingUp, AlertTriangle, X, Search } from 'lucide-react';
+import { starItem, unstarItem, getStarredItems } from '../../api/ownershipService';
 import './OwnerDetailsModal.css';
 
-function OwnerDetailsModal({ owner, onClose, loading }) {
+function OwnerDetailsModal({ owner, onClose, loading, onDeepResearch }) {
+  const [isStarred, setIsStarred] = useState(false);
+  const [starLoading, setStarLoading] = useState(false);
+
+  useEffect(() => {
+    checkIfStarred();
+  }, [owner?.chainName]);
+
+  const checkIfStarred = async () => {
+    if (!owner?.chainName) return;
+    try {
+      const response = await getStarredItems('ownership_chain');
+      if (response.success) {
+        const starred = response.data.some(item => item.item_identifier === owner.chainName);
+        setIsStarred(starred);
+      }
+    } catch (error) {
+      console.error('Error checking starred status:', error);
+    }
+  };
+
+  const handleToggleStar = async () => {
+    if (!owner?.chainName) return;
+    setStarLoading(true);
+    try {
+      if (isStarred) {
+        await unstarItem('ownership_chain', owner.chainName);
+        setIsStarred(false);
+      } else {
+        await starItem('ownership_chain', owner.chainName, owner.chainName);
+        setIsStarred(true);
+      }
+    } catch (error) {
+      console.error('Error toggling star:', error);
+    } finally {
+      setStarLoading(false);
+    }
+  };
+
   if (!owner) return null;
 
   const getOwnershipTypeColor = (type) => {
@@ -16,7 +56,7 @@ function OwnerDetailsModal({ owner, onClose, loading }) {
     <div className="owner-details-modal" onClick={onClose}>
       <div className="owner-details-content" onClick={(e) => e.stopPropagation()}>
         <div className="owner-details-header">
-          <div>
+          <div className="owner-details-title">
             <h2>{owner.chainName}</h2>
             <span
               className="ownership-type-badge large"
@@ -25,9 +65,28 @@ function OwnerDetailsModal({ owner, onClose, loading }) {
               {owner.ownershipType}
             </span>
           </div>
-          <button className="close-details-btn" onClick={onClose}>
-            <X size={20} />
-          </button>
+          <div className="owner-details-actions">
+            <button
+              className={`modal-star-btn ${isStarred ? 'starred' : ''}`}
+              onClick={handleToggleStar}
+              disabled={starLoading}
+              title={isStarred ? 'Remove from starred' : 'Add to starred'}
+            >
+              <Star size={18} fill={isStarred ? '#fbbf24' : 'none'} stroke={isStarred ? '#fbbf24' : 'currentColor'} />
+              {isStarred ? 'Starred' : 'Star'}
+            </button>
+            <button
+              className="deep-research-btn"
+              onClick={() => onDeepResearch?.(owner)}
+              title="Run deep research on this organization"
+            >
+              <Search size={18} />
+              Deep Research
+            </button>
+            <button className="close-details-btn" onClick={onClose}>
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="owner-details-grid">

@@ -1,32 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { getSequelizeInstance } = require('../config/database');
 
-// Database connection
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
-
-const getDb = () => {
-  return new sqlite3.Database(dbPath);
+// Helper to run queries
+const runQuery = async (sql, params = []) => {
+  const sequelize = getSequelizeInstance();
+  try {
+    const [results] = await sequelize.query(sql, { replacements: params });
+    return results;
+  } finally {
+    await sequelize.close();
+  }
 };
 
-// Helper to run queries as promises
-const dbAll = (db, sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-};
-
-const dbRun = (db, sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve({ lastID: this.lastID, changes: this.changes });
-    });
-  });
+const runQuerySingle = async (sql, params = []) => {
+  const results = await runQuery(sql, params);
+  return results[0] || null;
 };
 
 // ============================================
@@ -35,9 +24,8 @@ const dbRun = (db, sql, params = []) => {
 
 // GET /api/facilities - Get all facilities
 router.get('/facilities', async (req, res) => {
-  const db = getDb();
   try {
-    const facilities = await dbAll(db, `
+    const facilities = await runQuery(`
       SELECT id, facility_id, facility_group, name, short_name, legal_name, line, city, state, address
       FROM facilities
       WHERE status = 1
@@ -54,8 +42,6 @@ router.get('/facilities', async (req, res) => {
   } catch (error) {
     console.error('Error fetching facilities:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -65,9 +51,8 @@ router.get('/facilities', async (req, res) => {
 
 // GET /api/functional-categories - Get all functional categories
 router.get('/functional-categories', async (req, res) => {
-  const db = getDb();
   try {
-    const categories = await dbAll(db, `
+    const categories = await runQuery(`
       SELECT id, name, description, example_subcategories, sort_order
       FROM functional_categories
       WHERE status = 1
@@ -84,8 +69,6 @@ router.get('/functional-categories', async (req, res) => {
   } catch (error) {
     console.error('Error fetching functional categories:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -95,7 +78,6 @@ router.get('/functional-categories', async (req, res) => {
 
 // GET /api/service-subcategories - Get all service subcategories
 router.get('/service-subcategories', async (req, res) => {
-  const db = getDb();
   try {
     const { category_id } = req.query;
 
@@ -115,7 +97,7 @@ router.get('/service-subcategories', async (req, res) => {
 
     sql += ' ORDER BY f.sort_order, s.sort_order, s.name';
 
-    const subcategories = await dbAll(db, sql, params);
+    const subcategories = await runQuery(sql, params);
 
     res.json({
       success: true,
@@ -127,8 +109,6 @@ router.get('/service-subcategories', async (req, res) => {
   } catch (error) {
     console.error('Error fetching service subcategories:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -138,9 +118,8 @@ router.get('/service-subcategories', async (req, res) => {
 
 // GET /api/contract-types - Get all document/contract types
 router.get('/contract-types', async (req, res) => {
-  const db = getDb();
   try {
-    const types = await dbAll(db, `
+    const types = await runQuery(`
       SELECT id, name, primary_category, description, sort_order
       FROM document_types
       WHERE status = 1
@@ -157,16 +136,13 @@ router.get('/contract-types', async (req, res) => {
   } catch (error) {
     console.error('Error fetching contract types:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/document-types - Alias for contract-types
 router.get('/document-types', async (req, res) => {
-  const db = getDb();
   try {
-    const types = await dbAll(db, `
+    const types = await runQuery(`
       SELECT id, name, primary_category, description, sort_order
       FROM document_types
       WHERE status = 1
@@ -183,8 +159,6 @@ router.get('/document-types', async (req, res) => {
   } catch (error) {
     console.error('Error fetching document types:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -194,7 +168,6 @@ router.get('/document-types', async (req, res) => {
 
 // GET /api/document-tags - Get all document tags
 router.get('/document-tags', async (req, res) => {
-  const db = getDb();
   try {
     const { group } = req.query;
 
@@ -212,7 +185,7 @@ router.get('/document-tags', async (req, res) => {
 
     sql += ' ORDER BY tag_group, name';
 
-    const tags = await dbAll(db, sql, params);
+    const tags = await runQuery(sql, params);
 
     // Group by tag_group for easier frontend use
     const grouped = tags.reduce((acc, tag) => {
@@ -233,18 +206,15 @@ router.get('/document-tags', async (req, res) => {
   } catch (error) {
     console.error('Error fetching document tags:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/document-types/:id/tags - Get tags for a specific document type
 router.get('/document-types/:id/tags', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
-    const tags = await dbAll(db, `
+    const tags = await runQuery(`
       SELECT t.id, t.name, t.tag_group, t.description
       FROM document_tags t
       JOIN document_type_tag_assignments a ON t.id = a.tag_id
@@ -262,8 +232,6 @@ router.get('/document-types/:id/tags', async (req, res) => {
   } catch (error) {
     console.error('Error fetching document type tags:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -273,7 +241,6 @@ router.get('/document-types/:id/tags', async (req, res) => {
 
 // GET /api/vendors - Get all vendors with search/filter
 router.get('/vendors', async (req, res) => {
-  const db = getDb();
   try {
     const { search, type, page = 1, perPage = 50 } = req.query;
     const offset = (page - 1) * perPage;
@@ -307,8 +274,8 @@ router.get('/vendors', async (req, res) => {
     params.push(parseInt(perPage), parseInt(offset));
 
     const [vendors, countResult] = await Promise.all([
-      dbAll(db, sql, params),
-      dbAll(db, countSql, countParams)
+      runQuery(sql, params),
+      runQuery(countSql, countParams)
     ]);
 
     const total = countResult[0]?.total || 0;
@@ -326,16 +293,13 @@ router.get('/vendors', async (req, res) => {
   } catch (error) {
     console.error('Error fetching vendors:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/vendors/types - Get unique vendor types
 router.get('/vendors/types', async (req, res) => {
-  const db = getDb();
   try {
-    const types = await dbAll(db, `
+    const types = await runQuery(`
       SELECT DISTINCT cleaned_type as type, COUNT(*) as count
       FROM vendors
       WHERE status = 1 AND cleaned_type IS NOT NULL AND cleaned_type != ''
@@ -353,18 +317,15 @@ router.get('/vendors/types', async (req, res) => {
   } catch (error) {
     console.error('Error fetching vendor types:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/vendors/search/:query - Quick search for autocomplete
 router.get('/vendors/search/:query', async (req, res) => {
-  const db = getDb();
   try {
     const { query } = req.params;
 
-    const vendors = await dbAll(db, `
+    const vendors = await runQuery(`
       SELECT id, vendor_id, canonical_name, cleaned_type
       FROM vendors
       WHERE status = 1 AND canonical_name LIKE ?
@@ -382,8 +343,6 @@ router.get('/vendors/search/:query', async (req, res) => {
   } catch (error) {
     console.error('Error searching vendors:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -393,15 +352,14 @@ router.get('/vendors/search/:query', async (req, res) => {
 
 // GET /api/taxonomy/summary - Get counts for all taxonomy tables
 router.get('/taxonomy/summary', async (req, res) => {
-  const db = getDb();
   try {
     const [facilities, categories, subcategories, docTypes, tags, vendors] = await Promise.all([
-      dbAll(db, 'SELECT COUNT(*) as count FROM facilities WHERE status = 1'),
-      dbAll(db, 'SELECT COUNT(*) as count FROM functional_categories WHERE status = 1'),
-      dbAll(db, 'SELECT COUNT(*) as count FROM service_subcategories WHERE status = 1'),
-      dbAll(db, 'SELECT COUNT(*) as count FROM document_types WHERE status = 1'),
-      dbAll(db, 'SELECT COUNT(*) as count FROM document_tags WHERE status = 1'),
-      dbAll(db, 'SELECT COUNT(*) as count FROM vendors WHERE status = 1'),
+      runQuery('SELECT COUNT(*) as count FROM facilities WHERE status = 1'),
+      runQuery('SELECT COUNT(*) as count FROM functional_categories WHERE status = 1'),
+      runQuery('SELECT COUNT(*) as count FROM service_subcategories WHERE status = 1'),
+      runQuery('SELECT COUNT(*) as count FROM document_types WHERE status = 1'),
+      runQuery('SELECT COUNT(*) as count FROM document_tags WHERE status = 1'),
+      runQuery('SELECT COUNT(*) as count FROM vendors WHERE status = 1'),
     ]);
 
     res.json({
@@ -418,8 +376,6 @@ router.get('/taxonomy/summary', async (req, res) => {
   } catch (error) {
     console.error('Error fetching taxonomy summary:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 

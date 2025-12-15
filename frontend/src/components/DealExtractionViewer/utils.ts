@@ -396,6 +396,22 @@ export const isSourceClickable = (sourceRef: SourceReference | null): boolean =>
 export const unflattenExtractedData = (flatData: any): any => {
   if (!flatData) return null;
 
+  // Handle case where extraction_data is a JSON string from API
+  if (typeof flatData === 'string') {
+    try {
+      flatData = JSON.parse(flatData);
+    } catch (e) {
+      console.error('Failed to parse extraction_data:', e);
+      return null;
+    }
+  }
+
+  // Ensure flatData is an object
+  if (typeof flatData !== 'object' || flatData === null) {
+    console.error('extraction_data is not an object:', typeof flatData);
+    return null;
+  }
+
   // Helper to get value from either canonical or legacy field name
   const getFieldValue = (canonicalKey: string, ...legacyKeys: string[]): any => {
     // Try canonical first

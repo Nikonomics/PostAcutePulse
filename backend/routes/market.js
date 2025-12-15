@@ -18,7 +18,11 @@ const {
   searchFacilities,
   getStateSummary,
   getFacilitiesInCounty,
-  getNationalBenchmarks
+  getNationalBenchmarks,
+  // New CMS data functions
+  getStateBenchmarks,
+  getVbpPerformance,
+  getDataDefinitions
 } = require('../services/marketService');
 
 /**
@@ -821,6 +825,128 @@ router.post('/census-refresh', async (req, res) => {
 
   } catch (error) {
     console.error('[Market Routes] censusRefresh error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// CMS Benchmarks, VBP & Definitions Endpoints
+// ============================================
+
+/**
+ * GET /api/market/benchmarks/:stateCode
+ * Get state or national benchmarks from CMS data
+ *
+ * URL Params:
+ * - stateCode: State code (e.g., "CA", "TX") or "NATION" for national averages
+ *
+ * Returns staffing averages, turnover rates, quality measures
+ */
+router.get('/benchmarks/:stateCode', async (req, res) => {
+  try {
+    const { stateCode } = req.params;
+
+    if (!stateCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'State code is required'
+      });
+    }
+
+    const benchmarks = await getStateBenchmarks(stateCode);
+
+    if (!benchmarks) {
+      return res.status(404).json({
+        success: false,
+        error: `No benchmarks found for ${stateCode}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: benchmarks
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getStateBenchmarks error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/vbp/:ccn
+ * Get VBP (Value-Based Purchasing) performance for a facility
+ *
+ * URL Params:
+ * - ccn: CMS Certification Number (e.g., "015009")
+ *
+ * Returns VBP ranking, performance scores, incentive payment info
+ */
+router.get('/vbp/:ccn', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+
+    if (!ccn) {
+      return res.status(400).json({
+        success: false,
+        error: 'CCN (CMS Certification Number) is required'
+      });
+    }
+
+    const vbpData = await getVbpPerformance(ccn);
+
+    if (!vbpData) {
+      return res.status(404).json({
+        success: false,
+        error: `No VBP data found for CCN ${ccn}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: vbpData
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getVbpPerformance error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/definitions
+ * Get data definitions for UI tooltips
+ *
+ * Query Params:
+ * - category: Filter by category (e.g., "Staffing", "Ratings", "VBP")
+ * - fields: Comma-separated list of field names (e.g., "rn_staffing_hours,total_nursing_turnover")
+ *
+ * Returns array of definitions with descriptions, units, interpretation notes
+ */
+router.get('/definitions', async (req, res) => {
+  try {
+    const { category, fields } = req.query;
+
+    const fieldNames = fields ? fields.split(',').map(f => f.trim()) : null;
+    const definitions = await getDataDefinitions(category || null, fieldNames);
+
+    res.json({
+      success: true,
+      count: definitions.length,
+      data: definitions
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getDataDefinitions error:', error);
     res.status(500).json({
       success: false,
       error: error.message

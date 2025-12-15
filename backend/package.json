@@ -6,7 +6,8 @@
     "start": "nodemon app_snfalyze.js",
     "seed": "node seed.js",
     "db:sync": "node scripts/syncDatabase.js",
-    "test:proforma": "node scripts/testProforma.js"
+    "test:proforma": "node scripts/testProforma.js",
+    "context": "cd .. && ./scripts/generate-context-bundle.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
@@ -20,6 +21,7 @@
     "body-parser": "^2.2.0",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
     "debug": "~2.6.9",
     "dotenv": "^17.2.0",
     "ejs": "~2.6.1",

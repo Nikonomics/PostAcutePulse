@@ -1,43 +1,44 @@
 const express = require('express');
 const router = express.Router();
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { getSequelizeInstance } = require('../config/database');
 
-// Database connection
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
-
-const getDb = () => {
-  return new sqlite3.Database(dbPath);
+// Helper to run queries
+const runQuery = async (sql, params = []) => {
+  const sequelize = getSequelizeInstance();
+  try {
+    const [results] = await sequelize.query(sql, { replacements: params });
+    return results;
+  } finally {
+    await sequelize.close();
+  }
 };
 
-// Helper to run queries as promises
-const dbAll = (db, sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+const runQuerySingle = async (sql, params = []) => {
+  const results = await runQuery(sql, params);
+  return results[0] || null;
 };
 
-const dbRun = (db, sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve({ lastID: this.lastID, changes: this.changes });
-    });
-  });
+const runInsert = async (sql, params = []) => {
+  const sequelize = getSequelizeInstance();
+  try {
+    const [results, metadata] = await sequelize.query(sql + ' RETURNING id', { replacements: params });
+    return { lastID: results[0]?.id };
+  } finally {
+    await sequelize.close();
+  }
 };
 
-const dbGet = (db, sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+const runUpdate = async (sql, params = []) => {
+  const sequelize = getSequelizeInstance();
+  try {
+    const [results, metadata] = await sequelize.query(sql, { replacements: params });
+    return { changes: metadata?.rowCount || 0 };
+  } finally {
+    await sequelize.close();
+  }
 };
 
 // Initialize Gemini AI
@@ -51,27 +52,26 @@ if (!fs.existsSync(uploadDir)) {
 
 // Initialize database tables
 const initDb = async () => {
-  const db = getDb();
   try {
     // Due Diligence Projects table
-    await dbRun(db, `
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS due_diligence_projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
         status VARCHAR(50) DEFAULT 'Active Due Diligence',
         avg_compliance_score FLOAT,
         total_contracts INTEGER DEFAULT 0,
         analyzed_contracts INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Analyzed Contracts table
-    await dbRun(db, `
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS dd_analyzed_contracts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         project_id INTEGER NOT NULL,
         filename VARCHAR(255) NOT NULL,
         file_path VARCHAR(500),
@@ -86,8 +86,8 @@ const initDb = async () => {
         raw_analysis TEXT,
         status VARCHAR(50) DEFAULT 'pending',
         error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES due_diligence_projects(id) ON DELETE CASCADE
       )
     `);
@@ -95,8 +95,6 @@ const initDb = async () => {
     console.log('Due Diligence tables initialized');
   } catch (error) {
     console.error('Error initializing due diligence tables:', error);
-  } finally {
-    db.close();
   }
 };
 
@@ -213,9 +211,8 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 
 // GET /api/due-diligence/projects - Get all projects
 router.get('/projects', async (req, res) => {
-  const db = getDb();
   try {
-    const projects = await dbAll(db, `
+    const projects = await runQuery(`
       SELECT id, name, description, status, avg_compliance_score,
              total_contracts, analyzed_contracts, created_at, updated_at
       FROM due_diligence_projects
@@ -232,18 +229,15 @@ router.get('/projects', async (req, res) => {
   } catch (error) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/due-diligence/projects/:id - Get single project with contracts
 router.get('/projects/:id', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
-    const project = await dbGet(db, `
+    const project = await runQuerySingle(`
       SELECT * FROM due_diligence_projects WHERE id = ?
     `, [id]);
 
@@ -251,7 +245,7 @@ router.get('/projects/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    const contracts = await dbAll(db, `
+    const contracts = await runQuery(`
       SELECT id, filename, contract_type, risk_rating, compliance_score,
              composite_risk_score, analysis_summary, status, created_at
       FROM dd_analyzed_contracts
@@ -269,14 +263,11 @@ router.get('/projects/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching project:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // POST /api/due-diligence/projects - Create new project
 router.post('/projects', async (req, res) => {
-  const db = getDb();
   try {
     const { name, description, status } = req.body;
 
@@ -284,12 +275,12 @@ router.post('/projects', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Project name is required' });
     }
 
-    const result = await dbRun(db, `
+    const result = await runInsert(`
       INSERT INTO due_diligence_projects (name, description, status)
       VALUES (?, ?, ?)
     `, [name, description || '', status || 'Active Due Diligence']);
 
-    const project = await dbGet(db, 'SELECT * FROM due_diligence_projects WHERE id = ?', [result.lastID]);
+    const project = await runQuerySingle('SELECT * FROM due_diligence_projects WHERE id = ?', [result.lastID]);
 
     res.json({
       success: true,
@@ -298,19 +289,16 @@ router.post('/projects', async (req, res) => {
   } catch (error) {
     console.error('Error creating project:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // PUT /api/due-diligence/projects/:id - Update project
 router.put('/projects/:id', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
     const { name, description, status } = req.body;
 
-    await dbRun(db, `
+    await runUpdate(`
       UPDATE due_diligence_projects
       SET name = COALESCE(?, name),
           description = COALESCE(?, description),
@@ -319,7 +307,7 @@ router.put('/projects/:id', async (req, res) => {
       WHERE id = ?
     `, [name, description, status, id]);
 
-    const project = await dbGet(db, 'SELECT * FROM due_diligence_projects WHERE id = ?', [id]);
+    const project = await runQuerySingle('SELECT * FROM due_diligence_projects WHERE id = ?', [id]);
 
     res.json({
       success: true,
@@ -328,22 +316,19 @@ router.put('/projects/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating project:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // DELETE /api/due-diligence/projects/:id - Delete project
 router.delete('/projects/:id', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
     // Delete associated contracts first
-    await dbRun(db, 'DELETE FROM dd_analyzed_contracts WHERE project_id = ?', [id]);
+    await runUpdate('DELETE FROM dd_analyzed_contracts WHERE project_id = ?', [id]);
 
     // Delete project
-    await dbRun(db, 'DELETE FROM due_diligence_projects WHERE id = ?', [id]);
+    await runUpdate('DELETE FROM due_diligence_projects WHERE id = ?', [id]);
 
     res.json({
       success: true,
@@ -352,8 +337,6 @@ router.delete('/projects/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting project:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
@@ -442,8 +425,8 @@ const getRiskRating = (complianceScore) => {
 };
 
 // Helper function to update project statistics
-const updateProjectStats = async (db, projectId) => {
-  const stats = await dbGet(db, `
+const updateProjectStats = async (projectId) => {
+  const stats = await runQuerySingle(`
     SELECT
       COUNT(*) as total,
       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as analyzed,
@@ -452,7 +435,7 @@ const updateProjectStats = async (db, projectId) => {
     WHERE project_id = ?
   `, [projectId]);
 
-  await dbRun(db, `
+  await runUpdate(`
     UPDATE due_diligence_projects
     SET total_contracts = ?,
         analyzed_contracts = ?,
@@ -464,7 +447,6 @@ const updateProjectStats = async (db, projectId) => {
 
 // POST /api/due-diligence/projects/:id/upload - Upload and analyze contracts
 router.post('/projects/:id/upload', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
@@ -485,7 +467,7 @@ router.post('/projects/:id/upload', async (req, res) => {
     console.log('Files to process:', files.length);
 
     // Check project exists
-    const project = await dbGet(db, 'SELECT id FROM due_diligence_projects WHERE id = ?', [id]);
+    const project = await runQuerySingle('SELECT id FROM due_diligence_projects WHERE id = ?', [id]);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -509,7 +491,7 @@ router.post('/projects/:id/upload', async (req, res) => {
       await file.mv(filePath);
       console.log('Saved file:', filePath);
 
-      const result = await dbRun(db, `
+      const result = await runInsert(`
         INSERT INTO dd_analyzed_contracts (project_id, filename, file_path, status)
         VALUES (?, ?, ?, 'pending')
       `, [id, file.name, filePath]);
@@ -523,15 +505,14 @@ router.post('/projects/:id/upload', async (req, res) => {
     }
 
     // Update project stats
-    await updateProjectStats(db, id);
+    await updateProjectStats(id);
 
     // Start analysis in background
     (async () => {
-      const analysisDb = getDb();
       for (const file of savedFiles) {
         try {
           // Update status to analyzing
-          await dbRun(analysisDb, `
+          await runUpdate(`
             UPDATE dd_analyzed_contracts SET status = 'analyzing' WHERE id = ?
           `, [file.id]);
 
@@ -540,7 +521,7 @@ router.post('/projects/:id/upload', async (req, res) => {
 
           if (result.success) {
             const analysis = result.analysis;
-            await dbRun(analysisDb, `
+            await runUpdate(`
               UPDATE dd_analyzed_contracts
               SET contract_type = ?,
                   risk_rating = ?,
@@ -569,7 +550,7 @@ router.post('/projects/:id/upload', async (req, res) => {
             console.log('Analysis complete for:', file.name);
           } else {
             console.log('Analysis failed for:', file.name, result.error);
-            await dbRun(analysisDb, `
+            await runUpdate(`
               UPDATE dd_analyzed_contracts
               SET status = 'error',
                   error_message = ?,
@@ -579,7 +560,7 @@ router.post('/projects/:id/upload', async (req, res) => {
           }
         } catch (err) {
           console.error('Error processing contract:', file.name, err);
-          await dbRun(analysisDb, `
+          await runUpdate(`
             UPDATE dd_analyzed_contracts
             SET status = 'error',
                 error_message = ?,
@@ -589,9 +570,8 @@ router.post('/projects/:id/upload', async (req, res) => {
         }
 
         // Update project stats after each contract
-        await updateProjectStats(analysisDb, id);
+        await updateProjectStats(id);
       }
-      analysisDb.close();
       console.log('All analysis complete for project:', id);
     })();
 
@@ -606,18 +586,15 @@ router.post('/projects/:id/upload', async (req, res) => {
   } catch (error) {
     console.error('Error uploading files:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/due-diligence/contracts/:id/pdf - Serve the PDF file
 router.get('/contracts/:id/pdf', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
-    const contract = await dbGet(db, 'SELECT file_path, filename FROM dd_analyzed_contracts WHERE id = ?', [id]);
+    const contract = await runQuerySingle('SELECT file_path, filename FROM dd_analyzed_contracts WHERE id = ?', [id]);
 
     if (!contract) {
       return res.status(404).json({ success: false, message: 'Contract not found' });
@@ -633,18 +610,15 @@ router.get('/contracts/:id/pdf', async (req, res) => {
   } catch (error) {
     console.error('Error serving PDF:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // GET /api/due-diligence/contracts/:id - Get single contract details
 router.get('/contracts/:id', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
-    const contract = await dbGet(db, `
+    const contract = await runQuerySingle(`
       SELECT * FROM dd_analyzed_contracts WHERE id = ?
     `, [id]);
 
@@ -676,18 +650,15 @@ router.get('/contracts/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching contract:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // DELETE /api/due-diligence/contracts/:id - Delete a contract
 router.delete('/contracts/:id', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
-    const contract = await dbGet(db, 'SELECT project_id, file_path FROM dd_analyzed_contracts WHERE id = ?', [id]);
+    const contract = await runQuerySingle('SELECT project_id, file_path FROM dd_analyzed_contracts WHERE id = ?', [id]);
 
     if (!contract) {
       return res.status(404).json({ success: false, message: 'Contract not found' });
@@ -698,10 +669,10 @@ router.delete('/contracts/:id', async (req, res) => {
       fs.unlinkSync(contract.file_path);
     }
 
-    await dbRun(db, 'DELETE FROM dd_analyzed_contracts WHERE id = ?', [id]);
+    await runUpdate('DELETE FROM dd_analyzed_contracts WHERE id = ?', [id]);
 
     // Update project stats
-    await updateProjectStats(db, contract.project_id);
+    await updateProjectStats(contract.project_id);
 
     res.json({
       success: true,
@@ -710,18 +681,15 @@ router.delete('/contracts/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting contract:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // POST /api/due-diligence/contracts/:id/reanalyze - Re-analyze a contract
 router.post('/contracts/:id/reanalyze', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
-    const contract = await dbGet(db, 'SELECT * FROM dd_analyzed_contracts WHERE id = ?', [id]);
+    const contract = await runQuerySingle('SELECT * FROM dd_analyzed_contracts WHERE id = ?', [id]);
 
     if (!contract) {
       return res.status(404).json({ success: false, message: 'Contract not found' });
@@ -732,17 +700,16 @@ router.post('/contracts/:id/reanalyze', async (req, res) => {
     }
 
     // Update status to analyzing
-    await dbRun(db, `UPDATE dd_analyzed_contracts SET status = 'analyzing' WHERE id = ?`, [id]);
+    await runUpdate(`UPDATE dd_analyzed_contracts SET status = 'analyzing' WHERE id = ?`, [id]);
 
     // Start analysis in background
     (async () => {
-      const analysisDb = getDb();
       try {
         const result = await analyzeContract(contract.file_path, contract.filename);
 
         if (result.success) {
           const analysis = result.analysis;
-          await dbRun(analysisDb, `
+          await runUpdate(`
             UPDATE dd_analyzed_contracts
             SET contract_type = ?,
                 risk_rating = ?,
@@ -770,7 +737,7 @@ router.post('/contracts/:id/reanalyze', async (req, res) => {
             id
           ]);
         } else {
-          await dbRun(analysisDb, `
+          await runUpdate(`
             UPDATE dd_analyzed_contracts
             SET status = 'error',
                 error_message = ?,
@@ -779,9 +746,9 @@ router.post('/contracts/:id/reanalyze', async (req, res) => {
           `, [result.error, id]);
         }
 
-        await updateProjectStats(analysisDb, contract.project_id);
+        await updateProjectStats(contract.project_id);
       } catch (err) {
-        await dbRun(analysisDb, `
+        await runUpdate(`
           UPDATE dd_analyzed_contracts
           SET status = 'error',
               error_message = ?,
@@ -789,7 +756,6 @@ router.post('/contracts/:id/reanalyze', async (req, res) => {
           WHERE id = ?
         `, [err.message, id]);
       }
-      analysisDb.close();
     })();
 
     res.json({
@@ -799,19 +765,16 @@ router.post('/contracts/:id/reanalyze', async (req, res) => {
   } catch (error) {
     console.error('Error re-analyzing contract:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 
 // POST /api/due-diligence/projects/:id/seed - Seed demo contracts
 router.post('/projects/:id/seed', async (req, res) => {
-  const db = getDb();
   try {
     const { id } = req.params;
 
     // Check project exists
-    const project = await dbGet(db, 'SELECT id FROM due_diligence_projects WHERE id = ?', [id]);
+    const project = await runQuerySingle('SELECT id FROM due_diligence_projects WHERE id = ?', [id]);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -896,7 +859,7 @@ router.post('/projects/:id/seed', async (req, res) => {
     ];
 
     for (const contract of demoContracts) {
-      await dbRun(db, `
+      await runInsert(`
         INSERT INTO dd_analyzed_contracts
         (project_id, filename, contract_type, risk_rating, compliance_score,
          composite_risk_score, analysis_summary, status)
@@ -906,7 +869,7 @@ router.post('/projects/:id/seed', async (req, res) => {
     }
 
     // Update project stats
-    await updateProjectStats(db, id);
+    await updateProjectStats(id);
 
     res.json({
       success: true,
@@ -915,8 +878,6 @@ router.post('/projects/:id/seed', async (req, res) => {
   } catch (error) {
     console.error('Error seeding contracts:', error);
     res.status(500).json({ success: false, message: error.message });
-  } finally {
-    db.close();
   }
 });
 

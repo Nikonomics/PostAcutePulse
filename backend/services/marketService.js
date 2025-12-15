@@ -359,7 +359,7 @@ async function getCompetitors(latitude, longitude, radiusMiles = 25, facilityTyp
 
   try {
     if (facilityType === 'SNF') {
-      // Query snf_facilities table
+      // Query snf_facilities table with expanded staffing/turnover data
       let query = `
         SELECT
           id,
@@ -390,6 +390,24 @@ async function getCompetitors(latitude, longitude, radiusMiles = 25, facilityTyp
           average_daily_rate,
           medicare_rate,
           medicaid_rate,
+          -- New staffing fields
+          rn_staffing_hours,
+          lpn_staffing_hours,
+          reported_cna_staffing_hours,
+          total_nurse_staffing_hours,
+          pt_staffing_hours,
+          -- Turnover
+          total_nursing_turnover,
+          rn_turnover,
+          -- Chain data
+          chain_id,
+          chain_name,
+          chain_facility_count,
+          chain_avg_overall_rating,
+          -- Quality
+          substantiated_complaints,
+          long_stay_qm_rating,
+          short_stay_qm_rating,
           ${HAVERSINE_SQL} AS distance_miles
         FROM snf_facilities
         WHERE latitude IS NOT NULL
@@ -432,12 +450,28 @@ async function getCompetitors(latitude, longitude, radiusMiles = 25, facilityTyp
           overall: row.overall_rating,
           healthInspection: row.health_inspection_rating,
           qualityMeasure: row.quality_measure_rating,
-          staffing: row.staffing_rating
+          staffing: row.staffing_rating,
+          longStayQm: row.long_stay_qm_rating,
+          shortStayQm: row.short_stay_qm_rating
+        },
+        // Staffing hours (per resident per day)
+        staffing: {
+          rnHours: row.rn_staffing_hours ? parseFloat(row.rn_staffing_hours) : null,
+          lpnHours: row.lpn_staffing_hours ? parseFloat(row.lpn_staffing_hours) : null,
+          cnaHours: row.reported_cna_staffing_hours ? parseFloat(row.reported_cna_staffing_hours) : null,
+          totalNurseHours: row.total_nurse_staffing_hours ? parseFloat(row.total_nurse_staffing_hours) : null,
+          ptHours: row.pt_staffing_hours ? parseFloat(row.pt_staffing_hours) : null
+        },
+        // Turnover rates
+        turnover: {
+          totalNursing: row.total_nursing_turnover ? parseFloat(row.total_nursing_turnover) : null,
+          rn: row.rn_turnover ? parseFloat(row.rn_turnover) : null
         },
         deficiencies: {
           health: row.health_deficiencies,
           fireSafety: row.fire_safety_deficiencies
         },
+        complaints: row.substantiated_complaints,
         totalPenalties: row.total_penalties_amount,
         specialFocusFacility: row.special_focus_facility,
         ownership: {
@@ -445,6 +479,13 @@ async function getCompetitors(latitude, longitude, radiusMiles = 25, facilityTyp
           parentOrganization: row.parent_organization,
           isChain: row.multi_facility_chain
         },
+        // Chain info
+        chain: row.chain_id ? {
+          id: row.chain_id,
+          name: row.chain_name,
+          facilityCount: row.chain_facility_count,
+          avgRating: row.chain_avg_overall_rating ? parseFloat(row.chain_avg_overall_rating) : null
+        } : null,
         rates: {
           averageDaily: row.average_daily_rate,
           medicare: row.medicare_rate,
@@ -1277,6 +1318,20 @@ async function getStateSummary(state, facilityType = 'SNF') {
         LIMIT 10
       `, [state]);
 
+      // Get top ownership groups by facility count
+      const ownershipResult = await pool.query(`
+        SELECT
+          COALESCE(parent_organization, 'Unknown') as ownership_group,
+          COUNT(*) as facility_count,
+          SUM(total_beds) as total_beds,
+          AVG(overall_rating) as avg_rating
+        FROM snf_facilities
+        WHERE UPPER(state) = UPPER($1) AND parent_organization IS NOT NULL AND parent_organization != ''
+        GROUP BY parent_organization
+        ORDER BY facility_count DESC
+        LIMIT 10
+      `, [state]);
+
       return {
         stateCode: state.toUpperCase(),
         facilityCount: parseInt(stats.facility_count) || 0,
@@ -1309,6 +1364,12 @@ async function getStateSummary(state, facilityType = 'SNF') {
         ratingDistribution,
         topCounties: countiesResult.rows.map(row => ({
           countyName: row.county,
+          facilityCount: parseInt(row.facility_count) || 0,
+          totalBeds: parseInt(row.total_beds) || 0,
+          avgRating: row.avg_rating ? parseFloat(row.avg_rating).toFixed(2) : null
+        })),
+        topOwnershipGroups: ownershipResult.rows.map(row => ({
+          name: row.ownership_group,
           facilityCount: parseInt(row.facility_count) || 0,
           totalBeds: parseInt(row.total_beds) || 0,
           avgRating: row.avg_rating ? parseFloat(row.avg_rating).toFixed(2) : null
@@ -1345,6 +1406,19 @@ async function getStateSummary(state, facilityType = 'SNF') {
         LIMIT 10
       `, [state]);
 
+      // Get top ownership groups by facility count
+      const ownershipResult = await pool.query(`
+        SELECT
+          COALESCE(licensee, 'Unknown') as ownership_group,
+          COUNT(*) as facility_count,
+          SUM(capacity) as total_capacity
+        FROM alf_facilities
+        WHERE UPPER(state) = UPPER($1) AND licensee IS NOT NULL AND licensee != ''
+        GROUP BY licensee
+        ORDER BY facility_count DESC
+        LIMIT 10
+      `, [state]);
+
       return {
         stateCode: state.toUpperCase(),
         facilityCount: parseInt(stats.facility_count) || 0,
@@ -1370,6 +1444,11 @@ async function getStateSummary(state, facilityType = 'SNF') {
         uniqueOperators: parseInt(stats.unique_operators) || 0,
         topCounties: countiesResult.rows.map(row => ({
           countyName: row.county,
+          facilityCount: parseInt(row.facility_count) || 0,
+          totalCapacity: parseInt(row.total_capacity) || 0
+        })),
+        topOwnershipGroups: ownershipResult.rows.map(row => ({
+          name: row.ownership_group,
           facilityCount: parseInt(row.facility_count) || 0,
           totalCapacity: parseInt(row.total_capacity) || 0
         }))
@@ -1402,8 +1481,34 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
   const threeYearsAgoStr = threeYearsAgo.toISOString().split('T')[0];
 
   try {
+    // First, look up the CBSA for this county to get all counties in the metro area
+    const cbsaResult = await pool.query(`
+      SELECT cbsa_code, cbsa_title
+      FROM county_cbsa_crosswalk
+      WHERE UPPER(county_name) = UPPER($1)
+        AND UPPER(state_code) = UPPER($2)
+        AND cbsa_code IS NOT NULL
+      LIMIT 1
+    `, [countyClean, state]);
+
+    let countyList = [];
+    if (cbsaResult.rows.length > 0) {
+      // County is part of a CBSA - get all counties in this CBSA
+      const cbsaCode = cbsaResult.rows[0].cbsa_code;
+      const countiesResult = await pool.query(`
+        SELECT county_name
+        FROM county_cbsa_crosswalk
+        WHERE cbsa_code = $1
+      `, [cbsaCode]);
+      countyList = countiesResult.rows.map(row => row.county_name);
+    } else {
+      // No CBSA found - fall back to just the selected county
+      countyList = [countyClean, county];
+    }
+
     if (facilityType === 'SNF') {
       // Query facilities with LEFT JOIN to count deficiencies from last 3 years
+      // Use IN clause with the county list from CBSA
       const result = await pool.query(`
         SELECT
           f.id,
@@ -1441,18 +1546,14 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
             federal_provider_number,
             COUNT(*) as deficiency_count_3yr
           FROM cms_facility_deficiencies
-          WHERE survey_date >= $6
+          WHERE survey_date >= $3
           GROUP BY federal_provider_number
         ) d ON f.federal_provider_number = d.federal_provider_number
         WHERE UPPER(f.state) = UPPER($1)
-          AND (
-            UPPER(f.county) = UPPER($2) OR
-            UPPER(f.county) = UPPER($3) OR
-            UPPER(f.county) LIKE UPPER($4)
-          )
+          AND UPPER(f.county) = ANY($2::text[])
         ORDER BY f.total_beds DESC NULLS LAST
-        LIMIT $5
-      `, [state, county, countyClean, `${countyClean}%`, limit, threeYearsAgoStr]);
+        LIMIT $4
+      `, [state, countyList.map(c => c.toUpperCase()), threeYearsAgoStr, limit]);
 
       return result.rows.map(row => ({
         id: row.id,
@@ -1499,6 +1600,7 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
         }
       }));
     } else {
+      // ALF facilities - use the same CBSA county list
       const result = await pool.query(`
         SELECT
           id,
@@ -1514,14 +1616,10 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           licensee
         FROM alf_facilities
         WHERE UPPER(state) = UPPER($1)
-          AND (
-            UPPER(county) = UPPER($2) OR
-            UPPER(county) = UPPER($3) OR
-            UPPER(county) LIKE UPPER($4)
-          )
+          AND UPPER(county) = ANY($2::text[])
         ORDER BY capacity DESC NULLS LAST
-        LIMIT $5
-      `, [state, county, countyClean, `${countyClean}%`, limit]);
+        LIMIT $3
+      `, [state, countyList.map(c => c.toUpperCase()), limit]);
 
       return result.rows.map(row => ({
         id: row.id,
@@ -1541,6 +1639,205 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
     }
   } catch (error) {
     console.error('[MarketService] getFacilitiesInCounty error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get state benchmarks from cms_state_benchmarks table
+ *
+ * @param {string} stateCode - State code (2 letters) or 'NATION' for national
+ * @returns {Promise<Object>} State benchmark data
+ */
+async function getStateBenchmarks(stateCode) {
+  const pool = getPoolInstance();
+
+  try {
+    const result = await pool.query(`
+      SELECT *
+      FROM cms_state_benchmarks
+      WHERE UPPER(state_code) = UPPER($1)
+    `, [stateCode]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      stateCode: row.state_code,
+      isNational: row.is_national,
+      ratings: {
+        overall: row.avg_overall_rating ? parseFloat(row.avg_overall_rating) : null,
+        healthInspection: row.avg_health_inspection_rating ? parseFloat(row.avg_health_inspection_rating) : null,
+        qm: row.avg_qm_rating ? parseFloat(row.avg_qm_rating) : null,
+        staffing: row.avg_staffing_rating ? parseFloat(row.avg_staffing_rating) : null
+      },
+      staffing: {
+        cnaHours: row.avg_cna_hours ? parseFloat(row.avg_cna_hours) : null,
+        lpnHours: row.avg_lpn_hours ? parseFloat(row.avg_lpn_hours) : null,
+        rnHours: row.avg_rn_hours ? parseFloat(row.avg_rn_hours) : null,
+        totalNurseHours: row.avg_total_nurse_hours ? parseFloat(row.avg_total_nurse_hours) : null,
+        ptHours: row.avg_pt_hours ? parseFloat(row.avg_pt_hours) : null,
+        weekendTotalHours: row.avg_weekend_total_hours ? parseFloat(row.avg_weekend_total_hours) : null
+      },
+      turnover: {
+        totalNursing: row.avg_total_nursing_turnover ? parseFloat(row.avg_total_nursing_turnover) : null,
+        rn: row.avg_rn_turnover ? parseFloat(row.avg_rn_turnover) : null,
+        admin: row.avg_admin_departures ? parseFloat(row.avg_admin_departures) : null
+      },
+      caseMix: {
+        index: row.avg_case_mix_index ? parseFloat(row.avg_case_mix_index) : null,
+        rnHours: row.avg_case_mix_rn_hours ? parseFloat(row.avg_case_mix_rn_hours) : null,
+        totalHours: row.avg_case_mix_total_hours ? parseFloat(row.avg_case_mix_total_hours) : null
+      },
+      qualityMeasures: {
+        longStay: {
+          fallsWithInjury: row.qm_ls_falls_major_injury ? parseFloat(row.qm_ls_falls_major_injury) : null,
+          pressureUlcers: row.qm_ls_pressure_ulcers ? parseFloat(row.qm_ls_pressure_ulcers) : null,
+          antipsychotic: row.qm_ls_antipsychotic ? parseFloat(row.qm_ls_antipsychotic) : null,
+          uti: row.qm_ls_uti ? parseFloat(row.qm_ls_uti) : null,
+          catheter: row.qm_ls_catheter ? parseFloat(row.qm_ls_catheter) : null
+        },
+        shortStay: {
+          rehospitalized: row.qm_ss_rehospitalized ? parseFloat(row.qm_ss_rehospitalized) : null,
+          edVisit: row.qm_ss_ed_visit ? parseFloat(row.qm_ss_ed_visit) : null
+        }
+      },
+      processingDate: row.processing_date
+    };
+  } catch (error) {
+    console.error('[MarketService] getStateBenchmarks error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get VBP performance data for a facility
+ *
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} VBP performance data
+ */
+async function getVbpPerformance(ccn) {
+  const pool = getPoolInstance();
+
+  try {
+    const result = await pool.query(`
+      SELECT *
+      FROM snf_vbp_performance
+      WHERE cms_certification_number = $1
+      ORDER BY fiscal_year DESC
+      LIMIT 1
+    `, [ccn]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      ccn: row.cms_certification_number,
+      fiscalYear: row.fiscal_year,
+      ranking: row.vbp_ranking,
+      performanceScore: row.performance_score ? parseFloat(row.performance_score) : null,
+      incentiveMultiplier: row.incentive_payment_multiplier ? parseFloat(row.incentive_payment_multiplier) : null,
+      incentivePercentage: row.incentive_percentage ? parseFloat(row.incentive_percentage) : null,
+      readmission: {
+        baselineRate: row.baseline_readmission_rate ? parseFloat(row.baseline_readmission_rate) : null,
+        performanceRate: row.performance_readmission_rate ? parseFloat(row.performance_readmission_rate) : null,
+        measureScore: row.readmission_measure_score ? parseFloat(row.readmission_measure_score) : null
+      },
+      hai: {
+        baselineRate: row.baseline_hai_rate ? parseFloat(row.baseline_hai_rate) : null,
+        performanceRate: row.performance_hai_rate ? parseFloat(row.performance_hai_rate) : null,
+        measureScore: row.hai_measure_score ? parseFloat(row.hai_measure_score) : null
+      },
+      turnover: {
+        baselineRate: row.baseline_turnover_rate ? parseFloat(row.baseline_turnover_rate) : null,
+        performanceRate: row.performance_turnover_rate ? parseFloat(row.performance_turnover_rate) : null,
+        measureScore: row.turnover_measure_score ? parseFloat(row.turnover_measure_score) : null
+      },
+      staffingHours: {
+        baselineHours: row.baseline_staffing_hours ? parseFloat(row.baseline_staffing_hours) : null,
+        performanceHours: row.performance_staffing_hours ? parseFloat(row.performance_staffing_hours) : null,
+        measureScore: row.staffing_measure_score ? parseFloat(row.staffing_measure_score) : null
+      }
+    };
+  } catch (error) {
+    console.error('[MarketService] getVbpPerformance error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get data definitions for tooltips
+ *
+ * @param {string} category - Optional category filter
+ * @param {string[]} fieldNames - Optional array of specific field names
+ * @returns {Promise<Array>} Array of definitions
+ */
+async function getDataDefinitions(category = null, fieldNames = null) {
+  const pool = getPoolInstance();
+
+  try {
+    let query = `
+      SELECT
+        field_name,
+        measure_code,
+        display_name,
+        short_description,
+        full_description,
+        category,
+        subcategory,
+        data_type,
+        unit,
+        min_value,
+        max_value,
+        better_direction,
+        update_frequency,
+        interpretation_notes
+      FROM cms_data_definitions
+    `;
+
+    const params = [];
+    const conditions = [];
+
+    if (category) {
+      params.push(category);
+      conditions.push(`category = $${params.length}`);
+    }
+
+    if (fieldNames && fieldNames.length > 0) {
+      params.push(fieldNames);
+      conditions.push(`field_name = ANY($${params.length})`);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ` ORDER BY category, display_name`;
+
+    const result = await pool.query(query, params);
+
+    return result.rows.map(row => ({
+      fieldName: row.field_name,
+      measureCode: row.measure_code,
+      displayName: row.display_name,
+      shortDescription: row.short_description,
+      fullDescription: row.full_description,
+      category: row.category,
+      subcategory: row.subcategory,
+      dataType: row.data_type,
+      unit: row.unit,
+      minValue: row.min_value ? parseFloat(row.min_value) : null,
+      maxValue: row.max_value ? parseFloat(row.max_value) : null,
+      betterDirection: row.better_direction,
+      updateFrequency: row.update_frequency,
+      interpretationNotes: row.interpretation_notes
+    }));
+  } catch (error) {
+    console.error('[MarketService] getDataDefinitions error:', error);
     throw error;
   }
 }
@@ -1569,5 +1866,9 @@ module.exports = {
   getStateSummary,
   getFacilitiesInCounty,
   getNationalBenchmarks,
+  // New CMS data functions
+  getStateBenchmarks,
+  getVbpPerformance,
+  getDataDefinitions,
   closePool
 };

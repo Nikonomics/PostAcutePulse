@@ -46,6 +46,7 @@ import { unflattenExtractedData } from "../components/DealExtractionViewer/utils
 import { BarChart2, Building2 } from "lucide-react";
 import FacilitiesSection from "../components/FacilitiesSection";
 import { ExcelPreview, WordPreview } from "../components/DocumentPreviewers";
+import MentionInput from "../components/common/MentionInput";
 
 // CSS Styles
 const styles = `
@@ -87,6 +88,39 @@ const styles = `
     font-size: 1.125rem;
     font-weight: 600;
     color: #059669;
+  }
+
+  .facility-selector-container {
+    display: flex;
+    align-items: center;
+  }
+
+  .facility-selector {
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    background-color: white;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    appearance: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 200px;
+  }
+
+  .facility-selector:hover {
+    border-color: #9ca3af;
+  }
+
+  .facility-selector:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   }
 
   .btn {
@@ -629,6 +663,7 @@ const styles = `
 
 const DealDetailPage = () => {
   const [newComment, setNewComment] = useState("");
+  const [mentionedUserIds, setMentionedUserIds] = useState([]);
   const [selectedTags, setSelectedTags] = useState([
     "high-priority",
     "due-diligence",
@@ -638,6 +673,7 @@ const DealDetailPage = () => {
   const { id } = useParams();
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedView, setSelectedView] = useState('deal-overview'); // 'deal-overview' or facility ID
 
   const [comments, setComments] = useState([]);
   const [commentLoading, setCommentLoading] = useState(false);
@@ -783,10 +819,12 @@ const DealDetailPage = () => {
       const payload = {
         deal_id: id,
         comment: newComment,
+        mentioned_user_ids: mentionedUserIds.length > 0 ? mentionedUserIds : undefined,
       };
       const response = await addDealComment(payload);
       setComments((prev) => [response.body, ...prev]);
       setNewComment("");
+      setMentionedUserIds([]);
     } catch (err) {
       if (err.name === "ValidationError") {
         setCommentError(err.message);
@@ -1064,6 +1102,33 @@ const DealDetailPage = () => {
     setShowDealModal(false);
   };
 
+  // Helper function to get the current view data based on selectedView
+  const getCurrentViewData = () => {
+    if (!deal) return null;
+
+    // For deal overview, use portfolio-level data
+    if (selectedView === 'deal-overview') {
+      // Check if this is a portfolio deal with portfolio data
+      if (deal.extraction_data?.is_portfolio_deal && deal.extraction_data?.portfolio_data) {
+        return deal.extraction_data.portfolio_data;
+      }
+      // For single facility deals or backwards compatibility, use extraction_data as-is
+      return deal.extraction_data;
+    }
+
+    // For facility-specific view, find the facility data
+    const selectedFacility = deal.deal_facility?.find(f => f.id === parseInt(selectedView));
+    if (selectedFacility) {
+      // Return facility's extraction data if available, or fall back to facility record data
+      return selectedFacility.extraction_data || selectedFacility;
+    }
+
+    // Fallback to deal extraction_data
+    return deal.extraction_data;
+  };
+
+  const currentViewData = getCurrentViewData();
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1107,6 +1172,27 @@ const DealDetailPage = () => {
             <div className="flex items-center gap-4">
               <div>
                 <h1 className="deal-title">{deal.deal_name}</h1>
+
+                {/* Facility/View Selector - Only show for portfolio deals */}
+                {deal.deal_facility && deal.deal_facility.length > 1 && (
+                  <div className="facility-selector-container" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                    <select
+                      className="facility-selector"
+                      value={selectedView}
+                      onChange={(e) => setSelectedView(e.target.value)}
+                    >
+                      <option value="deal-overview">Deal Overview</option>
+                      {deal.deal_facility
+                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                        .map((facility) => (
+                          <option key={facility.id} value={facility.id}>
+                            {facility.facility_name || `Facility ${facility.id}`}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 mt-1">
                   <span className="deal-subtitle" style={{ margin: 0 }}>{deal.deal_type}</span>
                   <span className="status-badge">{deal.deal_status}</span>
@@ -1172,14 +1258,16 @@ const DealDetailPage = () => {
             {/* Main Content */}
             <div className="col-span-2">
               {/* Deal Analysis / AI Extraction Viewer (includes Calculator tab) */}
-              {deal.extraction_data && (
+              {currentViewData && (
                 <div style={{ marginBottom: '1rem' }}>
                   <DealExtractionViewer
-                    extractionData={unflattenExtractedData(deal.extraction_data)}
+                    extractionData={unflattenExtractedData(currentViewData)}
                     showComparison={false}
                     dealDocuments={uploadedDocuments || []}
                     dealId={deal.id}
                     deal={deal}
+                    selectedView={selectedView}
+                    isPortfolioView={selectedView === 'deal-overview' && deal.extraction_data?.is_portfolio_deal}
                     onDocumentUpload={handleDocumentUpload}
                     isUploading={uploading}
                     onDocumentView={handleDocumentView}
@@ -1670,10 +1758,11 @@ const DealDetailPage = () => {
 
                 {/* Add Comment */}
                 <div className="comment-form">
-                  <textarea
+                  <MentionInput
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Add a comment..."
+                    onChange={setNewComment}
+                    onMentionsChange={setMentionedUserIds}
+                    placeholder="Add a comment... Use @ to mention someone"
                     className="comment-textarea"
                     rows={3}
                   />

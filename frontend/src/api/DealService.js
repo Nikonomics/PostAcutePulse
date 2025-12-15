@@ -616,3 +616,205 @@ export const selectFacilityMatch = async (dealId, payload) => {
   const response = await apiService.post(`/deal/${dealId}/select-facility-match`, payload);
   return response.data;
 };
+
+// ============================================
+// Multi-Facility Portfolio Support API
+// ============================================
+
+/**
+ * Detect facilities from document text using AI
+ * This is step 1 of the portfolio workflow - identifies facility names, locations, and beds
+ * @param {string} documentText - Combined text extracted from uploaded documents
+ * @param {string[]} facilityTypes - Types to detect: ['SNF'], ['ALF'], or ['SNF', 'ALF']
+ * @returns {Promise} - Detected facilities with confidence scores
+ *
+ * Response structure:
+ * {
+ *   detected_facilities: [
+ *     { name, city, state, beds, facility_type, confidence, source_hint }
+ *   ],
+ *   is_portfolio: boolean,
+ *   facility_count: number
+ * }
+ */
+export const detectFacilities = async (documentText, facilityTypes = ['SNF', 'ALF']) => {
+  const response = await apiService.post(apiRoutes.detectFacilities, {
+    documentText,
+    facilityTypes
+  });
+  return response.data;
+};
+
+/**
+ * Match a detected facility against SNF/ALF database
+ * This is step 2 - finds database records that match the detected facility
+ * @param {Object} facilityInfo - Detected facility info { name, city, state, beds }
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise} - Top matches with scores and full facility records
+ *
+ * Response structure:
+ * {
+ *   matches: [
+ *     {
+ *       ...full facility record...,
+ *       match_scores: { name, city, beds, address },
+ *       weighted_score: number,
+ *       match_confidence: 'high' | 'medium' | 'low'
+ *     }
+ *   ],
+ *   best_match_confidence: 'high' | 'medium' | 'low' | 'none'
+ * }
+ */
+export const matchFacility = async (facilityInfo, facilityType) => {
+  const response = await apiService.post(apiRoutes.matchFacility, {
+    facilityInfo,
+    facilityType
+  });
+  return response.data;
+};
+
+/**
+ * Search facilities by name in database
+ * For manual facility lookup when auto-match doesn't find the right one
+ * @param {string} searchTerm - Facility name to search for (min 2 chars)
+ * @param {string} facilityType - 'SNF', 'ALF', or 'both'
+ * @param {string} state - Optional state filter (e.g., 'WY')
+ * @returns {Promise} - Search results with full facility records
+ */
+export const searchFacilities = async (searchTerm, facilityType, state = null) => {
+  const params = { searchTerm, facilityType };
+  if (state) params.state = state;
+
+  const response = await apiService.get(apiRoutes.searchFacilities, { params });
+  return response.data;
+};
+
+/**
+ * Extract portfolio deal with confirmed facilities
+ * Final step - runs AI extraction with knowledge of which facilities to extract for
+ * @param {File[]} files - Array of uploaded document files
+ * @param {Object[]} confirmedFacilities - Array of confirmed facility objects
+ * @returns {Promise} - Extraction result with per-facility data
+ *
+ * confirmedFacilities structure:
+ * [
+ *   {
+ *     detected: { name, city, state, beds },
+ *     matched: { ...full database record... } | null,
+ *     match_source: 'snf_facilities' | 'alf_facilities' | null,
+ *     user_confirmed: true,
+ *     manual_entry: false
+ *   }
+ * ]
+ *
+ * Response structure:
+ * {
+ *   deal: {
+ *     id: number,
+ *     is_portfolio_deal: boolean,
+ *     facility_count: number,
+ *     facilities: [...merged facility data...],
+ *     portfolio_summary: { ...aggregated metrics... },
+ *     extraction_data: { ...full extraction result... }
+ *   }
+ * }
+ */
+export const extractPortfolio = async (files, confirmedFacilities) => {
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append('documents', file);
+  });
+  formData.append('confirmedFacilities', JSON.stringify(confirmedFacilities));
+
+  const response = await apiService.post(apiRoutes.extractPortfolio, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+/**
+ * Get facility database statistics
+ * Returns counts and metadata for SNF and ALF databases
+ * @returns {Promise} - Database stats
+ *
+ * Response structure:
+ * {
+ *   snf: { count, state_coverage, last_updated, source },
+ *   alf: { count, state_coverage, last_updated, source }
+ * }
+ */
+export const getFacilityDbStats = async () => {
+  const response = await apiService.get(apiRoutes.facilityDbStats);
+  return response.data;
+};
+
+/**
+ * Batch match multiple facilities against database
+ * Convenience function that calls matchFacility for each detected facility
+ * @param {Object[]} detectedFacilities - Array from detectFacilities response
+ * @returns {Promise} - Array of match results
+ */
+export const batchMatchFacilities = async (detectedFacilities) => {
+  const results = await Promise.all(
+    detectedFacilities.map(async (facility) => {
+      try {
+        const matchResult = await matchFacility(
+          {
+            name: facility.name,
+            city: facility.city,
+            state: facility.state,
+            beds: facility.beds
+          },
+          facility.facility_type || 'SNF'
+        );
+        return {
+          detected: facility,
+          matches: matchResult.body?.matches || [],
+          best_match_confidence: matchResult.body?.best_match_confidence || 'none',
+          error: null
+        };
+      } catch (error) {
+        return {
+          detected: facility,
+          matches: [],
+          best_match_confidence: 'none',
+          error: error.message
+        };
+      }
+    })
+  );
+  return results;
+};
+
+/**
+ * Extract text from uploaded documents (no AI processing)
+ * Lightweight endpoint for portfolio detection workflow
+ * @param {File[]} files - Array of uploaded document files
+ * @returns {Promise} - Extracted text and file details
+ *
+ * Response structure:
+ * {
+ *   combined_text: string,
+ *   total_characters: number,
+ *   files_processed: number,
+ *   files_successful: number,
+ *   file_details: [{ name, success, characters, error }]
+ * }
+ */
+export const extractDocumentText = async (files) => {
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append('documents', file);
+  });
+
+  const response = await apiService.post(apiRoutes.extractDocumentText, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};

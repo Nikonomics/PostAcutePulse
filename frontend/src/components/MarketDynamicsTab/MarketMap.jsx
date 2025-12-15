@@ -125,11 +125,14 @@ const MarketMap = ({
 
   const onLoad = useCallback((map) => {
     // Fit bounds to include all markers
-    if (competitors.length > 0) {
+    const validCompetitors = competitors.filter(
+      c => c.latitude != null && c.longitude != null && !isNaN(c.latitude) && !isNaN(c.longitude)
+    );
+    if (validCompetitors.length > 0) {
       const bounds = new window.google.maps.LatLngBounds();
       bounds.extend(center);
-      competitors.forEach(c => {
-        bounds.extend({ lat: c.latitude, lng: c.longitude });
+      validCompetitors.forEach(c => {
+        bounds.extend({ lat: Number(c.latitude), lng: Number(c.longitude) });
       });
       map.fitBounds(bounds, { padding: 50 });
     }
@@ -220,14 +223,16 @@ const MarketMap = ({
         />
 
         {/* Competitor markers */}
-        {competitors.map((competitor) => {
+        {competitors
+          .filter((c) => c.latitude != null && c.longitude != null && !isNaN(c.latitude) && !isNaN(c.longitude))
+          .map((competitor) => {
           const rating = facilityType === 'SNF' ? competitor.ratings?.overall : null;
           const isSelected = selectedCompetitor?.id === competitor.id;
 
           return (
             <Marker
               key={competitor.id}
-              position={{ lat: competitor.latitude, lng: competitor.longitude }}
+              position={{ lat: Number(competitor.latitude), lng: Number(competitor.longitude) }}
               icon={{
                 path: window.google.maps.SymbolPath.CIRCLE,
                 fillColor: getMarkerColor(rating),
@@ -244,9 +249,9 @@ const MarketMap = ({
         })}
 
         {/* Info Window for selected competitor */}
-        {selectedCompetitor && (
+        {selectedCompetitor && selectedCompetitor.latitude != null && selectedCompetitor.longitude != null && (
           <InfoWindow
-            position={{ lat: selectedCompetitor.latitude, lng: selectedCompetitor.longitude }}
+            position={{ lat: Number(selectedCompetitor.latitude), lng: Number(selectedCompetitor.longitude) }}
             onCloseClick={handleInfoClose}
           >
             <div style={styles.infoWindow}>

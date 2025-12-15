@@ -261,6 +261,15 @@ module.exports = function (sequelize, DataTypes) {
       allowNull: true,
       defaultValue: 0
     },
+    // Facility role in the deal (subject property vs competitor)
+    facility_role: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: 'subject',
+      validate: {
+        isIn: [['subject', 'competitor']]
+      }
+    },
     // Timestamps
     created_at: {
       type: DataTypes.DATE,

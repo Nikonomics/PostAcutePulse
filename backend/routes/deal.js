@@ -81,4 +81,12 @@ router.delete('/:dealId/proforma/:scenarioId', requireAuthentication, DealContro
 router.get('/:id/extraction-history', requireAuthentication, DealController.getExtractionHistory);
 router.get('/:id/extraction-history/:historyId', requireAuthentication, DealController.getExtractionHistoryDetail);
 
+// Multi-Facility Portfolio Deal Support
+router.post('/detect-facilities', requireAuthentication, DealController.detectFacilities);
+router.post('/match-facility', requireAuthentication, DealController.matchFacilityEndpoint);
+router.get('/search-facilities', requireAuthentication, DealController.searchFacilitiesEndpoint);
+router.post('/extract-portfolio', requireAuthentication, DealController.extractPortfolio);
+router.get('/facility-db-stats', requireAuthentication, DealController.getFacilityDatabaseStats);
+router.post('/extract-text', requireAuthentication, DealController.extractDocumentText);
+
 module.exports = router

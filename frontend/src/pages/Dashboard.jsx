@@ -97,67 +97,23 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchSampleLocations = async () => {
       try {
-        console.log('Fetching sample locations...', dealStatusFilter 
-          ? `with statuses: ${Array.isArray(dealStatusFilter) ? dealStatusFilter.join(', ') : dealStatusFilter}` 
+        console.log('Fetching sample locations...', dealStatusFilter
+          ? `with statuses: ${Array.isArray(dealStatusFilter) ? dealStatusFilter.join(', ') : dealStatusFilter}`
           : 'all statuses');
-
-        // Check if API base URL is properly configured
-        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL;
-        if (!apiBaseUrl || apiBaseUrl === 'https://api.example.com') {
-          console.warn('API base URL not configured, using mock data');
-          // Use mock data for testing
-          const mockData = [
-            {
-              id: 67,
-              deal_name: "test",
-              deal_facility: [
-                {
-                  id: 429,
-                  facility_name: "Test Facility",
-                  address: "Seattle Ferry Terminal, Seattle, WA, USA",
-                  city: "Seattle",
-                  state: "WA",
-                  longitude: -122.338,
-                  latitude: 47.6022
-                }
-              ]
-            }
-          ];
-          setDealsWithFacilities(mockData);
-          return;
-        }
 
         const res = await getSampleLocations(dealStatusFilter);
 
         if (!res.body || !Array.isArray(res.body)) {
           console.error('Invalid API response structure:', res);
+          setDealsWithFacilities([]);
           return;
         }
 
         const mappedDeals = mapFacilitiesToDeals(res.body);
-
         setDealsWithFacilities(mappedDeals);
       } catch (error) {
         console.error('Error fetching sample locations:', error);
-        // Fallback to mock data on error
-        const mockData = [
-          {
-            id: 67,
-            deal_name: "test",
-            deal_facility: [
-              {
-                id: 429,
-                facility_name: "Test Facility",
-                address: "Seattle Ferry Terminal, Seattle, WA, USA",
-                city: "Seattle",
-                state: "WA",
-                longitude: -122.338,
-                latitude: 47.6022
-              }
-            ]
-          }
-        ];
-        setDealsWithFacilities(mockData);
+        setDealsWithFacilities([]);
       }
     };
     fetchSampleLocations();

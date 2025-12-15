@@ -11,11 +11,25 @@ import {
   Loader2,
   Edit3,
   Save,
+  Building2,
+  Layers,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import { extractDealEnhanced, createBatchDeals, addDealDocument, getFacilityMatches, selectFacilityMatch } from "../api/DealService";
+import {
+  extractDealEnhanced,
+  createBatchDeals,
+  addDealDocument,
+  getFacilityMatches,
+  selectFacilityMatch,
+  extractDocumentText,
+  detectFacilities,
+  batchMatchFacilities,
+  extractPortfolio,
+} from "../api/DealService";
 import { getActiveUsers } from "../api/authService";
 import FacilityMatchModal from "../components/FacilityMatchModal";
+import FacilitySearchModal from "../components/FacilitySearchModal";
+import FacilityConfirmationList from "../components/FacilityConfirmationList";
 
 // Field display configuration
 const FIELD_GROUPS = {
@@ -80,11 +94,21 @@ const UploadDeal = () => {
   const [uploadedFileInfo, setUploadedFileInfo] = useState([]);
   // Enhanced extraction data
   const [enhancedData, setEnhancedData] = useState(null);
-  // Facility matching modal
+  // Facility matching modal (single facility flow)
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [facilityMatches, setFacilityMatches] = useState([]);
   const [matchSearchName, setMatchSearchName] = useState('');
   const [createdDealId, setCreatedDealId] = useState(null);
+
+  // Portfolio deal state
+  const [dealType, setDealType] = useState(null); // null | 'single' | 'portfolio'
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionStep, setDetectionStep] = useState(''); // Current step description
+  const [detectedFacilities, setDetectedFacilities] = useState([]);
+  const [confirmedFacilities, setConfirmedFacilities] = useState([]);
+  const [portfolioExtractionProgress, setPortfolioExtractionProgress] = useState({ current: 0, total: 0 });
+  const [showFacilitySearch, setShowFacilitySearch] = useState(false);
+  const [searchTargetIndex, setSearchTargetIndex] = useState(null); // Which facility is being searched for
 
   // Check if we have pre-extracted data from Deals page
   useEffect(() => {
@@ -96,6 +120,18 @@ const UploadDeal = () => {
       }
     }
   }, [location.state]);
+
+  // Debug: Log state changes for portfolio flow
+  useEffect(() => {
+    console.log('[UploadDeal Debug] State:', {
+      filesCount: files.length,
+      dealType,
+      extractedData: !!extractedData,
+      isDetecting,
+      confirmedFacilitiesCount: confirmedFacilities.length,
+      isExtracting,
+    });
+  }, [files.length, dealType, extractedData, isDetecting, confirmedFacilities.length, isExtracting]);
 
   // Load active users for deal lead selection
   useEffect(() => {
@@ -234,6 +270,271 @@ const UploadDeal = () => {
       setIsExtracting(false);
     }
   };
+
+  // ==========================================
+  // Portfolio Detection & Confirmation Handlers
+  // ==========================================
+
+  /**
+   * Handle deal type selection
+   */
+  const handleDealTypeSelect = (type) => {
+    setDealType(type);
+    // Reset portfolio state when switching
+    if (type === 'single') {
+      setDetectedFacilities([]);
+      setConfirmedFacilities([]);
+    }
+  };
+
+  /**
+   * Generate unique ID for facility tracking
+   */
+  const generateFacilityId = () => `facility-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  /**
+   * Detect facilities from uploaded documents (Portfolio flow)
+   */
+  const handleDetectFacilities = async () => {
+    if (files.length === 0) {
+      toast.error("Please upload at least one document");
+      return;
+    }
+
+    setIsDetecting(true);
+    setDetectionStep('Reading documents...');
+
+    try {
+      // Step 1: Extract text from documents
+      const textResponse = await extractDocumentText(files);
+
+      if (!textResponse.success || !textResponse.body?.combined_text) {
+        throw new Error('Failed to extract text from documents');
+      }
+
+      const documentText = textResponse.body.combined_text;
+      console.log(`[Portfolio] Extracted ${textResponse.body.total_characters} characters from ${textResponse.body.files_successful} files`);
+
+      // Step 2: Detect facilities using AI
+      setDetectionStep('Detecting facilities...');
+      const detectResponse = await detectFacilities(documentText, ['SNF', 'ALF']);
+
+      if (!detectResponse.success) {
+        throw new Error(detectResponse.message || 'Failed to detect facilities');
+      }
+
+      const detected = detectResponse.body?.detected_facilities || [];
+      console.log(`[Portfolio] Detected ${detected.length} facilities`);
+
+      if (detected.length === 0) {
+        toast.warning('No facilities detected in documents. You can add them manually.');
+        setDetectedFacilities([]);
+        setConfirmedFacilities([]);
+        setIsDetecting(false);
+        setDetectionStep('');
+        return;
+      }
+
+      // Step 3: Match each facility against database
+      setDetectionStep(`Finding database matches for ${detected.length} facilities...`);
+      const matchResults = await batchMatchFacilities(detected);
+
+      // Build confirmed facilities list with match candidates
+      const facilitiesWithMatches = matchResults.map((result, idx) => ({
+        id: generateFacilityId(),
+        detected: result.detected,
+        matched: null,
+        match_source: null,
+        matchCandidates: result.matches || [],
+        best_match_confidence: result.best_match_confidence || 'none',
+        user_confirmed: false,
+        manual_entry: null,
+      }));
+
+      setDetectedFacilities(detected);
+      setConfirmedFacilities(facilitiesWithMatches);
+
+      toast.success(`Detected ${detected.length} facilities. Please confirm matches below.`);
+
+    } catch (error) {
+      console.error("Portfolio detection error:", error);
+      toast.error(error.message || "Failed to detect facilities");
+    } finally {
+      setIsDetecting(false);
+      setDetectionStep('');
+    }
+  };
+
+  /**
+   * Retry detection after failure
+   */
+  const handleRetryDetection = () => {
+    setDetectedFacilities([]);
+    setConfirmedFacilities([]);
+    handleDetectFacilities();
+  };
+
+  /**
+   * Fall back to single facility mode
+   */
+  const handleFallbackToSingle = () => {
+    setDealType('single');
+    setDetectedFacilities([]);
+    setConfirmedFacilities([]);
+    toast.info('Switched to single facility mode');
+  };
+
+  /**
+   * Confirm a database match for a facility
+   */
+  const handleConfirmMatch = (index, matchedFacility) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        matched: matchedFacility,
+        match_source: matchedFacility.federal_provider_number ? 'snf_facilities' : 'alf_facilities',
+        user_confirmed: true,
+        manual_entry: null,
+      };
+      return updated;
+    });
+    toast.success(`Confirmed match for ${matchedFacility.facility_name}`);
+  };
+
+  /**
+   * Confirm manual entry for a facility
+   */
+  const handleManualEntry = (index, manualData) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        matched: null,
+        match_source: null,
+        user_confirmed: true,
+        manual_entry: manualData,
+      };
+      return updated;
+    });
+    toast.success(`Manual entry confirmed for ${manualData.name}`);
+  };
+
+  /**
+   * Open search modal for a specific facility
+   */
+  const handleSearchDatabase = (index) => {
+    setSearchTargetIndex(index);
+    setShowFacilitySearch(true);
+  };
+
+  /**
+   * Handle facility selection from search modal
+   */
+  const handleSearchSelect = (selectedFacility) => {
+    if (searchTargetIndex !== null && searchTargetIndex >= 0) {
+      // Update existing facility
+      handleConfirmMatch(searchTargetIndex, selectedFacility);
+    } else {
+      // Add new facility
+      const newFacility = {
+        id: generateFacilityId(),
+        detected: {
+          name: selectedFacility.facility_name,
+          city: selectedFacility.city,
+          state: selectedFacility.state,
+          beds: selectedFacility.total_beds || selectedFacility.capacity,
+          facility_type: selectedFacility.federal_provider_number ? 'SNF' : 'ALF',
+        },
+        matched: selectedFacility,
+        match_source: selectedFacility.federal_provider_number ? 'snf_facilities' : 'alf_facilities',
+        matchCandidates: [selectedFacility],
+        best_match_confidence: 'high',
+        user_confirmed: true,
+        manual_entry: null,
+      };
+      setConfirmedFacilities(prev => [...prev, newFacility]);
+      toast.success(`Added ${selectedFacility.facility_name} to portfolio`);
+    }
+    setSearchTargetIndex(null);
+  };
+
+  /**
+   * Remove a facility from the list
+   */
+  const handleRemoveFacility = (index) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      // If confirmed, just unconfirm instead of removing
+      if (updated[index].user_confirmed) {
+        updated[index] = {
+          ...updated[index],
+          matched: null,
+          match_source: null,
+          user_confirmed: false,
+          manual_entry: null,
+        };
+        return updated;
+      }
+      // Otherwise remove entirely
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  /**
+   * Add a new facility (opens search modal)
+   */
+  const handleAddFacility = () => {
+    setSearchTargetIndex(-1); // -1 indicates adding new
+    setShowFacilitySearch(true);
+  };
+
+  /**
+   * Extract portfolio with confirmed facilities
+   */
+  const handleExtractPortfolio = async () => {
+    const confirmed = confirmedFacilities.filter(f => f.user_confirmed);
+
+    if (confirmed.length === 0) {
+      toast.error('Please confirm at least one facility before extracting');
+      return;
+    }
+
+    setIsExtracting(true);
+    setPortfolioExtractionProgress({ current: 0, total: confirmed.length });
+
+    try {
+      // Format confirmed facilities for API
+      const facilitiesPayload = confirmed.map(f => ({
+        detected: f.detected,
+        matched: f.matched,
+        match_source: f.match_source,
+        user_confirmed: true,
+        manual_entry: f.manual_entry ? true : false,
+      }));
+
+      const response = await extractPortfolio(files, facilitiesPayload);
+
+      if (response.success && response.body?.deal) {
+        const dealId = response.body.deal.id;
+        toast.success(`Portfolio extracted successfully! ${confirmed.length} facilities processed.`);
+        navigate(`/deals/${dealId}`);
+      } else {
+        throw new Error(response.message || 'Failed to extract portfolio');
+      }
+
+    } catch (error) {
+      console.error("Portfolio extraction error:", error);
+      toast.error(error.message || "Failed to extract portfolio");
+    } finally {
+      setIsExtracting(false);
+      setPortfolioExtractionProgress({ current: 0, total: 0 });
+    }
+  };
+
+  // ==========================================
+  // End Portfolio Handlers
+  // ==========================================
 
   const handleFieldChange = (key, value) => {
     setExtractedData((prev) => ({
@@ -632,28 +933,170 @@ const UploadDeal = () => {
                 ))}
               </div>
 
-              {/* Extract Button */}
-              <button
-                onClick={handleExtract}
-                disabled={isExtracting || files.length === 0}
-                className={`w-full mt-4 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
-                  isExtracting
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "bg-purple-600 text-white hover:bg-purple-700"
-                }`}
-              >
-                {isExtracting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Extracting with AI...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    Extract Deal Information
-                  </>
-                )}
-              </button>
+              {/* DEBUG: State visibility */}
+              <div className="mt-4 p-2 bg-yellow-100 border border-yellow-400 rounded text-xs font-mono">
+                <strong>DEBUG:</strong> dealType={String(dealType)} | extractedData={String(!!extractedData)} | files={files.length}
+              </div>
+
+              {/* Deal Type Selector - shown after files uploaded */}
+              {!dealType && !extractedData && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    What type of deal is this?
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleDealTypeSelect('single')}
+                      className="p-4 border-2 border-gray-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-all text-left"
+                    >
+                      <Building2 className="w-6 h-6 text-purple-600 mb-2" />
+                      <div className="font-medium text-gray-900">Single Facility</div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        One facility in this deal
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => handleDealTypeSelect('portfolio')}
+                      className="p-4 border-2 border-gray-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-all text-left"
+                    >
+                      <Layers className="w-6 h-6 text-purple-600 mb-2" />
+                      <div className="font-medium text-gray-900">Portfolio</div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Multiple facilities in this deal
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Single Facility Extract Button */}
+              {dealType === 'single' && !extractedData && (
+                <button
+                  onClick={handleExtract}
+                  disabled={isExtracting || files.length === 0}
+                  className={`w-full mt-4 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
+                    isExtracting
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-purple-600 text-white hover:bg-purple-700"
+                  }`}
+                >
+                  {isExtracting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Extracting with AI...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Extract Deal Information
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Portfolio Detection Section */}
+              {dealType === 'portfolio' && (
+                <div className="mt-4">
+                  {/* Detection Progress */}
+                  {isDetecting && (
+                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 mb-4">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+                        <div>
+                          <p className="font-medium text-purple-900">Detecting Facilities...</p>
+                          <p className="text-sm text-purple-700">{detectionStep}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detect Button - show when no facilities detected yet */}
+                  {!isDetecting && confirmedFacilities.length === 0 && (
+                    <button
+                      onClick={handleDetectFacilities}
+                      disabled={files.length === 0}
+                      className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
+                        files.length === 0
+                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : "bg-purple-600 text-white hover:bg-purple-700"
+                      }`}
+                    >
+                      <Building2 className="w-5 h-5" />
+                      Detect Facilities from Documents
+                    </button>
+                  )}
+
+                  {/* Facility Confirmation List */}
+                  {!isDetecting && confirmedFacilities.length > 0 && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                      <FacilityConfirmationList
+                        facilities={confirmedFacilities}
+                        onConfirmMatch={handleConfirmMatch}
+                        onManualEntry={handleManualEntry}
+                        onSearchDatabase={handleSearchDatabase}
+                        onRemoveFacility={handleRemoveFacility}
+                        onAddFacility={handleAddFacility}
+                      />
+
+                      {/* Extract Portfolio Button */}
+                      {confirmedFacilities.some(f => f.user_confirmed) && (
+                        <button
+                          onClick={handleExtractPortfolio}
+                          disabled={isExtracting}
+                          className={`w-full mt-4 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
+                            isExtracting
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-green-600 text-white hover:bg-green-700"
+                          }`}
+                        >
+                          {isExtracting ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              Extracting Portfolio...
+                              {portfolioExtractionProgress.total > 0 && (
+                                <span className="ml-2">
+                                  ({portfolioExtractionProgress.current}/{portfolioExtractionProgress.total})
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-5 h-5" />
+                              Extract Portfolio ({confirmedFacilities.filter(f => f.user_confirmed).length} facilities)
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Recovery Options */}
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={handleRetryDetection}
+                          className="flex-1 py-2 px-3 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Re-detect Facilities
+                        </button>
+                        <button
+                          onClick={handleFallbackToSingle}
+                          className="flex-1 py-2 px-3 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Switch to Single Facility
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Back to type selection */}
+                  {!isDetecting && confirmedFacilities.length === 0 && (
+                    <button
+                      onClick={() => setDealType(null)}
+                      className="w-full mt-2 py-2 text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      ← Back to deal type selection
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -766,7 +1209,7 @@ const UploadDeal = () => {
         </div>
       </div>
 
-      {/* Facility Match Review Modal */}
+      {/* Facility Match Review Modal (Single Facility Flow) */}
       <FacilityMatchModal
         open={showMatchModal}
         matches={facilityMatches}
@@ -774,6 +1217,23 @@ const UploadDeal = () => {
         onSelect={handleSelectFacilityMatch}
         onSkip={handleSkipFacilityMatch}
         onNotSure={handleNotSureFacilityMatch}
+      />
+
+      {/* Facility Search Modal (Portfolio Flow) */}
+      <FacilitySearchModal
+        isOpen={showFacilitySearch}
+        onClose={() => {
+          setShowFacilitySearch(false);
+          setSearchTargetIndex(null);
+        }}
+        onSelectFacility={handleSearchSelect}
+        initialFacilityType="SNF"
+        initialState=""
+        initialSearchTerm={
+          searchTargetIndex !== null && searchTargetIndex >= 0
+            ? confirmedFacilities[searchTargetIndex]?.detected?.name || ''
+            : ''
+        }
       />
     </div>
   );

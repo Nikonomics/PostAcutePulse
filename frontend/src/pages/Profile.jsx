@@ -3,8 +3,9 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import { User, Camera, Lock, Save, X } from 'lucide-react';
+import { User, Camera, Lock, Save, X, Clock } from 'lucide-react';
 import { getMyProfileDetails, updateProfile, changePassword, fileUpload } from '../api/authService';
+import ActivityFeed from '../components/common/ActivityFeed';
 
 // Validation schemas
 const profileSchema = yup.object().shape({
@@ -421,6 +422,18 @@ const Profile = () => {
             Keep your account secure by using a strong password that you don't use elsewhere.
           </p>
         )}
+      </div>
+
+      {/* Activity Feed Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Clock size={20} />
+          My Deal Activity
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Recent updates from deals you're associated with
+        </p>
+        <ActivityFeed limit={10} showFilters={true} compact={true} />
       </div>
     </div>
   );

@@ -181,42 +181,30 @@ router.post('/nearby', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const sqlite3 = require('sqlite3').verbose();
-    const path = require('path');
-    const DB_PATH = path.join(__dirname, '../database.sqlite');
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
 
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY);
-
-    // Get total count
-    db.get('SELECT COUNT(*) as total FROM alf_facilities', (err, row) => {
-      if (err) {
-        db.close();
-        return res.status(500).json({ success: false, error: err.message });
-      }
-
-      const total = row.total;
+    try {
+      // Get total count
+      const [[{ total }]] = await sequelize.query('SELECT COUNT(*) as total FROM alf_facilities');
 
       // Get facilities by state
-      db.all(`
+      const [byState] = await sequelize.query(`
         SELECT state, COUNT(*) as count
         FROM alf_facilities
         WHERE state IS NOT NULL
         GROUP BY state
         ORDER BY count DESC
-      `, (err, byState) => {
-        db.close();
+      `);
 
-        if (err) {
-          return res.status(500).json({ success: false, error: err.message });
-        }
-
-        res.json({
-          success: true,
-          total_facilities: total,
-          facilities_by_state: byState
-        });
+      res.json({
+        success: true,
+        total_facilities: parseInt(total),
+        facilities_by_state: byState
       });
-    });
+    } finally {
+      await sequelize.close();
+    }
 
   } catch (error) {
     console.error('Error getting stats:', error);

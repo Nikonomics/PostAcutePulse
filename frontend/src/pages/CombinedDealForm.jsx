@@ -1,12 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Trash2, Plus, MapPin, FileText, X, Download, ChevronRight, ChevronDown, Upload, Loader } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, MapPin, FileText, X, Download, ChevronRight, ChevronDown, Upload, Loader, Building2, Layers, Sparkles } from "lucide-react";
 import * as Yup from "yup";
 // Google Places Autocomplete disabled - using manual input
 // import GooglePlacesAutocomplete, {
 //   geocodeByPlaceId,
 //   getLatLng,
 // } from "react-google-places-autocomplete";
-import { createBatchDeals, extractDealEnhanced, getFacilityMatches, selectFacilityMatch } from "../api/DealService";
+import {
+  createBatchDeals,
+  extractDealEnhanced,
+  getFacilityMatches,
+  selectFacilityMatch,
+  extractDocumentText,
+  detectFacilities,
+  batchMatchFacilities,
+  extractPortfolio,
+} from "../api/DealService";
+import FacilitySearchModal from "../components/FacilitySearchModal";
+import FacilityConfirmationList from "../components/FacilityConfirmationList";
+import DocumentSelector, { shouldShowDocumentSelector, shouldShowDocumentSelectorByChars } from "../components/DocumentSelector";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { getActiveUsers } from "../api/authService";
@@ -216,6 +228,22 @@ const CombinedDealForm = () => {
   const [facilityMatches, setFacilityMatches] = useState([]);
   const [matchSearchName, setMatchSearchName] = useState('');
   const [createdDealId, setCreatedDealId] = useState(null);
+
+  // Document selector state
+  const [showDocumentSelector, setShowDocumentSelector] = useState(false);
+  const [rawUploadedFiles, setRawUploadedFiles] = useState([]); // All files before selection
+  const [documentCharacterCounts, setDocumentCharacterCounts] = useState([]); // Character counts from backend
+  const [isAnalyzingDocuments, setIsAnalyzingDocuments] = useState(false); // Loading state for document analysis
+
+  // Portfolio deal state
+  const [pendingFiles, setPendingFiles] = useState([]); // Files waiting for deal type selection (after selection if needed)
+  const [dealType, setDealType] = useState(null); // null | 'single' | 'portfolio'
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionStep, setDetectionStep] = useState('');
+  const [detectedFacilities, setDetectedFacilities] = useState([]);
+  const [confirmedFacilities, setConfirmedFacilities] = useState([]);
+  const [showFacilitySearch, setShowFacilitySearch] = useState(false);
+  const [searchTargetIndex, setSearchTargetIndex] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -434,7 +462,55 @@ const CombinedDealForm = () => {
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e) => {
+  // Analyze documents to get character counts from backend
+  const analyzeDocumentsForSize = useCallback(async (files) => {
+    setIsAnalyzingDocuments(true);
+    try {
+      console.log(`[analyzeDocumentsForSize] Analyzing ${files.length} files...`);
+      const response = await extractDocumentText(files);
+
+      if (response.success && response.body?.file_details) {
+        const charCounts = response.body.file_details;
+        console.log(`[analyzeDocumentsForSize] Total chars: ${response.body.total_characters}, files: ${charCounts.length}`);
+
+        // Check if total exceeds limit using character counts
+        if (shouldShowDocumentSelectorByChars(charCounts)) {
+          console.log('[analyzeDocumentsForSize] Exceeds limit, showing document selector');
+          setRawUploadedFiles(files);
+          setDocumentCharacterCounts(charCounts);
+          setShowDocumentSelector(true);
+          return true; // Needs selection
+        } else {
+          console.log('[analyzeDocumentsForSize] Within limit, proceeding');
+          return false; // No selection needed
+        }
+      } else {
+        // Fallback to file size check if backend analysis fails
+        console.warn('[analyzeDocumentsForSize] Backend analysis failed, using file size fallback');
+        if (shouldShowDocumentSelector(files)) {
+          setRawUploadedFiles(files);
+          setDocumentCharacterCounts([]);
+          setShowDocumentSelector(true);
+          return true;
+        }
+        return false;
+      }
+    } catch (error) {
+      console.error('[analyzeDocumentsForSize] Error:', error);
+      // Fallback to file size check on error
+      if (shouldShowDocumentSelector(files)) {
+        setRawUploadedFiles(files);
+        setDocumentCharacterCounts([]);
+        setShowDocumentSelector(true);
+        return true;
+      }
+      return false;
+    } finally {
+      setIsAnalyzingDocuments(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -450,17 +526,48 @@ const CombinedDealForm = () => {
     );
 
     if (validFiles.length > 0) {
-      handleExtractAndPopulate(validFiles);
+      const allFiles = [...pendingFiles, ...validFiles];
+
+      // Analyze documents to get character counts and check if selection needed
+      const needsSelection = await analyzeDocumentsForSize(allFiles);
+
+      if (!needsSelection) {
+        setPendingFiles(allFiles);
+        setDealType(null);
+      }
     } else {
       toast.error("Please upload PDF, image, Excel, or Word files");
     }
-  }, []);
+  }, [pendingFiles, analyzeDocumentsForSize]);
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = useCallback(async (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (selectedFiles.length > 0) {
-      handleExtractAndPopulate(selectedFiles);
+      const allFiles = [...pendingFiles, ...selectedFiles];
+
+      // Analyze documents to get character counts and check if selection needed
+      const needsSelection = await analyzeDocumentsForSize(allFiles);
+
+      if (!needsSelection) {
+        setPendingFiles(allFiles);
+        setDealType(null);
+      }
     }
+    e.target.value = ''; // Reset input
+  }, [pendingFiles, analyzeDocumentsForSize]);
+
+  const handleDocumentSelectorConfirm = (selectedFiles) => {
+    setPendingFiles(selectedFiles);
+    setShowDocumentSelector(false);
+    setRawUploadedFiles([]);
+    setDocumentCharacterCounts([]);
+    setDealType(null);
+  };
+
+  const handleDocumentSelectorClose = () => {
+    setShowDocumentSelector(false);
+    setRawUploadedFiles([]);
+    setDocumentCharacterCounts([]);
   };
 
   const handleExtractAndPopulate = async (files) => {
@@ -607,6 +714,259 @@ const CombinedDealForm = () => {
       setIsExtracting(false);
     }
   };
+
+  // ==========================================
+  // Portfolio Detection & Confirmation Handlers
+  // ==========================================
+
+  const generateFacilityId = () => `facility-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  const handleDealTypeSelect = (type) => {
+    setDealType(type);
+    if (type === 'single') {
+      // Proceed with single facility extraction
+      handleExtractAndPopulate(pendingFiles);
+    }
+    // If 'portfolio', user will click "Detect Facilities" button
+  };
+
+  const handleDetectFacilities = async () => {
+    if (pendingFiles.length === 0) {
+      toast.error("Please upload at least one document");
+      return;
+    }
+
+    setIsDetecting(true);
+    setDetectionStep('Reading documents...');
+
+    try {
+      // Step 1: Extract text from documents
+      const textResponse = await extractDocumentText(pendingFiles);
+
+      if (!textResponse.success || !textResponse.body?.combined_text) {
+        throw new Error('Failed to extract text from documents');
+      }
+
+      const documentText = textResponse.body.combined_text;
+      console.log(`[Portfolio] Extracted ${textResponse.body.total_characters} characters from ${textResponse.body.files_successful} files`);
+
+      // Step 2: Detect facilities using AI
+      setDetectionStep('Detecting facilities...');
+      const detectResponse = await detectFacilities(documentText, ['SNF', 'ALF']);
+
+      if (!detectResponse.success) {
+        throw new Error(detectResponse.message || 'Failed to detect facilities');
+      }
+
+      const detected = detectResponse.body?.detected_facilities || [];
+      console.log(`[Portfolio] Detected ${detected.length} facilities`);
+
+      if (detected.length === 0) {
+        toast.warning('No facilities detected in documents. You can add them manually or switch to single facility mode.');
+        setDetectedFacilities([]);
+        setConfirmedFacilities([]);
+        setIsDetecting(false);
+        setDetectionStep('');
+        return;
+      }
+
+      // Step 3: Match each facility against database
+      setDetectionStep(`Finding database matches for ${detected.length} facilities...`);
+      const matchResults = await batchMatchFacilities(detected);
+
+      // Build confirmed facilities list with match candidates
+      const facilitiesWithMatches = matchResults.map((result) => ({
+        id: generateFacilityId(),
+        detected: result.detected,
+        matched: null,
+        match_source: null,
+        matchCandidates: result.matches || [],
+        best_match_confidence: result.best_match_confidence || 'none',
+        user_confirmed: false,
+        manual_entry: null,
+      }));
+
+      setDetectedFacilities(detected);
+      setConfirmedFacilities(facilitiesWithMatches);
+
+      toast.success(`Detected ${detected.length} facilities. Please confirm matches below.`);
+
+    } catch (error) {
+      console.error("Portfolio detection error:", error);
+      toast.error(error.message || "Failed to detect facilities");
+    } finally {
+      setIsDetecting(false);
+      setDetectionStep('');
+    }
+  };
+
+  const handleRetryDetection = () => {
+    setDetectedFacilities([]);
+    setConfirmedFacilities([]);
+    handleDetectFacilities();
+  };
+
+  const handleFallbackToSingle = () => {
+    setDealType('single');
+    setDetectedFacilities([]);
+    setConfirmedFacilities([]);
+    handleExtractAndPopulate(pendingFiles);
+  };
+
+  const handleConfirmMatch = (index, matchedFacility) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        matched: matchedFacility,
+        match_source: matchedFacility.federal_provider_number ? 'snf_facilities' : 'alf_facilities',
+        user_confirmed: true,
+        manual_entry: null,
+      };
+      return updated;
+    });
+    toast.success(`Confirmed match for ${matchedFacility.facility_name}`);
+  };
+
+  const handleManualEntry = (index, manualData) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        matched: null,
+        match_source: null,
+        user_confirmed: true,
+        manual_entry: manualData,
+      };
+      return updated;
+    });
+    toast.success(`Manual entry confirmed for ${manualData.name}`);
+  };
+
+  const handleSearchDatabase = (index) => {
+    setSearchTargetIndex(index);
+    setShowFacilitySearch(true);
+  };
+
+  const handleSearchSelect = (selectedFacility) => {
+    if (searchTargetIndex !== null && searchTargetIndex >= 0) {
+      handleConfirmMatch(searchTargetIndex, selectedFacility);
+    } else {
+      // Add new facility
+      const newFacility = {
+        id: generateFacilityId(),
+        detected: {
+          name: selectedFacility.facility_name,
+          city: selectedFacility.city,
+          state: selectedFacility.state,
+          beds: selectedFacility.total_beds || selectedFacility.capacity,
+          facility_type: selectedFacility.federal_provider_number ? 'SNF' : 'ALF',
+        },
+        matched: selectedFacility,
+        match_source: selectedFacility.federal_provider_number ? 'snf_facilities' : 'alf_facilities',
+        matchCandidates: [selectedFacility],
+        best_match_confidence: 'high',
+        user_confirmed: true,
+        manual_entry: null,
+      };
+      setConfirmedFacilities(prev => [...prev, newFacility]);
+      toast.success(`Added ${selectedFacility.facility_name} to portfolio`);
+    }
+    setShowFacilitySearch(false);
+    setSearchTargetIndex(null);
+  };
+
+  const handleRemoveFacility = (index) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      if (updated[index].user_confirmed) {
+        updated[index] = {
+          ...updated[index],
+          matched: null,
+          match_source: null,
+          user_confirmed: false,
+          manual_entry: null,
+        };
+        return updated;
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleAddFacility = () => {
+    setSearchTargetIndex(-1);
+    setShowFacilitySearch(true);
+  };
+
+  const handleRoleChange = (index, role) => {
+    setConfirmedFacilities(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        role: role,
+      };
+      return updated;
+    });
+  };
+
+  const handleExtractPortfolio = async () => {
+    // Filter confirmed facilities, excluding those marked as 'exclude'
+    const confirmed = confirmedFacilities.filter(f => f.user_confirmed && f.role !== 'exclude');
+    const subjects = confirmed.filter(f => !f.role || f.role === 'subject');
+    const competitors = confirmed.filter(f => f.role === 'competitor');
+
+    if (subjects.length === 0) {
+      toast.error('Please confirm at least one Subject Property before extracting');
+      return;
+    }
+
+    setIsExtracting(true);
+
+    try {
+      const facilitiesPayload = confirmed.map(f => ({
+        detected: f.detected,
+        matched: f.matched,
+        match_source: f.match_source,
+        user_confirmed: true,
+        manual_entry: f.manual_entry ? true : false,
+        facility_role: f.role || 'subject', // Include role in payload
+      }));
+
+      const response = await extractPortfolio(pendingFiles, facilitiesPayload);
+
+      if (response.success && response.body?.deal) {
+        const dealId = response.body.deal.id;
+        const msg = competitors.length > 0
+          ? `Portfolio extracted! ${subjects.length} subject ${subjects.length === 1 ? 'property' : 'properties'}, ${competitors.length} ${competitors.length === 1 ? 'competitor' : 'competitors'}.`
+          : `Portfolio extracted successfully! ${subjects.length} facilities processed.`;
+        toast.success(msg);
+        navigate(`/deals/deal-detail/${dealId}`);
+      } else {
+        throw new Error(response.message || 'Failed to extract portfolio');
+      }
+
+    } catch (error) {
+      console.error("Portfolio extraction error:", error);
+      toast.error(error.message || "Failed to extract portfolio");
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleRemovePendingFile = (index) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleClearPendingFiles = () => {
+    setPendingFiles([]);
+    setDealType(null);
+    setDetectedFacilities([]);
+    setConfirmedFacilities([]);
+  };
+
+  // ==========================================
+  // End Portfolio Handlers
+  // ==========================================
 
   // --- Facility Count Change ---
   const handleFacilityCountChange = (count) => {
@@ -2098,6 +2458,11 @@ const CombinedDealForm = () => {
             border-color: #6d28d9;
             box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
           }
+          .upload-zone.analyzing {
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8edff 100%);
+            border-color: #6d28d9;
+            cursor: wait;
+          }
           .upload-zone-icon {
             width: 64px;
             height: 64px;
@@ -2167,15 +2532,16 @@ const CombinedDealForm = () => {
           }
         `}</style>
 
-        {/* Upload Zone - Show when not from AI extraction */}
-        {!isFromAiExtraction && (
+        {/* Upload Zone - Show when not from AI extraction and no pending files */}
+        {!isFromAiExtraction && pendingFiles.length === 0 && (
           <div
-            className={`upload-zone ${isDragging ? 'dragging' : ''}`}
+            className={`upload-zone ${isDragging ? 'dragging' : ''} ${isAnalyzingDocuments ? 'analyzing' : ''}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={() => !isExtracting && fileInputRef.current?.click()}
+            onClick={() => !isExtracting && !isAnalyzingDocuments && fileInputRef.current?.click()}
+            style={{ pointerEvents: isAnalyzingDocuments ? 'none' : 'auto' }}
           >
             <input
               type="file"
@@ -2185,41 +2551,244 @@ const CombinedDealForm = () => {
               multiple
               style={{ display: 'none' }}
             />
-            <div className="upload-zone-icon">
-              {isExtracting ? <Loader size={28} className="spin" /> : <Upload size={28} />}
-            </div>
-            <h5>{isExtracting ? 'Analyzing Documents...' : 'Upload & Analyze with AI'}</h5>
-            <p>
-              {isExtracting
-                ? 'Extracting deal information from your documents'
-                : 'Drag and drop files here, or click to browse'}
-            </p>
-            <button
-              className="btn-upload"
-              disabled={isExtracting}
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-            >
-              {isExtracting ? (
-                <>
-                  <Loader size={16} className="spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
+            {isAnalyzingDocuments ? (
+              <>
+                <div className="upload-zone-icon">
+                  <Loader size={28} className="spin" />
+                </div>
+                <h5>Analyzing Documents...</h5>
+                <p>Extracting text and calculating content size</p>
+              </>
+            ) : (
+              <>
+                <div className="upload-zone-icon">
+                  <Upload size={28} />
+                </div>
+                <h5>Upload & Analyze with AI</h5>
+                <p>Drag and drop files here, or click to browse</p>
+                <button
+                  className="btn-upload"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                >
                   <Upload size={16} />
                   Select Files
-                </>
-              )}
-            </button>
-            <p className="mt-3 mb-0" style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
-              Supports PDF, images, Excel, and Word documents
-            </p>
-            <div className="upload-zone-divider">
-              <span>or enter deal information manually below</span>
+                </button>
+                <p className="mt-3 mb-0" style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+                  Supports PDF, images, Excel, and Word documents
+                </p>
+                <div className="upload-zone-divider">
+                  <span>or enter deal information manually below</span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Pending Files + Deal Type Selector */}
+        {!isFromAiExtraction && pendingFiles.length > 0 && (
+          <div className="mb-4" style={{ background: '#f8f9fa', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e9ecef' }}>
+            {/* File input for adding more files */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
+              multiple
+              style={{ display: 'none' }}
+            />
+
+            {/* Pending Files List */}
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="mb-0" style={{ fontWeight: 600 }}>
+                <FileText size={18} className="me-2" style={{ color: '#7c3aed' }} />
+                Uploaded Documents ({pendingFiles.length})
+              </h6>
+              <div>
+                <button
+                  className="btn btn-sm btn-outline-secondary me-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isExtracting || isDetecting}
+                >
+                  <Plus size={14} className="me-1" /> Add More
+                </button>
+                <button
+                  className="btn btn-sm btn-outline-danger"
+                  onClick={handleClearPendingFiles}
+                  disabled={isExtracting || isDetecting}
+                >
+                  <Trash2 size={14} className="me-1" /> Clear All
+                </button>
+              </div>
             </div>
+
+            <div className="mb-3" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+              {pendingFiles.map((file, index) => (
+                <div key={index} className="d-flex align-items-center justify-content-between p-2 mb-1" style={{ background: 'white', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                  <div className="d-flex align-items-center">
+                    <FileText size={16} className="me-2" style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '0.875rem' }}>{file.name}</span>
+                    <span className="ms-2 text-muted" style={{ fontSize: '0.75rem' }}>
+                      ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </span>
+                  </div>
+                  <button
+                    className="btn btn-sm btn-link text-danger p-0"
+                    onClick={() => handleRemovePendingFile(index)}
+                    disabled={isExtracting || isDetecting}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Deal Type Selector - show when no type selected yet */}
+            {!dealType && !isExtracting && (
+              <div className="p-3 mb-3" style={{ background: 'white', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                <p className="mb-2" style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                  What type of deal is this?
+                </p>
+                <div className="row g-2">
+                  <div className="col-6">
+                    <button
+                      className="btn w-100 text-start p-3"
+                      style={{ background: '#f8f9fa', border: '2px solid #e9ecef', borderRadius: '8px' }}
+                      onClick={() => handleDealTypeSelect('single')}
+                      onMouseOver={(e) => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.background = '#f5f3ff'; }}
+                      onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e9ecef'; e.currentTarget.style.background = '#f8f9fa'; }}
+                    >
+                      <Building2 size={24} style={{ color: '#7c3aed' }} className="mb-2" />
+                      <div style={{ fontWeight: 600 }}>Single Facility</div>
+                      <small className="text-muted">One facility in this deal</small>
+                    </button>
+                  </div>
+                  <div className="col-6">
+                    <button
+                      className="btn w-100 text-start p-3"
+                      style={{ background: '#f8f9fa', border: '2px solid #e9ecef', borderRadius: '8px' }}
+                      onClick={() => handleDealTypeSelect('portfolio')}
+                      onMouseOver={(e) => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.background = '#f5f3ff'; }}
+                      onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e9ecef'; e.currentTarget.style.background = '#f8f9fa'; }}
+                    >
+                      <Layers size={24} style={{ color: '#7c3aed' }} className="mb-2" />
+                      <div style={{ fontWeight: 600 }}>Portfolio</div>
+                      <small className="text-muted">Multiple facilities in this deal</small>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Single Facility Extraction in Progress */}
+            {dealType === 'single' && isExtracting && (
+              <div className="text-center p-4" style={{ background: 'white', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                <Loader size={32} className="spin mb-3" style={{ color: '#7c3aed' }} />
+                <h6>Analyzing Documents...</h6>
+                <p className="text-muted mb-0">Extracting deal information with AI</p>
+              </div>
+            )}
+
+            {/* Portfolio Flow */}
+            {dealType === 'portfolio' && (
+              <div>
+                {/* Detection in Progress */}
+                {isDetecting && (
+                  <div className="text-center p-4 mb-3" style={{ background: '#f5f3ff', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
+                    <Loader size={32} className="spin mb-3" style={{ color: '#7c3aed' }} />
+                    <h6 style={{ color: '#6d28d9' }}>Detecting Facilities...</h6>
+                    <p className="text-muted mb-0">{detectionStep}</p>
+                  </div>
+                )}
+
+                {/* Detect Button - before detection */}
+                {!isDetecting && confirmedFacilities.length === 0 && (
+                  <div className="text-center p-4" style={{ background: 'white', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                    <Layers size={48} className="mb-3" style={{ color: '#7c3aed' }} />
+                    <h6>Portfolio Deal Selected</h6>
+                    <p className="text-muted mb-3">Click below to detect facilities from your documents</p>
+                    <button
+                      className="btn btn-primary me-2"
+                      style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', border: 'none' }}
+                      onClick={handleDetectFacilities}
+                    >
+                      <Sparkles size={16} className="me-1" />
+                      Detect Facilities
+                    </button>
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={() => setDealType(null)}
+                    >
+                      Back
+                    </button>
+                  </div>
+                )}
+
+                {/* Facility Confirmation List - after detection */}
+                {!isDetecting && confirmedFacilities.length > 0 && (
+                  <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e9ecef', padding: '1rem' }}>
+                    <FacilityConfirmationList
+                      facilities={confirmedFacilities}
+                      onConfirmMatch={handleConfirmMatch}
+                      onManualEntry={handleManualEntry}
+                      onSearchDatabase={handleSearchDatabase}
+                      onRemoveFacility={handleRemoveFacility}
+                      onAddFacility={handleAddFacility}
+                      onRoleChange={handleRoleChange}
+                    />
+
+                    {/* Extract Portfolio Button */}
+                    {(() => {
+                      const confirmed = confirmedFacilities.filter(f => f.user_confirmed && f.role !== 'exclude');
+                      const subjects = confirmed.filter(f => !f.role || f.role === 'subject');
+                      const competitors = confirmed.filter(f => f.role === 'competitor');
+                      const hasSubjects = subjects.length > 0;
+
+                      return hasSubjects && (
+                        <button
+                          className="btn btn-success w-100 mt-3 py-2"
+                          onClick={handleExtractPortfolio}
+                          disabled={isExtracting}
+                        >
+                          {isExtracting ? (
+                            <>
+                              <Loader size={16} className="spin me-2" />
+                              Extracting Portfolio...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={16} className="me-1" />
+                              Extract Portfolio ({subjects.length} subject{subjects.length !== 1 ? 's' : ''}
+                              {competitors.length > 0 && `, ${competitors.length} competitor${competitors.length !== 1 ? 's' : ''}`})
+                            </>
+                          )}
+                        </button>
+                      );
+                    })()}
+
+                    {/* Recovery Options */}
+                    <div className="d-flex gap-2 mt-2">
+                      <button
+                        className="btn btn-outline-secondary btn-sm flex-fill"
+                        onClick={handleRetryDetection}
+                        disabled={isExtracting}
+                      >
+                        Re-detect
+                      </button>
+                      <button
+                        className="btn btn-outline-secondary btn-sm flex-fill"
+                        onClick={handleFallbackToSingle}
+                        disabled={isExtracting}
+                      >
+                        Switch to Single
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -3730,15 +4299,18 @@ const CombinedDealForm = () => {
             </div>
           </div>
 
-          <div className="text-center mt-4">
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg"
-              disabled={loading}
-            >
-              {loading ? "Processing..." : "Preview Deal"}
-            </button>
-          </div>
+          {/* Hide submit button when in portfolio mode - portfolio has its own Extract button */}
+          {dealType !== 'portfolio' && (
+            <div className="text-center mt-4">
+              <button
+                type="submit"
+                className="btn btn-primary btn-lg"
+                disabled={loading}
+              >
+                {loading ? "Processing..." : "Preview Deal"}
+              </button>
+            </div>
+          )}
             </form>
           </div>
 
@@ -4271,6 +4843,32 @@ const CombinedDealForm = () => {
         onSelect={handleSelectFacilityMatch}
         onSkip={handleSkipFacilityMatch}
         onNotSure={handleNotSureFacilityMatch}
+      />
+
+      {/* Facility Search Modal (Portfolio Flow) */}
+      <FacilitySearchModal
+        isOpen={showFacilitySearch}
+        onClose={() => {
+          setShowFacilitySearch(false);
+          setSearchTargetIndex(null);
+        }}
+        onSelectFacility={handleSearchSelect}
+        initialFacilityType="SNF"
+        initialState=""
+        initialSearchTerm={
+          searchTargetIndex !== null && searchTargetIndex >= 0
+            ? confirmedFacilities[searchTargetIndex]?.detected?.name || ''
+            : ''
+        }
+      />
+
+      {/* Document Selector Modal (when document content exceeds AI processing limit) */}
+      <DocumentSelector
+        isOpen={showDocumentSelector}
+        onClose={handleDocumentSelectorClose}
+        files={rawUploadedFiles}
+        characterCounts={documentCharacterCounts}
+        onConfirm={handleDocumentSelectorConfirm}
       />
     </div>
   );

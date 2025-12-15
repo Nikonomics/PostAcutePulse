@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Users,
   TrendingUp,
   DollarSign,
   Home,
   GraduationCap,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const styles = {
@@ -19,6 +21,7 @@ const styles = {
   sectionTitle: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: '0.5rem',
     fontSize: '0.75rem',
     fontWeight: 600,
@@ -28,6 +31,14 @@ const styles = {
     marginBottom: '0.75rem',
     paddingBottom: '0.5rem',
     borderBottom: '1px solid #e5e7eb',
+    cursor: 'pointer',
+    userSelect: 'none',
+    transition: 'color 0.15s',
+  },
+  sectionTitleContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
   },
   grid: {
     display: 'grid',
@@ -97,6 +108,21 @@ const formatPercent = (num) => {
 };
 
 const DemographicsPanel = ({ demographics }) => {
+  // State to track which sections are expanded - start collapsed
+  const [expandedSections, setExpandedSections] = useState({
+    population: false,
+    projections: false,
+    economics: false,
+    education: false,
+  });
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
   if (!demographics) {
     return <div style={styles.noData}>No demographics data available</div>;
   }
@@ -127,11 +153,15 @@ const DemographicsPanel = ({ demographics }) => {
 
       {/* Population Section */}
       <div style={styles.section}>
-        <div style={styles.sectionTitle}>
-          <Users size={14} />
-          Population
+        <div style={styles.sectionTitle} onClick={() => toggleSection('population')}>
+          <div style={styles.sectionTitleContent}>
+            <Users size={14} />
+            Population
+          </div>
+          {expandedSections.population ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </div>
-        <div style={styles.grid}>
+        {expandedSections.population && (
+          <div style={styles.grid}>
           <div style={styles.metric}>
             <span style={styles.metricLabel}>Total</span>
             <span style={styles.metricValue}>{formatNumber(population?.total)}</span>
@@ -155,15 +185,20 @@ const DemographicsPanel = ({ demographics }) => {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Projections Section */}
       <div style={styles.section}>
-        <div style={styles.sectionTitle}>
-          <TrendingUp size={14} />
-          2030 Projections
+        <div style={styles.sectionTitle} onClick={() => toggleSection('projections')}>
+          <div style={styles.sectionTitleContent}>
+            <TrendingUp size={14} />
+            2030 Projections
+          </div>
+          {expandedSections.projections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </div>
-        <div style={styles.grid}>
+        {expandedSections.projections && (
+          <div style={styles.grid}>
           <div style={styles.metric}>
             <span style={styles.metricLabel}>Age 65+ (2030)</span>
             <span style={styles.metricValue}>{formatNumber(projections?.age65Plus2030)}</span>
@@ -191,16 +226,21 @@ const DemographicsPanel = ({ demographics }) => {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Economics Section */}
       {economics && (economics.medianHouseholdIncome || economics.povertyRate) && (
         <div style={styles.section}>
-          <div style={styles.sectionTitle}>
-            <DollarSign size={14} />
-            Economics
+          <div style={styles.sectionTitle} onClick={() => toggleSection('economics')}>
+            <div style={styles.sectionTitleContent}>
+              <DollarSign size={14} />
+              Economics
+            </div>
+            {expandedSections.economics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </div>
-          <div style={styles.grid}>
+          {expandedSections.economics && (
+            <div style={styles.grid}>
             {economics.medianHouseholdIncome && (
               <div style={styles.metric}>
                 <span style={styles.metricLabel}>Median Income</span>
@@ -232,17 +272,22 @@ const DemographicsPanel = ({ demographics }) => {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
       {/* Education Section */}
       {education && (education.collegeRate || education.lessThanHsRate) && (
         <div style={styles.section}>
-          <div style={styles.sectionTitle}>
-            <GraduationCap size={14} />
-            Education
+          <div style={styles.sectionTitle} onClick={() => toggleSection('education')}>
+            <div style={styles.sectionTitleContent}>
+              <GraduationCap size={14} />
+              Education
+            </div>
+            {expandedSections.education ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </div>
-          <div style={styles.grid}>
+          {expandedSections.education && (
+            <div style={styles.grid}>
             {education.collegeRate && (
               <div style={styles.metric}>
                 <span style={styles.metricLabel}>College Educated</span>
@@ -256,6 +301,7 @@ const DemographicsPanel = ({ demographics }) => {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>

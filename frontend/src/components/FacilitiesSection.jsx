@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Row, Col } from 'react-bootstrap';
+import { Modal, Button, Form, Row, Col, Badge } from 'react-bootstrap';
 import {
   Building2,
   Plus,
@@ -12,6 +12,8 @@ import {
   Users,
   TrendingUp,
   GripVertical,
+  Target,
+  UserCheck,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
@@ -277,6 +279,61 @@ const styles = `
   .portfolio-metric-label {
     font-size: 0.75rem;
     opacity: 0.9;
+  }
+
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .section-divider.competitor {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+  }
+
+  .role-badge.subject {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .role-badge.competitor {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .facility-card.competitor {
+    background: #fffbeb;
+  }
+
+  .facility-card.competitor:hover {
+    background: #fef3c7;
+  }
+
+  .competitor-note {
+    font-size: 0.75rem;
+    color: #92400e;
+    font-style: italic;
+    padding: 0.5rem 1.25rem 0.5rem 3rem;
+    background: #fefce8;
+    border-top: 1px dashed #fcd34d;
   }
 `;
 
@@ -732,8 +789,9 @@ const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
   );
 };
 
-const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand }) => {
+const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand, showRoleBadge = false }) => {
   const [deleting, setDeleting] = useState(false);
+  const isCompetitor = facility.facility_role === 'competitor';
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this facility?')) return;
@@ -752,14 +810,25 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand }) 
   };
 
   return (
-    <div className="facility-card">
+    <div className={`facility-card ${isCompetitor ? 'competitor' : ''}`}>
       <div className="facility-header" onClick={onToggleExpand}>
         <div className="facility-drag-handle">
           <GripVertical size={16} />
         </div>
 
         <div className="facility-main-info">
-          <h4 className="facility-name">{facility.facility_name || 'Unnamed Facility'}</h4>
+          <h4 className="facility-name">
+            {facility.facility_name || 'Unnamed Facility'}
+            {showRoleBadge && (
+              <span className={`role-badge ${isCompetitor ? 'competitor' : 'subject'}`}>
+                {isCompetitor ? (
+                  <><UserCheck size={10} /> Competitor</>
+                ) : (
+                  <><Target size={10} /> Subject</>
+                )}
+              </span>
+            )}
+          </h4>
           <div className="facility-location">
             <MapPin size={12} />
             {[facility.city, facility.state].filter(Boolean).join(', ') || 'Location not specified'}
@@ -883,6 +952,11 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand }) 
           </div>
         </div>
       )}
+      {expanded && isCompetitor && (
+        <div className="competitor-note">
+          Competitor data is sourced from CMS database. No AI extraction performed.
+        </div>
+      )}
     </div>
   );
 };
@@ -934,12 +1008,17 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     }));
   };
 
-  // Calculate portfolio summary
+  // Separate facilities by role
+  const subjectFacilities = facilities.filter(f => !f.facility_role || f.facility_role === 'subject');
+  const competitorFacilities = facilities.filter(f => f.facility_role === 'competitor');
+  const hasMultipleRoles = subjectFacilities.length > 0 && competitorFacilities.length > 0;
+
+  // Calculate portfolio summary (only for subject properties)
   const portfolioSummary = {
-    totalBeds: facilities.reduce((sum, f) => sum + (parseFloat(f.bed_count) || 0), 0),
-    totalPrice: facilities.reduce((sum, f) => sum + (parseFloat(f.purchase_price) || 0), 0),
-    totalRevenue: facilities.reduce((sum, f) => sum + (parseFloat(f.annual_revenue) || 0), 0),
-    totalEbitda: facilities.reduce((sum, f) => sum + (parseFloat(f.ebitda) || 0), 0),
+    totalBeds: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.bed_count) || 0), 0),
+    totalPrice: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.purchase_price) || 0), 0),
+    totalRevenue: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.annual_revenue) || 0), 0),
+    totalEbitda: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.ebitda) || 0), 0),
   };
 
   return (
@@ -951,6 +1030,11 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
             <Building2 size={20} />
             Facilities
             <span className="facilities-count">{facilities.length}</span>
+            {hasMultipleRoles && (
+              <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#6b7280', marginLeft: '0.5rem' }}>
+                ({subjectFacilities.length} subject{subjectFacilities.length !== 1 ? 's' : ''}, {competitorFacilities.length} competitor{competitorFacilities.length !== 1 ? 's' : ''})
+              </span>
+            )}
           </h2>
           <button className="add-facility-btn" onClick={handleAddFacility}>
             <Plus size={16} />
@@ -958,11 +1042,11 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
           </button>
         </div>
 
-        {facilities.length > 1 && (
+        {subjectFacilities.length > 1 && (
           <div className="portfolio-summary">
             <div className="portfolio-metric">
-              <div className="portfolio-metric-value">{facilities.length}</div>
-              <div className="portfolio-metric-label">Facilities</div>
+              <div className="portfolio-metric-value">{subjectFacilities.length}</div>
+              <div className="portfolio-metric-label">Subject Properties</div>
             </div>
             <div className="portfolio-metric">
               <div className="portfolio-metric-value">{formatNumber(portfolioSummary.totalBeds)}</div>
@@ -1003,16 +1087,47 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
               </button>
             </div>
           ) : (
-            facilities.map((facility) => (
-              <FacilityCard
-                key={facility.id}
-                facility={facility}
-                onEdit={handleEditFacility}
-                onDelete={fetchFacilities}
-                expanded={expandedFacilities[facility.id]}
-                onToggleExpand={() => toggleExpand(facility.id)}
-              />
-            ))
+            <>
+              {/* Subject Properties Section */}
+              {hasMultipleRoles && subjectFacilities.length > 0 && (
+                <div className="section-divider">
+                  <Target size={14} />
+                  Subject Properties ({subjectFacilities.length})
+                </div>
+              )}
+              {subjectFacilities.map((facility) => (
+                <FacilityCard
+                  key={facility.id}
+                  facility={facility}
+                  onEdit={handleEditFacility}
+                  onDelete={fetchFacilities}
+                  expanded={expandedFacilities[facility.id]}
+                  onToggleExpand={() => toggleExpand(facility.id)}
+                  showRoleBadge={hasMultipleRoles}
+                />
+              ))}
+
+              {/* Competitors Section */}
+              {competitorFacilities.length > 0 && (
+                <>
+                  <div className="section-divider competitor">
+                    <UserCheck size={14} />
+                    Competitors ({competitorFacilities.length})
+                  </div>
+                  {competitorFacilities.map((facility) => (
+                    <FacilityCard
+                      key={facility.id}
+                      facility={facility}
+                      onEdit={handleEditFacility}
+                      onDelete={fetchFacilities}
+                      expanded={expandedFacilities[facility.id]}
+                      onToggleExpand={() => toggleExpand(facility.id)}
+                      showRoleBadge={hasMultipleRoles}
+                    />
+                  ))}
+                </>
+              )}
+            </>
           )}
         </div>
       </div>

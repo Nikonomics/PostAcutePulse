@@ -974,39 +974,51 @@ async function enrichFacilityData(organized) {
 /**
  * Run all extractions in parallel
  * @param {string} combinedDocumentText - Text from all documents, labeled
- * @param {string} periodAnalysisSection - Optional period analysis guidance from periodAnalyzer
+ * @param {string} contextSection - Optional context guidance (period analysis or facility context for portfolios)
  * @returns {Promise<Object>} Combined extraction results
  */
-async function runParallelExtractions(combinedDocumentText, periodAnalysisSection = '') {
+async function runParallelExtractions(combinedDocumentText, contextSection = '') {
   console.log('Starting parallel extractions...');
   const startTime = Date.now();
 
-  // If period analysis provided, prepend it to financial prompts
-  // This guides Claude to use the correct periods when combining T12 + YTD documents
-  const financialsPromptWithPeriod = periodAnalysisSection
-    ? `${periodAnalysisSection}\n\n${FINANCIALS_PROMPT}`
+  // If context provided (period analysis or portfolio facility context), prepend it to ALL prompts
+  // This guides Claude to use the correct periods and/or extract for the correct facility
+  const facilityPromptWithContext = contextSection
+    ? `${contextSection}\n\n${FACILITY_PROMPT}`
+    : FACILITY_PROMPT;
+
+  const financialsPromptWithContext = contextSection
+    ? `${contextSection}\n\n${FINANCIALS_PROMPT}`
     : FINANCIALS_PROMPT;
 
-  const expensesPromptWithPeriod = periodAnalysisSection
-    ? `${periodAnalysisSection}\n\n${EXPENSES_PROMPT}`
+  const expensesPromptWithContext = contextSection
+    ? `${contextSection}\n\n${EXPENSES_PROMPT}`
     : EXPENSES_PROMPT;
 
-  const overviewPromptWithPeriod = periodAnalysisSection
-    ? `${periodAnalysisSection}\n\n${OVERVIEW_PROMPT}`
+  const censusPromptWithContext = contextSection
+    ? `${contextSection}\n\n${CENSUS_PROMPT}`
+    : CENSUS_PROMPT;
+
+  const ratesPromptWithContext = contextSection
+    ? `${contextSection}\n\n${RATES_PROMPT}`
+    : RATES_PROMPT;
+
+  const overviewPromptWithContext = contextSection
+    ? `${contextSection}\n\n${OVERVIEW_PROMPT}`
     : OVERVIEW_PROMPT;
 
-  if (periodAnalysisSection) {
-    console.log('[ParallelExtractor] Period analysis section added to financial prompts');
+  if (contextSection) {
+    console.log('[ParallelExtractor] Context section added to ALL extraction prompts');
   }
 
   // Run all 6 extractions in parallel
   const extractionPromises = [
-    runFocusedExtraction(combinedDocumentText, FACILITY_PROMPT, 'facility'),
-    runFocusedExtraction(combinedDocumentText, financialsPromptWithPeriod, 'financials'),
-    runFocusedExtraction(combinedDocumentText, expensesPromptWithPeriod, 'expenses'),
-    runFocusedExtraction(combinedDocumentText, CENSUS_PROMPT, 'census'),
-    runFocusedExtraction(combinedDocumentText, RATES_PROMPT, 'rates'),
-    runFocusedExtraction(combinedDocumentText, overviewPromptWithPeriod, 'overview', MAX_TOKENS_OVERVIEW)
+    runFocusedExtraction(combinedDocumentText, facilityPromptWithContext, 'facility'),
+    runFocusedExtraction(combinedDocumentText, financialsPromptWithContext, 'financials'),
+    runFocusedExtraction(combinedDocumentText, expensesPromptWithContext, 'expenses'),
+    runFocusedExtraction(combinedDocumentText, censusPromptWithContext, 'census'),
+    runFocusedExtraction(combinedDocumentText, ratesPromptWithContext, 'rates'),
+    runFocusedExtraction(combinedDocumentText, overviewPromptWithContext, 'overview', MAX_TOKENS_OVERVIEW)
   ];
 
   // Use allSettled to handle partial failures gracefully

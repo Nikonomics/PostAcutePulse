@@ -143,6 +143,30 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('CMS staffing columns migration error:', err.message);
   }
+
+  try {
+    // Create cms_state_benchmarks table for state/national averages
+    const { runMigration: runStateBenchmarksMigration } = require('../migrations/create-cms-state-benchmarks');
+    await runStateBenchmarksMigration(sequelize);
+  } catch (err) {
+    console.log('CMS state benchmarks migration error:', err.message);
+  }
+
+  try {
+    // Create snf_vbp_performance table for Value-Based Purchasing data
+    const { runMigration: runVbpMigration } = require('../migrations/create-snf-vbp-performance');
+    await runVbpMigration(sequelize);
+  } catch (err) {
+    console.log('SNF VBP performance migration error:', err.message);
+  }
+
+  try {
+    // Create cms_data_definitions table for tooltips/explanations
+    const { runMigration: runDefinitionsMigration } = require('../migrations/create-cms-data-definitions');
+    await runDefinitionsMigration(sequelize);
+  } catch (err) {
+    console.log('CMS data definitions migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist

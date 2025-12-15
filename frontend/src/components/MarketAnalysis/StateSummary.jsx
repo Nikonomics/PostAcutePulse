@@ -284,6 +284,13 @@ const StateSummary = ({ data, facilityType, nationalBenchmarks }) => {
     beds: isSNF ? county.totalBeds : county.totalCapacity,
   }));
 
+  // Prepare chart data for top ownership groups
+  const ownershipChartData = (data.topOwnershipGroups || []).map(group => ({
+    name: group.name,
+    facilities: group.facilityCount,
+    beds: isSNF ? group.totalBeds : group.totalCapacity,
+  }));
+
   // Prepare rating distribution data for SNF
   const ratingData = isSNF && data.ratingDistribution
     ? [5, 4, 3, 2, 1].map(rating => ({
@@ -525,6 +532,34 @@ const StateSummary = ({ data, facilityType, nationalBenchmarks }) => {
           </div>
         )}
       </div>
+
+      {/* Top Ownership Groups */}
+      {ownershipChartData.length > 0 && (
+        <div style={styles.chartContainer}>
+          <div style={styles.chartTitle}>
+            <Building2 size={16} />
+            Top 10 Ownership Groups by Facility Count
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={ownershipChartData} layout="vertical">
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis
+                dataKey="name"
+                type="category"
+                width={150}
+                tick={{ fontSize: 10 }}
+              />
+              <Tooltip
+                formatter={(value, name) => [
+                  formatNumber(value),
+                  name === 'facilities' ? 'Facilities' : (isSNF ? 'Beds' : 'Capacity'),
+                ]}
+              />
+              <Bar dataKey="facilities" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 };

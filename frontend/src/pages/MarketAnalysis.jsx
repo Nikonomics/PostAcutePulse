@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import axios from 'axios';
 import {
   MapPin,
   Building2,
@@ -8,11 +9,15 @@ import {
   Plus,
   Users,
   TrendingUp,
+  BarChart3,
 } from 'lucide-react';
-import { LocationSelector, StateSummary, MarketComparison, FacilityList, DataFreshness } from '../components/MarketAnalysis';
+import { LocationSelector, StateSummary, MarketComparison, DataFreshness } from '../components/MarketAnalysis';
 import MarketMap from '../components/MarketDynamicsTab/MarketMap';
 import DemographicsPanel from '../components/MarketDynamicsTab/DemographicsPanel';
 import SupplyScorecard from '../components/MarketDynamicsTab/SupplyScorecard';
+import CompetitorTable from '../components/MarketDynamicsTab/CompetitorTable';
+import StateBenchmarkPanel from '../components/MarketDynamicsTab/StateBenchmarkPanel';
+import VBPPerformancePanel from '../components/MarketDynamicsTab/VBPPerformancePanel';
 import {
   OverallGradeHeader,
   CategoryScorecard,
@@ -33,6 +38,8 @@ import {
   getFacilitiesInCounty,
   getNationalBenchmarks,
 } from '../api/marketService';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 const styles = {
   container: {
@@ -251,6 +258,7 @@ const CountyLevelContent = ({
   handleAddToComparison,
   nationalBenchmarks,
   stateSummary,
+  stateBenchmarks,
 }) => {
   // Calculate scores using the market data
   const laborData = useMemo(() => {
@@ -288,6 +296,32 @@ const CountyLevelContent = ({
   const risksOpportunities = useMemo(() => {
     return generateRisksOpportunities(preparedMarketData, facilityType, scores, laborData);
   }, [preparedMarketData, facilityType, scores, laborData]);
+
+  // Calculate market averages from facilities for benchmark comparison
+  const marketAverages = useMemo(() => {
+    if (!facilities || facilities.length === 0) return null;
+
+    const avg = (arr) => {
+      const valid = arr.filter(v => v != null && !isNaN(v));
+      return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+    };
+
+    return {
+      // Staffing averages
+      avgRnHours: avg(facilities.map(f => f.staffing?.rnHours || f.rn_staffing_hours)),
+      avgLpnHours: avg(facilities.map(f => f.staffing?.lpnHours || f.lpn_staffing_hours)),
+      avgCnaHours: avg(facilities.map(f => f.staffing?.cnaHours || f.reported_cna_staffing_hours)),
+      avgTotalNurseHours: avg(facilities.map(f => f.staffing?.totalNurseHours || f.total_nurse_staffing_hours)),
+      // Turnover averages
+      avgTurnover: avg(facilities.map(f => f.turnover?.totalNursing || f.total_nursing_turnover)),
+      avgRnTurnover: avg(facilities.map(f => f.turnover?.rn || f.rn_turnover)),
+      // Quality averages
+      avgRating: avg(facilities.map(f => f.ratings?.overall || f.overall_rating)),
+      avgHealthRating: avg(facilities.map(f => f.ratings?.healthInspection || f.health_inspection_rating)),
+      avgQualityRating: avg(facilities.map(f => f.ratings?.qualityMeasure || f.quality_measure_rating)),
+      avgStaffingRating: avg(facilities.map(f => f.ratings?.staffing || f.staffing_rating)),
+    };
+  }, [facilities]);
 
   const impliedRevenue = useMemo(() => {
     const income = preparedMarketData?.demographics?.medianHouseholdIncome || 0;
@@ -376,6 +410,61 @@ const CountyLevelContent = ({
         </div>
       </div>
 
+      {/* State Benchmark Comparison - SNF only */}
+      {facilityType === 'SNF' && stateBenchmarks && marketAverages && (
+        <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>
+              <BarChart3 size={16} />
+              County vs State Benchmarks ({selectedState})
+            </span>
+            <span style={{ fontSize: '0.625rem', color: '#6b7280' }}>
+              Comparing {facilities.length} facilities in {selectedCounty} County
+            </span>
+          </div>
+          <div style={styles.cardBody}>
+            <StateBenchmarkPanel
+              benchmarks={stateBenchmarks}
+              marketAverages={marketAverages}
+              stateCode={selectedState}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Facilities Table - Enhanced with Staffing/Turnover */}
+      <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
+        <div style={styles.cardHeader}>
+          <span style={styles.cardTitle}>
+            <Building2 size={16} />
+            Facilities ({facilities.length})
+          </span>
+          {selectedFacility && (
+            <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 500 }}>
+              Selected: {selectedFacility.facilityName || selectedFacility.facility_name}
+            </span>
+          )}
+        </div>
+        <div style={{ ...styles.cardBody, padding: 0 }}>
+          <CompetitorTable
+            competitors={facilities}
+            facilityType={facilityType}
+            selectedCompetitor={selectedFacility}
+            onCompetitorSelect={setSelectedFacility}
+          />
+        </div>
+
+        {/* VBP Performance Panel - shown when SNF facility selected */}
+        {facilityType === 'SNF' && selectedFacility && (
+          <div style={{ padding: '0 1rem 1rem 1rem' }}>
+            <VBPPerformancePanel
+              ccn={selectedFacility.federalProviderNumber || selectedFacility.federal_provider_number}
+              facilityName={selectedFacility.facilityName || selectedFacility.facility_name}
+            />
+          </div>
+        )}
+      </div>
+
       {/* Demographics Panel */}
       <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
         <div style={styles.cardHeader}>
@@ -388,14 +477,6 @@ const CountyLevelContent = ({
           <DemographicsPanel demographics={marketData.demographics} />
         </div>
       </div>
-
-      {/* Facilities Table */}
-      <FacilityList
-        facilities={facilities}
-        facilityType={facilityType}
-        selectedFacility={selectedFacility}
-        onFacilitySelect={setSelectedFacility}
-      />
     </>
   );
 };
@@ -419,6 +500,9 @@ const MarketAnalysis = () => {
 
   // National benchmarks state
   const [nationalBenchmarks, setNationalBenchmarks] = useState(null);
+
+  // CMS State benchmarks for staffing/turnover comparison
+  const [stateBenchmarks, setStateBenchmarks] = useState(null);
 
   // Fetch national benchmarks when facility type changes
   useEffect(() => {
@@ -449,6 +533,21 @@ const MarketAnalysis = () => {
       setError(null);
 
       try {
+        // Fetch CMS state benchmarks for SNF (staffing/turnover data)
+        if (facilityType === 'SNF' && selectedState) {
+          try {
+            const benchmarksRes = await axios.get(`${API_BASE}/api/market/benchmarks/${selectedState}`);
+            if (benchmarksRes.data.success) {
+              setStateBenchmarks(benchmarksRes.data.data);
+            }
+          } catch (benchmarkErr) {
+            console.warn('[MarketAnalysis] Failed to fetch state benchmarks:', benchmarkErr.message);
+            setStateBenchmarks(null);
+          }
+        } else {
+          setStateBenchmarks(null);
+        }
+
         if (selectedCounty) {
           // Fetch county-level data AND state summary for benchmarking
           const [metricsRes, facilitiesRes, stateSummaryRes] = await Promise.all([
@@ -705,6 +804,7 @@ const MarketAnalysis = () => {
           handleAddToComparison={handleAddToComparison}
           nationalBenchmarks={nationalBenchmarks}
           stateSummary={stateSummary}
+          stateBenchmarks={stateBenchmarks}
         />
       )}
 

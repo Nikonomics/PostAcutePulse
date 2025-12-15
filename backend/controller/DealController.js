@@ -22,7 +22,14 @@ const { sendBrevoEmail } = require("../config/sendMail");
 const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
 const { runFullExtraction, storeExtractionResults } = require("../services/extractionOrchestrator");
 const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
-const { matchFacility } = require("../services/facilityMatcher");
+const {
+  matchFacility,
+  detectFacilitiesFromText,
+  matchFacilityToDatabase,
+  searchFacilityByName,
+  getDatabaseStats
+} = require("../services/facilityMatcher");
+const extractionMerger = require("../services/extractionMerger");
 const {
   calculateDealMetrics: calcDealMetrics,
   calculatePortfolioMetrics: calcPortfolioMetrics,
@@ -295,10 +302,11 @@ async function syncFacilityData(dealId, facilityData, source, transaction = null
     });
 
     // Save back to deal
+    // Note: Model setters auto-stringify, don't double-encode
     if (useEnhanced) {
-      deal.enhanced_extraction_data = JSON.stringify(extractionData);
+      deal.enhanced_extraction_data = extractionData;
     } else {
-      deal.extraction_data = JSON.stringify(extractionData);
+      deal.extraction_data = extractionData;
     }
     await deal.save(queryOptions);
 
@@ -877,7 +885,7 @@ module.exports = {
               private_pay_mix: facility.private_pay_mix,
               managed_care_mix: facility.managed_care_mix,
               notes: facility.notes,
-              extraction_data: JSON.stringify(facility.extraction_data || facility),
+              extraction_data: facility.extraction_data || facility, // Model setter auto-stringifies
               display_order: index,
             });
           })
@@ -1854,6 +1862,20 @@ module.exports = {
           let extractionData = typeof dealResponse.extraction_data === 'string'
             ? JSON.parse(dealResponse.extraction_data)
             : dealResponse.extraction_data;
+
+          // PORTFOLIO DEAL HANDLING
+          // For portfolio deals, extraction_data has a nested structure:
+          // { portfolio_data: {...}, portfolio_summary: {...}, is_portfolio_deal: true, ... }
+          // We need to expose portfolio-level metrics at the root for easier frontend access
+          if (extractionData.is_portfolio_deal && extractionData.portfolio_data) {
+            // Add a convenience field with portfolio-level metrics
+            extractionData.deal_level_data = extractionData.portfolio_data;
+
+            // Also expose aggregated summary for quick access
+            if (extractionData.portfolio_summary) {
+              extractionData.aggregated_metrics = extractionData.portfolio_summary.aggregates;
+            }
+          }
 
           // Get bed_count for calculating ADC from occupancy
           const bedCount = extractionData.bed_count || null;
@@ -4450,7 +4472,15 @@ module.exports = {
         include: [{
           model: DealFacilities,
           as: 'deal_facility',
-          attributes: ['id', 'facility_name', 'street_address', 'city', 'state', 'latitude', 'longitude'],
+          attributes: [
+            'id',
+            'facility_name',
+            ['street_address', 'address'],  // Alias to match frontend expectation
+            'city',
+            'state',
+            'latitude',
+            'longitude'
+          ],
           where: {
             [Op.or]: [
               { latitude: { [Op.ne]: null } },
@@ -4467,7 +4497,7 @@ module.exports = {
         id: deal.id,
         deal_name: deal.deal_name,
         deal_status: deal.deal_status,
-        deal_facility: deal.facilities || []
+        deal_facility: deal.deal_facility || []
       }));
 
       return helper.success(res, "Deal facilities coordinates fetched successfully", result);
@@ -4766,12 +4796,13 @@ module.exports = {
       // Handle different actions
       if (action === 'skip' || action === 'not_sure') {
         // User chose to skip or is not sure - mark as reviewed but don't populate
+        // Note: Model setters auto-stringify, don't double-encode
         if (enhancedData?.extractedData?.overview?.facility_matches) {
           enhancedData.extractedData.overview.facility_matches.status = action === 'skip' ? 'skipped' : 'not_sure';
-          deal.enhanced_extraction_data = JSON.stringify(enhancedData);
+          deal.enhanced_extraction_data = enhancedData;
         } else if (extractionData?.overview?.facility_matches) {
           extractionData.overview.facility_matches.status = action === 'skip' ? 'skipped' : 'not_sure';
-          deal.extraction_data = JSON.stringify(extractionData);
+          deal.extraction_data = extractionData;
         }
 
         await deal.save();
@@ -4847,13 +4878,13 @@ module.exports = {
         updatedEnhancedData.extractedData.overview.facility_matches.status = 'selected';
         updatedEnhancedData.extractedData.overview.facility_matches.selected_facility_id = facility_id;
         updatedEnhancedData.extractedData.overview.facility_matches.selected_match = selectedMatch;
-        deal.enhanced_extraction_data = JSON.stringify(updatedEnhancedData);
+        deal.enhanced_extraction_data = updatedEnhancedData; // Model setter auto-stringifies
         await deal.save();
       } else if (updatedExtractionData?.overview?.facility_matches) {
         updatedExtractionData.overview.facility_matches.status = 'selected';
         updatedExtractionData.overview.facility_matches.selected_facility_id = facility_id;
         updatedExtractionData.overview.facility_matches.selected_match = selectedMatch;
-        deal.extraction_data = JSON.stringify(updatedExtractionData);
+        deal.extraction_data = updatedExtractionData; // Model setter auto-stringifies
         await deal.save();
       }
 
@@ -4983,6 +5014,491 @@ module.exports = {
     } catch (err) {
       console.error('[getExtractionHistoryDetail] Error:', err);
       return helper.error(res, err.message || "Failed to retrieve extraction history detail");
+    }
+  },
+
+  // ============================================================================
+  // MULTI-FACILITY PORTFOLIO DEAL SUPPORT ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Detect facilities from uploaded document text
+   * POST /api/v1/deal/detect-facilities
+   */
+  detectFacilities: async (req, res) => {
+    try {
+      const { documentText, facilityTypes } = req.body;
+
+      if (!documentText || documentText.length < 100) {
+        return helper.error(res, 'Document text is required and must be substantial');
+      }
+
+      const typesToCheck = facilityTypes || ['SNF', 'ALF'];
+
+      console.log(`[detectFacilities] Scanning documents for ${typesToCheck.join('/')} facilities...`);
+
+      const detectedFacilities = await detectFacilitiesFromText(documentText, typesToCheck);
+      const isPortfolio = detectedFacilities.length > 1;
+
+      console.log(`[detectFacilities] Found ${detectedFacilities.length} facilities (portfolio: ${isPortfolio})`);
+
+      return helper.success(res, 'Facilities detected successfully', {
+        detected_facilities: detectedFacilities,
+        is_portfolio: isPortfolio,
+        facility_count: detectedFacilities.length
+      });
+
+    } catch (err) {
+      console.error('[detectFacilities] Error:', err);
+      return helper.error(res, err.message || 'Failed to detect facilities from documents');
+    }
+  },
+
+  /**
+   * Match a detected facility against SNF/ALF database
+   * POST /api/v1/deal/match-facility
+   */
+  matchFacilityEndpoint: async (req, res) => {
+    try {
+      const { facilityInfo, facilityType } = req.body;
+
+      if (!facilityInfo || !facilityInfo.name) {
+        return helper.error(res, 'Facility info with name is required');
+      }
+
+      if (!facilityType || !['SNF', 'ALF'].includes(facilityType.toUpperCase())) {
+        return helper.error(res, 'facilityType must be either "SNF" or "ALF"');
+      }
+
+      console.log(`[matchFacility] Matching "${facilityInfo.name}" against ${facilityType} database...`);
+
+      const matches = await matchFacilityToDatabase(facilityInfo, facilityType.toUpperCase());
+
+      // Determine confidence level based on top score
+      let confidence = 'none';
+      if (matches.length > 0) {
+        const topScore = matches[0].weighted_score || matches[0].score || 0;
+        if (topScore >= 0.80) confidence = 'high';
+        else if (topScore >= 0.60) confidence = 'medium';
+        else if (topScore >= 0.40) confidence = 'low';
+      }
+
+      console.log(`[matchFacility] Found ${matches.length} matches, confidence: ${confidence}`);
+
+      return helper.success(res, 'Facility matched successfully', {
+        matches: matches,
+        best_match_confidence: confidence
+      });
+
+    } catch (err) {
+      console.error('[matchFacility] Error:', err);
+      return helper.error(res, err.message || 'Failed to match facility');
+    }
+  },
+
+  /**
+   * Search facilities by name in database
+   * GET /api/v1/deal/search-facilities
+   */
+  searchFacilitiesEndpoint: async (req, res) => {
+    try {
+      const { searchTerm, facilityType, state } = req.query;
+
+      if (!searchTerm || searchTerm.length < 2) {
+        return helper.error(res, 'Search term must be at least 2 characters');
+      }
+
+      if (!facilityType || !['SNF', 'ALF', 'both'].includes(facilityType.toUpperCase())) {
+        return helper.error(res, 'facilityType must be "SNF", "ALF", or "both"');
+      }
+
+      console.log(`[searchFacilities] Searching for "${searchTerm}" in ${facilityType} (state: ${state || 'any'})...`);
+
+      const results = await searchFacilityByName(
+        searchTerm,
+        facilityType.toUpperCase(),
+        state || null
+      );
+
+      console.log(`[searchFacilities] Found ${results.length} results`);
+
+      return helper.success(res, 'Search completed successfully', {
+        results: results,
+        total_count: results.length
+      });
+
+    } catch (err) {
+      console.error('[searchFacilities] Error:', err);
+      return helper.error(res, err.message || 'Failed to search facilities');
+    }
+  },
+
+  /**
+   * Extract portfolio deal with confirmed facilities
+   * POST /api/v1/deal/extract-portfolio
+   */
+  extractPortfolio: async (req, res) => {
+    try {
+      // Get uploaded files (express-fileupload puts them in req.files.documents)
+      if (!req.files || !req.files.documents) {
+        return helper.error(res, 'At least one document is required');
+      }
+      const uploadedFiles = req.files.documents;
+      const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+      const confirmedFacilities = JSON.parse(req.body.confirmedFacilities || '[]');
+      const userId = req.body.user_id || req.user?.id;
+      const dealName = req.body.deal_name || 'Portfolio Deal';
+
+      if (!files || files.length === 0) {
+        return helper.error(res, 'At least one document is required');
+      }
+
+      if (!confirmedFacilities || confirmedFacilities.length === 0) {
+        return helper.error(res, 'At least one confirmed facility is required');
+      }
+
+      // Separate facilities by role
+      const subjectFacilities = confirmedFacilities.filter(f => !f.facility_role || f.facility_role === 'subject');
+      const competitorFacilities = confirmedFacilities.filter(f => f.facility_role === 'competitor');
+
+      console.log(`[extractPortfolio] Starting portfolio extraction...`);
+      console.log(`[extractPortfolio] confirmedFacilities received: ${confirmedFacilities.length}`);
+      console.log(`[extractPortfolio] Subject properties: ${subjectFacilities.length}`);
+      console.log(`[extractPortfolio] Competitors: ${competitorFacilities.length}`);
+      console.log(`[extractPortfolio] Processing ${files.length} documents...`);
+      console.log(`[extractPortfolio] Deal name: ${dealName}, User ID: ${userId}`);
+
+      // Import the orchestrator function
+      const { runPortfolioExtraction } = require('../services/extractionOrchestrator');
+
+      // Run AI extraction ONLY for subject facilities
+      let extractionResult = { facilities: [], deal_id: null };
+      if (subjectFacilities.length > 0) {
+        extractionResult = await runPortfolioExtraction(files, subjectFacilities);
+      }
+
+      // Merge matched data with extracted data for subject facilities
+      const mergedFacilities = [];
+      for (let i = 0; i < subjectFacilities.length; i++) {
+        const confirmed = subjectFacilities[i];
+        const extracted = extractionResult.facilities?.[i] || {};
+
+        let merged;
+        if (confirmed.matched) {
+          // Facility was matched to database - merge the data
+          merged = extractionMerger.mergeExtractionWithMatch(
+            extracted,
+            confirmed.matched,
+            confirmed.match_source
+          );
+        } else {
+          // No database match - use extracted data only
+          merged = {
+            ...extracted,
+            _data_sources: {
+              extraction: true,
+              database_match: false
+            }
+          };
+        }
+        merged.facility_role = 'subject';
+        merged._confirmed = confirmed; // Keep reference for database save
+        mergedFacilities.push(merged);
+      }
+
+      // For competitors, use database data only (no AI extraction)
+      for (const competitor of competitorFacilities) {
+        if (competitor.matched) {
+          const competitorData = extractionMerger.mergeExtractionWithMatch(
+            {}, // No AI extraction data
+            competitor.matched,
+            competitor.match_source
+          );
+          competitorData.facility_role = 'competitor';
+          competitorData._data_sources = {
+            extraction: false,
+            database_match: true,
+            competitor_only: true
+          };
+          competitorData._confirmed = competitor;
+          mergedFacilities.push(competitorData);
+        } else if (competitor.manual_entry) {
+          // Manual entry competitor
+          mergedFacilities.push({
+            facility_name: competitor.detected?.name || 'Unknown',
+            city: competitor.detected?.city,
+            state: competitor.detected?.state,
+            bed_count: competitor.detected?.beds,
+            facility_type: competitor.detected?.facility_type,
+            facility_role: 'competitor',
+            _data_sources: {
+              extraction: false,
+              database_match: false,
+              manual_entry: true,
+              competitor_only: true
+            },
+            _confirmed: competitor
+          });
+        }
+      }
+
+      // ============================================
+      // PERSIST TO DATABASE
+      // ============================================
+
+      console.log(`[extractPortfolio] PERSIST: mergedFacilities count: ${mergedFacilities.length}`);
+      console.log(`[extractPortfolio] PERSIST: files count: ${files.length}`);
+      if (mergedFacilities.length > 0) {
+        console.log(`[extractPortfolio] PERSIST: First facility:`, JSON.stringify(mergedFacilities[0], null, 2).substring(0, 500));
+      }
+
+      // Get first subject facility for deal-level info
+      const primaryFacility = subjectFacilities[0] || confirmedFacilities[0];
+      const primaryLocation = primaryFacility?.matched || primaryFacility?.detected || {};
+
+      // 1. Create master deal
+      const masterDeal = await MasterDeals.create({
+        unique_id: helper.generateUniqueId(),
+        user_id: userId,
+        street_address: primaryLocation.address || primaryLocation.street_address || '',
+        city: primaryLocation.city || '',
+        state: primaryLocation.state || '',
+        country: 'USA',
+        zip_code: primaryLocation.zip_code || '',
+      });
+
+      console.log(`[extractPortfolio] Created master deal: ${masterDeal.id}`);
+
+      // 2. Create deal record
+      // For portfolio deals, store PORTFOLIO-LEVEL data (not individual facility data)
+      // Individual facility data goes in deal_facilities table
+
+      const dealExtractionData = {
+        // Store portfolio-level extracted data (combined totals)
+        portfolio_data: extractionResult.portfolio_extraction || null,
+        // Portfolio metadata
+        is_portfolio_deal: mergedFacilities.length > 1,
+        facility_count: mergedFacilities.length,
+        subject_count: subjectFacilities.length,
+        competitor_count: competitorFacilities.length,
+        // Store portfolio summary (aggregated from facilities)
+        portfolio_summary: extractionResult.portfolio_summary || null,
+        // Validation results
+        validation: extractionResult.validation || null,
+        // Extraction metadata
+        extraction_metadata: extractionResult.metadata || null,
+        // Document structure info
+        document_structure: extractionResult.document_structure || null,
+      };
+
+      const deal = await Deal.create({
+        user_id: userId,
+        master_deal_id: masterDeal.id,
+        deal_name: dealName,
+        deal_status: 'pipeline',
+        // Use primary facility for deal-level location
+        facility_name: primaryLocation.facility_name || primaryLocation.name || dealName,
+        street_address: primaryLocation.address || primaryLocation.street_address || '',
+        city: primaryLocation.city || '',
+        state: primaryLocation.state || '',
+        zip_code: primaryLocation.zip_code || '',
+        // Store extraction data (proper structure, not spread array)
+        // Model setter auto-stringifies via create()
+        extraction_data: dealExtractionData,
+        // Aggregate bed count from subject facilities
+        bed_count: mergedFacilities
+          .filter(f => f.facility_role === 'subject')
+          .reduce((sum, f) => sum + (parseInt(f.bed_count || f.total_beds) || 0), 0),
+      });
+
+      console.log(`[extractPortfolio] Created deal: ${deal.id}`);
+
+      // 3. Save each facility to deal_facilities
+      let savedFacilityCount = 0;
+      for (let i = 0; i < mergedFacilities.length; i++) {
+        const facility = mergedFacilities[i];
+        const confirmed = facility._confirmed || {};
+        const matched = confirmed.matched || {};
+        const detected = confirmed.detected || {};
+
+        try {
+          const facilityData = {
+            deal_id: deal.id,
+            facility_name: facility.facility_name || matched.facility_name || detected.name || `Facility ${i + 1}`,
+            facility_type: facility.facility_type || matched.facility_type || detected.facility_type || 'SNF',
+            facility_role: facility.facility_role || 'subject',
+            street_address: facility.address || facility.street_address || matched.address || '',
+            city: facility.city || matched.city || detected.city || '',
+            state: facility.state || matched.state || detected.state || '',
+            zip_code: facility.zip_code || matched.zip_code || '',
+            county: facility.county || matched.county || '',
+            bed_count: parseInt(facility.bed_count || facility.total_beds || matched.total_beds || detected.beds) || null,
+            // Financial metrics (from AI extraction for subjects)
+            purchase_price: parseFloat(facility.purchase_price) || null,
+            annual_revenue: parseFloat(facility.annual_revenue || facility.total_revenue) || null,
+            ebitda: parseFloat(facility.ebitda) || null,
+            ebitdar: parseFloat(facility.ebitdar) || null,
+            net_operating_income: parseFloat(facility.noi || facility.net_operating_income) || null,
+            // Operational metrics
+            current_occupancy: parseFloat(facility.occupancy_rate || facility.current_occupancy || matched.occupancy_rate) || null,
+            medicare_percentage: parseFloat(facility.medicare_mix || facility.medicare_percentage) || null,
+            medicaid_percentage: parseFloat(facility.medicaid_mix || facility.medicaid_percentage) || null,
+            private_pay_percentage: parseFloat(facility.private_pay_mix || facility.private_pay_percentage) || null,
+            // CMS data from matched facility
+            latitude: matched.latitude || null,
+            longitude: matched.longitude || null,
+            // Store full extraction data (model setter auto-stringifies via create())
+            extraction_data: {
+              ...facility,
+              _confirmed: undefined,
+              matched_facility_id: matched.id || matched.federal_provider_number || null,
+              match_source: confirmed.match_source || null
+            },
+            display_order: i,
+          };
+          console.log(`[extractPortfolio] Creating facility ${i + 1}:`, facilityData.facility_name);
+          const created = await DealFacilities.create(facilityData);
+          console.log(`[extractPortfolio] Successfully created facility id: ${created.id}`);
+          savedFacilityCount++;
+        } catch (facilityErr) {
+          console.error(`[extractPortfolio] ERROR creating facility ${i + 1}:`, facilityErr.message);
+          console.error(`[extractPortfolio] Facility error details:`, facilityErr);
+        }
+      }
+
+      console.log(`[extractPortfolio] Saved ${savedFacilityCount}/${mergedFacilities.length} facilities to deal_facilities`);
+
+      // 4. Save uploaded documents to deal_documents
+      const path = require('path');
+      const fs = require('fs');
+      const uploadsDir = path.join(__dirname, '..', 'uploads', 'deals', deal.id.toString());
+
+      // Create uploads directory if it doesn't exist
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      let savedDocumentCount = 0;
+      for (const file of files) {
+        try {
+          // Save file to disk
+          const fileName = `${Date.now()}_${file.name}`;
+          const filePath = path.join(uploadsDir, fileName);
+          console.log(`[extractPortfolio] Saving file ${file.name} to ${filePath}`);
+          await file.mv(filePath);
+
+          // Create document record
+          const docData = {
+            deal_id: deal.id,
+            user_id: userId,
+            document_name: file.name,
+            document_url: `/uploads/deals/${deal.id}/${fileName}`,
+          };
+          console.log(`[extractPortfolio] Creating document record:`, docData);
+          const created = await DealDocuments.create(docData);
+          console.log(`[extractPortfolio] Successfully created document id: ${created.id}`);
+          savedDocumentCount++;
+        } catch (docErr) {
+          console.error(`[extractPortfolio] ERROR saving document ${file.name}:`, docErr.message);
+          console.error(`[extractPortfolio] Document error details:`, docErr);
+        }
+      }
+
+      console.log(`[extractPortfolio] Saved ${savedDocumentCount}/${files.length} documents to deal_documents`);
+
+      // Build final response
+      const portfolioResult = {
+        id: deal.id,
+        master_deal_id: masterDeal.id,
+        is_portfolio_deal: mergedFacilities.length > 1,
+        facility_count: mergedFacilities.length,
+        subject_count: subjectFacilities.length,
+        competitor_count: competitorFacilities.length,
+        facilities: mergedFacilities.map(f => {
+          const { _confirmed, ...rest } = f;
+          return rest;
+        }),
+        portfolio_summary: extractionResult.portfolio_summary || null,
+      };
+
+      console.log(`[extractPortfolio] Extraction complete. Deal ID: ${portfolioResult.id}`);
+      console.log(`[extractPortfolio] Total facilities: ${mergedFacilities.length} (${subjectFacilities.length} subjects, ${competitorFacilities.length} competitors)`);
+
+      return helper.success(res, 'Portfolio extraction completed successfully', {
+        deal: portfolioResult
+      });
+
+    } catch (err) {
+      console.error('[extractPortfolio] Error:', err);
+      return helper.error(res, err.message || 'Failed to extract portfolio deal');
+    }
+  },
+
+  /**
+   * Get facility database statistics
+   * GET /api/v1/deal/facility-db-stats
+   */
+  getFacilityDatabaseStats: async (req, res) => {
+    try {
+      const stats = await getDatabaseStats();
+
+      return helper.success(res, 'Database stats retrieved successfully', stats);
+
+    } catch (err) {
+      console.error('[getFacilityDatabaseStats] Error:', err);
+      return helper.error(res, err.message || 'Failed to get database stats');
+    }
+  },
+
+  /**
+   * Extract text from uploaded documents (lightweight - no AI processing)
+   * POST /api/v1/deal/extract-text
+   * Used for portfolio detection workflow
+   */
+  extractDocumentText: async (req, res) => {
+    try {
+      // Get uploaded files (express-fileupload puts them in req.files.documents)
+      if (!req.files || !req.files.documents) {
+        return helper.error(res, 'At least one document is required');
+      }
+      const uploadedFiles = req.files.documents;
+      const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+
+      if (!files || files.length === 0) {
+        return helper.error(res, 'At least one document is required');
+      }
+
+      console.log(`[extractDocumentText] Processing ${files.length} files for text extraction...`);
+
+      const { processFiles } = require('../services/extractionOrchestrator');
+      const processedFiles = await processFiles(files);
+
+      // Combine all extracted text
+      const successfulFiles = processedFiles.filter(f => f.text && !f.error);
+      const combinedText = successfulFiles.map(f => {
+        return `=== Document: ${f.name} ===\n${f.text}`;
+      }).join('\n\n');
+
+      const totalChars = successfulFiles.reduce((sum, f) => sum + (f.text?.length || 0), 0);
+
+      console.log(`[extractDocumentText] Extracted ${totalChars} chars from ${successfulFiles.length}/${files.length} files`);
+
+      return helper.success(res, 'Text extracted successfully', {
+        combined_text: combinedText,
+        total_characters: totalChars,
+        files_processed: files.length,
+        files_successful: successfulFiles.length,
+        file_details: processedFiles.map(f => ({
+          name: f.name,
+          success: !f.error,
+          characters: f.text?.length || 0,
+          error: f.error || null
+        }))
+      });
+
+    } catch (err) {
+      console.error('[extractDocumentText] Error:', err);
+      return helper.error(res, err.message || 'Failed to extract text from documents');
     }
   },
 };

@@ -12,12 +12,15 @@ import {
   Loader2,
   RefreshCw,
   ExternalLink,
+  BarChart3,
 } from 'lucide-react';
 import axios from 'axios';
 import MarketMap from './MarketMap';
 import CompetitorTable from './CompetitorTable';
 import DemographicsPanel from './DemographicsPanel';
 import SupplyScorecard from './SupplyScorecard';
+import StateBenchmarkPanel from './StateBenchmarkPanel';
+import VBPPerformancePanel from './VBPPerformancePanel';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -166,6 +169,8 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
   const [competitors, setCompetitors] = useState([]);
   const [radiusMiles, setRadiusMiles] = useState(25);
   const [selectedCompetitor, setSelectedCompetitor] = useState(null);
+  const [resolvedCounty, setResolvedCounty] = useState(null);
+  const [stateBenchmarks, setStateBenchmarks] = useState(null);
 
   // Determine facility type from deal or extraction data
   const facilityType = useMemo(() => {
@@ -193,25 +198,97 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
         facilityName: fac.facility_name,
       };
     }
-    // Try from extraction data
-    if (extractionData?.property_details) {
-      const pd = extractionData.property_details;
+    // Try from extraction data (check multiple possible structures)
+    const ed = extractionData;
+    if (ed) {
+      // Try property_details structure
+      if (ed.property_details) {
+        const pd = ed.property_details;
+        return {
+          latitude: null,
+          longitude: null,
+          state: pd.state?.value || pd.state,
+          county: pd.county?.value || pd.county,
+          city: pd.city?.value || pd.city,
+          facilityName: pd.facility_name?.value || pd.facility_name,
+        };
+      }
+      // Try flat extraction data structure
       return {
         latitude: null,
         longitude: null,
-        state: pd.state?.value,
-        county: pd.county?.value,
-        city: pd.city?.value,
-        facilityName: pd.facility_name?.value,
+        state: ed.state?.value || ed.state,
+        county: ed.county?.value || ed.county,
+        city: ed.city?.value || ed.city,
+        facilityName: ed.facility_name?.value || ed.facility_name,
       };
     }
     return null;
   }, [deal, extractionData]);
 
+  // Resolve county from lat/lon if not provided
+  useEffect(() => {
+    const resolveCounty = async () => {
+      // Already have county
+      if (location?.county) {
+        setResolvedCounty(location.county);
+        return;
+      }
+
+      // Try to get county from lat/lon using reverse geocoding
+      if (location?.latitude && location?.longitude) {
+        try {
+          const response = await axios.get(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}&addressdetails=1`,
+            { headers: { 'User-Agent': 'SNFalyze/1.0' } }
+          );
+          const county = response.data?.address?.county;
+          if (county) {
+            // Remove "County" suffix if present
+            const cleanCounty = county.replace(/\s+County$/i, '').trim();
+            setResolvedCounty(cleanCounty);
+            console.log(`[MarketDynamics] Resolved county from coords: ${cleanCounty}`);
+            return;
+          }
+        } catch (err) {
+          console.warn('[MarketDynamics] Failed to reverse geocode for county:', err.message);
+        }
+      }
+
+      // Try to get county from city/state using forward geocoding
+      if (location?.city && location?.state) {
+        try {
+          const query = encodeURIComponent(`${location.city}, ${location.state}, USA`);
+          const response = await axios.get(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${query}&addressdetails=1&limit=1`,
+            { headers: { 'User-Agent': 'SNFalyze/1.0' } }
+          );
+          if (response.data?.[0]?.address?.county) {
+            const county = response.data[0].address.county;
+            const cleanCounty = county.replace(/\s+County$/i, '').trim();
+            setResolvedCounty(cleanCounty);
+            console.log(`[MarketDynamics] Resolved county from city/state: ${cleanCounty}`);
+            return;
+          }
+        } catch (err) {
+          console.warn('[MarketDynamics] Failed to geocode for county:', err.message);
+        }
+      }
+
+      setResolvedCounty(null);
+    };
+
+    if (location) {
+      resolveCounty();
+    }
+  }, [location?.county, location?.latitude, location?.longitude, location?.city, location?.state]);
+
   // Fetch market data
   const fetchMarketData = async () => {
-    if (!location?.state || !location?.county) {
-      setError('Location data (state and county) is required for market analysis');
+    const countyToUse = resolvedCounty || location?.county;
+
+    if (!location?.state || !countyToUse) {
+      setError('Location data (state and county) is required for market analysis. County could not be determined from the available data.');
       setLoading(false);
       return;
     }
@@ -224,7 +301,7 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
       const metricsResponse = await axios.get(`${API_BASE}/api/market/metrics`, {
         params: {
           state: location.state,
-          county: location.county,
+          county: countyToUse,
           type: facilityType,
         },
       });
@@ -252,6 +329,18 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
         setCompetitors([]);
       }
 
+      // Fetch state benchmarks for SNFs
+      if (facilityType === 'SNF' && location.state) {
+        try {
+          const benchmarksResponse = await axios.get(`${API_BASE}/api/market/benchmarks/${location.state}`);
+          if (benchmarksResponse.data.success) {
+            setStateBenchmarks(benchmarksResponse.data.data);
+          }
+        } catch (benchmarkErr) {
+          console.warn('[MarketDynamics] Failed to fetch state benchmarks:', benchmarkErr.message);
+        }
+      }
+
       setLoading(false);
     } catch (err) {
       console.error('Error fetching market data:', err);
@@ -261,8 +350,11 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
   };
 
   useEffect(() => {
-    fetchMarketData();
-  }, [location?.state, location?.county, facilityType, radiusMiles]);
+    // Wait for county resolution before fetching
+    if (resolvedCounty || location?.county) {
+      fetchMarketData();
+    }
+  }, [location?.state, location?.county, resolvedCounty, facilityType, radiusMiles]);
 
   const handleRefresh = () => {
     fetchMarketData();
@@ -275,6 +367,36 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
   const handleCompetitorSelect = (competitor) => {
     setSelectedCompetitor(competitor);
   };
+
+  // Calculate market averages from competitors for benchmark comparison
+  const marketAverages = useMemo(() => {
+    if (!competitors || competitors.length === 0) return null;
+
+    const validCompetitors = competitors.filter(c => c.staffing || c.ratings);
+    if (validCompetitors.length === 0) return null;
+
+    const avg = (arr) => {
+      const valid = arr.filter(v => v != null && !isNaN(v));
+      return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+    };
+
+    return {
+      // Staffing averages
+      avgRnHours: avg(competitors.map(c => c.staffing?.rnHours)),
+      avgLpnHours: avg(competitors.map(c => c.staffing?.lpnHours)),
+      avgCnaHours: avg(competitors.map(c => c.staffing?.cnaHours)),
+      avgTotalNurseHours: avg(competitors.map(c => c.staffing?.totalNurseHours)),
+      avgPtHours: avg(competitors.map(c => c.staffing?.ptHours)),
+      // Turnover averages
+      avgTurnover: avg(competitors.map(c => c.turnover?.totalNursing)),
+      avgRnTurnover: avg(competitors.map(c => c.turnover?.rn)),
+      // Quality averages
+      avgRating: avg(competitors.map(c => c.ratings?.overall)),
+      avgHealthRating: avg(competitors.map(c => c.ratings?.healthInspection)),
+      avgQualityRating: avg(competitors.map(c => c.ratings?.qualityMeasure)),
+      avgStaffingRating: avg(competitors.map(c => c.ratings?.staffing)),
+    };
+  }, [competitors]);
 
   if (!location) {
     return (
@@ -314,7 +436,7 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
           </div>
           <div style={styles.subtitle}>
             {location.facilityName ? `${location.facilityName} - ` : ''}
-            {location.county}{location.state ? `, ${location.state}` : ''}
+            {resolvedCounty || location.county || location.city}{location.state ? `, ${location.state}` : ''}
           </div>
         </div>
         <button style={styles.refreshButton} onClick={handleRefresh}>
@@ -336,6 +458,31 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
           marketData={marketData}
           facilityType={facilityType}
         />
+      )}
+
+      {/* State Benchmark Comparison - SNF only */}
+      {facilityType === 'SNF' && stateBenchmarks && marketAverages && (
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>
+              <BarChart3 size={16} />
+              Market vs State Benchmarks ({location?.state})
+            </span>
+            <span style={{
+              fontSize: '0.625rem',
+              color: '#6b7280',
+            }}>
+              Comparing {competitors.length} facilities within {radiusMiles} mi
+            </span>
+          </div>
+          <div style={styles.cardBody}>
+            <StateBenchmarkPanel
+              benchmarks={stateBenchmarks}
+              marketAverages={marketAverages}
+              stateCode={location?.state}
+            />
+          </div>
+        </div>
       )}
 
       {/* Map and Demographics Grid */}
@@ -426,6 +573,15 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
             <Building2 size={16} />
             Nearby Competitors ({competitors.length})
           </span>
+          {selectedCompetitor && (
+            <span style={{
+              fontSize: '0.75rem',
+              color: '#2563eb',
+              fontWeight: 500,
+            }}>
+              Selected: {selectedCompetitor.facilityName}
+            </span>
+          )}
         </div>
         <div style={{ ...styles.cardBody, padding: 0 }}>
           <CompetitorTable
@@ -435,6 +591,16 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
             onCompetitorSelect={handleCompetitorSelect}
           />
         </div>
+
+        {/* VBP Performance Panel - shown when SNF competitor selected */}
+        {facilityType === 'SNF' && selectedCompetitor && (
+          <div style={{ padding: '0 1rem 1rem 1rem' }}>
+            <VBPPerformancePanel
+              ccn={selectedCompetitor.federalProviderNumber}
+              facilityName={selectedCompetitor.facilityName}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
