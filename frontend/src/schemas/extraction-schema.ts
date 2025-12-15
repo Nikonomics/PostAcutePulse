@@ -305,6 +305,7 @@ export interface ExtractedDealData {
     title: ExtractedField<string>;
     phone: ExtractedField<string>;
     email: ExtractedField<string>;
+    ownership?: ExtractedField<string>;
   };
 
   financial_information_t12: {
