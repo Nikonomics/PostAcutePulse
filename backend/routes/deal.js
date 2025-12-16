@@ -23,6 +23,7 @@ router.get('/get-deals', requireAuthentication, DealController.getDeal);
 router.get('/get-deal-stats', requireAuthentication, DealController.getDealStats);
 router.get('/get-dashboard-data', requireAuthentication, DealController.getDashboardData);
 router.get('/get-deal-facilities-coordinates', requireAuthentication, DealController.getDealFacilitiesCoordinates);
+router.get('/get-map-filter-options', requireAuthentication, DealController.getMapFilterOptions);
 router.get('/get-deal-by-id', DealController.getDealById);
 router.put('/update-deal-status', requireAuthentication, DealController.updateDealStatus);
 router.put('/:id/extraction-data', requireAuthentication, DealController.updateExtractionData);

@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
+import { useGoogleMaps } from '../../context/GoogleMapsContext';
+import { ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
 
 const containerStyle = {
   width: '100%',
@@ -12,7 +14,7 @@ const defaultCenter = {
   lng: -98.5795
 };
 
-// Color palette for different deals
+// Color palette for different deals/companies
 const DEAL_COLORS = [
   '#3B82F6', // Blue
   '#EF4444', // Red
@@ -25,6 +27,22 @@ const DEAL_COLORS = [
   '#84CC16', // Lime
   '#6B7280', // Gray
 ];
+
+// Status colors
+const STATUS_COLORS = {
+  pipeline: '#F59E0B', // Yellow
+  due_diligence: '#3B82F6', // Blue
+  hold: '#EF4444', // Red
+  current_operations: '#10B981', // Green
+};
+
+// Service line colors (for Cascadia facilities)
+const SERVICE_LINE_COLORS = {
+  SNF: '#3B82F6', // Blue
+  ALF: '#10B981', // Green
+  ILF: '#8B5CF6', // Purple
+  'Home Office': '#6B7280', // Gray
+};
 
 // Create custom marker icons for each color
 const createMarkerIcon = (color) => ({
@@ -43,18 +61,28 @@ const DealLocationsMap = ({
   height = '500px',
   showInfoWindows = true,
   onMarkerClick = null,
-  onStatusFilterChange = null
+  onFiltersChange = null,
+  filterOptions = null
 }) => {
   const [selectedMarker, setSelectedMarker] = useState(null);
-  // Remove tooltip-related state
-  // const [hoveredMarker, setHoveredMarker] = useState(null);
-  // const [hoverTooltipPos, setHoverTooltipPos] = useState(null);
-  // const [hoverTimeout, setHoverTimeout] = useState(null);
   const [selectedDeals, setSelectedDeals] = useState(new Set());
   const [dealColors, setDealColors] = useState({});
-  const [statusFilter, setStatusFilter] = useState(new Set());
   const mapRef = useRef(null);
   const shouldAutoSelectRef = useRef(false);
+
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState(new Set());
+  const [serviceLineFilter, setServiceLineFilter] = useState(new Set());
+  const [companyFilter, setCompanyFilter] = useState(new Set());
+  const [teamFilter, setTeamFilter] = useState(new Set());
+
+  // Collapsible filter sections
+  const [expandedFilters, setExpandedFilters] = useState({
+    status: true,
+    serviceLine: false,
+    company: false,
+    team: false
+  });
 
   // Custom scrollbar styles
   useEffect(() => {
@@ -87,17 +115,15 @@ const DealLocationsMap = ({
     };
   }, []);
 
-  // Load Google Maps API
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
-  });
+  // Use shared Google Maps context
+  const { isLoaded, loadError } = useGoogleMaps();
 
   // Assign colors to deals
   useEffect(() => {
     const colors = {};
     deals.forEach((deal, index) => {
-      colors[deal.id] = DEAL_COLORS[index % DEAL_COLORS.length];
+      // Use status color for status-based coloring, or cycle through colors
+      colors[deal.id] = STATUS_COLORS[deal.deal_status] || DEAL_COLORS[index % DEAL_COLORS.length];
     });
     setDealColors(colors);
   }, [deals]);
@@ -111,6 +137,16 @@ const DealLocationsMap = ({
     }
   }, [deals]);
 
+  // Notify parent when filters change
+  const notifyFiltersChange = useCallback((newFilters) => {
+    if (onFiltersChange) {
+      // Set flag to auto-select all deals when they are loaded
+      const hasAnyFilter = Object.values(newFilters).some(arr => arr.length > 0);
+      shouldAutoSelectRef.current = hasAnyFilter;
+      onFiltersChange(newFilters);
+    }
+  }, [onFiltersChange]);
+
   // Memoize marker data to prevent unnecessary re-renders
   const markerData = useMemo(() => {
     const markers = [];
@@ -120,29 +156,39 @@ const DealLocationsMap = ({
           if (facility.latitude && facility.longitude &&
             !isNaN(facility.latitude) && !isNaN(facility.longitude) &&
             facility.latitude !== 0 && facility.longitude !== 0) {
+            // For Cascadia facilities (current_operations), use service line color
+            // For deals, use status color
+            let markerColor;
+            if (deal.source === 'cascadia' || deal.deal_status === 'current_operations') {
+              markerColor = SERVICE_LINE_COLORS[facility.type] || SERVICE_LINE_COLORS['SNF'];
+            } else {
+              markerColor = dealColors[deal.id] || STATUS_COLORS[deal.deal_status] || DEAL_COLORS[0];
+            }
+
             const marker = {
               id: `${deal.id}-${facility.id}`,
-              lat: facility.latitude,
-              lng: facility.longitude,
+              lat: parseFloat(facility.latitude),
+              lng: parseFloat(facility.longitude),
               title: facility.facility_name || `Facility ${facility.id}`,
               address: facility.address || '',
               city: facility.city || '',
               state: facility.state || '',
               dealId: deal.id,
               dealName: deal.deal_name,
+              dealStatus: deal.deal_status,
               facilityId: facility.id,
-              color: dealColors[deal.id] || DEAL_COLORS[0],
-              type: 'facility'
+              color: markerColor,
+              type: facility.type || 'SNF',
+              company: facility.company,
+              team: facility.team,
+              beds: facility.beds,
+              source: deal.source
             };
             markers.push(marker);
           }
         });
-      } else {
-        console.log('Deal has no facilities or invalid facility structure:', deal);
       }
     });
-
-    console.log('Total markers created:', markers.length);
     return markers;
   }, [deals, dealColors]);
 
@@ -159,7 +205,7 @@ const DealLocationsMap = ({
       streetViewControl: false,
       mapTypeControl: true,
       fullscreenControl: true,
-      minZoom: 3, // Allow zooming out to see entire USA
+      minZoom: 3,
       maxZoom: 18,
       gestureHandling: 'cooperative',
       styles: [
@@ -176,7 +222,6 @@ const DealLocationsMap = ({
       ]
     };
 
-    // Add Google Maps specific options only when API is loaded
     if (window.google?.maps) {
       baseOptions.zoomControlOptions = {
         position: window.google.maps.ControlPosition.RIGHT_TOP
@@ -188,75 +233,28 @@ const DealLocationsMap = ({
     }
 
     return baseOptions;
-  }, []); // Remove isLoaded dependency as it's not needed
+  }, []);
 
   const onLoad = useCallback((map) => {
+    if (!window.google?.maps) return;
 
-    // Ensure Google Maps API is loaded
-    if (!window.google?.maps) {
-      console.warn('Google Maps API not fully loaded yet');
-      return;
-    }
-
-    // Fit bounds if locations are provided with better zoom handling
     if (visibleMarkers.length > 0) {
       const bounds = new window.google.maps.LatLngBounds();
       visibleMarkers.forEach(marker => {
         bounds.extend({ lat: marker.lat, lng: marker.lng });
       });
-
-      // Add some padding to the bounds for better visibility
       map.fitBounds(bounds);
 
-      // Set a minimum zoom level to prevent over-zooming
       window.google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
-        // Add padding to bounds for better visibility
-        const currentBounds = map.getBounds();
-        if (currentBounds) {
-          const ne = currentBounds.getNorthEast();
-          const sw = currentBounds.getSouthWest();
-          const latSpan = ne.lat() - sw.lat();
-          const lngSpan = ne.lng() - sw.lng();
-
-          // Add 20% padding
-          const latPadding = latSpan * 0.2;
-          const lngPadding = lngSpan * 0.2;
-
-          const newBounds = new window.google.maps.LatLngBounds(
-            { lat: sw.lat() - latPadding, lng: sw.lng() - lngPadding },
-            { lat: ne.lat() + latPadding, lng: ne.lng() + lngPadding }
-          );
-
-          map.fitBounds(newBounds);
-
-          // Set zoom limits after bounds are set
-          window.google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
-            if (map.getZoom() > 15) {
-              map.setZoom(15);
-            }
-            if (map.getZoom() < 3) {
-              map.setZoom(3);
-            }
-          });
-        }
+        if (map.getZoom() > 15) map.setZoom(15);
+        if (map.getZoom() < 3) map.setZoom(3);
       });
     } else {
-      // If no locations, set a reasonable default zoom for USA view
       map.setZoom(zoom);
     }
   }, [visibleMarkers, zoom]);
 
-  const onUnmount = useCallback(() => {
-  }, []);
-
-  // Remove tooltip cleanup effect
-  // useEffect(() => {
-  //   return () => {
-  //     if (hoverTimeout) {
-  //       clearTimeout(hoverTimeout);
-  //     }
-  //   };
-  // }, [hoverTimeout]);
+  const onUnmount = useCallback(() => {}, []);
 
   const handleMarkerClick = useCallback((marker, location) => {
     if (onMarkerClick) {
@@ -270,24 +268,6 @@ const DealLocationsMap = ({
   const handleInfoWindowClose = useCallback(() => {
     setSelectedMarker(null);
   }, []);
-
-  // Remove tooltip handlers
-  // const handleMarkerMouseOver = useCallback((location) => {
-  //   if (hoverTimeout) {
-  //     clearTimeout(hoverTimeout);
-  //   }
-  //   const timeout = setTimeout(() => {
-  //     setHoveredMarker(location);
-  //   }, 200);
-  //   setHoverTimeout(timeout);
-  // }, [hoverTimeout]);
-
-  // const handleMarkerMouseOut = useCallback(() => {
-  //   if (hoverTimeout) {
-  //     clearTimeout(hoverTimeout);
-  //   }
-  //   setHoveredMarker(null);
-  // }, [hoverTimeout]);
 
   const toggleDealSelection = useCallback((dealId) => {
     const newSelectedDeals = new Set(selectedDeals);
@@ -308,39 +288,116 @@ const DealLocationsMap = ({
     setSelectedDeals(new Set());
   }, []);
 
-  const handleStatusFilterToggle = useCallback((status) => {
-    const newStatusFilter = new Set(statusFilter);
-    if (newStatusFilter.has(status)) {
-      newStatusFilter.delete(status);
-    } else {
-      newStatusFilter.add(status);
-    }
-    setStatusFilter(newStatusFilter);
-    
-    // If filter becomes empty, clear selected deals
-    if (newStatusFilter.size === 0) {
-      setSelectedDeals(new Set());
-      shouldAutoSelectRef.current = false;
-    } else {
-      // Set flag to auto-select all deals when they are loaded
-      shouldAutoSelectRef.current = true;
-    }
-    
-    // Notify parent component to fetch deals with new status(es)
-    if (onStatusFilterChange) {
-      onStatusFilterChange(newStatusFilter.size > 0 ? Array.from(newStatusFilter) : null);
-    }
-  }, [onStatusFilterChange, statusFilter]);
+  // Filter toggle handlers
+  const handleFilterToggle = useCallback((filterType, value) => {
+    const setters = {
+      status: setStatusFilter,
+      serviceLine: setServiceLineFilter,
+      company: setCompanyFilter,
+      team: setTeamFilter
+    };
+    const filters = {
+      status: statusFilter,
+      serviceLine: serviceLineFilter,
+      company: companyFilter,
+      team: teamFilter
+    };
 
-  const clearStatusFilter = useCallback(() => {
+    const setter = setters[filterType];
+    const currentFilter = filters[filterType];
+    const newFilter = new Set(currentFilter);
+
+    if (newFilter.has(value)) {
+      newFilter.delete(value);
+    } else {
+      newFilter.add(value);
+    }
+    setter(newFilter);
+
+    // Build updated filters object
+    const updatedFilters = {
+      status: filterType === 'status' ? Array.from(newFilter) : Array.from(statusFilter),
+      serviceLine: filterType === 'serviceLine' ? Array.from(newFilter) : Array.from(serviceLineFilter),
+      company: filterType === 'company' ? Array.from(newFilter) : Array.from(companyFilter),
+      team: filterType === 'team' ? Array.from(newFilter) : Array.from(teamFilter)
+    };
+
+    notifyFiltersChange(updatedFilters);
+  }, [statusFilter, serviceLineFilter, companyFilter, teamFilter, notifyFiltersChange]);
+
+  const clearAllFilters = useCallback(() => {
     setStatusFilter(new Set());
-    // Clear selected deals when filter is cleared
+    setServiceLineFilter(new Set());
+    setCompanyFilter(new Set());
+    setTeamFilter(new Set());
     setSelectedDeals(new Set());
     shouldAutoSelectRef.current = false;
-    if (onStatusFilterChange) {
-      onStatusFilterChange(null);
-    }
-  }, [onStatusFilterChange]);
+    notifyFiltersChange({ status: [], serviceLine: [], company: [], team: [] });
+  }, [notifyFiltersChange]);
+
+  const toggleFilterSection = useCallback((section) => {
+    setExpandedFilters(prev => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  const activeFilterCount = statusFilter.size + serviceLineFilter.size + companyFilter.size + teamFilter.size;
+
+  // Filter section component
+  const FilterSection = ({ title, filterKey, options, currentFilter }) => (
+    <div className="border-b border-gray-200 last:border-b-0">
+      <button
+        onClick={() => toggleFilterSection(filterKey)}
+        className="w-full flex items-center justify-between p-2 hover:bg-gray-50 transition-colors"
+      >
+        <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          {title}
+          {currentFilter.size > 0 && (
+            <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full">
+              {currentFilter.size}
+            </span>
+          )}
+        </span>
+        {expandedFilters[filterKey] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+      {expandedFilters[filterKey] && (
+        <div className="px-2 pb-2 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+          {options.map((option) => (
+            <label
+              key={option.value}
+              className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={currentFilter.has(option.value)}
+                onChange={() => handleFilterToggle(filterKey, option.value)}
+                className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-gray-700 select-none truncate">{option.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Default filter options
+  const defaultFilterOptions = {
+    statuses: [
+      { value: 'pipeline', label: 'Pipeline' },
+      { value: 'due_diligence', label: 'Due Diligence' },
+      { value: 'hold', label: 'Hold' },
+      { value: 'current_operations', label: 'Current Operations' }
+    ],
+    serviceLines: [
+      { value: 'SNF', label: 'SNF' },
+      { value: 'ALF', label: 'ALF' },
+      { value: 'ILF', label: 'ILF' },
+      { value: 'Home Office', label: 'Home Office' }
+    ],
+    companies: [],
+    teams: []
+  };
+
+  const options = filterOptions || defaultFilterOptions;
 
   if (loadError) {
     return (
@@ -360,7 +417,6 @@ const DealLocationsMap = ({
     );
   }
 
-  // Additional check to ensure Google Maps API is fully available
   if (!window.google?.maps) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
@@ -372,121 +428,171 @@ const DealLocationsMap = ({
 
   return (
     <div className="w-full flex gap-4">
-      {/* Deals List Sidebar */}
-      <div className="w-80 bg-white rounded-lg border border-gray-200 p-4 h-fit shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Deals</h3>
+      {/* Sidebar */}
+      <div className="w-80 bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col" style={{ maxHeight: `calc(${height} + 50px)` }}>
+        {/* Header */}
+        <div className="p-3 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-gray-900">Property Locations</h3>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={selectAllDeals}
-              className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 active:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+              className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium"
             >
               Select All
             </button>
             <button
               onClick={clearAllDeals}
-              className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600 active:bg-gray-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+              className="flex-1 px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors font-medium"
             >
               Clear
             </button>
           </div>
         </div>
 
-        {/* Status Filter Multiselect */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Filter by Status
-            </label>
-            {statusFilter.size > 0 && (
+        {/* Filters */}
+        <div className="border-b border-gray-200">
+          <div className="p-2 flex items-center justify-between bg-gray-50">
+            <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Filter size={14} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-1">
+                  {activeFilterCount}
+                </span>
+              )}
+            </span>
+            {activeFilterCount > 0 && (
               <button
-                onClick={clearStatusFilter}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                onClick={clearAllFilters}
+                className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
               >
-                Clear
+                <X size={12} />
+                Clear All
               </button>
             )}
           </div>
-          <div className="space-y-2 border border-gray-300 rounded-md p-2 bg-white">
-            {[
-              { value: 'pipeline', label: 'Pipeline' },
-              { value: 'due_diligence', label: 'Due Diligence' },
-              { value: 'hold', label: 'Hold' },
-              { value: 'closed', label: 'Current Operations' }
-            ].map((status) => (
-              <label
-                key={status.value}
-                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  checked={statusFilter.has(status.value)}
-                  onChange={() => handleStatusFilterToggle(status.value)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
-                />
-                <span className="text-sm text-gray-700 select-none">{status.label}</span>
-              </label>
+
+          <FilterSection
+            title="Status"
+            filterKey="status"
+            options={options.statuses}
+            currentFilter={statusFilter}
+          />
+          <FilterSection
+            title="Service Line"
+            filterKey="serviceLine"
+            options={options.serviceLines}
+            currentFilter={serviceLineFilter}
+          />
+          {options.companies?.length > 0 && (
+            <FilterSection
+              title="Company"
+              filterKey="company"
+              options={options.companies}
+              currentFilter={companyFilter}
+            />
+          )}
+          {options.teams?.length > 0 && (
+            <FilterSection
+              title="Team"
+              filterKey="team"
+              options={options.teams}
+              currentFilter={teamFilter}
+            />
+          )}
+        </div>
+
+        {/* Deals list */}
+        <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+          {deals.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              <div className="w-10 h-10 mx-auto mb-2 bg-gray-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-gray-600">No locations found</p>
+              <p className="text-xs text-gray-400 mt-1">Apply filters to see locations</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {deals.map((deal) => {
+                const isSelected = selectedDeals.has(deal.id);
+                const color = dealColors[deal.id] || DEAL_COLORS[0];
+                const facilityCount = deal.deal_facility?.length || 0;
+
+                return (
+                  <div
+                    key={deal.id}
+                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                    onClick={() => toggleDealSelection(deal.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-gray-900 truncate">
+                          {deal.deal_name}
+                        </h4>
+                        <p className="text-xs text-gray-500">
+                          {facilityCount} {facilityCount !== 1 ? 'facilities' : 'facility'}
+                          {deal.deal_status && (
+                            <span className="ml-1 text-gray-400">
+                              • {deal.deal_status.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-2 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 text-center">
+          {visibleMarkers.length} markers on map
+        </div>
+      </div>
+
+      {/* Map */}
+      <div className="flex-1 relative bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+        {/* Legend */}
+        <div className="absolute top-3 right-3 z-10 bg-white rounded-lg shadow-md border border-gray-200 p-2">
+          <div className="text-xs font-medium text-gray-700 mb-1.5">Legend</div>
+          <div className="space-y-1">
+            <div className="text-xs text-gray-500 font-medium">Service Lines:</div>
+            {Object.entries(SERVICE_LINE_COLORS).map(([type, color]) => (
+              <div key={type} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                <span className="text-xs text-gray-600">{type}</span>
+              </div>
+            ))}
+            <div className="text-xs text-gray-500 font-medium mt-1.5">Deal Status:</div>
+            {Object.entries(STATUS_COLORS).filter(([status]) => status !== 'current_operations').map(([status, color]) => (
+              <div key={status} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                <span className="text-xs text-gray-600">{status.replace(/_/g, ' ')}</span>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Scrollable deals list with proper styling */}
-        <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-          {deals.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-600">No deals available</p>
-              <p className="text-xs text-gray-400 mt-1">Deals will appear here when available</p>
-            </div>
-          ) : (
-            deals.map((deal) => {
-              const isSelected = selectedDeals.has(deal.id);
-              const color = dealColors[deal.id] || DEAL_COLORS[0];
-              const facilityCount = deal.deal_facility?.length || 0;
-
-              return (
-                <div
-                  key={deal.id}
-                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${isSelected
-                      ? 'border-blue-500 bg-blue-50 shadow-sm'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm'
-                    }`}
-                  onClick={() => toggleDealSelection(deal.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-4 h-4 rounded-full flex-shrink-0 shadow-sm"
-                      style={{ backgroundColor: color }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-gray-900 truncate">
-                        {deal.deal_name}
-                      </h4>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {facilityCount} facilit{facilityCount !== 1 ? 'ies' : 'y'}
-                      </p>
-                    </div>
-                    {isSelected && (
-                      <div className="text-blue-600 flex-shrink-0">
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Map Component */}
-      <div className="flex-1 relative bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
         <GoogleMap
           mapContainerStyle={{ ...containerStyle, height }}
           center={center}
@@ -495,67 +601,58 @@ const DealLocationsMap = ({
           onUnmount={onUnmount}
           options={mapOptions}
         >
-          {/* Render markers for each visible facility */}
           {visibleMarkers.map((marker) => (
             <Marker
               key={marker.id}
               position={{ lat: marker.lat, lng: marker.lng }}
               onClick={(markerElement) => handleMarkerClick(markerElement, marker)}
-              // Remove tooltip handlers
-              // onMouseOver={() => handleMarkerMouseOver(marker)}
-              // onMouseOut={handleMarkerMouseOut}
               icon={createMarkerIcon(marker.color)}
               title={marker.title}
             />
           ))}
 
-          {/* Info Window for selected marker */}
           {showInfoWindows && selectedMarker && (
             <InfoWindow
               position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
               onCloseClick={handleInfoWindowClose}
             >
-              <div className="p-2.5 max-w-xs">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1.5">
+              <div className="p-2 max-w-xs">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">
                   {selectedMarker.title}
                 </h3>
-                <div className="space-y-1.5">
+                <div className="space-y-1 text-xs">
                   <div className="flex items-center gap-2">
                     <div
-                      className="w-2.5 h-2.5 rounded-full"
+                      className="w-2 h-2 rounded-full"
                       style={{ backgroundColor: selectedMarker.color }}
                     />
-                    <span className="text-xs font-medium text-gray-700">
+                    <span className="font-medium text-gray-700">
                       {selectedMarker.dealName}
                     </span>
                   </div>
+                  {selectedMarker.type && (
+                    <p className="text-gray-600">Type: {selectedMarker.type}</p>
+                  )}
+                  {selectedMarker.company && (
+                    <p className="text-gray-600">Company: {selectedMarker.company}</p>
+                  )}
+                  {selectedMarker.team && (
+                    <p className="text-gray-600">Team: {selectedMarker.team}</p>
+                  )}
+                  {selectedMarker.beds && (
+                    <p className="text-gray-600">Beds: {selectedMarker.beds}</p>
+                  )}
                   {selectedMarker.address && (
-                    <p className="text-xs text-gray-600">
-                      📍 {selectedMarker.address}
-                    </p>
+                    <p className="text-gray-600">{selectedMarker.address}</p>
                   )}
                   {selectedMarker.city && selectedMarker.state && (
-                    <p className="text-xs text-gray-600">
-                      🏙️ {selectedMarker.city}, {selectedMarker.state}
-                    </p>
+                    <p className="text-gray-600">{selectedMarker.city}, {selectedMarker.state}</p>
                   )}
-                  <div className="text-xs text-gray-500 space-y-0.5 bg-gray-50 p-1.5 rounded">
-                    <div className="flex justify-between">
-                      <span>Lat:</span>
-                      <span className="font-mono">{selectedMarker.lat.toFixed(4)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Lng:</span>
-                      <span className="font-mono">{selectedMarker.lng.toFixed(4)}</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </InfoWindow>
           )}
         </GoogleMap>
-
-        {/* Hover Tooltip removed */}
       </div>
     </div>
   );

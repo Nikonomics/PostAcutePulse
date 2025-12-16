@@ -367,6 +367,10 @@
   font-weight: 500;
 }
 
+.facility-name-link.clickable {
+  cursor: pointer;
+}
+
 .facility-name-link:hover {
   text-decoration: underline;
 }
@@ -856,7 +860,10 @@
 /* Facilities Map Styles */
 .facilities-map-container {
   position: relative;
-  padding: 1rem;
+  padding: 0; /* Remove padding to prevent height calculation issues */
+  height: 420px; /* Set explicit height for map */
+  overflow: hidden; /* Force proper containment */
+  border-radius: 0.5rem;
 }
 
 .map-placeholder {

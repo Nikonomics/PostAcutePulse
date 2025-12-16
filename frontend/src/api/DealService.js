@@ -178,17 +178,53 @@ export const deleteMasterDeal = async (id) => {
   return response.data;
 };
 
-export const getSampleLocations = async (statuses = null) => {
+/**
+ * Get facility locations for the dashboard map
+ * @param {Object} filters - Filter options
+ * @param {string[]} filters.status - Status filter (pipeline, due_diligence, hold, current_operations)
+ * @param {string[]} filters.serviceLine - Service line filter (SNF, ALF, ILF, Home Office)
+ * @param {string[]} filters.company - Company filter
+ * @param {string[]} filters.team - Team filter
+ */
+export const getSampleLocations = async (filters = {}) => {
   let url = apiRoutes.getSampleLocations;
-  if (statuses && Array.isArray(statuses) && statuses.length > 0) {
-    // Build query string with multiple status parameters
-    const statusParams = statuses.map(status => `deal_status=${encodeURIComponent(status)}`).join('&');
-    url = `${url}?${statusParams}`;
-  } else if (statuses && typeof statuses === 'string') {
-    // Backward compatibility: handle single status string
-    url = `${url}?deal_status=${encodeURIComponent(statuses)}`;
+  const params = new URLSearchParams();
+
+  // Handle legacy format (array of statuses passed directly)
+  if (Array.isArray(filters)) {
+    filters.forEach(status => params.append('status', status));
+  } else if (typeof filters === 'string') {
+    params.append('status', filters);
+  } else if (filters && typeof filters === 'object') {
+    // New format with filter object
+    if (filters.status?.length) {
+      filters.status.forEach(s => params.append('status', s));
+    }
+    if (filters.serviceLine?.length) {
+      filters.serviceLine.forEach(s => params.append('service_line', s));
+    }
+    if (filters.company?.length) {
+      filters.company.forEach(c => params.append('company', c));
+    }
+    if (filters.team?.length) {
+      filters.team.forEach(t => params.append('team', t));
+    }
   }
+
+  const queryString = params.toString();
+  if (queryString) {
+    url = `${url}?${queryString}`;
+  }
+
   const response = await apiService.get(url);
+  return response.data;
+};
+
+/**
+ * Get available filter options for the map
+ */
+export const getMapFilterOptions = async () => {
+  const response = await apiService.get(apiRoutes.getMapFilterOptions);
   return response.data;
 };
 

@@ -174,6 +174,61 @@ async function recordExtractionHistory(dealId, extractionData, source, changedFi
  * @param {Object} transaction - Optional Sequelize transaction for atomic updates
  * @returns {Object} - { deal, facility } - Updated deal and facility records
  */
+/**
+ * Get available filter options for the map from both deals and Cascadia facilities
+ */
+async function getMapFilterOptions() {
+  const CascadiaFacility = require('../models').CascadiaFacility;
+
+  const filterOptions = {
+    statuses: [
+      { value: 'pipeline', label: 'Pipeline' },
+      { value: 'due_diligence', label: 'Due Diligence' },
+      { value: 'hold', label: 'Hold' },
+      { value: 'current_operations', label: 'Current Operations' }
+    ],
+    serviceLines: [
+      { value: 'SNF', label: 'SNF' },
+      { value: 'ALF', label: 'ALF' },
+      { value: 'ILF', label: 'ILF' },
+      { value: 'Home Office', label: 'Home Office' }
+    ],
+    companies: [],
+    teams: []
+  };
+
+  // Get unique companies and teams from Cascadia facilities
+  if (CascadiaFacility) {
+    try {
+      const companies = await CascadiaFacility.findAll({
+        attributes: [[sequelize.fn('DISTINCT', sequelize.col('company')), 'company']],
+        where: { company: { [Op.ne]: null } },
+        raw: true
+      });
+      filterOptions.companies = companies
+        .map(c => c.company)
+        .filter(Boolean)
+        .sort()
+        .map(c => ({ value: c, label: c }));
+
+      const teams = await CascadiaFacility.findAll({
+        attributes: [[sequelize.fn('DISTINCT', sequelize.col('team')), 'team']],
+        where: { team: { [Op.ne]: null } },
+        raw: true
+      });
+      filterOptions.teams = teams
+        .map(t => t.team)
+        .filter(Boolean)
+        .sort()
+        .map(t => ({ value: t, label: t }));
+    } catch (err) {
+      console.log('Could not fetch Cascadia filter options:', err.message);
+    }
+  }
+
+  return filterOptions;
+}
+
 async function syncFacilityData(dealId, facilityData, source, transaction = null) {
   const queryOptions = transaction ? { transaction } : {};
 
@@ -3548,7 +3603,29 @@ module.exports = {
         order: [['display_order', 'ASC'], ['created_at', 'ASC']]
       });
 
-      return helper.success(res, "Facilities fetched successfully", facilities);
+      // Transform data to match frontend expected field names
+      const transformedFacilities = facilities.map(f => {
+        const facility = f.toJSON();
+        return {
+          ...facility,
+          // Alias fields to match frontend expectations
+          address: facility.street_address || facility.address,
+          occupancy_rate: facility.current_occupancy || facility.occupancy_rate,
+          medicare_mix: facility.medicare_percentage || facility.medicare_mix,
+          medicaid_mix: facility.medicaid_percentage || facility.medicaid_mix,
+          private_pay_mix: facility.private_pay_percentage || facility.private_pay_mix,
+          noi: facility.net_operating_income || facility.noi,
+          // Keep original fields too for compatibility
+          street_address: facility.street_address,
+          current_occupancy: facility.current_occupancy,
+          medicare_percentage: facility.medicare_percentage,
+          medicaid_percentage: facility.medicaid_percentage,
+          private_pay_percentage: facility.private_pay_percentage,
+          net_operating_income: facility.net_operating_income,
+        };
+      });
+
+      return helper.success(res, "Facilities fetched successfully", transformedFacilities);
     } catch (err) {
       console.error("Get facilities error:", err);
       return helper.error(res, err.message || "Failed to fetch facilities");
@@ -4462,61 +4539,185 @@ module.exports = {
 
   /**
    * Get all deals with their facilities and coordinates for map display
+   * Also includes Cascadia facilities (current operations)
    * Used by Dashboard to show deal locations on map
+   *
+   * Query params:
+   * - status: filter by status (pipeline, due_diligence, hold, current_operations)
+   * - service_line: filter by type (SNF, ALF, ILF, Home Office)
+   * - company: filter by company name
+   * - team: filter by team name
    */
   getDealFacilitiesCoordinates: async (req, res) => {
     try {
-      // Get optional deal_status filter(s) from query params
-      const dealStatuses = req.query.deal_status;
+      // Get filter parameters
+      const statuses = req.query.status ? (Array.isArray(req.query.status) ? req.query.status : [req.query.status]) : null;
+      const serviceLines = req.query.service_line ? (Array.isArray(req.query.service_line) ? req.query.service_line : [req.query.service_line]) : null;
+      const companies = req.query.company ? (Array.isArray(req.query.company) ? req.query.company : [req.query.company]) : null;
+      const teams = req.query.team ? (Array.isArray(req.query.team) ? req.query.team : [req.query.team]) : null;
 
-      // Build where clause for deals
-      const dealWhere = {};
-      if (dealStatuses) {
-        // Handle both single value and array
-        const statuses = Array.isArray(dealStatuses) ? dealStatuses : [dealStatuses];
-        dealWhere.deal_status = { [Op.in]: statuses };
+      // Legacy support for deal_status param
+      const dealStatuses = req.query.deal_status ? (Array.isArray(req.query.deal_status) ? req.query.deal_status : [req.query.deal_status]) : null;
+      const effectiveStatuses = statuses || dealStatuses;
+
+      const result = [];
+
+      // Determine which data sources to include based on status filter
+      const includeDeals = !effectiveStatuses || effectiveStatuses.some(s => ['pipeline', 'due_diligence', 'hold'].includes(s));
+      const includeCascadia = !effectiveStatuses || effectiveStatuses.includes('current_operations');
+
+      // Get deals with facilities (pipeline, due_diligence, hold)
+      if (includeDeals) {
+        const dealWhere = {};
+        if (effectiveStatuses) {
+          const dealOnlyStatuses = effectiveStatuses.filter(s => s !== 'current_operations');
+          if (dealOnlyStatuses.length > 0) {
+            dealWhere.deal_status = { [Op.in]: dealOnlyStatuses };
+          }
+        }
+
+        // Build facility where clause
+        const facilityWhere = {
+          [Op.and]: [
+            { latitude: { [Op.ne]: null } },
+            { longitude: { [Op.ne]: null } }
+          ]
+        };
+
+        // Add service line filter (facility_type in deal_facilities)
+        if (serviceLines) {
+          facilityWhere.facility_type = { [Op.overlap]: serviceLines };
+        }
+
+        const deals = await Deal.findAll({
+          where: dealWhere,
+          attributes: ['id', 'deal_name', 'deal_status'],
+          include: [{
+            model: DealFacilities,
+            as: 'deal_facility',
+            attributes: [
+              'id',
+              'facility_name',
+              ['street_address', 'address'],
+              'city',
+              'state',
+              'latitude',
+              'longitude',
+              'facility_type'
+            ],
+            where: facilityWhere,
+            required: false
+          }],
+          order: [['id', 'DESC']]
+        });
+
+        // Transform deals to result format
+        deals.forEach(deal => {
+          if (deal.deal_facility && deal.deal_facility.length > 0) {
+            result.push({
+              id: `deal-${deal.id}`,
+              deal_name: deal.deal_name,
+              deal_status: deal.deal_status,
+              source: 'deal',
+              deal_facility: deal.deal_facility.map(f => ({
+                id: f.id,
+                facility_name: f.facility_name,
+                address: f.dataValues.address || f.street_address,
+                city: f.city,
+                state: f.state,
+                latitude: parseFloat(f.latitude),
+                longitude: parseFloat(f.longitude),
+                type: Array.isArray(f.facility_type) ? f.facility_type[0] : f.facility_type,
+                company: null,
+                team: null
+              }))
+            });
+          }
+        });
       }
 
-      // Get all deals with their facilities
-      const deals = await Deal.findAll({
-        where: dealWhere,
-        attributes: ['id', 'deal_name', 'deal_status'],
-        include: [{
-          model: DealFacilities,
-          as: 'deal_facility',
-          attributes: [
-            'id',
-            'facility_name',
-            ['street_address', 'address'],  // Alias to match frontend expectation
-            'city',
-            'state',
-            'latitude',
-            'longitude'
-          ],
-          where: {
-            [Op.or]: [
-              { latitude: { [Op.ne]: null } },
-              { longitude: { [Op.ne]: null } }
-            ]
-          },
-          required: false
-        }],
-        order: [['id', 'DESC']]
+      // Get Cascadia facilities (current operations)
+      if (includeCascadia) {
+        const CascadiaFacility = require('../models').CascadiaFacility;
+
+        if (CascadiaFacility) {
+          const cascadiaWhere = {
+            latitude: { [Op.ne]: null },
+            longitude: { [Op.ne]: null }
+          };
+
+          // Apply filters
+          if (serviceLines) {
+            cascadiaWhere.type = { [Op.in]: serviceLines };
+          }
+          if (companies) {
+            cascadiaWhere.company = { [Op.in]: companies };
+          }
+          if (teams) {
+            cascadiaWhere.team = { [Op.in]: teams };
+          }
+
+          const cascadiaFacilities = await CascadiaFacility.findAll({
+            where: cascadiaWhere,
+            order: [['facility_name', 'ASC']]
+          });
+
+          // Group Cascadia facilities by company for display
+          const companiesMap = {};
+          cascadiaFacilities.forEach(facility => {
+            const companyName = facility.company || 'Cascadia Healthcare';
+            if (!companiesMap[companyName]) {
+              companiesMap[companyName] = {
+                id: `cascadia-${companyName.toLowerCase().replace(/\s+/g, '-')}`,
+                deal_name: companyName,
+                deal_status: 'current_operations',
+                source: 'cascadia',
+                deal_facility: []
+              };
+            }
+            companiesMap[companyName].deal_facility.push({
+              id: facility.id,
+              facility_name: facility.facility_name,
+              address: facility.address,
+              city: facility.city,
+              state: facility.state,
+              latitude: parseFloat(facility.latitude),
+              longitude: parseFloat(facility.longitude),
+              type: facility.type,
+              company: facility.company,
+              team: facility.team,
+              beds: facility.beds
+            });
+          });
+
+          result.push(...Object.values(companiesMap));
+        }
+      }
+
+      // Also return filter options for the frontend
+      const filterOptions = await getMapFilterOptions();
+
+      return helper.success(res, "Facilities coordinates fetched successfully", {
+        locations: result,
+        filterOptions
       });
-
-      // Transform to match frontend expected format
-      const result = deals.map(deal => ({
-        id: deal.id,
-        deal_name: deal.deal_name,
-        deal_status: deal.deal_status,
-        deal_facility: deal.deal_facility || []
-      }));
-
-      return helper.success(res, "Deal facilities coordinates fetched successfully", result);
 
     } catch (err) {
       console.error("Get deal facilities coordinates error:", err);
       return helper.error(res, err.message || "Failed to fetch deal facilities coordinates");
+    }
+  },
+
+  /**
+   * Get available filter options for the map
+   */
+  getMapFilterOptions: async (req, res) => {
+    try {
+      const filterOptions = await getMapFilterOptions();
+      return helper.success(res, "Filter options fetched successfully", filterOptions);
+    } catch (err) {
+      console.error("Get map filter options error:", err);
+      return helper.error(res, err.message || "Failed to fetch filter options");
     }
   },
 
@@ -5191,9 +5392,61 @@ module.exports = {
 
       // Merge matched data with extracted data for subject facilities
       const mergedFacilities = [];
+
+      // Get CIM-extracted facility data if available
+      const cimFacilities = extractionResult.cim_extraction?.cim_facilities || [];
+      console.log(`[extractPortfolio] CIM facilities available: ${cimFacilities.length}`);
+
       for (let i = 0; i < subjectFacilities.length; i++) {
         const confirmed = subjectFacilities[i];
-        const extracted = extractionResult.facilities?.[i] || {};
+        let extracted = extractionResult.facilities?.[i] || {};
+
+        // Try to match CIM facility data by name or index
+        const facilityName = confirmed.detected?.name || confirmed.matched?.facility_name || '';
+        const cimFacility = cimFacilities.find(cf =>
+          cf.facility_name?.toLowerCase().includes(facilityName.toLowerCase().split(' ')[0]) ||
+          facilityName.toLowerCase().includes(cf.facility_name?.toLowerCase().split(' ')[0])
+        ) || cimFacilities[i];
+
+        // Merge CIM facility data (flatten nested structures)
+        if (cimFacility) {
+          console.log(`[extractPortfolio] Merging CIM data for: ${facilityName}`);
+          extracted = {
+            ...extracted,
+            // Basic info from CIM
+            facility_name: cimFacility.facility_name || extracted.facility_name,
+            facility_type: cimFacility.facility_type || extracted.facility_type,
+            city: cimFacility.city || extracted.city,
+            state: cimFacility.state || extracted.state,
+            address: cimFacility.address || extracted.address,
+            zip_code: cimFacility.zip_code || extracted.zip_code,
+            // Beds - flatten from CIM
+            bed_count: cimFacility.licensed_beds || cimFacility.bed_count || extracted.bed_count,
+            total_beds: cimFacility.licensed_beds || cimFacility.functional_beds || extracted.total_beds,
+            functional_beds: cimFacility.functional_beds || extracted.functional_beds,
+            year_built: cimFacility.year_built || extracted.year_built,
+            // Occupancy - flatten from nested structure
+            occupancy_pct: cimFacility.census_and_occupancy?.current_occupancy_pct || cimFacility.current_occupancy || extracted.occupancy_pct,
+            current_occupancy: cimFacility.census_and_occupancy?.current_occupancy_pct || cimFacility.current_occupancy || extracted.current_occupancy,
+            // Payer mix - flatten from nested structure
+            medicare_pct: cimFacility.payer_mix?.medicare_pct || extracted.medicare_pct,
+            medicaid_pct: cimFacility.payer_mix?.medicaid_pct || extracted.medicaid_pct,
+            private_pay_pct: cimFacility.payer_mix?.private_pay_pct || extracted.private_pay_pct,
+            // Financials - flatten from nested structure
+            total_revenue: cimFacility.financials?.total_revenue || extracted.total_revenue,
+            annual_revenue: cimFacility.financials?.total_revenue || extracted.annual_revenue,
+            total_expenses: cimFacility.financials?.total_expenses || extracted.total_expenses,
+            noi: cimFacility.financials?.noi || extracted.noi,
+            net_operating_income: cimFacility.financials?.noi || extracted.net_operating_income,
+            ebitdar: cimFacility.financials?.ebitdar || extracted.ebitdar,
+            ebitdarm: cimFacility.financials?.ebitdarm || extracted.ebitdarm,
+            noi_margin_pct: cimFacility.financials?.noi_margin_pct || extracted.noi_margin_pct,
+            // Quality ratings
+            cms_star_rating: cimFacility.quality_ratings?.cms_star_rating || extracted.cms_star_rating,
+            // Flag that CIM data was merged
+            _cim_data_merged: true
+          };
+        }
 
         let merged;
         if (confirmed.matched) {
@@ -5295,12 +5548,21 @@ module.exports = {
         competitor_count: competitorFacilities.length,
         // Store portfolio summary (aggregated from facilities)
         portfolio_summary: extractionResult.portfolio_summary || null,
+        // HOLISTIC DEAL OVERVIEW - Portfolio-level analysis from DEAL_OVERVIEW_PROMPT
+        // This is the "Deal Overview" tab content for portfolio view
+        deal_overview: extractionResult.deal_overview || null,
         // Validation results
         validation: extractionResult.validation || null,
         // Extraction metadata
         extraction_metadata: extractionResult.metadata || null,
         // Document structure info
         document_structure: extractionResult.document_structure || null,
+
+        // CIM EXTRACTION DATA - Comprehensive extraction from Offering Memorandum
+        // Includes NOI bridge, value-add thesis, executive summary, ownership narrative
+        cim_extraction: extractionResult.cim_extraction || null,
+        has_cim: extractionResult.has_cim || false,
+        cim_files: extractionResult.cim_files || [],
       };
 
       const deal = await Deal.create({
@@ -5346,16 +5608,27 @@ module.exports = {
             county: facility.county || matched.county || '',
             bed_count: parseInt(facility.bed_count || facility.total_beds || matched.total_beds || detected.beds) || null,
             // Financial metrics (from AI extraction for subjects)
+            // Check both flat fields and nested ttm_financials structure
             purchase_price: parseFloat(facility.purchase_price) || null,
-            annual_revenue: parseFloat(facility.annual_revenue || facility.total_revenue) || null,
-            ebitda: parseFloat(facility.ebitda) || null,
-            ebitdar: parseFloat(facility.ebitdar) || null,
-            net_operating_income: parseFloat(facility.noi || facility.net_operating_income) || null,
-            // Operational metrics
-            current_occupancy: parseFloat(facility.occupancy_rate || facility.current_occupancy || matched.occupancy_rate) || null,
-            medicare_percentage: parseFloat(facility.medicare_mix || facility.medicare_percentage) || null,
-            medicaid_percentage: parseFloat(facility.medicaid_mix || facility.medicaid_percentage) || null,
-            private_pay_percentage: parseFloat(facility.private_pay_mix || facility.private_pay_percentage) || null,
+            annual_revenue: parseFloat(facility.annual_revenue || facility.total_revenue || facility.ttm_revenue) || null,
+            ebitda: parseFloat(facility.ebitda || facility.ttm_ebitda) || null,
+            ebitdar: parseFloat(facility.ebitdar || facility.ttm_ebitdar) || null,
+            net_operating_income: parseFloat(facility.noi || facility.net_operating_income || facility.ttm_net_income) || null,
+            // Operational metrics - check all naming conventions
+            // Extraction uses: occupancy_pct, medicaid_pct, medicare_pct, private_pay_pct
+            current_occupancy: parseFloat(
+              facility.occupancy_pct || facility.occupancy_rate || facility.current_occupancy ||
+              facility.occupancy_percentage || matched.occupancy_rate
+            ) || null,
+            medicare_percentage: parseFloat(
+              facility.medicare_pct || facility.medicare_mix || facility.medicare_percentage
+            ) || null,
+            medicaid_percentage: parseFloat(
+              facility.medicaid_pct || facility.medicaid_mix || facility.medicaid_percentage
+            ) || null,
+            private_pay_percentage: parseFloat(
+              facility.private_pay_pct || facility.private_pay_mix || facility.private_pay_percentage
+            ) || null,
             // CMS data from matched facility
             latitude: matched.latitude || null,
             longitude: matched.longitude || null,

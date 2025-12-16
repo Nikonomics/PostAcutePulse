@@ -9,8 +9,8 @@ export const NATIONAL_BENCHMARKS = {
   medianHomeValue: 230000,
   povertyRate: 12.4,
   homeownershipRate: 65,
-  growth65: 18.5,      // % growth to 2030
-  growth85: 28.0,      // % growth to 2030
+  growth65: 95.3,      // % growth to 2030 (8-year projection using state CAGRs)
+  growth85: 66.2,      // % growth to 2030 (8-year projection using state CAGRs)
   cnaWage: 15.50,      // $/hr
   lpnWage: 23.00,      // $/hr
   rnWage: 36.00,       // $/hr

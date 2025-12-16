@@ -665,6 +665,12 @@ export const unflattenExtractedData = (flatData: any): any => {
     // Stage 1 Deal Overview & Screening Analysis (6th parallel extraction)
     // Pass through as-is since it's already a nested object from the OVERVIEW_PROMPT
     deal_overview: flatData.deal_overview || null,
+
+    // CIM Extraction Data - NOI bridge, value-add thesis, executive summary, etc.
+    // Pass through as-is since it's already structured from the CIM extractor
+    cim_extraction: flatData.cim_extraction || null,
+    has_cim: flatData.has_cim || false,
+    cim_files: flatData.cim_files || [],
   };
 };
 

@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Loader, MapPin, Building2, Star, Users, AlertCircle, X } from 'lucide-react';
-import { GoogleMap, useLoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { facilityNLSearch, getFacilityDeficiencies, getOwnershipProfile } from '../../api/ownershipService';
+import { useGoogleMaps } from '../../context/GoogleMapsContext';
 import DeficiencyModal from './DeficiencyModal';
 import OwnershipProfileModal from './OwnershipProfileModal';
 import './FacilitySearch.css';
-
-const GOOGLE_MAPS_LIBRARIES = ['places', 'geocoding'];
 
 const mapStyles = [
   {
@@ -68,10 +67,14 @@ function FacilitySearch() {
   const [deficiencyFilter, setDeficiencyFilter] = useState('all');
   const [sortBy, setSortBy] = useState('relevance');
 
-  const { isLoaded: mapsLoaded } = useLoadScript({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries: GOOGLE_MAPS_LIBRARIES
-  });
+  // Use shared Google Maps context
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
+
+  // Clear any cached results on mount to prevent layout issues
+  useEffect(() => {
+    setResults(null);
+    setError(null);
+  }, []);
 
   const exampleQueries = [
     "Show me all skilled nursing facilities that are part of an ownership group of 10 or less in the Pacific Northwest",
@@ -282,19 +285,6 @@ function FacilitySearch() {
         <div className="facility-header">
           <div className="facility-name-section">
             <h3>{facility.facility_name}</h3>
-            {facility.ownership_chain && (
-              <span
-                className="chain-badge clickable"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleChainClick(facility.ownership_chain);
-                }}
-              >
-                <Building2 size={14} />
-                {facility.ownership_chain}
-                {facility.chain_facility_count && ` (${facility.chain_facility_count} facilities)`}
-              </span>
-            )}
           </div>
           {facility.overall_rating && (
             <div className="rating-badge">
@@ -609,26 +599,6 @@ function FacilitySearch() {
             <div className="main-results-content">
               {/* Map Section */}
               <div className="map-section">
-                <div className="map-header">
-                  <div className="map-legend">
-                    <div className="legend-item">
-                      <div className="legend-color" style={{ backgroundColor: '#22c55e' }}></div>
-                      <span>4-5 stars</span>
-                    </div>
-                    <div className="legend-item">
-                      <div className="legend-color" style={{ backgroundColor: '#fbbf24' }}></div>
-                      <span>3 stars</span>
-                    </div>
-                    <div className="legend-item">
-                      <div className="legend-color" style={{ backgroundColor: '#ef4444' }}></div>
-                      <span>1-2 stars</span>
-                    </div>
-                    <div className="legend-item">
-                      <div className="legend-color" style={{ backgroundColor: '#9ca3af' }}></div>
-                      <span>No rating</span>
-                    </div>
-                  </div>
-                </div>
                 {mapsLoaded && (
                   <div style={{ position: 'relative', height: '500px', width: '100%' }}>
                     <GoogleMap

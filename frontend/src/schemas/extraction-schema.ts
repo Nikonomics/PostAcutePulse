@@ -70,6 +70,127 @@ export interface KeyObservations {
 }
 
 // =============================================================================
+// CIM EXTRACTION TYPES (Confidential Information Memorandum specific data)
+// =============================================================================
+
+export interface NOIBridgeAdjustment {
+  description: string;
+  amount: number;
+}
+
+export interface NOIBridge {
+  _display_label?: string;
+  _source_warning?: string;
+  source?: string;
+  broker_provided?: boolean;
+  current_noi?: number;
+  current_noi_label?: string;
+  current_noi_source?: string;
+  day_1_adjustments?: NOIBridgeAdjustment[];
+  day_1_noi?: number;
+  day_1_noi_label?: string;
+  day_1_noi_source?: string;
+  stabilization_adjustments?: NOIBridgeAdjustment[];
+  stabilization_timeline?: string;
+  stabilized_noi?: number;
+  stabilized_noi_label?: string;
+  notes?: string;
+}
+
+export interface ValueAddOpportunity {
+  opportunity: string;
+  potential_impact?: string;
+}
+
+export interface ValueAddThesis {
+  _display_label?: string;
+  _source_warning?: string;
+  reimbursement_opportunities?: ValueAddOpportunity[];
+  census_opportunities?: ValueAddOpportunity[];
+  expense_reduction_opportunities?: ValueAddOpportunity[];
+  operational_improvements?: string[];
+}
+
+export interface ExecutiveSummary {
+  the_story?: string;
+  the_opportunity?: string;
+  the_market?: string;
+  the_deal?: string;
+}
+
+export interface OwnershipNarrative {
+  current_owner?: string;
+  ownership_tenure?: string;
+  seller_motivation?: string;
+  narrative_summary?: string;
+}
+
+export interface InferredRisk {
+  risk: string;
+  observation: string;
+}
+
+export interface InformationGap {
+  gap: string;
+  why_it_matters: string;
+}
+
+export interface RisksAndGaps {
+  inferred_risks?: InferredRisk[];
+  information_gaps?: InformationGap[];
+}
+
+export interface CIMDealOverview {
+  project_name?: string;
+  facility_count?: number;
+  total_beds?: number;
+  locations_summary?: string;
+  asset_type?: string;
+  asking_price?: number;
+  price_per_bed?: number;
+  broker?: string;
+  broker_company?: string;
+}
+
+export interface CIMFacility {
+  facility_name?: string;
+  city?: string;
+  state?: string;
+  bed_count?: number;
+  current_occupancy?: number;
+  license_type?: string;
+  cms_rating?: number;
+  ttm_period?: string;
+  licensed_beds?: number;
+  functional_beds?: number;
+  census_and_occupancy?: {
+    current_occupancy_pct?: number;
+  };
+}
+
+export interface PortfolioFinancials {
+  total_revenue?: number;
+  ttm_revenue?: number;
+  noi?: number;
+  net_operating_income?: number;
+  net_income?: number;
+  net_income_margin_pct?: number;
+  weighted_avg_occupancy_pct?: number;
+  period?: string;
+}
+
+export interface CIMExtraction {
+  deal_overview?: CIMDealOverview;
+  cim_facilities?: CIMFacility[];
+  noi_bridge?: NOIBridge;
+  value_add_thesis?: ValueAddThesis;
+  executive_summary?: ExecutiveSummary;
+  ownership_narrative?: OwnershipNarrative;
+  risks_and_gaps?: RisksAndGaps;
+  portfolio_financials?: PortfolioFinancials;
+}
+
+// =============================================================================
 // MONTHLY TREND POINT SCHEMA
 // =============================================================================
 
@@ -251,6 +372,9 @@ export interface FlatExtractionData {
   // Metadata Maps
   _confidenceMap?: Record<string, ConfidenceLevel>;
   _sourceMap?: Record<string, string>;
+
+  // CIM-specific extraction data
+  cim_extraction?: CIMExtraction;
 }
 
 // =============================================================================
@@ -414,6 +538,8 @@ export interface ExtractedDealData {
   reviewer_notes?: string[];
   // Stage 1 Deal Overview & Screening Analysis (6th parallel extraction)
   deal_overview?: any;  // Full JSON schema from OVERVIEW_PROMPT
+  // CIM-specific extraction data (NOI bridge, value-add thesis, etc.)
+  cim_extraction?: CIMExtraction;
 }
 
 // =============================================================================

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
+import { useGoogleMaps } from '../../context/GoogleMapsContext';
 
 const containerStyle = {
   width: '100%',
@@ -27,11 +28,8 @@ const GoogleMapWithClustering = ({
   const clustererRef = useRef(null);
   const markersRef = useRef([]);
 
-  // Load Google Maps API
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
-  });
+  // Use shared Google Maps context
+  const { isLoaded, loadError } = useGoogleMaps();
 
   // Memoize marker data to prevent unnecessary re-renders
   const markerData = useMemo(() => {

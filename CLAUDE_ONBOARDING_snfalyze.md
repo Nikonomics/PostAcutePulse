@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-15 09:51:24
+> Last updated: 2025-12-15 23:32:43
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -3874,6 +3874,7 @@ backend/create-tables-and-migrate.js
 backend/migrate-to-postgres.js
 backend/run-index-migration.js
 backend/seed.js
+backend/test_cim_extraction.js
 backend/test-alf-search.js
 backend/test-deals-endpoint.js
 backend/test-facilities-endpoint.js
@@ -3901,6 +3902,7 @@ Backend Services:
 backend/services/aiExtractor.js
 backend/services/calculatorService.js
 backend/services/censusDataRefreshService.js
+backend/services/cimExtractor.js
 backend/services/cmsDataRefreshService.js
 backend/services/dealChangeTracker.js
 backend/services/extractionMerger.js
@@ -3930,6 +3932,7 @@ frontend/src/pages/Deals.jsx
 frontend/src/pages/EditCombinedDealForm.jsx
 frontend/src/pages/EditCombinedDeatlForm1.jsx
 frontend/src/pages/EditUser.jsx
+frontend/src/pages/FacilityProfile.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx
 frontend/src/pages/MarketAnalysis.jsx

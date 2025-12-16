@@ -39,6 +39,7 @@ const apiRoutes = {
     updateBatchDeals: `${BASE_URL}/deal/update-master-deal`,
     deleteMasterDeal: `${BASE_URL}/deal/delete-master-deal`,
     getSampleLocations: `${BASE_URL}/deal/get-deal-facilities-coordinates`,
+    getMapFilterOptions: `${BASE_URL}/deal/get-map-filter-options`,
     generateAccessToKen: `${BASE_URL}/auth/generate-access-token`,
     // Profile & User management
     updateProfile: `${BASE_URL}/auth/update-profile`,

@@ -65,13 +65,14 @@ export const isTokenExpired = (token) => {
 
 // Generate Access Token (Refresh Token)
 export const generateAccessToken = async (refreshToken) => {
-  try {    
+  try {
     // Use axios directly to avoid circular dependency
     const response = await axios.get(apiRoutes.generateAccessToKen, {
       headers: {
         Authorization: `Bearer ${refreshToken}`,
       },
     });
+    // Return the full response data (includes success, message, body)
     return response.data;
   } catch (error) {
     throw error;

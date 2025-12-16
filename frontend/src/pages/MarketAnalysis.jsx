@@ -6,7 +6,6 @@ import {
   Loader2,
   AlertTriangle,
   RefreshCw,
-  Plus,
   Users,
   TrendingUp,
   BarChart3,
@@ -14,7 +13,6 @@ import {
 import { LocationSelector, StateSummary, MarketComparison, DataFreshness } from '../components/MarketAnalysis';
 import MarketMap from '../components/MarketDynamicsTab/MarketMap';
 import DemographicsPanel from '../components/MarketDynamicsTab/DemographicsPanel';
-import SupplyScorecard from '../components/MarketDynamicsTab/SupplyScorecard';
 import CompetitorTable from '../components/MarketDynamicsTab/CompetitorTable';
 import StateBenchmarkPanel from '../components/MarketDynamicsTab/StateBenchmarkPanel';
 import VBPPerformancePanel from '../components/MarketDynamicsTab/VBPPerformancePanel';
@@ -259,11 +257,10 @@ const CountyLevelContent = ({
   nationalBenchmarks,
   stateSummary,
   stateBenchmarks,
+  nationalCmsBenchmarks,
 }) => {
   // Calculate scores using the market data
   const laborData = useMemo(() => {
-    // Extract labor data from market data or use defaults
-    const demographics = marketData?.demographics;
     return {
       state_cna_wage: marketData?.labor?.cnaWage || 15.50,
       state_lpn_wage: marketData?.labor?.lpnWage || 23.00,
@@ -364,7 +361,7 @@ const CountyLevelContent = ({
               {facilities.length} facilities
             </span>
           </div>
-          <div style={{ ...styles.cardBody, padding: 0, flex: 1 }}>
+          <div style={{ ...styles.cardBody, padding: 0, flex: 1, minHeight: 0 }}>
             {mapCenter ? (
               <MarketMap
                 centerLat={mapCenter.lat}
@@ -425,6 +422,7 @@ const CountyLevelContent = ({
           <div style={styles.cardBody}>
             <StateBenchmarkPanel
               benchmarks={stateBenchmarks}
+              nationalBenchmarks={nationalCmsBenchmarks}
               marketAverages={marketAverages}
               stateCode={selectedState}
             />
@@ -503,6 +501,8 @@ const MarketAnalysis = () => {
 
   // CMS State benchmarks for staffing/turnover comparison
   const [stateBenchmarks, setStateBenchmarks] = useState(null);
+  // National benchmarks for comparison
+  const [nationalCmsBenchmarks, setNationalCmsBenchmarks] = useState(null);
 
   // Fetch national benchmarks when facility type changes
   useEffect(() => {
@@ -533,19 +533,28 @@ const MarketAnalysis = () => {
       setError(null);
 
       try {
-        // Fetch CMS state benchmarks for SNF (staffing/turnover data)
+        // Fetch CMS state and national benchmarks for SNF (staffing/turnover data)
         if (facilityType === 'SNF' && selectedState) {
           try {
-            const benchmarksRes = await axios.get(`${API_BASE}/api/market/benchmarks/${selectedState}`);
-            if (benchmarksRes.data.success) {
-              setStateBenchmarks(benchmarksRes.data.data);
+            // Fetch both state and national benchmarks in parallel
+            const [stateRes, nationalRes] = await Promise.all([
+              axios.get(`${API_BASE}/api/market/benchmarks/${selectedState}`),
+              axios.get(`${API_BASE}/api/market/benchmarks/NATION`)
+            ]);
+            if (stateRes.data.success) {
+              setStateBenchmarks(stateRes.data.data);
+            }
+            if (nationalRes.data.success) {
+              setNationalCmsBenchmarks(nationalRes.data.data);
             }
           } catch (benchmarkErr) {
-            console.warn('[MarketAnalysis] Failed to fetch state benchmarks:', benchmarkErr.message);
+            console.warn('[MarketAnalysis] Failed to fetch benchmarks:', benchmarkErr.message);
             setStateBenchmarks(null);
+            setNationalCmsBenchmarks(null);
           }
         } else {
           setStateBenchmarks(null);
+          setNationalCmsBenchmarks(null);
         }
 
         if (selectedCounty) {
@@ -805,6 +814,7 @@ const MarketAnalysis = () => {
           nationalBenchmarks={nationalBenchmarks}
           stateSummary={stateSummary}
           stateBenchmarks={stateBenchmarks}
+          nationalCmsBenchmarks={nationalCmsBenchmarks}
         />
       )}
 

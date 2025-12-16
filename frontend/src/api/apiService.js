@@ -31,12 +31,19 @@ const refreshToken = async () => {
   try {
     const response = await generateAccessToken(refreshToken);
 
+    console.log("Token refresh response:", response);
+
     // Try different possible response structures
+    // Response structure: { success, code, message, body: { token, accessToken, access_token } }
     let newToken = response.body?.token || response.body?.accessToken || response.body?.access_token;
 
     if (newToken) {
+      console.log("New token extracted successfully");
       localStorage.setItem("authToken", newToken);
       return newToken;
+    } else {
+      console.error("Failed to extract token from response:", response);
+      throw new Error("Token not found in response");
     }
   } catch (error) {
     // Only logout if it's a 401 (refresh token expired)

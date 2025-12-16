@@ -1,13 +1,9 @@
 import React from 'react';
 import {
   Users,
-  TrendingUp,
-  TrendingDown,
   Star,
   Activity,
   RefreshCw,
-  Building2,
-  BarChart3,
 } from 'lucide-react';
 import DataTooltip from './DataTooltip';
 
@@ -61,29 +57,6 @@ const styles = {
     minWidth: '60px',
     textAlign: 'right',
   },
-  diffBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.125rem',
-    padding: '0.125rem 0.375rem',
-    borderRadius: '0.25rem',
-    fontSize: '0.625rem',
-    fontWeight: 500,
-    minWidth: '50px',
-    justifyContent: 'center',
-  },
-  positive: {
-    backgroundColor: '#dcfce7',
-    color: '#166534',
-  },
-  negative: {
-    backgroundColor: '#fef2f2',
-    color: '#991b1b',
-  },
-  neutral: {
-    backgroundColor: '#f3f4f6',
-    color: '#6b7280',
-  },
   headerRow: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -118,67 +91,59 @@ const formatPercent = (num) => {
   return `${parseFloat(num).toFixed(0)}%`;
 };
 
-// Comparison badge component
-const ComparisonBadge = ({ marketValue, stateValue, lowerIsBetter = false }) => {
-  const market = parseFloat(marketValue);
-  const state = parseFloat(stateValue);
-
-  if (isNaN(market) || isNaN(state)) {
-    return <span style={{ ...styles.diffBadge, ...styles.neutral }}>-</span>;
-  }
-
-  const diff = market - state;
-  const diffPercent = ((diff / state) * 100).toFixed(0);
-  const isPositive = lowerIsBetter ? diff < 0 : diff > 0;
-
-  return (
-    <span style={{
-      ...styles.diffBadge,
-      ...(Math.abs(diffPercent) < 5 ? styles.neutral : isPositive ? styles.positive : styles.negative),
-    }}>
-      {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-      {diff > 0 ? '+' : ''}{diffPercent}%
-    </span>
-  );
-};
-
-const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
-  if (!benchmarks) {
+const StateBenchmarkPanel = ({ benchmarks, nationalBenchmarks, marketAverages, stateCode }) => {
+  if (!benchmarks && !nationalBenchmarks) {
     return (
       <div style={styles.noData}>
         <Activity size={24} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-        <div>No state benchmark data available</div>
+        <div>No benchmark data available</div>
       </div>
     );
   }
+
+  // Get nested value from benchmarks object
+  const getNestedValue = (obj, key) => {
+    if (!obj) return null;
+    // Handle nested paths like 'staffing.rnHours'
+    const parts = key.split('.');
+    let value = obj;
+    for (const part of parts) {
+      if (value == null) return null;
+      value = value[part];
+    }
+    return value;
+  };
+
+  const getStateValue = (key) => getNestedValue(benchmarks, key);
+  const getNationalValue = (key) => getNestedValue(nationalBenchmarks, key);
 
   // Staffing metrics
   const staffingMetrics = [
     {
       label: 'RN Hours/Resident/Day',
       marketKey: 'avgRnHours',
-      stateKey: 'rn_staffing_hours_avg',
+      stateKey: 'staffing.rnHours',
       decimals: 2,
       tooltip: 'rn_staffing_hours',
     },
     {
       label: 'LPN Hours/Resident/Day',
       marketKey: 'avgLpnHours',
-      stateKey: 'lpn_staffing_hours_avg',
+      stateKey: 'staffing.lpnHours',
       decimals: 2,
       tooltip: 'lpn_staffing_hours',
     },
     {
       label: 'CNA Hours/Resident/Day',
       marketKey: 'avgCnaHours',
-      stateKey: 'reported_cna_staffing_hours_avg',
+      stateKey: 'staffing.cnaHours',
       decimals: 2,
       tooltip: 'reported_cna_staffing_hours',
     },
     {
       label: 'Total Nurse Hours/Res/Day',
       marketKey: 'avgTotalNurseHours',
-      stateKey: 'total_nurse_staffing_hours_avg',
+      stateKey: 'staffing.totalNurseHours',
       decimals: 2,
       tooltip: 'total_nurse_staffing_hours',
     },
@@ -189,7 +154,7 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
     {
       label: 'Total Nursing Turnover',
       marketKey: 'avgTurnover',
-      stateKey: 'total_nursing_turnover_avg',
+      stateKey: 'turnover.totalNursing',
       isPercent: true,
       lowerIsBetter: true,
       tooltip: 'total_nursing_turnover',
@@ -197,7 +162,7 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
     {
       label: 'RN Turnover',
       marketKey: 'avgRnTurnover',
-      stateKey: 'rn_turnover_avg',
+      stateKey: 'turnover.rn',
       isPercent: true,
       lowerIsBetter: true,
       tooltip: 'rn_turnover',
@@ -209,28 +174,28 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
     {
       label: 'Overall Rating',
       marketKey: 'avgRating',
-      stateKey: 'overall_rating_avg',
+      stateKey: 'ratings.overall',
       decimals: 1,
       tooltip: 'overall_rating',
     },
     {
       label: 'Health Inspection Rating',
       marketKey: 'avgHealthRating',
-      stateKey: 'health_inspection_rating_avg',
+      stateKey: 'ratings.healthInspection',
       decimals: 1,
       tooltip: 'health_inspection_rating',
     },
     {
       label: 'Quality Measure Rating',
       marketKey: 'avgQualityRating',
-      stateKey: 'quality_measure_rating_avg',
+      stateKey: 'ratings.qm',
       decimals: 1,
       tooltip: 'quality_measure_rating',
     },
     {
       label: 'Staffing Rating',
       marketKey: 'avgStaffingRating',
-      stateKey: 'staffing_rating_avg',
+      stateKey: 'ratings.staffing',
       decimals: 1,
       tooltip: 'staffing_rating',
     },
@@ -242,14 +207,14 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <Users size={14} />
-          Staffing vs {stateCode || 'State'} Avg
+          Staffing Benchmarks
         </div>
         <div style={styles.headerRow}>
           <span style={styles.columnHeader}>Metric</span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'right' }}>Market</span>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'right' }}>State</span>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'center' }}>Diff</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>Market</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>{stateCode || 'State'}</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>Nat'l</span>
           </div>
         </div>
         {staffingMetrics.map((metric, idx) => (
@@ -268,12 +233,11 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
                 {formatNumber(marketAverages?.[metric.marketKey], metric.decimals)}
               </span>
               <span style={styles.benchmarkValue}>
-                {formatNumber(benchmarks[metric.stateKey], metric.decimals)}
+                {formatNumber(getStateValue(metric.stateKey), metric.decimals)}
               </span>
-              <ComparisonBadge
-                marketValue={marketAverages?.[metric.marketKey]}
-                stateValue={benchmarks[metric.stateKey]}
-              />
+              <span style={styles.benchmarkValue}>
+                {formatNumber(getNationalValue(metric.stateKey), metric.decimals)}
+              </span>
             </div>
           </div>
         ))}
@@ -283,14 +247,14 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <RefreshCw size={14} />
-          Turnover vs {stateCode || 'State'} Avg
+          Turnover Benchmarks
         </div>
         <div style={styles.headerRow}>
           <span style={styles.columnHeader}>Metric</span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'right' }}>Market</span>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'right' }}>State</span>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'center' }}>Diff</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>Market</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>{stateCode || 'State'}</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>Nat'l</span>
           </div>
         </div>
         {turnoverMetrics.map((metric, idx) => (
@@ -312,14 +276,14 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
               </span>
               <span style={styles.benchmarkValue}>
                 {metric.isPercent
-                  ? formatPercent(benchmarks[metric.stateKey])
-                  : formatNumber(benchmarks[metric.stateKey], metric.decimals || 1)}
+                  ? formatPercent(getStateValue(metric.stateKey))
+                  : formatNumber(getStateValue(metric.stateKey), metric.decimals || 1)}
               </span>
-              <ComparisonBadge
-                marketValue={marketAverages?.[metric.marketKey]}
-                stateValue={benchmarks[metric.stateKey]}
-                lowerIsBetter={metric.lowerIsBetter}
-              />
+              <span style={styles.benchmarkValue}>
+                {metric.isPercent
+                  ? formatPercent(getNationalValue(metric.stateKey))
+                  : formatNumber(getNationalValue(metric.stateKey), metric.decimals || 1)}
+              </span>
             </div>
           </div>
         ))}
@@ -329,14 +293,14 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <Star size={14} />
-          Quality vs {stateCode || 'State'} Avg
+          Quality Benchmarks
         </div>
         <div style={styles.headerRow}>
           <span style={styles.columnHeader}>Metric</span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'right' }}>Market</span>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'right' }}>State</span>
-            <span style={{ ...styles.columnHeader, minWidth: '50px', textAlign: 'center' }}>Diff</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>Market</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>{stateCode || 'State'}</span>
+            <span style={{ ...styles.columnHeader, minWidth: '45px', textAlign: 'right' }}>Nat'l</span>
           </div>
         </div>
         {qualityMetrics.map((metric, idx) => (
@@ -355,12 +319,11 @@ const StateBenchmarkPanel = ({ benchmarks, marketAverages, stateCode }) => {
                 {formatNumber(marketAverages?.[metric.marketKey], metric.decimals)}
               </span>
               <span style={styles.benchmarkValue}>
-                {formatNumber(benchmarks[metric.stateKey], metric.decimals)}
+                {formatNumber(getStateValue(metric.stateKey), metric.decimals)}
               </span>
-              <ComparisonBadge
-                marketValue={marketAverages?.[metric.marketKey]}
-                stateValue={benchmarks[metric.stateKey]}
-              />
+              <span style={styles.benchmarkValue}>
+                {formatNumber(getNationalValue(metric.stateKey), metric.decimals)}
+              </span>
             </div>
           </div>
         ))}

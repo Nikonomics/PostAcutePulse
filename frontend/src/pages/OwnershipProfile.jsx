@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import {
   getOwnershipProfile,
   updateOwnershipProfile,
@@ -27,6 +27,7 @@ import {
   removeSavedItem
 } from '../api/savedItemsService';
 import { useAuth } from '../context/UserContext';
+import { useGoogleMaps } from '../context/GoogleMapsContext';
 import MentionInput from '../components/common/MentionInput';
 import './OwnershipProfile.css';
 
@@ -73,11 +74,8 @@ function OwnershipProfile() {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showMap, setShowMap] = useState(true);
 
-  // Google Maps loader
-  const { isLoaded: mapLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
-  });
+  // Use shared Google Maps context
+  const { isLoaded: mapLoaded } = useGoogleMaps();
 
   // Save/bookmark state
   const [isSaved, setIsSaved] = useState(false);
@@ -828,7 +826,7 @@ function OwnershipProfile() {
                     </div>
                   ) : (
                     <GoogleMap
-                      mapContainerStyle={{ width: '100%', height: '400px', borderRadius: '0.5rem' }}
+                      mapContainerStyle={{ width: '100%', height: '100%' }}
                       center={mapCenter}
                       zoom={4}
                       onLoad={onMapLoad}
@@ -896,29 +894,6 @@ function OwnershipProfile() {
                       )}
                     </GoogleMap>
                   )}
-
-                  {/* Map Legend */}
-                  {mapLoaded && mappableFacilities.length > 0 && (
-                    <div className="map-legend">
-                      <div className="map-legend-title">Star Rating</div>
-                      {[5, 4, 3, 2, 1].map((rating) => (
-                        <div key={rating} className="map-legend-item">
-                          <span
-                            className="map-legend-dot"
-                            style={{ backgroundColor: getRatingColor(rating) }}
-                          />
-                          <span>{rating} Star</span>
-                        </div>
-                      ))}
-                      <div className="map-legend-item">
-                        <span
-                          className="map-legend-dot"
-                          style={{ backgroundColor: '#9ca3af' }}
-                        />
-                        <span>No Rating</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -959,7 +934,11 @@ function OwnershipProfile() {
                 {filteredFacilities.map(facility => (
                   <tr key={facility.federal_provider_number}>
                     <td>
-                      <span className="facility-name-link">
+                      <span
+                        className="facility-name-link clickable"
+                        onClick={() => navigate(`/facility/${facility.federal_provider_number}`)}
+                        title="View facility profile"
+                      >
                         {facility.facility_name}
                       </span>
                     </td>

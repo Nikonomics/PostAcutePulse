@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { Star, MapPin, Building2 } from 'lucide-react';
+import { useGoogleMaps } from '../../context/GoogleMapsContext';
 
 const containerStyle = {
   width: '100%',
@@ -112,11 +113,8 @@ const MarketMap = ({
 }) => {
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
-  // Always call hooks in the same order
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: apiKey || 'NO_API_KEY',
-  });
+  // Use shared Google Maps context
+  const { isLoaded, loadError } = useGoogleMaps();
 
   const center = useMemo(() => ({
     lat: centerLat,
@@ -293,23 +291,6 @@ const MarketMap = ({
           </InfoWindow>
         )}
       </GoogleMap>
-
-      {/* Legend for SNF star ratings */}
-      {facilityType === 'SNF' && (
-        <div style={styles.legend}>
-          <div style={styles.legendTitle}>Star Rating</div>
-          {[5, 4, 3, 2, 1].map((rating) => (
-            <div key={rating} style={styles.legendItem}>
-              <div style={{ ...styles.legendDot, backgroundColor: RATING_COLORS[rating] }} />
-              <span>{rating} Star</span>
-            </div>
-          ))}
-          <div style={styles.legendItem}>
-            <div style={{ ...styles.legendDot, backgroundColor: '#3b82f6' }} />
-            <span>Subject</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

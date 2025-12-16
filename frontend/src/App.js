@@ -13,6 +13,7 @@ import EditUser from "./pages/EditUser";
 import AIAssistant from "./pages/AIAssistant";
 import "./styles/global.css";
 import { useAuth } from "./context/UserContext";
+import { GoogleMapsProvider } from "./context/GoogleMapsContext";
 import EditDeal from "./pages/EditDeal/EditDeal";
 import DealDetail from "./pages/DealDetail";
 import ChatInterfaceAI from "./pages/ChatInterfaceAI";
@@ -25,6 +26,7 @@ import Profile from "./pages/Profile";
 import MarketAnalysis from "./pages/MarketAnalysis";
 import OwnershipResearch from "./pages/OwnershipResearch";
 import OwnershipProfile from "./pages/OwnershipProfile";
+import FacilityProfile from "./pages/FacilityProfile";
 import SavedItems from "./pages/SavedItems";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
@@ -65,8 +67,9 @@ function App() {
 
   // Main app layout and routes for authenticated users
   return (
-    <Layout>
-      <Routes>
+    <GoogleMapsProvider>
+      <Layout>
+        <Routes>
         {/* Redirect root to dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
@@ -239,10 +242,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Facility Profile route */}
+        <Route
+          path="/facility/:ccn"
+          element={
+            <ProtectedRoute>
+              <FacilityProfile />
+            </ProtectedRoute>
+          }
+        />
         {/* Catch all route - redirect to dashboard */}
         {/* <Route path="*" element={<Navigate to="/dashboard" replace />} /> */}
       </Routes>
-    </Layout>
+      </Layout>
+    </GoogleMapsProvider>
   );
 }
 

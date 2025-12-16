@@ -14,6 +14,14 @@ import {
 import { MonthlyTrendPoint, ExtractedField, SourceReference } from './types';
 import { formatPercent, formatNumber, parseSourceReference, getSourceDisplayText, isSourceClickable } from './utils';
 
+// Facility data structure for multi-facility portfolios
+interface FacilityData {
+  facility_name: string;
+  bed_count?: number;
+  current_occupancy?: number;
+  monthly_trends?: MonthlyTrendPoint[];
+}
+
 interface CensusTrendChartsProps {
   monthlyTrends: ExtractedField<MonthlyTrendPoint[]> | undefined;
   currentOccupancy: ExtractedField<number>;
@@ -25,6 +33,8 @@ interface CensusTrendChartsProps {
   };
   bedCount?: number;
   onSourceClick?: (sourceRef: SourceReference) => void;
+  // Multi-facility support
+  facilities?: FacilityData[];
 }
 
 const COLORS = {
@@ -34,7 +44,22 @@ const COLORS = {
   medicare: '#22c55e',      // Green
   privatePay: '#a855f7',    // Purple
   gridLine: '#e5e7eb',
+  // Facility colors for multi-facility charts
+  facility1: '#3b82f6',     // Blue
+  facility2: '#f59e0b',     // Amber
+  facility3: '#10b981',     // Emerald
+  portfolio: '#6366f1',     // Indigo (for combined/portfolio line)
 };
+
+// Additional colors for facilities beyond 3
+const FACILITY_COLORS = [
+  '#3b82f6',  // Blue
+  '#f59e0b',  // Amber
+  '#10b981',  // Emerald
+  '#ef4444',  // Red
+  '#8b5cf6',  // Violet
+  '#ec4899',  // Pink
+];
 
 const chartContainerStyle: React.CSSProperties = {
   backgroundColor: 'white',
@@ -171,6 +196,7 @@ const SourceButton: React.FC<{
 
 /**
  * CensusTrendCharts - Displays T12 trendlines for occupancy, ADC, and payer mix
+ * Supports multi-facility portfolios with separate lines per facility
  */
 const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
   monthlyTrends,
@@ -179,6 +205,7 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
   currentPayerMix,
   bedCount,
   onSourceClick,
+  facilities,
 }) => {
   // Check if we have actual trend data
   const trendData = useMemo(() => {
@@ -190,6 +217,83 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
   }, [monthlyTrends]);
 
   const hasData = trendData.length > 0;
+  const isMultiFacility = facilities && facilities.length > 1;
+
+  // Build multi-facility trend data by merging facility trends with portfolio data
+  const multiFacilityData = useMemo(() => {
+    if (!isMultiFacility) return null;
+
+    // Check if any facility has monthly trends
+    const facilitiesWithTrends = facilities!.filter(f => f.monthly_trends && f.monthly_trends.length > 0);
+
+    if (facilitiesWithTrends.length > 0) {
+      // Merge all facility trends into a single dataset
+      const monthMap = new Map<string, any>();
+
+      // First add portfolio data as the baseline
+      trendData.forEach(point => {
+        monthMap.set(point.month, {
+          month: point.month,
+          portfolio_occupancy_pct: point.occupancy_pct,
+          portfolio_adc: point.average_daily_census,
+        });
+      });
+
+      // Add each facility's data
+      facilitiesWithTrends.forEach((facility, index) => {
+        const facilityKey = `facility${index + 1}`;
+        facility.monthly_trends!.forEach(point => {
+          const existing = monthMap.get(point.month) || { month: point.month };
+          existing[`${facilityKey}_occupancy_pct`] = point.occupancy_pct;
+          existing[`${facilityKey}_adc`] = point.average_daily_census;
+          existing[`${facilityKey}_name`] = facility.facility_name;
+          monthMap.set(point.month, existing);
+        });
+      });
+
+      // Convert map to sorted array
+      return Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+    }
+
+    // If no facility-level trends, but we have portfolio trends and current occupancy per facility,
+    // create synthetic lines showing current occupancy as horizontal reference
+    if (trendData.length > 0) {
+      return trendData.map(point => {
+        const dataPoint: any = {
+          month: point.month,
+          portfolio_occupancy_pct: point.occupancy_pct,
+          portfolio_adc: point.average_daily_census,
+        };
+
+        // Add each facility's current occupancy as a horizontal line
+        facilities!.forEach((facility, index) => {
+          if (facility.current_occupancy != null) {
+            dataPoint[`facility${index + 1}_occupancy_pct`] = facility.current_occupancy;
+            dataPoint[`facility${index + 1}_name`] = facility.facility_name;
+          }
+        });
+
+        return dataPoint;
+      });
+    }
+
+    // If no monthly trends at all, but we have per-facility current occupancy,
+    // create a simple comparison dataset with just current values
+    const facilitiesWithOccupancy = facilities!.filter(f => f.current_occupancy != null);
+    if (facilitiesWithOccupancy.length > 0) {
+      // Create two data points to show as a bar comparison (current period)
+      const currentData: any = { month: 'Current' };
+      facilities!.forEach((facility, index) => {
+        if (facility.current_occupancy != null) {
+          currentData[`facility${index + 1}_occupancy_pct`] = facility.current_occupancy;
+          currentData[`facility${index + 1}_name`] = facility.facility_name;
+        }
+      });
+      return [currentData];
+    }
+
+    return null;
+  }, [isMultiFacility, facilities, trendData]);
 
   // Calculate trend direction (comparing first half to second half)
   const calculateTrend = (data: MonthlyTrendPoint[], key: keyof MonthlyTrendPoint): 'up' | 'down' | 'flat' => {
@@ -223,16 +327,74 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
         {/* Occupancy */}
         <div style={chartContainerStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={chartTitleStyle}>Occupancy {hasData ? 'Trend (T12)' : ''}</h4>
-            {hasData && (
+            <h4 style={chartTitleStyle}>Occupancy {hasData ? 'Trend (T12)' : ''}{isMultiFacility ? ' by Facility' : ''}</h4>
+            {hasData && !isMultiFacility && (
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                 {trendIcon(occupancyTrend)} Trending {occupancyTrend}
               </span>
             )}
           </div>
 
-          {/* Current Value with Source */}
-          {currentOccupancy?.value !== null && (
+          {/* Current Values - Show per-facility for portfolios */}
+          {isMultiFacility && facilities ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              {facilities.map((facility, index) => (
+                <div
+                  key={facility.facility_name}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    padding: '0.375rem 0.75rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #e5e7eb',
+                  }}
+                >
+                  <span style={{
+                    width: '10px',
+                    height: '10px',
+                    backgroundColor: FACILITY_COLORS[index % FACILITY_COLORS.length],
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{facility.facility_name}:</span>
+                  <span style={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>
+                    {facility.current_occupancy != null ? formatPercent(facility.current_occupancy) : 'N/A'}
+                  </span>
+                  {facility.bed_count && (
+                    <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                      ({facility.bed_count} beds)
+                    </span>
+                  )}
+                </div>
+              ))}
+              {/* Portfolio Total */}
+              {currentOccupancy?.value !== null && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    padding: '0.375rem 0.75rem',
+                    backgroundColor: '#f0fdf4',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #bbf7d0',
+                  }}
+                >
+                  <span style={{
+                    width: '10px',
+                    height: '10px',
+                    backgroundColor: COLORS.portfolio,
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Portfolio:</span>
+                  <span style={{ fontWeight: 700, color: '#059669', fontSize: '0.875rem' }}>
+                    {formatPercent(currentOccupancy.value)}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : currentOccupancy?.value !== null && (
             <div style={currentValueStyle}>
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Current:</span>
               <span style={{ fontWeight: 700, color: '#059669', fontSize: '1.25rem' }}>
@@ -247,7 +409,56 @@ const CensusTrendCharts: React.FC<CensusTrendChartsProps> = ({
             </div>
           )}
 
-          {hasData ? (
+          {/* Multi-facility Line Chart */}
+          {isMultiFacility && multiFacilityData && multiFacilityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={multiFacilityData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gridLine} />
+                <XAxis
+                  dataKey="month"
+                  tickFormatter={formatMonthLabel}
+                  tick={{ fontSize: 10, fill: '#6b7280' }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                  tickFormatter={(v) => `${v}%`}
+                  tick={{ fontSize: 10, fill: '#6b7280' }}
+                  width={45}
+                />
+                <Tooltip content={<CustomTooltip valueFormatter={(v: number) => formatPercent(v)} />} />
+                <Legend
+                  wrapperStyle={{ fontSize: '0.75rem' }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                {/* Render a line for each facility */}
+                {facilities!.map((facility, index) => (
+                  <Line
+                    key={facility.facility_name}
+                    type="monotone"
+                    dataKey={`facility${index + 1}_occupancy_pct`}
+                    stroke={FACILITY_COLORS[index % FACILITY_COLORS.length]}
+                    strokeWidth={2}
+                    name={facility.facility_name}
+                    dot={{ fill: FACILITY_COLORS[index % FACILITY_COLORS.length], strokeWidth: 0, r: 3 }}
+                    connectNulls
+                  />
+                ))}
+                {/* Portfolio line (dashed) */}
+                <Line
+                  type="monotone"
+                  dataKey="portfolio_occupancy_pct"
+                  stroke={COLORS.portfolio}
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  name="Portfolio Avg"
+                  dot={{ fill: COLORS.portfolio, strokeWidth: 0, r: 3 }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : hasData ? (
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gridLine} />

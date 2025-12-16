@@ -58,7 +58,13 @@
       "Bash(/Users/nikolashulewsky/generate-all-context-bundles.sh:*)",
       "Bash(~/generate-all-context-bundles.sh)",
       "Bash(npm run dev:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(git -C /Users/nikolashulewsky/snfalyze-local status)",
+      "Bash(git -C /Users/nikolashulewsky/snfalyze-local diff frontend/src/api/authService.js)",
+      "Bash(git -C /Users/nikolashulewsky/snfalyze-local diff backend/controller/AuthenticationController.js)",
+      "Bash(git -C /Users/nikolashulewsky/snfalyze-local diff backend/routes/authentication.js)",
+      "Bash(git -C /Users/nikolashulewsky/snfalyze-local diff frontend/src/api/apiService.js)",
+      "Bash(git -C /Users/nikolashulewsky/snfalyze-local diff frontend/src/api/apiRoutes.js)"
     ],
     "deny": [],
     "ask": []

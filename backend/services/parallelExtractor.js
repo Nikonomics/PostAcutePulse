@@ -1083,14 +1083,356 @@ function prepareDocumentText(documents) {
 }
 
 
+/**
+ * Prompt 7: Deal Overview (Portfolio-Level Holistic Analysis)
+ * This prompt analyzes AGGREGATED facility data to generate a portfolio-level deal screening.
+ * Unlike OVERVIEW_PROMPT which extracts from documents, this receives pre-extracted facility summaries.
+ */
+const DEAL_OVERVIEW_PROMPT = `You are a healthcare M&A analyst generating a portfolio-level deal screening for a multi-facility acquisition.
+
+You will receive PRE-EXTRACTED data from individual facility analyses. Your job is to:
+1. Aggregate and synthesize the data across all facilities
+2. Identify portfolio-level patterns, risks, and opportunities
+3. Generate a holistic investment thesis
+
+---
+
+## INPUT DATA FORMAT
+
+You will receive a JSON object with:
+- \`deal_name\`: Name of the deal
+- \`facility_count\`: Number of facilities in the portfolio
+- \`facilities\`: Array of facility summaries, each containing:
+  - facility_name, facility_type, state, beds, occupancy
+  - ttm_revenue, ttm_expenses, ttm_net_income, net_income_margin
+  - payer_mix (medicaid_pct, private_pay_pct)
+  - red_flags and strengths from individual analysis
+
+---
+
+## OUTPUT FORMAT
+
+Return valid JSON with this exact structure:
+
+{
+  "portfolio_summary_1000_chars": "string (executive summary - see format below)",
+
+  "portfolio_snapshot": {
+    "deal_name": "string",
+    "facility_count": "number",
+    "total_beds": "number (sum of all facilities)",
+    "weighted_avg_occupancy_pct": "number (weighted by beds)",
+    "geographic_footprint": "string (e.g., '3 states: OR, WA, CA')",
+    "facility_type_mix": "string (e.g., '4 ALF, 1 SNF')",
+    "largest_facility": "string (name and beds)",
+    "smallest_facility": "string (name and beds)"
+  },
+
+  "portfolio_financials": {
+    "period": "string (e.g., 'TTM Oct 2024 - Sep 2025')",
+    "total_revenue": "number",
+    "total_expenses": "number",
+    "total_net_income": "number",
+    "portfolio_net_income_margin_pct": "number",
+    "revenue_per_bed": "number",
+    "revenue_concentration": "string (e.g., 'Top facility = 35% of revenue')",
+    "best_performing_facility": "string (name and margin)",
+    "worst_performing_facility": "string (name and margin)"
+  },
+
+  "portfolio_payer_mix": {
+    "weighted_medicaid_pct": "number",
+    "weighted_private_pay_pct": "number",
+    "weighted_medicare_pct": "number|null",
+    "payer_mix_variance": "string (e.g., 'Medicaid ranges 45-78% across facilities')"
+  },
+
+  "portfolio_trends": {
+    "overall_revenue_trend": "UP|FLAT|DOWN",
+    "overall_census_trend": "UP|FLAT|DOWN",
+    "overall_margin_trend": "UP|FLAT|DOWN",
+    "trend_summary": "string (2-3 sentences on portfolio trajectory)"
+  },
+
+  "portfolio_red_flags": [
+    {
+      "issue": "string (brief title)",
+      "impact": "string (quantified portfolio-level impact)",
+      "severity": "Critical|Significant|Moderate",
+      "facilities_affected": "number or 'all'"
+    }
+  ],
+
+  "portfolio_strengths": [
+    {
+      "strength": "string (brief title)",
+      "value": "string (quantified benefit)",
+      "facilities_contributing": "number or 'all'"
+    }
+  ],
+
+  "concentration_risks": {
+    "geographic": "string|null (e.g., '80% of beds in Oregon')",
+    "revenue": "string|null (e.g., 'Top 2 facilities = 60% of revenue')",
+    "payer": "string|null (e.g., 'Heavy Medicaid dependence across portfolio')",
+    "operational": "string|null (e.g., '3 facilities share management')"
+  },
+
+  "synergy_opportunities": [
+    {
+      "opportunity": "string",
+      "estimated_impact": "string (quantified if possible)",
+      "complexity": "Low|Medium|High"
+    }
+  ],
+
+  "investment_thesis": {
+    "recommendation": "Pursue|Pursue with Caution|Pass",
+    "thesis_summary": "string (3-4 sentences on why to invest or not)",
+    "key_value_drivers": ["string (max 3)"],
+    "key_risks": ["string (max 3)"],
+    "suggested_purchase_price_range": "string|null (if enough data)"
+  },
+
+  "portfolio_diligence_items": [
+    "string (max 7 prioritized items for entire portfolio)"
+  ],
+
+  "facility_ranking": [
+    {
+      "rank": "number",
+      "facility_name": "string",
+      "score_rationale": "string (why ranked here)"
+    }
+  ]
+}
+
+---
+
+## SUMMARY FORMAT (portfolio_summary_1000_chars)
+
+Generate this FIRST. Maximum 1000 characters.
+
+**[Deal Name]** — [X]-facility portfolio, [Total Beds] beds across [States]
+
+**TTM Financials:** Revenue $X.XM | Net Income $XK | Margin X.X%
+
+**Portfolio Mix:** [X]% Medicaid | [X]% Private Pay | Occupancy [X]%
+
+**Top Performer:** [Facility] (+X% margin)
+**Underperformer:** [Facility] (-X% margin)
+
+**Key Risks:**
+• [Risk 1 — quantified]
+• [Risk 2 — quantified]
+
+**Key Opportunities:**
+• [Opportunity — quantified upside]
+
+**Verdict:** [Pursue/Pursue with Caution/Pass] — [One sentence why]
+
+---
+
+## ANALYSIS GUIDELINES
+
+1. **Aggregate Correctly:**
+   - Total revenue/expenses/net income = SUM of all facilities
+   - Weighted averages for occupancy, payer mix (weight by beds)
+   - Identify outliers that skew portfolio metrics
+
+2. **Portfolio-Level Red Flags:**
+   - Issues affecting multiple facilities (systemic problems)
+   - Concentration risks (geographic, revenue, payer)
+   - Portfolio-wide margin concerns
+   - Regulatory risks spanning facilities
+
+3. **Portfolio-Level Strengths:**
+   - Diversification benefits
+   - Operational synergies potential
+   - Strong performers that can subsidize turnarounds
+   - Geographic/market advantages
+
+4. **Synergy Opportunities:**
+   - Shared services potential
+   - Purchasing power consolidation
+   - Management efficiency gains
+   - Cross-facility staffing
+
+5. **Investment Thesis:**
+   - Be direct about recommendation
+   - Quantify upside potential
+   - Acknowledge key risks
+   - Consider portfolio as single investment
+
+6. **Facility Ranking:**
+   - Rank all facilities from best to worst investment
+   - Consider: margin, occupancy, trends, location, payer mix
+
+---
+
+## CRITICAL RULES
+
+1. **Use ONLY the provided facility data** — Do not invent numbers
+2. **Aggregate accurately** — Double-check your math
+3. **Be specific** — Every flag/strength needs quantification
+4. **Portfolio perspective** — Think like a portfolio investor, not facility-by-facility
+5. **Actionable insights** — Focus on what matters for investment decision
+6. **Rank facilities honestly** — Identify which to prioritize vs divest
+
+Return ONLY valid JSON, no markdown.`;
+
+
+/**
+ * Run the Deal Overview extraction for portfolio-level holistic analysis
+ * This takes pre-extracted facility data, NOT raw documents
+ *
+ * @param {Object} portfolioData - Aggregated facility data
+ * @param {string} portfolioData.deal_name - Name of the deal
+ * @param {number} portfolioData.facility_count - Number of facilities
+ * @param {Array} portfolioData.facilities - Array of facility summaries
+ * @returns {Promise<Object>} Portfolio-level deal overview
+ */
+async function runDealOverviewExtraction(portfolioData) {
+  const startTime = Date.now();
+
+  try {
+    console.log('[DealOverview] Starting portfolio-level analysis...');
+    console.log(`[DealOverview] Analyzing ${portfolioData.facility_count} facilities`);
+
+    // Format the facility data as input for the prompt
+    const inputData = JSON.stringify(portfolioData, null, 2);
+
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: DEAL_OVERVIEW_PROMPT,
+      messages: [{
+        role: 'user',
+        content: `Analyze this portfolio and generate a holistic deal overview:\n\n${inputData}`
+      }]
+    });
+
+    const responseText = response.content[0].text;
+
+    // Parse JSON response
+    let dealOverview;
+    try {
+      dealOverview = JSON.parse(responseText);
+    } catch (parseError) {
+      console.log('[DealOverview] Initial parse failed, attempting repair...');
+
+      // Try to extract JSON from response
+      const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
+        || responseText.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        let jsonStr = jsonMatch[1] || jsonMatch[0];
+        jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+        jsonStr = repairTruncatedJson(jsonStr);
+
+        try {
+          dealOverview = JSON.parse(jsonStr);
+          console.log('[DealOverview] JSON repair successful');
+        } catch (repairError) {
+          console.error('[DealOverview] JSON repair failed:', repairError.message);
+          return { success: false, error: `JSON parse error: ${repairError.message}` };
+        }
+      } else {
+        return { success: false, error: 'No JSON found in response' };
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[DealOverview] Portfolio analysis completed in ${duration}ms`);
+
+    return {
+      success: true,
+      data: dealOverview,
+      duration
+    };
+
+  } catch (error) {
+    console.error('[DealOverview] Extraction error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+
+/**
+ * Prepare facility data for Deal Overview prompt
+ * Transforms raw facility extractions into the format expected by DEAL_OVERVIEW_PROMPT
+ *
+ * @param {string} dealName - Name of the deal
+ * @param {Array} facilityExtractions - Array of facility extraction results
+ * @returns {Object} Formatted portfolio data for Deal Overview
+ */
+function prepareDealOverviewInput(dealName, facilityExtractions) {
+  const facilities = facilityExtractions
+    .filter(fe => fe.success && fe.extraction_result?.extractedData)
+    .map(fe => {
+      const data = fe.extraction_result.extractedData;
+      const overview = data.deal_overview || {};
+      const facilitySnapshot = overview.facility_snapshot || {};
+      const ttmFinancials = overview.ttm_financials || data.ttm_financials || {};
+      const payerMix = overview.payer_mix || {};
+
+      return {
+        facility_name: fe.facility_name || facilitySnapshot.facility_name || 'Unknown',
+        facility_type: facilitySnapshot.facility_type || data.facility_type || null,
+        state: facilitySnapshot.state || data.state || null,
+        city: facilitySnapshot.city || data.city || null,
+        beds: facilitySnapshot.licensed_beds || data.total_beds || null,
+        occupancy_pct: facilitySnapshot.current_occupancy_pct || data.occupancy_pct || null,
+
+        // Financials
+        ttm_revenue: ttmFinancials.revenue || data.ttm_revenue || null,
+        ttm_expenses: ttmFinancials.expenses || data.ttm_expenses || null,
+        ttm_net_income: ttmFinancials.net_income || data.ttm_net_income || null,
+        net_income_margin_pct: ttmFinancials.net_income_margin_pct || null,
+
+        // Add-backs
+        rent_expense: ttmFinancials.rent_lease || null,
+        interest_expense: ttmFinancials.interest || null,
+        depreciation: ttmFinancials.depreciation || null,
+
+        // Payer mix
+        medicaid_pct: payerMix.medicaid_pct || null,
+        private_pay_pct: payerMix.private_pay_pct || null,
+        medicare_pct: payerMix.medicare_pct || null,
+
+        // Trends
+        revenue_trend: overview.operating_trends?.revenue_trend || null,
+        census_trend: overview.operating_trends?.census_trend || null,
+        net_income_trend: overview.operating_trends?.net_income_trend || null,
+
+        // Issues and strengths from facility-level analysis
+        red_flags: overview.red_flags || [],
+        strengths: overview.strengths || []
+      };
+    });
+
+  return {
+    deal_name: dealName,
+    facility_count: facilities.length,
+    facilities
+  };
+}
+
+
 module.exports = {
   runParallelExtractions,
   runFocusedExtraction,
   prepareDocumentText,
+  runDealOverviewExtraction,
+  prepareDealOverviewInput,
   // Export individual prompts for testing
   FACILITY_PROMPT,
   FINANCIALS_PROMPT,
   EXPENSES_PROMPT,
   CENSUS_PROMPT,
-  RATES_PROMPT
+  RATES_PROMPT,
+  DEAL_OVERVIEW_PROMPT
 };

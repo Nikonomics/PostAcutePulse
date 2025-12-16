@@ -30,4 +30,7 @@ router.get('/notifications', requireAuthentication, AuthenticationController.get
 router.get('/notifications/count', requireAuthentication, AuthenticationController.getNotificationCount);
 router.put('/notifications/read', requireAuthentication, AuthenticationController.markNotificationsRead);
 
+// Token refresh route (no authentication required - uses refresh token in header)
+router.get('/generate-access-token', AuthenticationController.generateAccessToken);
+
 module.exports = router

@@ -75,11 +75,12 @@ export const removeSavedItem = async (id) => {
 
 /**
  * Bulk check if items are saved
- * @param {string} type - 'deal', 'facility', 'market', or 'ownership_group'
+ * @param {string} type - 'deal', 'facility', 'market', 'ownership_group', or 'cms_facility'
  * @param {Object} options - Check options
  * @param {number[]} options.ids - Array of IDs (for deals and facilities)
  * @param {Array<{state: string, county: string}>} options.markets - Array of market objects
  * @param {string[]} options.names - Array of ownership group names
+ * @param {string[]} options.ccns - Array of CCNs (for cms_facility)
  */
 export const checkSavedItems = async (type, options) => {
   try {
@@ -169,6 +170,21 @@ export const saveOwnershipGroup = async (ownershipGroupName, note = null) => {
   return saveItem({
     item_type: 'ownership_group',
     ownership_group_name: ownershipGroupName,
+    note
+  });
+};
+
+/**
+ * Save a CMS facility by CCN
+ * @param {string} ccn - CMS Certification Number
+ * @param {string} facilityName - Facility name for display
+ * @param {string} note - Optional note
+ */
+export const saveFacility = async (ccn, facilityName, note = null) => {
+  return saveItem({
+    item_type: 'cms_facility',
+    ccn: ccn,
+    facility_name: facilityName,
     note
   });
 };

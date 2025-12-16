@@ -1527,6 +1527,8 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           f.health_inspection_rating,
           f.quality_measure_rating,
           f.staffing_rating,
+          f.long_stay_qm_rating,
+          f.short_stay_qm_rating,
           f.occupancy_rate,
           f.ownership_type,
           f.provider_type,
@@ -1539,6 +1541,22 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           f.abuse_icon,
           f.accepts_medicare,
           f.accepts_medicaid,
+          -- Staffing hours (per resident per day)
+          f.rn_staffing_hours,
+          f.lpn_staffing_hours,
+          f.reported_cna_staffing_hours,
+          f.total_nurse_staffing_hours,
+          f.pt_staffing_hours,
+          -- Turnover rates
+          f.total_nursing_turnover,
+          f.rn_turnover,
+          -- Chain data
+          f.chain_id,
+          f.chain_name,
+          f.chain_facility_count,
+          f.chain_avg_overall_rating,
+          -- Quality
+          f.substantiated_complaints,
           COALESCE(d.deficiency_count_3yr, 0) as deficiency_count_3yr
         FROM snf_facilities f
         LEFT JOIN (
@@ -1574,20 +1592,43 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           overall: row.overall_rating,
           healthInspection: row.health_inspection_rating,
           qualityMeasure: row.quality_measure_rating,
-          staffing: row.staffing_rating
+          staffing: row.staffing_rating,
+          longStayQm: row.long_stay_qm_rating,
+          shortStayQm: row.short_stay_qm_rating
         },
         occupancyRate: row.occupancy_rate ? parseFloat(row.occupancy_rate) : null,
+        // Staffing hours (per resident per day)
+        staffing: {
+          rnHours: row.rn_staffing_hours ? parseFloat(row.rn_staffing_hours) : null,
+          lpnHours: row.lpn_staffing_hours ? parseFloat(row.lpn_staffing_hours) : null,
+          cnaHours: row.reported_cna_staffing_hours ? parseFloat(row.reported_cna_staffing_hours) : null,
+          totalNurseHours: row.total_nurse_staffing_hours ? parseFloat(row.total_nurse_staffing_hours) : null,
+          ptHours: row.pt_staffing_hours ? parseFloat(row.pt_staffing_hours) : null
+        },
+        // Turnover rates
+        turnover: {
+          totalNursing: row.total_nursing_turnover ? parseFloat(row.total_nursing_turnover) : null,
+          rn: row.rn_turnover ? parseFloat(row.rn_turnover) : null
+        },
         ownership: {
           type: row.ownership_type,
           parentOrganization: row.parent_organization,
           legalBusinessName: row.legal_business_name,
           isChain: row.multi_facility_chain
         },
+        // Chain info
+        chain: row.chain_id ? {
+          id: row.chain_id,
+          name: row.chain_name,
+          facilityCount: row.chain_facility_count,
+          avgRating: row.chain_avg_overall_rating ? parseFloat(row.chain_avg_overall_rating) : null
+        } : null,
         providerType: row.provider_type,
         deficiencies: {
           // Use the 3-year count from cms_facility_deficiencies
           total: parseInt(row.deficiency_count_3yr) || 0
         },
+        complaints: row.substantiated_complaints,
         penalties: {
           totalAmount: row.total_penalties_amount ? parseFloat(row.total_penalties_amount) : 0,
           count: row.penalty_count || 0

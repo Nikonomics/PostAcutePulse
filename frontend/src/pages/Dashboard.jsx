@@ -6,20 +6,21 @@ import {
   getRecentActivity,
   updateDealStatus,
   updateDealPositions,
-  getSampleLocations
+  getSampleLocations,
+  getMapFilterOptions
 } from "../api/DealService";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "react-toastify";
 import GoogleMapComponent from "../components/ui/GoogleMap";
 import DealLocationsMap from "../components/ui/DealLocationsMap";
 
-// Helper to map API deal data to deals with facilities format
-const mapFacilitiesToDeals = (deals) => {
-  if (!Array.isArray(deals)) return [];
+// Helper to map API response to deals with facilities format
+const mapLocationsToDeals = (locations) => {
+  if (!Array.isArray(locations)) return [];
 
-  return deals.map(deal => {
-    // Filter and map facilities for this deal
-    const validFacilities = (deal.deal_facility || [])
+  return locations.map(location => {
+    // Filter facilities with valid coordinates
+    const validFacilities = (location.deal_facility || [])
       .filter(facility =>
         typeof facility.latitude === "number" &&
         typeof facility.longitude === "number" &&
@@ -35,15 +36,21 @@ const mapFacilitiesToDeals = (deals) => {
         city: facility.city || "",
         state: facility.state || "",
         latitude: facility.latitude,
-        longitude: facility.longitude
+        longitude: facility.longitude,
+        type: facility.type || "SNF",
+        company: facility.company,
+        team: facility.team,
+        beds: facility.beds
       }));
 
     return {
-      id: deal.id,
-      deal_name: deal.deal_name || `Deal ${deal.id}`,
+      id: location.id,
+      deal_name: location.deal_name || `Location ${location.id}`,
+      deal_status: location.deal_status,
+      source: location.source,
       deal_facility: validFacilities
     };
-  }).filter(deal => deal.deal_facility.length > 0); // Only return deals with valid facilities
+  }).filter(location => location.deal_facility.length > 0);
 };
 
 const Dashboard = () => {
@@ -60,17 +67,19 @@ const Dashboard = () => {
   // fetch recent activity data:
   const [recentActivity, setRecentActivity] = useState([]);
   const [dealsWithFacilities, setDealsWithFacilities] = useState([]);
-  const [dealStatusFilter, setDealStatusFilter] = useState(null);
+  const [mapFilters, setMapFilters] = useState({ status: [], serviceLine: [], company: [], team: [] });
+  const [filterOptions, setFilterOptions] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
 
       try {
-        // Run both API calls in parallel
-        const [dashboardRes, activityRes] = await Promise.all([
+        // Run all API calls in parallel
+        const [dashboardRes, activityRes, filterOptionsRes] = await Promise.all([
           getDashboardData(),
           getRecentActivity(),
+          getMapFilterOptions()
         ]);
 
         if (dashboardRes.code === 200) {
@@ -84,40 +93,56 @@ const Dashboard = () => {
         } else {
           setError(activityRes.message || "Failed to fetch recent activity");
         }
+
+        if (filterOptionsRes.code === 200) {
+          setFilterOptions(filterOptionsRes.body);
+        }
       } catch (err) {
         setError("Failed to fetch dashboard or activity data");
       } finally {
-        setLoading(false); // stop loader after both calls
+        setLoading(false);
       }
     };
 
     fetchData();
   }, []);
 
+  // Fetch locations when filters change
   useEffect(() => {
-    const fetchSampleLocations = async () => {
+    const fetchLocations = async () => {
       try {
-        console.log('Fetching sample locations...', dealStatusFilter
-          ? `with statuses: ${Array.isArray(dealStatusFilter) ? dealStatusFilter.join(', ') : dealStatusFilter}`
-          : 'all statuses');
+        const hasFilters = Object.values(mapFilters).some(arr => arr.length > 0);
+        console.log('Fetching locations with filters:', mapFilters);
 
-        const res = await getSampleLocations(dealStatusFilter);
+        const res = await getSampleLocations(hasFilters ? mapFilters : {});
 
-        if (!res.body || !Array.isArray(res.body)) {
+        // New API response format: { locations: [], filterOptions: {} }
+        const locations = res.body?.locations || res.body || [];
+
+        if (!Array.isArray(locations)) {
           console.error('Invalid API response structure:', res);
           setDealsWithFacilities([]);
           return;
         }
 
-        const mappedDeals = mapFacilitiesToDeals(res.body);
-        setDealsWithFacilities(mappedDeals);
+        const mappedLocations = mapLocationsToDeals(locations);
+        setDealsWithFacilities(mappedLocations);
+
+        // Update filter options if provided
+        if (res.body?.filterOptions) {
+          setFilterOptions(res.body.filterOptions);
+        }
       } catch (error) {
-        console.error('Error fetching sample locations:', error);
+        console.error('Error fetching locations:', error);
         setDealsWithFacilities([]);
       }
     };
-    fetchSampleLocations();
-  }, [dealStatusFilter]);
+    fetchLocations();
+  }, [mapFilters]);
+
+  const handleFiltersChange = (newFilters) => {
+    setMapFilters(newFilters);
+  };
 
   // console.log('dealsWithFacilities', dealsWithFacilities);
 
@@ -694,16 +719,13 @@ const Dashboard = () => {
             deals={dealsWithFacilities}
             height="500px"
             showInfoWindows={true}
-            onStatusFilterChange={(status) => {
-              setDealStatusFilter(status);
-            }}
+            filterOptions={filterOptions}
+            onFiltersChange={handleFiltersChange}
             onMarkerClick={(marker, location) => {
-              // location is the mapped facility/deal object
-              if (location.type === 'facility') {
-                toast.info(`Viewing ${location.title}`);
-                if (location.dealId) {
-                  navigate(`/deals/deal-detail/${location.dealId}`);
-                }
+              // Navigate to deal detail for deal facilities
+              if (location.source !== 'cascadia' && location.dealId) {
+                const numericDealId = String(location.dealId).replace('deal-', '');
+                navigate(`/deals/deal-detail/${numericDealId}`);
               }
             }}
           />

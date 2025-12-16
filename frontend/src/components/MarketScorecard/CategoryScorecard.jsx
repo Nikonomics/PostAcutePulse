@@ -400,15 +400,18 @@ const CategoryScorecard = ({ scores, marketData, facilityType, laborData }) => {
             value={pop85.toLocaleString()}
             percentile={getPercentileLabel(pop85, 8000)}
           />
-          <MetricRow
-            label="Need Population"
-            value={needEstimate.toLocaleString()}
-            percentile="Disability-based"
-          />
+          {/* Need Population only applies to ALF - based on disability prevalence */}
+          {facilityType === 'ALF' && (
+            <MetricRow
+              label="Need Population"
+              value={needEstimate.toLocaleString()}
+              percentile="Disability-based"
+            />
+          )}
           <MetricRow
             label="65+ Growth (2030)"
             value={`+${growth65.toFixed(1)}%`}
-            percentile={getPercentileLabel(growth65, 18.5)}
+            percentile={getPercentileLabel(growth65, NATIONAL_BENCHMARKS.growth65)}
           />
         </CategoryCard>
 
@@ -479,20 +482,23 @@ const CategoryScorecard = ({ scores, marketData, facilityType, laborData }) => {
           {facilityType === 'SNF' && avgOccupancy > 0 && (
             <MetricRow
               label="Avg Market Occupancy"
-              value={`${(avgOccupancy * 100).toFixed(0)}%`}
+              value={`${avgOccupancy.toFixed(0)}%`}
               percentile={
-                avgOccupancy >= 0.85 ? 'Strong demand' :
-                avgOccupancy >= 0.78 ? 'Moderate' : 'Weak demand'
+                avgOccupancy >= 85 ? 'Strong demand' :
+                avgOccupancy >= 78 ? 'Moderate' : 'Weak demand'
               }
-              highlight={avgOccupancy >= 0.85}
+              highlight={avgOccupancy >= 85}
             />
           )}
-          <MetricRow
-            label="Need Gap"
-            value={needGap > 0 ? `+${needGap.toLocaleString()} under` : `${needGap.toLocaleString()} over`}
-            percentile={needGap > 200 ? 'Opportunity' : 'Balanced'}
-            highlight
-          />
+          {/* Need Gap only applies to ALF - based on disability-need population estimate */}
+          {facilityType === 'ALF' && (
+            <MetricRow
+              label="Need Gap"
+              value={needGap > 0 ? `+${needGap.toLocaleString()} under` : `${needGap.toLocaleString()} over`}
+              percentile={needGap > 200 ? 'Opportunity' : 'Balanced'}
+              highlight
+            />
+          )}
           <MetricRow
             label="New Since 2021"
             value={supplyData?.newSince2021 || 0}
@@ -510,12 +516,12 @@ const CategoryScorecard = ({ scores, marketData, facilityType, laborData }) => {
           <MetricRow
             label="65+ Growth (2030)"
             value={`+${growth65.toFixed(1)}%`}
-            percentile={getPercentileLabel(growth65, 18.5)}
+            percentile={getPercentileLabel(growth65, NATIONAL_BENCHMARKS.growth65)}
           />
           <MetricRow
             label="85+ Growth (2030)"
             value={`+${growth85.toFixed(1)}%`}
-            percentile={getPercentileLabel(growth85, 28)}
+            percentile={getPercentileLabel(growth85, NATIONAL_BENCHMARKS.growth85)}
           />
           <MetricRow
             label="Projected 65+ (2030)"

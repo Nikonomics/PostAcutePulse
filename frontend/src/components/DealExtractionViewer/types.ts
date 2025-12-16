@@ -59,6 +59,7 @@ export interface DealExtractionViewerProps {
   onDocumentDownload?: (docUrl: string) => void;  // Callback to download document
   deleteLoadingId?: number | null;  // ID of document currently being deleted
   onDealStatusChange?: (newStatus: string) => Promise<void>;  // Callback to change deal status
+  isFacilityView?: boolean;  // True when viewing a specific facility (changes tab titles)
 }
 
 export interface SectionProps {

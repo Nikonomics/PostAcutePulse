@@ -267,6 +267,17 @@ const styles = `
     gap: 1rem;
   }
 
+  .portfolio-summary .portfolio-metric-value {
+    color: white;
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  .portfolio-summary .portfolio-metric-label {
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
   .portfolio-metric {
     text-align: center;
   }
@@ -358,6 +369,30 @@ const formatPercent = (value) => {
   const num = parseFloat(value);
   if (isNaN(num)) return 'N/A';
   return `${num}%`;
+};
+
+// Map database field names to component expected field names
+const normalizeFacilityData = (facility) => {
+  if (!facility) return facility;
+  return {
+    ...facility,
+    // Map occupancy fields
+    occupancy_rate: facility.occupancy_rate || facility.current_occupancy || facility.occupancy_pct,
+    // Map financial fields
+    noi: facility.noi || facility.net_operating_income,
+    ebitdar: facility.ebitdar,
+    ebitda: facility.ebitda,
+    annual_rent: facility.annual_rent || facility.rent_lease_expense,
+    // Map payer mix fields
+    medicare_mix: facility.medicare_mix || facility.medicare_percentage || facility.medicare_pct,
+    medicaid_mix: facility.medicaid_mix || facility.medicaid_percentage || facility.medicaid_pct,
+    private_pay_mix: facility.private_pay_mix || facility.private_pay_percentage || facility.private_pay_pct,
+    // Map bed fields
+    licensed_beds: facility.licensed_beds || facility.total_beds || facility.bed_count,
+    bed_count: facility.bed_count || facility.total_beds || facility.no_of_beds,
+    // Keep address mapping
+    address: facility.address || facility.street_address,
+  };
 };
 
 const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
@@ -962,7 +997,9 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand, sh
 };
 
 const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
-  const [facilities, setFacilities] = useState(initialFacilities);
+  // Normalize initial facilities to map field names
+  const normalizedInitial = (initialFacilities || []).map(normalizeFacilityData);
+  const [facilities, setFacilities] = useState(normalizedInitial);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
@@ -972,7 +1009,9 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     setLoading(true);
     try {
       const response = await getDealFacilities(dealId);
-      setFacilities(response.body || []);
+      // Normalize fetched facilities to map field names
+      const normalizedFacilities = (response.body || []).map(normalizeFacilityData);
+      setFacilities(normalizedFacilities);
     } catch (error) {
       console.error('Error fetching facilities:', error);
     } finally {
@@ -986,6 +1025,13 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
+
+  // Re-normalize if initialFacilities changes
+  useEffect(() => {
+    if (initialFacilities && initialFacilities.length > 0) {
+      setFacilities(initialFacilities.map(normalizeFacilityData));
+    }
+  }, [initialFacilities]);
 
   const handleAddFacility = () => {
     setEditingFacility(null);

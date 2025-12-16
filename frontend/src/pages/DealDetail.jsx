@@ -1119,7 +1119,16 @@ const DealDetailPage = () => {
     if (selectedView === 'deal-overview') {
       // Check if this is a portfolio deal with portfolio data
       if (deal.extraction_data?.is_portfolio_deal && deal.extraction_data?.portfolio_data) {
-        return deal.extraction_data.portfolio_data;
+        // Include CIM extraction data along with portfolio data
+        return {
+          ...deal.extraction_data.portfolio_data,
+          // Include deal overview from holistic analysis
+          deal_overview: deal.extraction_data.deal_overview,
+          // Include CIM-specific data (NOI bridge, value-add thesis, executive summary, etc.)
+          cim_extraction: deal.extraction_data.cim_extraction,
+          has_cim: deal.extraction_data.has_cim,
+          cim_files: deal.extraction_data.cim_files,
+        };
       }
       // For single facility deals or backwards compatibility, use extraction_data as-is
       return deal.extraction_data;
@@ -1137,6 +1146,50 @@ const DealDetailPage = () => {
   };
 
   const currentViewData = getCurrentViewData();
+
+  // Helper function to merge CIM facility data with deal_facility records
+  // CIM is the source of truth for revenue, NOI, occupancy, and payer mix
+  const getFacilitiesWithCIMData = () => {
+    if (!deal?.deal_facility) return [];
+
+    const cimFacilities = deal.extraction_data?.cim_extraction?.cim_facilities || [];
+
+    return deal.deal_facility.map((facility) => {
+      // Try to match CIM facility by name (fuzzy matching by normalizing names)
+      const normalizedFacilityName = (facility.facility_name || '').toLowerCase().trim();
+      const matchedCimFacility = cimFacilities.find((cf) => {
+        const normalizedCimName = (cf.facility_name || '').toLowerCase().trim();
+        return normalizedCimName === normalizedFacilityName ||
+               normalizedCimName.includes(normalizedFacilityName) ||
+               normalizedFacilityName.includes(normalizedCimName);
+      });
+
+      if (!matchedCimFacility) {
+        return facility; // No CIM match, return as-is
+      }
+
+      // Merge CIM data as the primary source
+      return {
+        ...facility,
+        // CIM data takes priority for these fields
+        annual_revenue: matchedCimFacility.ttm_revenue || matchedCimFacility.annual_revenue || matchedCimFacility.ttm_financials?.total_revenue || facility.annual_revenue,
+        noi: matchedCimFacility.noi || matchedCimFacility.net_operating_income || matchedCimFacility.ttm_financials?.noi || facility.noi,
+        ebitda: matchedCimFacility.ebitda || matchedCimFacility.ttm_financials?.ebitda || facility.ebitda,
+        ebitdar: matchedCimFacility.ebitdar || matchedCimFacility.ttm_financials?.ebitdar || facility.ebitdar,
+        occupancy_rate: matchedCimFacility.current_occupancy || matchedCimFacility.census_and_occupancy?.current_occupancy_pct || facility.occupancy_rate,
+        medicare_mix: matchedCimFacility.payer_mix?.medicare_pct || matchedCimFacility.census_and_occupancy?.payer_mix_by_census?.medicare_pct || facility.medicare_mix,
+        medicaid_mix: matchedCimFacility.payer_mix?.medicaid_pct || matchedCimFacility.census_and_occupancy?.payer_mix_by_census?.medicaid_pct || facility.medicaid_mix,
+        private_pay_mix: matchedCimFacility.payer_mix?.private_pay_pct || matchedCimFacility.census_and_occupancy?.payer_mix_by_census?.private_pay_pct || facility.private_pay_mix,
+        // Also include CIM data that might not be in deal_facility
+        licensed_beds: matchedCimFacility.licensed_beds || facility.licensed_beds || facility.bed_count,
+        functional_beds: matchedCimFacility.functional_beds || facility.functional_beds,
+        year_built: matchedCimFacility.year_built || facility.year_built,
+        _cim_source: true, // Flag to indicate CIM data was used
+      };
+    });
+  };
+
+  const facilitiesWithCIMData = getFacilitiesWithCIMData();
 
   if (loading) {
     return (
@@ -1283,6 +1336,7 @@ const DealDetailPage = () => {
                     deal={deal}
                     selectedView={selectedView}
                     isPortfolioView={selectedView === 'deal-overview' && deal.extraction_data?.is_portfolio_deal}
+                    isFacilityView={selectedView !== 'deal-overview'}
                     onDocumentUpload={handleDocumentUpload}
                     isUploading={uploading}
                     onDocumentView={handleDocumentView}
@@ -1295,10 +1349,10 @@ const DealDetailPage = () => {
                 </div>
               )}
 
-              {/* Multi-Facility Management Section */}
+              {/* Multi-Facility Management Section - Uses CIM as source of truth */}
               <FacilitiesSection
                 dealId={deal.id}
-                facilities={deal.deal_facility || []}
+                facilities={facilitiesWithCIMData}
               />
 
               {/* Note: Legacy per-facility cards removed - all facility info now in FacilitiesSection above */}

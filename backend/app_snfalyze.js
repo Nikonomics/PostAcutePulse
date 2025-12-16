@@ -163,6 +163,7 @@ app.use('/api/due-diligence', dueDiligenceRouter);
 
 // ALF Facilities API routes
 app.use('/api/facilities', facilitiesRouter);
+app.use('/api/v1/facilities', facilitiesRouter);
 
 // Market Dynamics API routes (available at both /api/market and /api/v1/market)
 app.use('/api/market', marketRouter);

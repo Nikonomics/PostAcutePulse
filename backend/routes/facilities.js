@@ -1,8 +1,8 @@
 /**
- * ALF Facilities API Routes
+ * SNF/ALF Facilities API Routes
  *
- * Provides endpoints for searching and matching facilities
- * from the ALF reference database
+ * Provides endpoints for searching, matching, and viewing facility profiles
+ * from the CMS nursing home and ALF reference databases
  */
 
 const express = require('express');
@@ -12,6 +12,484 @@ const {
   searchFacilities,
   getFacilitiesNearby
 } = require('../services/facilityMatcher');
+
+// ============================================================================
+// FACILITY PROFILE API
+// Comprehensive facility data from CMS time-series database
+// ============================================================================
+
+/**
+ * GET /api/facilities/snf/:ccn
+ * Get comprehensive profile for a skilled nursing facility
+ *
+ * Returns: current info, ratings, quality measures, citations, trends, VBP, etc.
+ */
+router.get('/snf/:ccn', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      // Get latest facility snapshot
+      const [[facility]] = await sequelize.query(`
+        SELECT fs.*, e.extract_date
+        FROM facility_snapshots fs
+        JOIN cms_extracts e ON fs.extract_id = e.extract_id
+        WHERE fs.ccn = :ccn
+        ORDER BY e.extract_date DESC
+        LIMIT 1
+      `, { replacements: { ccn } });
+
+      if (!facility) {
+        return res.status(404).json({
+          success: false,
+          error: 'Facility not found'
+        });
+      }
+
+      // Get historical snapshots for trends (parallel queries)
+      const [
+        [snapshots],
+        [qualityMeasures],
+        [healthCitations],
+        [fireCitations],
+        [vbpScores],
+        [penaltyRecords],
+        [ownershipRecords],
+        [surveyDates],
+        [events],
+        [covidData]
+      ] = await Promise.all([
+        // Historical snapshots (all years)
+        sequelize.query(`
+          SELECT fs.*, e.extract_date
+          FROM facility_snapshots fs
+          JOIN cms_extracts e ON fs.extract_id = e.extract_id
+          WHERE fs.ccn = :ccn
+          ORDER BY e.extract_date ASC
+        `, { replacements: { ccn } }),
+
+        // Latest quality measures
+        sequelize.query(`
+          SELECT mqm.*, e.extract_date
+          FROM mds_quality_measures mqm
+          JOIN cms_extracts e ON mqm.extract_id = e.extract_id
+          WHERE mqm.ccn = :ccn
+          ORDER BY e.extract_date DESC
+          LIMIT 50
+        `, { replacements: { ccn } }),
+
+        // Health citations (last 3 years)
+        sequelize.query(`
+          SELECT hc.*, cd.description as tag_description
+          FROM health_citations hc
+          LEFT JOIN citation_descriptions cd ON hc.deficiency_tag = cd.deficiency_tag
+          WHERE hc.ccn = :ccn
+            AND hc.survey_date >= NOW() - INTERVAL '3 years'
+          ORDER BY hc.survey_date DESC
+        `, { replacements: { ccn } }),
+
+        // Fire safety citations (last 3 years)
+        sequelize.query(`
+          SELECT fsc.*, cd.description as tag_description
+          FROM fire_safety_citations fsc
+          LEFT JOIN citation_descriptions cd ON fsc.deficiency_tag = cd.deficiency_tag
+          WHERE fsc.ccn = :ccn
+            AND fsc.survey_date >= NOW() - INTERVAL '3 years'
+          ORDER BY fsc.survey_date DESC
+        `, { replacements: { ccn } }),
+
+        // VBP scores (all years)
+        sequelize.query(`
+          SELECT * FROM vbp_scores
+          WHERE ccn = :ccn
+          ORDER BY fiscal_year DESC
+        `, { replacements: { ccn } }),
+
+        // Penalty records
+        sequelize.query(`
+          SELECT * FROM penalty_records
+          WHERE ccn = :ccn
+          ORDER BY penalty_date DESC
+        `, { replacements: { ccn } }),
+
+        // Ownership records
+        sequelize.query(`
+          SELECT * FROM ownership_records
+          WHERE ccn = :ccn
+          ORDER BY ownership_percentage DESC NULLS LAST
+        `, { replacements: { ccn } }),
+
+        // Survey dates
+        sequelize.query(`
+          SELECT * FROM survey_dates
+          WHERE ccn = :ccn
+          ORDER BY survey_date DESC
+        `, { replacements: { ccn } }),
+
+        // Events (rating changes, penalties, etc.)
+        sequelize.query(`
+          SELECT fe.*, e.extract_date
+          FROM facility_events fe
+          LEFT JOIN cms_extracts e ON fe.current_extract_id = e.extract_id
+          WHERE fe.ccn = :ccn
+          ORDER BY fe.event_date DESC NULLS LAST
+          LIMIT 50
+        `, { replacements: { ccn } }),
+
+        // COVID vaccination data
+        sequelize.query(`
+          SELECT cv.*, e.extract_date
+          FROM covid_vaccination cv
+          JOIN cms_extracts e ON cv.extract_id = e.extract_id
+          WHERE cv.ccn = :ccn
+          ORDER BY e.extract_date DESC
+          LIMIT 1
+        `, { replacements: { ccn } })
+      ]);
+
+      // Calculate trends from snapshots
+      const trends = calculateTrends(snapshots);
+
+      // Group citations by year for chart
+      const citationsByYear = groupCitationsByYear(healthCitations, fireCitations);
+
+      res.json({
+        success: true,
+        facility: {
+          ...facility,
+          trends,
+          citationsByYear
+        },
+        snapshots,
+        qualityMeasures,
+        healthCitations,
+        fireCitations,
+        vbpScores,
+        penaltyRecords,
+        ownershipRecords,
+        surveyDates,
+        events,
+        covidData: covidData[0] || null
+      });
+
+    } finally {
+      await sequelize.close();
+    }
+
+  } catch (error) {
+    console.error('Error getting facility profile:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/facilities/snf/:ccn/competitors
+ * Get nearby competing facilities
+ */
+router.get('/snf/:ccn/competitors', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+    const { radiusMiles = 25, limit = 20 } = req.query;
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      // Get the target facility's location
+      const [[facility]] = await sequelize.query(`
+        SELECT latitude, longitude, certified_beds
+        FROM facility_snapshots fs
+        JOIN cms_extracts e ON fs.extract_id = e.extract_id
+        WHERE fs.ccn = :ccn
+        ORDER BY e.extract_date DESC
+        LIMIT 1
+      `, { replacements: { ccn } });
+
+      if (!facility || !facility.latitude || !facility.longitude) {
+        return res.json({ success: true, competitors: [] });
+      }
+
+      // Find nearby facilities using Haversine formula
+      const [competitors] = await sequelize.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (fs.ccn) fs.*, e.extract_date
+          FROM facility_snapshots fs
+          JOIN cms_extracts e ON fs.extract_id = e.extract_id
+          ORDER BY fs.ccn, e.extract_date DESC
+        )
+        SELECT
+          ccn, provider_name as facility_name, city, state,
+          overall_rating, health_inspection_rating, qm_rating as quality_measure_rating, staffing_rating,
+          certified_beds as number_of_certified_beds, average_residents_per_day as number_of_residents_in_certified_beds,
+          latitude, longitude,
+          (3959 * acos(
+            cos(radians(:lat)) * cos(radians(latitude)) *
+            cos(radians(longitude) - radians(:lng)) +
+            sin(radians(:lat)) * sin(radians(latitude))
+          )) AS distance_miles
+        FROM latest
+        WHERE ccn != :ccn
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+          AND (3959 * acos(
+            cos(radians(:lat)) * cos(radians(latitude)) *
+            cos(radians(longitude) - radians(:lng)) +
+            sin(radians(:lat)) * sin(radians(latitude))
+          )) <= :radius
+        ORDER BY distance_miles
+        LIMIT :limit
+      `, {
+        replacements: {
+          ccn,
+          lat: parseFloat(facility.latitude),
+          lng: parseFloat(facility.longitude),
+          radius: parseInt(radiusMiles),
+          limit: parseInt(limit)
+        }
+      });
+
+      res.json({
+        success: true,
+        competitors
+      });
+
+    } finally {
+      await sequelize.close();
+    }
+
+  } catch (error) {
+    console.error('Error getting competitors:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/facilities/snf/search
+ * Search SNF facilities with filters
+ */
+router.get('/snf/search', async (req, res) => {
+  try {
+    const {
+      name, state, city, minBeds, maxBeds,
+      minRating, maxRating, limit = 50, offset = 0
+    } = req.query;
+
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      let whereClause = '1=1';
+      const replacements = {};
+
+      if (name) {
+        whereClause += ` AND provider_name ILIKE :name`;
+        replacements.name = `%${name}%`;
+      }
+      if (state) {
+        whereClause += ` AND state = :state`;
+        replacements.state = state.toUpperCase();
+      }
+      if (city) {
+        whereClause += ` AND city ILIKE :city`;
+        replacements.city = `%${city}%`;
+      }
+      if (minBeds) {
+        whereClause += ` AND certified_beds >= :minBeds`;
+        replacements.minBeds = parseInt(minBeds);
+      }
+      if (maxBeds) {
+        whereClause += ` AND certified_beds <= :maxBeds`;
+        replacements.maxBeds = parseInt(maxBeds);
+      }
+      if (minRating) {
+        whereClause += ` AND overall_rating >= :minRating`;
+        replacements.minRating = parseInt(minRating);
+      }
+      if (maxRating) {
+        whereClause += ` AND overall_rating <= :maxRating`;
+        replacements.maxRating = parseInt(maxRating);
+      }
+
+      const [facilities] = await sequelize.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (fs.ccn) fs.*, e.extract_date
+          FROM facility_snapshots fs
+          JOIN cms_extracts e ON fs.extract_id = e.extract_id
+          ORDER BY fs.ccn, e.extract_date DESC
+        )
+        SELECT
+          ccn, provider_name as facility_name, address, city, state, zip_code,
+          overall_rating, health_inspection_rating, qm_rating as quality_measure_rating, staffing_rating,
+          certified_beds as number_of_certified_beds, average_residents_per_day as number_of_residents_in_certified_beds,
+          latitude, longitude, ownership_type
+        FROM latest
+        WHERE ${whereClause}
+        ORDER BY provider_name
+        LIMIT :limit OFFSET :offset
+      `, {
+        replacements: { ...replacements, limit: parseInt(limit), offset: parseInt(offset) }
+      });
+
+      // Get total count
+      const [[{ total }]] = await sequelize.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (fs.ccn) fs.*
+          FROM facility_snapshots fs
+          JOIN cms_extracts e ON fs.extract_id = e.extract_id
+          ORDER BY fs.ccn, e.extract_date DESC
+        )
+        SELECT COUNT(*) as total FROM latest WHERE ${whereClause}
+      `, { replacements });
+
+      res.json({
+        success: true,
+        total: parseInt(total),
+        facilities
+      });
+
+    } finally {
+      await sequelize.close();
+    }
+
+  } catch (error) {
+    console.error('Error searching facilities:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Helper functions
+function calculateTrends(snapshots) {
+  if (!snapshots || snapshots.length < 2) return null;
+
+  const trends = {
+    ratings: [],
+    staffing: [],
+    occupancy: [],
+    deficiencies: [],
+    turnover: [],
+    penalties: [],
+    caseMix: [],
+    weekendStaffing: [],
+    qualityIndicators: []
+  };
+
+  snapshots.forEach(s => {
+    const date = s.extract_date;
+
+    // Star ratings over time
+    trends.ratings.push({
+      date,
+      overall: s.overall_rating,
+      health: s.health_inspection_rating,
+      quality: s.qm_rating,
+      staffing: s.staffing_rating,
+      longStayQM: s.long_stay_qm_rating,
+      shortStayQM: s.short_stay_qm_rating
+    });
+
+    // Staffing hours per resident day
+    trends.staffing.push({
+      date,
+      rn: parseFloat(s.reported_rn_hrs) || 0,
+      lpn: parseFloat(s.reported_lpn_hrs) || 0,
+      cna: parseFloat(s.reported_na_hrs) || 0,
+      total: parseFloat(s.reported_total_nurse_hrs) || 0,
+      licensed: parseFloat(s.reported_licensed_hrs) || 0,
+      pt: parseFloat(s.reported_pt_hrs) || 0
+    });
+
+    // Occupancy
+    const beds = parseInt(s.certified_beds) || 1;
+    const residents = parseInt(s.average_residents_per_day) || 0;
+    trends.occupancy.push({
+      date,
+      rate: Math.round((residents / beds) * 100),
+      beds,
+      residents
+    });
+
+    // Deficiencies from survey cycles
+    trends.deficiencies.push({
+      date,
+      cycle1Total: parseInt(s.cycle1_total_health_deficiencies) || 0,
+      cycle1Standard: parseInt(s.cycle1_standard_deficiencies) || 0,
+      cycle1Complaint: parseInt(s.cycle1_complaint_deficiencies) || 0,
+      cycle2Total: parseInt(s.cycle2_total_health_deficiencies) || 0,
+      deficiencyScore: parseFloat(s.cycle1_deficiency_score) || 0,
+      totalWeightedScore: parseFloat(s.total_weighted_health_score) || 0
+    });
+
+    // Turnover rates
+    trends.turnover.push({
+      date,
+      totalNursingTurnover: parseFloat(s.total_nursing_turnover) || null,
+      rnTurnover: parseFloat(s.rn_turnover) || null,
+      adminDepartures: parseInt(s.administrator_departures) || 0
+    });
+
+    // Penalties and fines
+    trends.penalties.push({
+      date,
+      fineCount: parseInt(s.fine_count) || 0,
+      fineTotalDollars: parseFloat(s.fine_total_dollars) || 0,
+      paymentDenials: parseInt(s.payment_denial_count) || 0,
+      totalPenalties: parseInt(s.total_penalty_count) || 0
+    });
+
+    // Case mix index (acuity measure)
+    trends.caseMix.push({
+      date,
+      caseMixIndex: parseFloat(s.case_mix_index) || null
+    });
+
+    // Weekend staffing
+    trends.weekendStaffing.push({
+      date,
+      weekendTotal: parseFloat(s.weekend_total_nurse_hrs) || null,
+      weekendRN: parseFloat(s.weekend_rn_hrs) || null
+    });
+
+    // Quality indicators
+    trends.qualityIndicators.push({
+      date,
+      incidents: parseInt(s.facility_reported_incidents) || 0,
+      complaints: parseInt(s.substantiated_complaints) || 0,
+      infectionCitations: parseInt(s.infection_control_citations) || 0
+    });
+  });
+
+  return trends;
+}
+
+function groupCitationsByYear(healthCitations, fireCitations) {
+  const byYear = {};
+
+  healthCitations.forEach(c => {
+    const year = new Date(c.survey_date).getFullYear();
+    if (!byYear[year]) byYear[year] = { health: 0, fire: 0 };
+    byYear[year].health++;
+  });
+
+  fireCitations.forEach(c => {
+    const year = new Date(c.survey_date).getFullYear();
+    if (!byYear[year]) byYear[year] = { health: 0, fire: 0 };
+    byYear[year].fire++;
+  });
+
+  return Object.entries(byYear)
+    .map(([year, counts]) => ({ year: parseInt(year), ...counts }))
+    .sort((a, b) => a.year - b.year);
+}
 
 /**
  * POST /api/facilities/match

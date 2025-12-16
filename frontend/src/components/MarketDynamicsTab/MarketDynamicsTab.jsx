@@ -171,6 +171,7 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
   const [selectedCompetitor, setSelectedCompetitor] = useState(null);
   const [resolvedCounty, setResolvedCounty] = useState(null);
   const [stateBenchmarks, setStateBenchmarks] = useState(null);
+  const [nationalBenchmarks, setNationalBenchmarks] = useState(null);
 
   // Determine facility type from deal or extraction data
   const facilityType = useMemo(() => {
@@ -329,15 +330,21 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
         setCompetitors([]);
       }
 
-      // Fetch state benchmarks for SNFs
+      // Fetch state and national benchmarks for SNFs
       if (facilityType === 'SNF' && location.state) {
         try {
-          const benchmarksResponse = await axios.get(`${API_BASE}/api/market/benchmarks/${location.state}`);
-          if (benchmarksResponse.data.success) {
-            setStateBenchmarks(benchmarksResponse.data.data);
+          const [stateResponse, nationalResponse] = await Promise.all([
+            axios.get(`${API_BASE}/api/market/benchmarks/${location.state}`),
+            axios.get(`${API_BASE}/api/market/benchmarks/NATION`)
+          ]);
+          if (stateResponse.data.success) {
+            setStateBenchmarks(stateResponse.data.data);
+          }
+          if (nationalResponse.data.success) {
+            setNationalBenchmarks(nationalResponse.data.data);
           }
         } catch (benchmarkErr) {
-          console.warn('[MarketDynamics] Failed to fetch state benchmarks:', benchmarkErr.message);
+          console.warn('[MarketDynamics] Failed to fetch benchmarks:', benchmarkErr.message);
         }
       }
 
@@ -478,6 +485,7 @@ const MarketDynamicsTab = ({ deal, extractionData }) => {
           <div style={styles.cardBody}>
             <StateBenchmarkPanel
               benchmarks={stateBenchmarks}
+              nationalBenchmarks={nationalBenchmarks}
               marketAverages={marketAverages}
               stateCode={location?.state}
             />

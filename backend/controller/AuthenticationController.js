@@ -137,7 +137,9 @@ module.exports = {
         role: user.role,
       };
 
-      const token = jwt.sign({ data: credentials }, jwtToken, { expiresIn: "7d" });
+      // Generate access token (short-lived) and refresh token (long-lived)
+      const token = jwt.sign({ data: credentials }, jwtToken, { expiresIn: "1h" });
+      const refreshToken = jwt.sign({ data: credentials, type: 'refresh' }, jwtToken, { expiresIn: "30d" });
 
       const userResponse = {
         id: user.id,
@@ -155,6 +157,7 @@ module.exports = {
 
       return helper.success(res, "User logged in successfully", {
         token,
+        refresh: refreshToken,
         user: userResponse,
       });
 
@@ -766,6 +769,61 @@ module.exports = {
       return helper.success(res, "Notification count fetched", { unread_count: unreadCount });
     } catch (err) {
       return helper.error(res, err.message || err);
+    }
+  },
+
+  /*
+  Generate new access token from refresh token
+  Method: GET
+  URL: /api/v1/auth/generate-access-token
+  */
+  generateAccessToken: async (req, res) => {
+    try {
+      // Set cache-control headers to prevent caching of token refresh responses
+      res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return helper.error(res, "Refresh token is required", 401);
+      }
+
+      const refreshToken = authHeader.split(' ')[1];
+
+      // Verify the refresh token
+      jwt.verify(refreshToken, jwtToken, (err, decoded) => {
+        if (err) {
+          console.error('Token verification failed:', err.message);
+          return helper.error(res, "Invalid or expired refresh token", 401);
+        }
+
+        // Check if it's NOT a refresh token (i.e., it's an access token being used incorrectly)
+        if (decoded.type !== 'refresh') {
+          return helper.error(res, "Invalid token type - access token cannot be used to refresh", 401);
+        }
+
+        // Generate new access token
+        const credentials = {
+          id: decoded.data.id,
+          email: decoded.data.email,
+          role: decoded.data.role,
+        };
+
+        const newAccessToken = jwt.sign({ data: credentials }, jwtToken, { expiresIn: "1h" });
+
+        return helper.success(res, "Access token refreshed successfully", {
+          token: newAccessToken,
+          accessToken: newAccessToken,
+          access_token: newAccessToken,
+        });
+      });
+    } catch (err) {
+      console.error('Generate access token error:', err);
+      return helper.error(res, err.message || "Failed to refresh token", 401);
     }
   },
 };

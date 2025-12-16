@@ -35,6 +35,7 @@ import {
   ChevronDown,
   Download as DownloadIcon,
   MapPin,
+  Search,
 } from 'lucide-react';
 import SNFalyzePanel from '../SNFalyzePanel';
 import {
@@ -145,9 +146,18 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   onDocumentDownload,
   deleteLoadingId,
   onDealStatusChange,
+  isFacilityView = false,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showComparison] = useState(initialShowComparison);
+
+  // Dynamic tab config - changes title based on facility vs deal view
+  const tabConfigs = useMemo(() => TAB_CONFIGS.map(tab => {
+    if (tab.id === 'deal_overview' && isFacilityView) {
+      return { ...tab, title: 'Facility Overview' };
+    }
+    return tab;
+  }), [isFacilityView]);
 
   // State for document viewer modal
   const [documentViewerOpen, setDocumentViewerOpen] = useState(false);
@@ -304,6 +314,35 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     return counts;
   }, [extractionData]);
 
+  // Calculate bed counts by facility type (Skilled vs Assisted)
+  const bedCounts = useMemo(() => {
+    const facilities = (deal as any)?.deal_facility || [];
+    let skilledBeds = 0;
+    let assistedBeds = 0;
+    let totalBeds = 0;
+
+    facilities.forEach((facility: any) => {
+      const beds = parseInt(facility.bed_count) || 0;
+      const type = (facility.facility_type || '').toLowerCase();
+      totalBeds += beds;
+
+      // Check for SNF/Skilled Nursing
+      if (type.includes('snf') || type.includes('skilled') || type.includes('nursing')) {
+        skilledBeds += beds;
+      }
+      // Check for ALF/Assisted Living
+      else if (type.includes('alf') || type.includes('assisted')) {
+        assistedBeds += beds;
+      }
+      // Default to skilled if type is unclear but not assisted
+      else if (type.includes('memory') || type.includes('independent') || type.includes('ccrc')) {
+        assistedBeds += beds; // Memory care, IL, CCRC typically count as assisted
+      }
+    });
+
+    return { skilledBeds, assistedBeds, totalBeds };
+  }, [deal]);
+
   // Handle save scenario for ProFormaTab - must be before early returns
   const handleSaveScenario = useCallback(async (scenarioData: any) => {
     if (!dealId) return;
@@ -388,6 +427,33 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         <FieldCell label="Priority Level" field={extractionData.deal_information.priority_level} format="text" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.priority_level" onEdit={(value) => handleFieldEdit('deal_information.priority_level', value)} />
         <FieldCell label="Purchase Price" field={extractionData.deal_information.purchase_price} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.purchase_price" onEdit={(value) => handleFieldEdit('deal_information.purchase_price', value)} />
         <FieldCell label="Price Per Bed" field={extractionData.deal_information.price_per_bed} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} fieldPath="deal_information.price_per_bed" onEdit={(value) => handleFieldEdit('deal_information.price_per_bed', value)} />
+        {/* Bed counts by facility type - calculated from deal_facility */}
+        <div style={{
+          backgroundColor: '#f9fafb',
+          padding: '0.75rem',
+          borderRadius: '0.5rem',
+          border: '1px solid #e5e7eb',
+        }}>
+          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.375rem', fontWeight: 500 }}>
+            Skilled Beds
+          </div>
+          <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#111827' }}>
+            {bedCounts.skilledBeds > 0 ? bedCounts.skilledBeds.toLocaleString() : '—'}
+          </div>
+        </div>
+        <div style={{
+          backgroundColor: '#f9fafb',
+          padding: '0.75rem',
+          borderRadius: '0.5rem',
+          border: '1px solid #e5e7eb',
+        }}>
+          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.375rem', fontWeight: 500 }}>
+            Assisted Beds
+          </div>
+          <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#111827' }}>
+            {bedCounts.assistedBeds > 0 ? bedCounts.assistedBeds.toLocaleString() : '—'}
+          </div>
+        </div>
       </div>
 
       {/* Contact Information */}
@@ -462,7 +528,20 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   };
 
   // Render Census & Rates Tab
-  const renderCensusTab = () => (
+  const renderCensusTab = () => {
+    // Extract facility data for multi-facility portfolios
+    const cimFacilities = (extractionData.cim_extraction as any)?.cim_facilities;
+    const facilitiesForChart = cimFacilities && Array.isArray(cimFacilities) && cimFacilities.length > 1
+      ? cimFacilities.map((f: any) => ({
+          facility_name: f.facility_name || 'Unknown',
+          bed_count: f.bed_count || f.licensed_beds || f.functional_beds,
+          // Handle both field names: current_occupancy and census_and_occupancy.current_occupancy_pct
+          current_occupancy: f.current_occupancy ?? f.census_and_occupancy?.current_occupancy_pct,
+          monthly_trends: f.monthly_trends, // May be undefined if not captured per-facility
+        }))
+      : undefined;
+
+    return (
     <div>
       {/* Census & Occupancy Trend Charts */}
       <h3 style={sectionHeaderStyle}>Census & Occupancy Trends</h3>
@@ -473,6 +552,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         currentPayerMix={extractionData.census_and_occupancy.payer_mix_by_census}
         bedCount={extractionData.facility_information.bed_count.value ?? undefined}
         onSourceClick={handleSourceClick}
+        facilities={facilitiesForChart}
       />
 
       {/* Payer Mix Charts - Keep as summary view */}
@@ -502,7 +582,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
         <FieldCell label="Average Daily Rate" field={extractionData.rate_information.average_daily_rate} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
       </div>
     </div>
-  );
+    );
+  };
 
   // Render Calculator Tab
   const renderCalculatorTab = () => (
@@ -745,8 +826,9 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Deal Overview Tab (Stage 1 Screening)
   const renderDealOverviewTab = () => {
     const overview = extractionData?.deal_overview;
+    const cimExtraction = extractionData?.cim_extraction;
 
-    if (!overview) {
+    if (!overview && !cimExtraction) {
       return (
         <div style={{ padding: '2rem', textAlign: 'center' }}>
           <Lightbulb size={48} style={{ color: '#d1d5db', marginBottom: '1rem' }} />
@@ -760,20 +842,106 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
       );
     }
 
-    // Extract facility info
-    const facilityName = overview.facility_snapshot?.facility_name || 'Unknown Facility';
-    const beds = overview.facility_snapshot?.licensed_beds;
-    const facilityType = overview.facility_snapshot?.facility_type || '';
-    const city = overview.facility_snapshot?.city;
-    const state = overview.facility_snapshot?.state;
-    const occupancy = overview.facility_snapshot?.current_occupancy_pct;
+    // Extract facility info - CIM is primary source
+    const cimDealOverview = cimExtraction?.deal_overview;
+    const cimFacilities = cimExtraction?.cim_facilities || [];
 
-    // Get metric statuses
-    const netIncome = overview.ttm_financials?.net_income;
-    const netIncomeMargin = overview.ttm_financials?.net_income_margin_pct;
+    const facilityName = cimDealOverview?.project_name
+      || overview?.facility_snapshot?.facility_name
+      || overview?.portfolio_name
+      || 'Portfolio Deal';
+    const beds = cimDealOverview?.total_beds || overview?.facility_snapshot?.licensed_beds;
+    const facilityType = overview?.facility_snapshot?.facility_type || cimDealOverview?.asset_type || '';
+    const city = overview?.facility_snapshot?.city;
+    const state = overview?.facility_snapshot?.state || cimDealOverview?.locations_summary;
+    const facilityCount = cimDealOverview?.facility_count || cimFacilities.length;
+
+    // CIM IS PRIMARY SOURCE OF TRUTH for financials
+    // Priority: 1. Aggregate from CIM facilities, 2. CIM portfolio financials, 3. Excel extraction fallback
+    let financials: any = {};
+    let financialSource = 'none';
+
+    if (cimFacilities.length > 0) {
+      // Aggregate from per-facility CIM data - check many possible field names
+      const totalRevenue = cimFacilities.reduce((sum: number, f: any) => {
+        const rev = f.ttm_revenue || f.annual_revenue || f.revenue ||
+                    f.ttm_financials?.total_revenue || f.ttm_financials?.revenue ||
+                    f.financials?.total_revenue || f.financials?.revenue || 0;
+        return sum + (typeof rev === 'number' ? rev : 0);
+      }, 0);
+      const totalNOI = cimFacilities.reduce((sum: number, f: any) => {
+        const noi = f.noi || f.net_operating_income || f.NOI ||
+                    f.ttm_financials?.noi || f.ttm_financials?.net_operating_income ||
+                    f.financials?.noi || f.financials?.net_operating_income || 0;
+        return sum + (typeof noi === 'number' ? noi : 0);
+      }, 0);
+      // Calculate weighted average occupancy
+      const totalBeds = cimFacilities.reduce((sum: number, f: any) => {
+        return sum + (f.licensed_beds || f.bed_count || f.functional_beds || f.beds || 0);
+      }, 0);
+      const weightedOccupancy = cimFacilities.reduce((sum: number, f: any) => {
+        const occ = f.current_occupancy || f.occupancy || f.occupancy_pct ||
+                    f.census_and_occupancy?.current_occupancy_pct ||
+                    f.census_and_occupancy?.occupancy_pct || 0;
+        const beds = f.licensed_beds || f.bed_count || f.functional_beds || f.beds || 0;
+        return sum + (occ * beds);
+      }, 0) / (totalBeds || 1);
+
+      // Set financials if we have any data (even partial)
+      if (totalRevenue > 0 || totalNOI > 0 || weightedOccupancy > 0) {
+        financials = {
+          revenue: totalRevenue || null,
+          total_revenue: totalRevenue || null,
+          noi: totalNOI || null,
+          net_income: totalNOI || null,
+          net_income_margin_pct: totalRevenue > 0 && totalNOI ? (totalNOI / totalRevenue) * 100 : null,
+          weighted_avg_occupancy_pct: weightedOccupancy || null,
+          period: cimFacilities[0]?.ttm_period || 'From CIM'
+        };
+        financialSource = 'cim_facilities';
+      }
+    }
+
+    // If no facility data, try CIM portfolio-level financials
+    if (financialSource === 'none' && cimExtraction?.portfolio_financials) {
+      const pf = cimExtraction.portfolio_financials as any;
+      financials = {
+        revenue: pf.total_revenue || pf.ttm_revenue || pf.revenue,
+        total_revenue: pf.total_revenue || pf.ttm_revenue || pf.revenue,
+        noi: pf.noi || pf.net_operating_income,
+        net_income: pf.net_income || pf.noi,
+        net_income_margin_pct: pf.net_income_margin_pct,
+        weighted_avg_occupancy_pct: pf.weighted_avg_occupancy_pct || pf.occupancy_pct,
+        period: pf.period || 'From CIM'
+      };
+      financialSource = 'cim_portfolio';
+    }
+
+    // Fallback to holistic analysis / excel extraction
+    if (financialSource === 'none') {
+      if (overview?.ttm_financials) {
+        financials = overview.ttm_financials;
+        financialSource = 'excel_extraction';
+      } else if (overview?.portfolio_financials) {
+        financials = overview.portfolio_financials;
+        financialSource = 'excel_extraction';
+      }
+    }
+
+    const isPortfolio = cimFacilities.length > 1 || (overview?.portfolio_financials && !overview?.ttm_financials);
+
+    // Get metric values - CIM-sourced data takes priority
+    const ttmRevenue = financials.revenue || financials.total_revenue || financials.summary_metrics?.total_revenue;
+    const netIncome = financials.net_income ?? financials.total_net_income ?? financials.noi;
+    const netIncomeMargin = financials.net_income_margin_pct ?? financials.portfolio_net_income_margin_pct;
+
+    // Occupancy: prefer CIM per-facility aggregated, then CIM portfolio, then fallback
+    const cimOccupancy = financials.weighted_avg_occupancy_pct;
+    const overviewOccupancy = overview?.facility_snapshot?.current_occupancy_pct || overview?.portfolio_snapshot?.weighted_avg_occupancy_pct;
+    const effectiveOccupancy = cimOccupancy ?? overviewOccupancy;
     const netIncomeStatus = getMetricStatus('netIncome', netIncome);
     const marginStatus = getMetricStatus('netIncomeMargin', netIncomeMargin);
-    const occupancyStatus = getMetricStatus('occupancy', occupancy);
+    const occupancyStatus = getMetricStatus('occupancy', effectiveOccupancy);
 
     // Get trends
     const revenueTrend = getTrendBadge(overview.operating_trends?.revenue_trend);
@@ -783,51 +951,61 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-        {/* Facility Header Card */}
+        {/* Deal Header Card */}
         <div style={{
           background: '#f8fafc',
           border: '1px solid #e2e8f0',
           borderRadius: '8px',
           padding: '16px 20px',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          order: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>📍</span>
-            <div>
-              <div style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
                 {facilityName}
               </div>
-              <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-                {beds && <span>{beds}-bed</span>}
-                {facilityType && <><span>•</span><span>{facilityType}</span></>}
-                {(city || state) && (
-                  <>
-                    <span>•</span>
-                    <span>{[city, state].filter(Boolean).join(', ')}</span>
-                  </>
+              {/* Detailed Deal Stats Row */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '13px' }}>
+                {facilityCount && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#6b7280' }}>Facilities:</span>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{facilityCount}</span>
+                  </div>
                 )}
-                {occupancy !== null && occupancy !== undefined && (
-                  <>
-                    <span>•</span>
-                    <span style={{
-                      fontWeight: 600,
-                      color: occupancy >= 85 ? '#059669' : occupancy >= 75 ? '#d97706' : '#dc2626'
-                    }}>
-                      {occupancy.toFixed(0)}% occupied
-                    </span>
-                  </>
+                {beds && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#6b7280' }}>Total Beds:</span>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{beds}</span>
+                  </div>
+                )}
+                {facilityType && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#6b7280' }}>Type:</span>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{facilityType}</span>
+                  </div>
+                )}
+                {(city || state) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#6b7280' }}>Location:</span>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{[city, state].filter(Boolean).join(', ')}</span>
+                  </div>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Key Metrics Cards */}
-        {overview.ttm_financials && (
+        {/* Key Metrics Cards - CIM is primary source */}
+        {/* Priority: CIM facilities > CIM portfolio > Excel extraction fallback */}
+        {/* Always show if we have any data source available */}
+        {(financialSource !== 'none' || overview?.ttm_financials || overview?.portfolio_financials || cimExtraction || overview) && (
           <div style={{
             background: 'white',
             border: '1px solid #e5e7eb',
             borderRadius: '8px',
+            order: 1,
             padding: '20px',
             boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
           }}>
@@ -842,9 +1020,22 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             }}>
               <FileText size={20} style={{ color: '#3b82f6' }} />
               Key Metrics
-              {overview.ttm_financials.period && (
+              {financials.period && (
                 <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#6b7280', marginLeft: '8px' }}>
-                  ({overview.ttm_financials.period})
+                  ({financials.period})
+                </span>
+              )}
+              {financialSource !== 'excel_extraction' && (
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 500,
+                  color: '#059669',
+                  backgroundColor: '#ecfdf5',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  marginLeft: '8px'
+                }}>
+                  Source: CIM
                 </span>
               )}
             </h3>
@@ -866,8 +1057,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               }}>
                 <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>TTM Revenue</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
-                  ${(overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue)
-                    ? ((overview.ttm_financials.revenue || overview.ttm_financials.summary_metrics?.total_revenue) / 1000000).toFixed(2) + 'M'
+                  {ttmRevenue && ttmRevenue > 0
+                    ? `$${(ttmRevenue / 1000000).toFixed(2)}M`
                     : 'N/A'}
                 </div>
               </div>
@@ -917,13 +1108,13 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
               }}>
                 <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>Occupancy</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, color: occupancyStatus.textColor }}>
-                  {occupancy !== null && occupancy !== undefined ? occupancy.toFixed(1) + '%' : 'N/A'}
+                  {effectiveOccupancy !== null && effectiveOccupancy !== undefined ? effectiveOccupancy.toFixed(1) + '%' : 'N/A'}
                 </div>
               </div>
             </div>
 
             {/* Add-backs Row */}
-            {(overview.ttm_financials.rent_lease || overview.ttm_financials.interest || overview.ttm_financials.depreciation) && (
+            {(financials.rent_lease || financials.interest || financials.depreciation) && (
               <div style={{
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0',
@@ -937,24 +1128,24 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 gap: '8px'
               }}>
                 <span style={{ fontWeight: 600, color: '#1e40af' }}>Add-backs:</span>
-                {overview.ttm_financials.rent_lease !== null && overview.ttm_financials.rent_lease !== undefined && (
+                {financials.rent_lease !== null && financials.rent_lease !== undefined && (
                   <span style={{ color: '#334155' }}>
-                    Rent ${(overview.ttm_financials.rent_lease / 1000).toFixed(0)}K
+                    Rent ${(financials.rent_lease / 1000).toFixed(0)}K
                   </span>
                 )}
-                {overview.ttm_financials.interest !== null && overview.ttm_financials.interest !== undefined && (
+                {financials.interest !== null && financials.interest !== undefined && (
                   <>
                     <span style={{ color: '#94a3b8' }}>•</span>
                     <span style={{ color: '#334155' }}>
-                      Interest ${(overview.ttm_financials.interest / 1000).toFixed(0)}K
+                      Interest ${(financials.interest / 1000).toFixed(0)}K
                     </span>
                   </>
                 )}
-                {overview.ttm_financials.depreciation !== null && overview.ttm_financials.depreciation !== undefined && (
+                {financials.depreciation !== null && financials.depreciation !== undefined && (
                   <>
                     <span style={{ color: '#94a3b8' }}>•</span>
                     <span style={{ color: '#334155' }}>
-                      Depreciation ${(overview.ttm_financials.depreciation / 1000).toFixed(0)}K
+                      Depreciation ${(financials.depreciation / 1000).toFixed(0)}K
                     </span>
                   </>
                 )}
@@ -1024,7 +1215,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
             border: '1px solid #e5e7eb',
             borderRadius: '8px',
             padding: '20px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+            order: 2
           }}>
             <h3 style={{
               fontSize: '1rem',
@@ -1049,105 +1241,838 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
           </div>
         )}
 
-        {/* Fallback: Show structured sections only if markdown is NOT available */}
-        {!overview.detailed_narrative_markdown && (
-          <>
-            {/* Red Flags & Strengths Side by Side */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              {/* Red Flags */}
+        {/* CIM-Specific Sections - Show prominently after Key Metrics */}
+        {extractionData?.cim_extraction && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', order: 3 }}>
+            {/* CIM Executive Summary - Structured format */}
+            {extractionData.cim_extraction.executive_summary && (
               <div style={{
-                padding: '1.25rem',
-                backgroundColor: '#fef2f2',
-                borderRadius: '0.75rem',
-                border: '1px solid #fecaca'
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '20px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
               }}>
                 <h3 style={{
                   fontSize: '1rem',
                   fontWeight: 600,
-                  color: '#991b1b',
-                  marginBottom: '1rem',
+                  color: '#1e293b',
+                  marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem'
                 }}>
-                  <AlertTriangle size={20} style={{ color: '#ef4444' }} />
-                  Red Flags
+                  <FileText size={20} style={{ color: '#8b5cf6' }} />
+                  CIM Executive Summary
                 </h3>
-                {overview.red_flags && overview.red_flags.length > 0 ? (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {overview.red_flags.map((flag, index) => (
-                      <li key={index} style={{
-                        padding: '0.75rem',
-                        backgroundColor: 'white',
-                        borderRadius: '0.5rem',
-                        marginBottom: '0.5rem',
-                        fontSize: '0.875rem',
-                        border: '1px solid #fecaca'
-                      }}>
-                        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
-                          {flag.issue}
-                          <span style={{
-                            marginLeft: '0.5rem',
-                            padding: '0.125rem 0.5rem',
-                            backgroundColor: '#fee2e2',
-                            borderRadius: '0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 500
-                          }}>
-                            {flag.severity}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* THE STORY - Portfolio Overview with Facilities Table */}
+                  {(extractionData.cim_extraction.executive_summary.the_story || extractionData.cim_extraction.cim_facilities?.length) && (
+                    <div style={{
+                      padding: '16px',
+                      backgroundColor: '#f8fafc',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #8b5cf6'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8b5cf6', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        The Story
+                      </div>
+
+                      {/* Narrative summary - single paragraph */}
+                      {extractionData.cim_extraction.executive_summary.the_story && (
+                        <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#334155', margin: '0 0 16px 0' }}>
+                          {extractionData.cim_extraction.executive_summary.the_story}
+                        </p>
+                      )}
+
+                      {/* Facilities Table */}
+                      {extractionData.cim_extraction.cim_facilities && extractionData.cim_extraction.cim_facilities.length > 0 && (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#e2e8f0' }}>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>Facility</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>Location</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>Year Built</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>Licensed Beds</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>Functional Beds</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>CMS Rating</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '2px solid #cbd5e1' }}>Occupancy</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {extractionData.cim_extraction.cim_facilities.map((facility: any, idx: number) => {
+                                // Map nested field names to expected values
+                                const licensedBeds = facility.licensed_beds || facility.bed_count;
+                                const functionalBeds = facility.functional_beds;
+                                const yearBuilt = facility.year_built;
+                                const cmsRating = facility.quality_ratings?.cms_star_rating || facility.cms_rating;
+                                const occupancyPct = facility.census_and_occupancy?.current_occupancy_pct || facility.current_occupancy;
+
+                                return (
+                                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 500, color: '#1e293b' }}>
+                                      {facility.facility_name || `Facility ${idx + 1}`}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
+                                      {[facility.city, facility.state].filter(Boolean).join(', ') || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>
+                                      {yearBuilt || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', textAlign: 'center', color: '#1e293b' }}>
+                                      {licensedBeds || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', textAlign: 'center', color: '#1e293b' }}>
+                                      {functionalBeds || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                      {cmsRating ? (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '2px',
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          backgroundColor: cmsRating >= 4 ? '#dcfce7' : cmsRating >= 3 ? '#fef9c3' : '#fee2e2',
+                                          color: cmsRating >= 4 ? '#166534' : cmsRating >= 3 ? '#854d0e' : '#991b1b',
+                                          fontWeight: 600,
+                                          fontSize: '0.75rem'
+                                        }}>
+                                          {'★'.repeat(cmsRating)}
+                                        </span>
+                                      ) : '-'}
+                                    </td>
+                                    <td style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                      {occupancyPct ? (
+                                        <span style={{
+                                          fontWeight: 600,
+                                          color: occupancyPct >= 85 ? '#059669' : occupancyPct >= 75 ? '#d97706' : '#dc2626'
+                                        }}>
+                                          {occupancyPct}%
+                                        </span>
+                                      ) : '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* THE OPPORTUNITY - Value-add focused with data table */}
+                  {(extractionData.cim_extraction.executive_summary.the_opportunity || extractionData.cim_extraction.noi_bridge || extractionData.cim_extraction.value_add_thesis) && (
+                    <div style={{
+                      padding: '16px',
+                      backgroundColor: '#f0fdf4',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #10b981'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        The Opportunity
+                      </div>
+
+                      {/* NOI Progression Table */}
+                      {extractionData.cim_extraction.noi_bridge && (
+                        <div style={{ marginBottom: '16px', overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#dcfce7' }}>
+                                <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#166534', borderBottom: '2px solid #86efac' }}>NOI Progression</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#166534', borderBottom: '2px solid #86efac' }}>Amount</th>
+                                <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#166534', borderBottom: '2px solid #86efac' }}>Change</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr style={{ backgroundColor: 'white' }}>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', fontWeight: 500 }}>
+                                  {extractionData.cim_extraction.noi_bridge.current_noi_label || 'Current NOI'}
+                                </td>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', fontWeight: 600 }}>
+                                  ${extractionData.cim_extraction.noi_bridge.current_noi?.toLocaleString() || '-'}
+                                </td>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', color: '#6b7280' }}>-</td>
+                              </tr>
+                              <tr style={{ backgroundColor: '#f0fdf4' }}>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', fontWeight: 500 }}>
+                                  {extractionData.cim_extraction.noi_bridge.day_1_noi_label || 'Day 1 NOI'}
+                                </td>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', fontWeight: 600 }}>
+                                  ${extractionData.cim_extraction.noi_bridge.day_1_noi?.toLocaleString() || '-'}
+                                </td>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', color: '#059669', fontWeight: 500 }}>
+                                  {extractionData.cim_extraction.noi_bridge.day_1_noi && extractionData.cim_extraction.noi_bridge.current_noi
+                                    ? `+$${(extractionData.cim_extraction.noi_bridge.day_1_noi - extractionData.cim_extraction.noi_bridge.current_noi).toLocaleString()}`
+                                    : '-'}
+                                </td>
+                              </tr>
+                              <tr style={{ backgroundColor: 'white' }}>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', fontWeight: 600, color: '#166534' }}>
+                                  {extractionData.cim_extraction.noi_bridge.stabilized_noi_label || 'Stabilized NOI'}
+                                </td>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', fontWeight: 700, color: '#166534' }}>
+                                  ${extractionData.cim_extraction.noi_bridge.stabilized_noi?.toLocaleString() || '-'}
+                                </td>
+                                <td style={{ padding: '10px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', color: '#059669', fontWeight: 600 }}>
+                                  {extractionData.cim_extraction.noi_bridge.stabilized_noi && extractionData.cim_extraction.noi_bridge.current_noi
+                                    ? `+$${(extractionData.cim_extraction.noi_bridge.stabilized_noi - extractionData.cim_extraction.noi_bridge.current_noi).toLocaleString()}`
+                                    : '-'}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Value Drivers Table */}
+                      {extractionData.cim_extraction.value_add_thesis && (
+                        <div style={{ marginBottom: '16px', overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#dcfce7' }}>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#166534', borderBottom: '2px solid #86efac' }}>Value Driver</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#166534', borderBottom: '2px solid #86efac' }}>Category</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#166534', borderBottom: '2px solid #86efac' }}>Impact</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {/* Reimbursement Opportunities */}
+                              {extractionData.cim_extraction.value_add_thesis.reimbursement_opportunities?.map((opp: any, idx: number) => (
+                                <tr key={`reimb-${idx}`} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f0fdf4' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bbf7d0' }}>{opp.opportunity}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bbf7d0', color: '#6b7280' }}>Reimbursement</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', fontWeight: 500, color: '#059669' }}>
+                                    {opp.dollar_impact && opp.dollar_impact !== 'not_disclosed' ? `+$${opp.dollar_impact.toLocaleString()}` : '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                              {/* Expense Reduction */}
+                              {extractionData.cim_extraction.value_add_thesis.expense_reduction_opportunities?.map((opp: any, idx: number) => (
+                                <tr key={`exp-${idx}`} style={{ backgroundColor: idx % 2 === 0 ? '#f0fdf4' : 'white' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bbf7d0' }}>{opp.opportunity}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bbf7d0', color: '#6b7280' }}>Expense Reduction</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bbf7d0', textAlign: 'right', fontWeight: 500, color: '#059669' }}>
+                                    {opp.dollar_impact && opp.dollar_impact !== 'not_disclosed' ? `+$${opp.dollar_impact.toLocaleString()}` : '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Qualitative Analysis Paragraph */}
+                      {extractionData.cim_extraction.executive_summary.the_opportunity && (
+                        <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#334155', margin: 0 }}>
+                          {extractionData.cim_extraction.executive_summary.the_opportunity}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* THE MARKET - With competition and demographics tables */}
+                  {(extractionData.cim_extraction.executive_summary.the_market || (extractionData.cim_extraction as any).market_analysis) && (
+                    <div style={{
+                      padding: '16px',
+                      backgroundColor: '#eff6ff',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #3b82f6'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3b82f6', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        The Market
+                      </div>
+
+                      {/* Demographics Table */}
+                      {(extractionData.cim_extraction as any).market_analysis?.markets && (extractionData.cim_extraction as any).market_analysis.markets.length > 0 && (
+                        <div style={{ marginBottom: '16px', overflowX: 'auto' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#1e40af', marginBottom: '8px', textTransform: 'uppercase' }}>Market Demographics</div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#dbeafe' }}>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Market</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Population (15mi)</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>85+ Growth</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(extractionData.cim_extraction as any).market_analysis.markets.map((market: any, idx: number) => (
+                                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#eff6ff' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', fontWeight: 500 }}>{market.market_name}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', textAlign: 'right' }}>
+                                    {market.population_15_mile?.toLocaleString() || '-'}
+                                  </td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', textAlign: 'center', color: '#059669', fontWeight: 500 }}>
+                                    {market.age_85_plus_growth && market.age_85_plus_growth !== 'not_disclosed' ? market.age_85_plus_growth : '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Competition Table */}
+                      {(extractionData.cim_extraction as any).market_analysis?.competitors && (extractionData.cim_extraction as any).market_analysis.competitors.length > 0 && (
+                        <div style={{ marginBottom: '16px', overflowX: 'auto' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#1e40af', marginBottom: '8px', textTransform: 'uppercase' }}>
+                            Competition ({(extractionData.cim_extraction as any).market_analysis.competitors.reduce((sum: number, c: any) => sum + (c.beds || 0), 0)} total beds across {(extractionData.cim_extraction as any).market_analysis.competitors.length} facilities)
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#dbeafe' }}>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Facility</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Operator</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Beds</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Year Built</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#1e40af', borderBottom: '2px solid #93c5fd' }}>Distance</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(extractionData.cim_extraction as any).market_analysis.competitors.map((comp: any, idx: number) => (
+                                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#eff6ff' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', fontWeight: 500 }}>{comp.facility_name}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', color: '#64748b' }}>{comp.operator || '-'}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', textAlign: 'center' }}>{comp.beds || '-'}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', textAlign: 'center', color: '#64748b' }}>{comp.year_built || '-'}</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #bfdbfe', textAlign: 'center' }}>
+                                    {comp.distance_miles ? `${comp.distance_miles} mi` : '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Market Analysis Narrative */}
+                      {extractionData.cim_extraction.executive_summary.the_market && (
+                        <p style={{ fontSize: '0.8rem', lineHeight: 1.5, color: '#475569', margin: 0 }}>
+                          {extractionData.cim_extraction.executive_summary.the_market}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* DEAL PROCESS - Timeline and structure only */}
+                  {extractionData.cim_extraction.deal_overview && (
+                    <div style={{
+                      padding: '16px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #f59e0b'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Deal Process
+                      </div>
+
+                      {/* Deal Structure Table */}
+                      {(() => {
+                        const dealOverview = extractionData.cim_extraction.deal_overview as any;
+                        return (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginBottom: '0' }}>
+                            <tbody>
+                              {dealOverview.transaction_structure && (
+                                <tr style={{ backgroundColor: 'rgba(255,255,255,0.7)' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', fontWeight: 500, color: '#92400e', width: '140px' }}>Deal Type</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', color: '#78350f' }}>
+                                    {dealOverview.transaction_structure}
+                                  </td>
+                                </tr>
+                              )}
+                              {dealOverview.broker && (
+                                <tr style={{ backgroundColor: 'white' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', fontWeight: 500, color: '#92400e' }}>Broker</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', color: '#78350f' }}>
+                                    {dealOverview.broker}
+                                    {dealOverview.broker_contact && (
+                                      <span style={{ color: '#92400e', marginLeft: '8px', fontSize: '0.75rem' }}>
+                                        ({dealOverview.broker_contact})
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )}
+                              {dealOverview.asking_price && dealOverview.asking_price !== 'not_disclosed' && (
+                                <tr style={{ backgroundColor: 'rgba(255,255,255,0.7)' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', fontWeight: 500, color: '#92400e' }}>Asking Price</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', color: '#78350f', fontWeight: 600 }}>
+                                    {typeof dealOverview.asking_price === 'number' ? `$${(dealOverview.asking_price / 1000000).toFixed(1)}M` : dealOverview.asking_price}
+                                  </td>
+                                </tr>
+                              )}
+                              {dealOverview.bid_deadline && dealOverview.bid_deadline !== 'not_disclosed' && (
+                                <tr style={{ backgroundColor: 'white' }}>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', fontWeight: 500, color: '#92400e' }}>Bid Deadline</td>
+                                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #fcd34d', color: '#78350f' }}>
+                                    {dealOverview.bid_deadline}
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* REALISTIC SUCCESS FACTORS - Risk analysis and execution requirements */}
+                  {extractionData.cim_extraction.executive_summary.the_deal && (
+                    <div style={{
+                      padding: '16px',
+                      backgroundColor: '#fef2f2',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #ef4444'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#991b1b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Realistic Success Factors
+                      </div>
+                      <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#7f1d1d', margin: 0 }}>
+                        {extractionData.cim_extraction.executive_summary.the_deal}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Value-Add Thesis Section - Compact */}
+            {extractionData.cim_extraction.value_add_thesis && (
+              <div style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '14px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <h3 style={{
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <Target size={18} style={{ color: '#10b981' }} />
+                  {extractionData.cim_extraction.value_add_thesis._display_label || 'Value-Add Thesis (From CIM)'}
+                </h3>
+
+                {extractionData.cim_extraction.value_add_thesis._source_warning && (
+                  <div style={{
+                    padding: '6px 10px',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '4px',
+                    marginBottom: '10px',
+                    fontSize: '0.75rem',
+                    color: '#92400e',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px'
+                  }}>
+                    <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+                    <span>{extractionData.cim_extraction.value_add_thesis._source_warning}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {extractionData.cim_extraction.value_add_thesis.reimbursement_opportunities?.length > 0 && (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#f0fdf4',
+                      borderRadius: '6px',
+                      border: '1px solid #bbf7d0'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#166534', marginBottom: '6px' }}>
+                        Reimbursement Upside
+                      </div>
+                      {extractionData.cim_extraction.value_add_thesis.reimbursement_opportunities.map((opp: any, idx: number) => (
+                        <div key={idx} style={{ marginBottom: '4px', fontSize: '0.8rem', color: '#065f46' }}>
+                          <span style={{ fontWeight: 500 }}>{opp.opportunity}</span>
+                          {opp.dollar_impact && opp.dollar_impact !== 'not_disclosed' && (
+                            <span style={{ marginLeft: '6px', color: '#047857', fontWeight: 600 }}>
+                              +${opp.dollar_impact.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {extractionData.cim_extraction.value_add_thesis.census_opportunities?.length > 0 && (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#eff6ff',
+                      borderRadius: '6px',
+                      border: '1px solid #93c5fd'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1e40af', marginBottom: '6px' }}>
+                        Census Upside
+                      </div>
+                      {extractionData.cim_extraction.value_add_thesis.census_opportunities.map((opp: any, idx: number) => (
+                        <div key={idx} style={{ marginBottom: '4px', fontSize: '0.8rem', color: '#1e3a8a' }}>
+                          <span style={{ fontWeight: 500 }}>{opp.opportunity}</span>
+                          {opp.dollar_impact && opp.dollar_impact !== 'not_disclosed' && (
+                            <span style={{ marginLeft: '6px', color: '#3b82f6', fontWeight: 600 }}>
+                              +${opp.dollar_impact.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {extractionData.cim_extraction.value_add_thesis.expense_reduction_opportunities?.length > 0 && (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '6px',
+                      border: '1px solid #fcd34d'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#92400e', marginBottom: '6px' }}>
+                        Expense Reduction
+                      </div>
+                      {extractionData.cim_extraction.value_add_thesis.expense_reduction_opportunities.map((opp: any, idx: number) => (
+                        <div key={idx} style={{ marginBottom: '4px', fontSize: '0.8rem', color: '#78350f' }}>
+                          <span style={{ fontWeight: 500 }}>{opp.opportunity}</span>
+                          {opp.dollar_impact && opp.dollar_impact !== 'not_disclosed' && (
+                            <span style={{ marginLeft: '6px', color: '#92400e', fontWeight: 600 }}>
+                              +${opp.dollar_impact.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {extractionData.cim_extraction.value_add_thesis.operational_improvements?.length > 0 && (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#f8fafc',
+                      borderRadius: '6px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                        Operational Improvements
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: '14px' }}>
+                        {extractionData.cim_extraction.value_add_thesis.operational_improvements.map((item: string, idx: number) => (
+                          <li key={idx} style={{ fontSize: '0.8rem', color: '#4b5563', marginBottom: '2px' }}>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Ownership Background with Deep Analysis Button */}
+            {extractionData.cim_extraction.ownership_narrative && (
+              <div style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '16px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    color: '#1e293b',
+                    margin: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <Building2 size={20} style={{ color: '#6366f1' }} />
+                    Ownership Background
+                  </h3>
+                  <button
+                    style={{
+                      padding: '6px 14px',
+                      backgroundColor: '#6366f1',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                    onClick={() => {
+                      // TODO: Trigger deep analysis
+                      alert('Deep Analysis feature coming soon!');
+                    }}
+                  >
+                    <Search size={14} />
+                    Deep Analysis
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  {extractionData.cim_extraction.ownership_narrative.current_owner && extractionData.cim_extraction.ownership_narrative.current_owner !== 'not_disclosed' && (
+                    <div style={{ padding: '6px 12px', backgroundColor: '#f8fafc', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>Owner:</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#111827' }}>
+                        {extractionData.cim_extraction.ownership_narrative.current_owner}
+                      </span>
+                    </div>
+                  )}
+                  {extractionData.cim_extraction.ownership_narrative.ownership_tenure && extractionData.cim_extraction.ownership_narrative.ownership_tenure !== 'not_disclosed' && (
+                    <div style={{ padding: '6px 12px', backgroundColor: '#f8fafc', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>Tenure:</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#111827' }}>
+                        {extractionData.cim_extraction.ownership_narrative.ownership_tenure}
+                      </span>
+                    </div>
+                  )}
+                  {extractionData.cim_extraction.ownership_narrative.seller_motivation && extractionData.cim_extraction.ownership_narrative.seller_motivation !== 'not_disclosed' && (
+                    <div style={{ padding: '6px 12px', backgroundColor: '#fef3c7', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#92400e' }}>Motivation:</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#78350f' }}>
+                        {extractionData.cim_extraction.ownership_narrative.seller_motivation}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {extractionData.cim_extraction.ownership_narrative.narrative_summary && (
+                  <p style={{ fontSize: '0.8rem', lineHeight: 1.5, color: '#4b5563', margin: 0 }}>
+                    {extractionData.cim_extraction.ownership_narrative.narrative_summary}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Risks & Information Gaps from CIM */}
+            {extractionData.cim_extraction.risks_and_gaps && (
+              <div style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '14px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <h3 style={{
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <AlertTriangle size={18} style={{ color: '#ef4444' }} />
+                  Risks & Information Gaps (From CIM)
+                </h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {extractionData.cim_extraction.risks_and_gaps.inferred_risks?.length > 0 && (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#fef2f2',
+                      borderRadius: '6px',
+                      border: '1px solid #fecaca'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7f1d1d', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Inferred Risks
+                      </div>
+                      {extractionData.cim_extraction.risks_and_gaps.inferred_risks.map((risk: any, idx: number) => (
+                        <div key={idx} style={{ marginBottom: '6px', fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: 600, color: '#b91c1c' }}>{risk.risk}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#374151' }}>{risk.observation}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {extractionData.cim_extraction.risks_and_gaps.information_gaps?.length > 0 && (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#fffbeb',
+                      borderRadius: '6px',
+                      border: '1px solid #fcd34d'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#78350f', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Information Gaps
+                      </div>
+                      {extractionData.cim_extraction.risks_and_gaps.information_gaps.map((gap: any, idx: number) => (
+                        <div key={idx} style={{ marginBottom: '6px', fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: 600, color: '#b45309' }}>{gap.gap}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#374151' }}>{gap.why_it_matters}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* NOI Bridge Section - Last */}
+            {extractionData.cim_extraction.noi_bridge && (
+              <div style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '20px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <h3 style={{
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <BarChart3 size={20} style={{ color: '#3b82f6' }} />
+                  {extractionData.cim_extraction.noi_bridge._display_label || 'NOI Bridge'}
+                </h3>
+
+                {extractionData.cim_extraction.noi_bridge._source_warning && (
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '6px',
+                    marginBottom: '16px',
+                    fontSize: '0.8rem',
+                    color: '#92400e',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem'
+                  }}>
+                    <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{extractionData.cim_extraction.noi_bridge._source_warning}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <span style={{ fontWeight: 500, color: '#374151' }}>
+                      {extractionData.cim_extraction.noi_bridge.current_noi_label || 'Current NOI'}
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#111827' }}>
+                      ${extractionData.cim_extraction.noi_bridge.current_noi?.toLocaleString() || 'N/A'}
+                    </span>
+                  </div>
+
+                  {extractionData.cim_extraction.noi_bridge.day_1_adjustments?.length > 0 && (
+                    <div style={{ paddingLeft: '20px' }}>
+                      {extractionData.cim_extraction.noi_bridge.day_1_adjustments.map((adj: any, idx: number) => (
+                        <div key={idx} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '8px 16px',
+                          backgroundColor: '#f0fdf4',
+                          borderRadius: '4px',
+                          marginBottom: '4px',
+                          border: '1px solid #bbf7d0'
+                        }}>
+                          <span style={{ color: '#166534', fontSize: '0.875rem' }}>
+                            + {adj.item}
+                            {adj.source === 'analyst_estimate' && (
+                              <span style={{ marginLeft: '4px', fontSize: '0.7rem', color: '#92400e' }}>(estimate)</span>
+                            )}
+                          </span>
+                          <span style={{ fontWeight: 600, color: '#166534' }}>
+                            +${adj.amount?.toLocaleString() || '?'}
                           </span>
                         </div>
-                        <div style={{ color: '#7f1d1d' }}>{flag.impact}</div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p style={{ color: '#991b1b', fontSize: '0.875rem', fontStyle: 'italic' }}>No critical red flags identified</p>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  )}
 
-              {/* Strengths */}
-              <div style={{
-                padding: '1.25rem',
-                backgroundColor: '#ecfdf5',
-                borderRadius: '0.75rem',
-                border: '1px solid #a7f3d0'
-              }}>
-                <h3 style={{
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: '#065f46',
-                  marginBottom: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <TrendingUp size={20} style={{ color: '#10b981' }} />
-                  Strengths
-                </h3>
-                {overview.strengths && overview.strengths.length > 0 ? (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {overview.strengths.map((strength, index) => (
-                      <li key={index} style={{
-                        padding: '0.75rem',
-                        backgroundColor: 'white',
-                        borderRadius: '0.5rem',
-                        marginBottom: '0.5rem',
-                        fontSize: '0.875rem',
-                        border: '1px solid #a7f3d0'
-                      }}>
-                        <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
-                          {strength.strength}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    backgroundColor: '#eff6ff',
+                    borderRadius: '6px',
+                    border: '1px solid #93c5fd'
+                  }}>
+                    <span style={{ fontWeight: 500, color: '#1e40af' }}>
+                      {extractionData.cim_extraction.noi_bridge.day_1_noi_label || 'Day 1 NOI'}
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1e40af' }}>
+                      ${extractionData.cim_extraction.noi_bridge.day_1_noi?.toLocaleString() || 'N/A'}
+                    </span>
+                  </div>
+
+                  {extractionData.cim_extraction.noi_bridge.stabilization_adjustments?.length > 0 && (
+                    <div style={{ paddingLeft: '20px' }}>
+                      {extractionData.cim_extraction.noi_bridge.stabilization_adjustments.map((adj: any, idx: number) => (
+                        <div key={idx} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '8px 16px',
+                          backgroundColor: '#f0fdf4',
+                          borderRadius: '4px',
+                          marginBottom: '4px',
+                          border: '1px solid #bbf7d0'
+                        }}>
+                          <span style={{ color: '#166534', fontSize: '0.875rem' }}>
+                            + {adj.item}
+                            {adj.source === 'analyst_estimate' && (
+                              <span style={{ marginLeft: '4px', fontSize: '0.7rem', color: '#92400e' }}>(estimate)</span>
+                            )}
+                          </span>
+                          <span style={{ fontWeight: 600, color: '#166534' }}>
+                            +${adj.amount?.toLocaleString() || '?'}
+                          </span>
                         </div>
-                        <div style={{ color: '#047857' }}>{strength.value}</div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p style={{ color: '#065f46', fontSize: '0.875rem', fontStyle: 'italic' }}>No strengths identified</p>
-                )}
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '14px 16px',
+                    backgroundColor: '#10b981',
+                    borderRadius: '6px',
+                    color: 'white'
+                  }}>
+                    <span style={{ fontWeight: 500 }}>
+                      Stabilized NOI
+                      {extractionData.cim_extraction.noi_bridge.stabilization_timeline &&
+                       extractionData.cim_extraction.noi_bridge.stabilization_timeline !== 'not_disclosed' && (
+                        <span style={{ marginLeft: '8px', fontSize: '0.8rem', opacity: 0.9 }}>
+                          ({extractionData.cim_extraction.noi_bridge.stabilization_timeline})
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: '1.25rem' }}>
+                      ${extractionData.cim_extraction.noi_bridge.stabilized_noi?.toLocaleString() || 'N/A'}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+        )}
 
             {/* Turnaround Analysis - V7 */}
             {overview.turnaround?.required && (
@@ -1352,8 +2277,6 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 </p>
               </div>
             )}
-          </>
-        )}
 
         {/* Individual Collapsible Sections for Markdown Content */}
         {overview.detailed_narrative_markdown && (
@@ -2175,7 +3098,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
 
       {/* Tabs */}
       <div style={tabContainerStyle}>
-        {TAB_CONFIGS.map((tab) => {
+        {tabConfigs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button

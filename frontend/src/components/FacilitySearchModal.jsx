@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { Modal, Button, Form, Table, Spinner, Badge, InputGroup } from 'react-bootstrap';
-import { Search, MapPin, Building2, X } from 'lucide-react';
+import { Search, MapPin, Building2, X, Bookmark, BookmarkCheck } from 'lucide-react';
 import { searchFacilities } from '../api/DealService';
+import { saveMarketFacility } from '../api/savedItemsService';
 import { toast } from 'react-toastify';
 
 // US States for dropdown
@@ -85,6 +86,8 @@ const FacilitySearchModal = ({
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState(null);
+  const [savingFacilityId, setSavingFacilityId] = useState(null);
+  const [savedFacilityIds, setSavedFacilityIds] = useState(new Set());
 
   // Reset state when modal opens with new initial values
   React.useEffect(() => {
@@ -138,7 +141,33 @@ const FacilitySearchModal = ({
     setResults([]);
     setHasSearched(false);
     setError(null);
+    setSavedFacilityIds(new Set());
     onClose();
+  };
+
+  const handleSaveFacility = async (facility) => {
+    const facilityId = facility.id || facility.facility_id;
+    // Determine facility type - use the search facilityType, default to SNF if "both" was selected
+    const saveFacilityType = facilityType === 'both' ? 'SNF' : facilityType;
+
+    setSavingFacilityId(facilityId);
+
+    try {
+      const result = await saveMarketFacility(saveFacilityType, facilityId);
+
+      if (result.success) {
+        setSavedFacilityIds(prev => new Set([...prev, facilityId]));
+        toast.success(`${facility.facility_name} saved to your items!`);
+      } else if (result.alreadySaved) {
+        toast.info('Facility is already in your saved items');
+        setSavedFacilityIds(prev => new Set([...prev, facilityId]));
+      }
+    } catch (err) {
+      console.error('Error saving facility:', err);
+      toast.error('Failed to save facility. Please try again.');
+    } finally {
+      setSavingFacilityId(null);
+    }
   };
 
   // Format bed count display
@@ -285,7 +314,7 @@ const FacilitySearchModal = ({
                       <th>Facility Name</th>
                       <th>Location</th>
                       <th className="text-center">Beds</th>
-                      <th className="text-end">Action</th>
+                      <th className="text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -314,13 +343,30 @@ const FacilitySearchModal = ({
                           </Badge>
                         </td>
                         <td className="text-end">
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => handleSelect(facility)}
-                          >
-                            Select
-                          </Button>
+                          <div className="d-flex gap-2 justify-content-end">
+                            <Button
+                              variant={savedFacilityIds.has(facility.id || facility.facility_id) ? "success" : "outline-secondary"}
+                              size="sm"
+                              onClick={() => handleSaveFacility(facility)}
+                              disabled={savingFacilityId === (facility.id || facility.facility_id) || savedFacilityIds.has(facility.id || facility.facility_id)}
+                              title={savedFacilityIds.has(facility.id || facility.facility_id) ? "Saved" : "Save to My Items"}
+                            >
+                              {savingFacilityId === (facility.id || facility.facility_id) ? (
+                                <Spinner animation="border" size="sm" />
+                              ) : savedFacilityIds.has(facility.id || facility.facility_id) ? (
+                                <BookmarkCheck size={16} />
+                              ) : (
+                                <Bookmark size={16} />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => handleSelect(facility)}
+                            >
+                              Select
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -1121,6 +1121,454 @@ function buildMetadataMaps(facility) {
 }
 
 
+// ============================================
+// PORTFOLIO vs FACILITY RECONCILIATION
+// Compares deal overview totals with sum of facility data
+// ============================================
+
+const Anthropic = require('@anthropic-ai/sdk');
+const anthropic = new Anthropic();
+
+/**
+ * Variance thresholds for triggering AI reconciliation
+ * Values are percentages (e.g., 5 = 5%)
+ */
+const VARIANCE_THRESHOLDS = {
+  revenue: 5,
+  net_income: 10,  // NOI can vary more due to allocation methods
+  occupancy: 3,    // Occupancy should be very close
+  payer_mix: 5,    // Medicare/Medicaid/Private Pay percentages
+  adc: 5           // Average Daily Census
+};
+
+/**
+ * Compare portfolio totals with sum of facility data
+ * @param {Object} dealOverview - Portfolio-level data from CIM/deal overview
+ * @param {Array} facilities - Array of facility-level data
+ * @returns {Object} Comparison results with variances
+ */
+function comparePortfolioVsFacilities(dealOverview, facilities) {
+  if (!dealOverview || !facilities || facilities.length === 0) {
+    return { canCompare: false, reason: 'Missing deal overview or facility data' };
+  }
+
+  const results = {
+    canCompare: true,
+    comparisons: {},
+    hasVariance: false,
+    varianceFields: []
+  };
+
+  // Sum up facility values
+  const facilityTotals = {
+    revenue: 0,
+    net_income: 0,
+    occupancy_sum: 0,
+    occupancy_count: 0,
+    medicare_pct_sum: 0,
+    medicaid_pct_sum: 0,
+    private_pay_pct_sum: 0,
+    payer_mix_count: 0,
+    adc_sum: 0,
+    adc_count: 0,
+    beds_total: 0
+  };
+
+  for (const facility of facilities) {
+    // Revenue
+    const revenue = facility.annual_revenue || facility.total_revenue || facility.ttm_revenue || 0;
+    facilityTotals.revenue += revenue;
+
+    // Net Income / NOI
+    const noi = facility.net_operating_income || facility.noi || facility.net_income || 0;
+    facilityTotals.net_income += noi;
+
+    // Occupancy (average, weighted by beds if possible)
+    const occupancy = facility.current_occupancy || facility.occupancy_pct || facility.occupancy_percentage || 0;
+    const beds = facility.bed_count || facility.licensed_beds || facility.total_beds || 0;
+    if (occupancy > 0) {
+      facilityTotals.occupancy_sum += occupancy * (beds || 1);
+      facilityTotals.occupancy_count += (beds || 1);
+    }
+    facilityTotals.beds_total += beds;
+
+    // Payer Mix
+    const medicare = facility.medicare_pct || facility.medicare_percentage || 0;
+    const medicaid = facility.medicaid_pct || facility.medicaid_percentage || 0;
+    const privatePay = facility.private_pay_pct || facility.private_pay_percentage || 0;
+    if (medicare > 0 || medicaid > 0 || privatePay > 0) {
+      facilityTotals.medicare_pct_sum += medicare * (beds || 1);
+      facilityTotals.medicaid_pct_sum += medicaid * (beds || 1);
+      facilityTotals.private_pay_pct_sum += privatePay * (beds || 1);
+      facilityTotals.payer_mix_count += (beds || 1);
+    }
+
+    // ADC
+    const adc = facility.average_daily_census || facility.adc || 0;
+    if (adc > 0) {
+      facilityTotals.adc_sum += adc;
+      facilityTotals.adc_count++;
+    }
+  }
+
+  // Calculate weighted averages
+  const facilityAverages = {
+    revenue: facilityTotals.revenue,
+    net_income: facilityTotals.net_income,
+    occupancy: facilityTotals.occupancy_count > 0
+      ? facilityTotals.occupancy_sum / facilityTotals.occupancy_count
+      : null,
+    medicare_pct: facilityTotals.payer_mix_count > 0
+      ? facilityTotals.medicare_pct_sum / facilityTotals.payer_mix_count
+      : null,
+    medicaid_pct: facilityTotals.payer_mix_count > 0
+      ? facilityTotals.medicaid_pct_sum / facilityTotals.payer_mix_count
+      : null,
+    private_pay_pct: facilityTotals.payer_mix_count > 0
+      ? facilityTotals.private_pay_pct_sum / facilityTotals.payer_mix_count
+      : null,
+    adc: facilityTotals.adc_sum,
+    beds: facilityTotals.beds_total
+  };
+
+  // Get deal overview values
+  const portfolioValues = {
+    revenue: dealOverview.portfolio_financials?.combined_revenue
+      || dealOverview.ttm_financials?.revenue
+      || dealOverview.combined_revenue,
+    net_income: dealOverview.portfolio_financials?.combined_noi
+      || dealOverview.ttm_financials?.net_income
+      || dealOverview.combined_noi,
+    occupancy: dealOverview.portfolio_financials?.blended_occupancy_pct
+      || dealOverview.facility_snapshot?.current_occupancy_pct
+      || dealOverview.blended_occupancy,
+    medicare_pct: dealOverview.payer_mix?.medicare_pct,
+    medicaid_pct: dealOverview.payer_mix?.medicaid_pct,
+    private_pay_pct: dealOverview.payer_mix?.private_pay_pct,
+    adc: dealOverview.average_daily_census || dealOverview.portfolio_financials?.blended_adc,
+    beds: dealOverview.deal_overview?.total_beds || dealOverview.facility_snapshot?.licensed_beds
+  };
+
+  // Compare each field
+  const compareField = (fieldName, portfolioVal, facilityVal, threshold) => {
+    if (portfolioVal === null || portfolioVal === undefined ||
+        facilityVal === null || facilityVal === undefined ||
+        portfolioVal === 0) {
+      return {
+        canCompare: false,
+        portfolioValue: portfolioVal,
+        facilityValue: facilityVal,
+        reason: 'Missing data'
+      };
+    }
+
+    const variance = Math.abs((portfolioVal - facilityVal) / portfolioVal) * 100;
+    const hasVariance = variance > threshold;
+
+    if (hasVariance) {
+      results.hasVariance = true;
+      results.varianceFields.push(fieldName);
+    }
+
+    return {
+      canCompare: true,
+      portfolioValue: portfolioVal,
+      facilityValue: facilityVal,
+      variance: Math.round(variance * 100) / 100,
+      threshold: threshold,
+      hasVariance: hasVariance,
+      difference: portfolioVal - facilityVal
+    };
+  };
+
+  // Run comparisons
+  results.comparisons.revenue = compareField(
+    'revenue',
+    portfolioValues.revenue,
+    facilityAverages.revenue,
+    VARIANCE_THRESHOLDS.revenue
+  );
+
+  results.comparisons.net_income = compareField(
+    'net_income',
+    portfolioValues.net_income,
+    facilityAverages.net_income,
+    VARIANCE_THRESHOLDS.net_income
+  );
+
+  results.comparisons.occupancy = compareField(
+    'occupancy',
+    portfolioValues.occupancy,
+    facilityAverages.occupancy,
+    VARIANCE_THRESHOLDS.occupancy
+  );
+
+  results.comparisons.medicare_pct = compareField(
+    'medicare_pct',
+    portfolioValues.medicare_pct,
+    facilityAverages.medicare_pct,
+    VARIANCE_THRESHOLDS.payer_mix
+  );
+
+  results.comparisons.medicaid_pct = compareField(
+    'medicaid_pct',
+    portfolioValues.medicaid_pct,
+    facilityAverages.medicaid_pct,
+    VARIANCE_THRESHOLDS.payer_mix
+  );
+
+  results.comparisons.private_pay_pct = compareField(
+    'private_pay_pct',
+    portfolioValues.private_pay_pct,
+    facilityAverages.private_pay_pct,
+    VARIANCE_THRESHOLDS.payer_mix
+  );
+
+  results.comparisons.adc = compareField(
+    'adc',
+    portfolioValues.adc,
+    facilityAverages.adc,
+    VARIANCE_THRESHOLDS.adc
+  );
+
+  results.portfolioValues = portfolioValues;
+  results.facilityTotals = facilityAverages;
+
+  return results;
+}
+
+
+/**
+ * AI Reconciliation Prompt
+ * Asks Claude to analyze discrepancies and determine correct values
+ */
+const RECONCILIATION_PROMPT = `You are a healthcare M&A financial analyst. You have been given two sets of numbers for a skilled nursing facility portfolio:
+
+1. **Portfolio-Level Data**: Extracted from the CIM/Offering Memorandum (deal overview)
+2. **Facility-Sum Data**: Sum/average of individual facility extractions
+
+These numbers should match but they don't. Your job is to:
+1. Analyze WHY they differ (common reasons: corporate overhead allocation, timing differences, pro-forma vs actual, different reporting periods, extraction errors)
+2. Determine which set of numbers is MORE LIKELY CORRECT
+3. Recommend the FINAL values to use
+
+## IMPORTANT RULES
+- If portfolio-level appears to include corporate overhead or management fees not in facility data, the portfolio number is likely correct for total expenses/NOI
+- If facility-sum is higher, check if portfolio might be missing a facility or using different period
+- For occupancy and payer mix, facility-level data is usually more accurate (granular source)
+- For revenue/NOI, portfolio-level from CIM is often the "marketed" number the seller wants to present
+
+## OUTPUT FORMAT
+Return valid JSON with this structure:
+{
+  "analysis": {
+    "revenue": {
+      "explanation": "string explaining why the numbers differ",
+      "recommended_value": number,
+      "recommended_source": "portfolio" | "facility_sum" | "calculated",
+      "confidence": "high" | "medium" | "low"
+    },
+    "net_income": { ... same structure ... },
+    "occupancy": { ... same structure ... },
+    "medicare_pct": { ... same structure ... },
+    "medicaid_pct": { ... same structure ... },
+    "private_pay_pct": { ... same structure ... },
+    "adc": { ... same structure ... }
+  },
+  "overall_assessment": "string (1-2 sentences on data quality)",
+  "data_quality_score": number (1-10, 10 being perfect match),
+  "recommended_action": "use_portfolio" | "use_facility_sum" | "use_hybrid" | "manual_review_needed"
+}
+
+Return ONLY valid JSON, no markdown.`;
+
+
+/**
+ * Run AI reconciliation when variances exceed thresholds
+ * @param {Object} comparisonResults - Output from comparePortfolioVsFacilities
+ * @param {string} documentContext - Optional context from source documents
+ * @returns {Object} Reconciliation results with recommended values
+ */
+async function runReconciliation(comparisonResults, documentContext = '') {
+  if (!comparisonResults.hasVariance) {
+    return {
+      needed: false,
+      message: 'No significant variance detected',
+      comparisonResults
+    };
+  }
+
+  console.log('[Reconciler] Running AI reconciliation for variances in:', comparisonResults.varianceFields);
+
+  const userPrompt = `
+## PORTFOLIO-LEVEL DATA (from CIM/Deal Overview)
+${JSON.stringify(comparisonResults.portfolioValues, null, 2)}
+
+## FACILITY-SUM DATA (sum/average of ${comparisonResults.facilityTotals?.beds || 'N/A'} beds across facilities)
+${JSON.stringify(comparisonResults.facilityTotals, null, 2)}
+
+## VARIANCE ANALYSIS
+${JSON.stringify(comparisonResults.comparisons, null, 2)}
+
+## FIELDS WITH SIGNIFICANT VARIANCE (exceeding thresholds)
+${comparisonResults.varianceFields.join(', ')}
+
+${documentContext ? `## ADDITIONAL CONTEXT\n${documentContext}` : ''}
+
+Please analyze the discrepancies and recommend the correct values to use.`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: RECONCILIATION_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+
+    const responseText = response.content[0].text;
+    let reconciliationData;
+
+    try {
+      reconciliationData = JSON.parse(responseText);
+    } catch (parseError) {
+      // Try to extract JSON
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        reconciliationData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not parse reconciliation response');
+      }
+    }
+
+    console.log('[Reconciler] AI reconciliation complete:', {
+      dataQualityScore: reconciliationData.data_quality_score,
+      recommendedAction: reconciliationData.recommended_action
+    });
+
+    return {
+      needed: true,
+      success: true,
+      reconciliation: reconciliationData,
+      comparisonResults,
+      varianceFields: comparisonResults.varianceFields
+    };
+
+  } catch (error) {
+    console.error('[Reconciler] AI reconciliation error:', error.message);
+    return {
+      needed: true,
+      success: false,
+      error: error.message,
+      comparisonResults,
+      varianceFields: comparisonResults.varianceFields
+    };
+  }
+}
+
+
+/**
+ * Apply reconciliation results to update extraction data
+ * @param {Object} extractionData - Original extraction data
+ * @param {Object} reconciliationResults - Output from runReconciliation
+ * @returns {Object} Updated extraction data with reconciled values
+ */
+function applyReconciliation(extractionData, reconciliationResults) {
+  if (!reconciliationResults.success || !reconciliationResults.reconciliation) {
+    return extractionData;
+  }
+
+  const analysis = reconciliationResults.reconciliation.analysis;
+  const updated = { ...extractionData };
+
+  // Create reconciliation notes for the UI
+  updated._reconciliation = {
+    performed: true,
+    timestamp: new Date().toISOString(),
+    data_quality_score: reconciliationResults.reconciliation.data_quality_score,
+    recommended_action: reconciliationResults.reconciliation.recommended_action,
+    overall_assessment: reconciliationResults.reconciliation.overall_assessment,
+    field_analysis: {}
+  };
+
+  // Apply recommended values for each field with variance
+  for (const [field, fieldAnalysis] of Object.entries(analysis)) {
+    if (fieldAnalysis.recommended_value !== null && fieldAnalysis.recommended_value !== undefined) {
+      updated._reconciliation.field_analysis[field] = {
+        original_portfolio: reconciliationResults.comparisonResults.portfolioValues[field],
+        original_facility_sum: reconciliationResults.comparisonResults.facilityTotals[field],
+        recommended_value: fieldAnalysis.recommended_value,
+        recommended_source: fieldAnalysis.recommended_source,
+        explanation: fieldAnalysis.explanation,
+        confidence: fieldAnalysis.confidence
+      };
+    }
+  }
+
+  return updated;
+}
+
+
+/**
+ * Main function: Run full portfolio vs facility reconciliation
+ * Call this after extraction completes
+ * @param {Object} extractionResult - Full extraction result with cim_extraction and facilities
+ * @returns {Object} Extraction result with reconciliation applied
+ */
+async function reconcilePortfolioExtraction(extractionResult) {
+  console.log('[Reconciler] Starting portfolio vs facility reconciliation...');
+
+  // Get deal overview data (from CIM extraction or deal_overview)
+  const dealOverview = extractionResult.cim_extraction
+    || extractionResult.deal_overview
+    || extractionResult.portfolio_extraction;
+
+  // Get facility-level data
+  const facilities = extractionResult.facilities
+    || extractionResult.facility_details?.map(f => f.extraction_result?.extractedData)
+    || [];
+
+  if (!dealOverview || facilities.length === 0) {
+    console.log('[Reconciler] Skipping - missing deal overview or facility data');
+    return extractionResult;
+  }
+
+  // Compare portfolio vs facility sums
+  const comparison = comparePortfolioVsFacilities(dealOverview, facilities);
+  console.log('[Reconciler] Comparison complete:', {
+    canCompare: comparison.canCompare,
+    hasVariance: comparison.hasVariance,
+    varianceFields: comparison.varianceFields
+  });
+
+  // Store comparison results
+  extractionResult._portfolio_comparison = comparison;
+
+  // If significant variance, run AI reconciliation
+  if (comparison.hasVariance && comparison.varianceFields.length > 0) {
+    const reconciliation = await runReconciliation(comparison);
+
+    if (reconciliation.success) {
+      extractionResult = applyReconciliation(extractionResult, reconciliation);
+    } else {
+      // Store that reconciliation was attempted but failed
+      extractionResult._reconciliation = {
+        performed: true,
+        success: false,
+        error: reconciliation.error,
+        variance_detected: comparison.varianceFields
+      };
+    }
+  } else {
+    extractionResult._reconciliation = {
+      performed: false,
+      reason: comparison.hasVariance ? 'No variance exceeded threshold' : 'Data matched within tolerance'
+    };
+  }
+
+  return extractionResult;
+}
+
+
 module.exports = {
   reconcileExtractionResults,
   reconcileFinancials,
@@ -1128,5 +1576,11 @@ module.exports = {
   reconcileExpenses,
   reconcileRates,
   calculateTTM,
-  buildFlatSummary
+  buildFlatSummary,
+  // New portfolio reconciliation exports
+  comparePortfolioVsFacilities,
+  runReconciliation,
+  applyReconciliation,
+  reconcilePortfolioExtraction,
+  VARIANCE_THRESHOLDS
 };

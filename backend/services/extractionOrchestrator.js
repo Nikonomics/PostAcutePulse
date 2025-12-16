@@ -12,9 +12,10 @@ const XLSX = require('xlsx');
 const pdfParse = require('pdf-parse');
 
 const { runParallelExtractions, prepareDocumentText } = require('./parallelExtractor');
-const { reconcileExtractionResults } = require('./extractionReconciler');
+const { reconcileExtractionResults, reconcilePortfolioExtraction } = require('./extractionReconciler');
 const { analyzeRatios } = require('./ratioCalculator');
 const { analyzeFinancialPeriods, generatePromptSection } = require('./periodAnalyzer');
+const { runCIMExtraction, detectCIMDocument, transformCIMToFrontendSchema } = require('./cimExtractor');
 
 // Minimum text length to consider extraction successful
 const MIN_TEXT_LENGTH = 100;
@@ -551,7 +552,43 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
 
   console.log(`[PortfolioExtraction] Successfully extracted text from ${successfulFiles.length}/${files.length} files`);
 
-  // Step 2: Combine all document text with size check
+  // Step 2: Detect and process CIM documents (NEW - prioritize CIMs)
+  console.log('[PortfolioExtraction] Step 2: Checking for CIM/Offering Memorandum documents...');
+  const cimDetection = detectCIMDocument(successfulFiles);
+  let cimExtractionResult = null;
+
+  if (cimDetection.hasCIM) {
+    console.log(`[PortfolioExtraction] CIM detected: ${cimDetection.cimFileNames.join(', ')}`);
+
+    // Combine CIM text for extraction
+    const cimText = cimDetection.cimFiles.map(f => f.text).join('\n\n');
+    const dealNameHint = confirmedFacilities[0]?.detected?.name || confirmedFacilities[0]?.matched?.facility_name || 'Unknown Deal';
+
+    console.log(`[PortfolioExtraction] Running comprehensive CIM extraction (${cimText.length.toLocaleString()} chars)...`);
+
+    try {
+      cimExtractionResult = await runCIMExtraction(cimText, dealNameHint);
+
+      if (cimExtractionResult.success) {
+        console.log('[PortfolioExtraction] CIM extraction successful');
+        console.log('[PortfolioExtraction] CIM extracted:', {
+          project_name: cimExtractionResult.data?.deal_overview?.project_name,
+          facilities: cimExtractionResult.data?.facilities?.length,
+          noi_bridge_source: cimExtractionResult.data?.noi_bridge?.source,
+          value_add_source: cimExtractionResult.data?.value_add_thesis?.source
+        });
+      } else {
+        console.warn('[PortfolioExtraction] CIM extraction failed:', cimExtractionResult.error);
+      }
+    } catch (cimError) {
+      console.error('[PortfolioExtraction] CIM extraction error:', cimError.message);
+    }
+  } else {
+    console.log('[PortfolioExtraction] No CIM document detected in uploaded files');
+  }
+
+  // Step 3: Combine all document text with size check
+  console.log('[PortfolioExtraction] Step 3: Combining document text...');
   let combinedText = successfulFiles.map(f => {
     return `=== Document: ${f.name} ===\n${f.text}`;
   }).join('\n\n');
@@ -572,8 +609,8 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
     console.log(`[PortfolioExtraction] Truncated to ${combinedText.length.toLocaleString()} characters`);
   }
 
-  // Step 3: Run portfolio-level extraction first (NEW - n+1 approach)
-  console.log('[PortfolioExtraction] Step 3: Running portfolio-level extraction...');
+  // Step 4: Run portfolio-level extraction (for spreadsheet/financial data)
+  console.log('[PortfolioExtraction] Step 4: Running portfolio-level extraction...');
   const portfolioExtraction = await runFullExtraction(files);
 
   if (!portfolioExtraction.success) {
@@ -592,11 +629,11 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
     beds: portfolioExtraction.extractedData?.total_beds
   });
 
-  // Step 4: Analyze document structure from portfolio extraction
-  console.log('[PortfolioExtraction] Step 4: Analyzing document structure...');
+  // Step 5: Analyze document structure from portfolio extraction
+  console.log('[PortfolioExtraction] Step 5: Analyzing document structure...');
   const documentStructure = analyzeDocumentStructure(portfolioExtraction, successfulFiles);
 
-  // Step 5: Extract data for each facility with portfolio context
+  // Step 6: Extract data for each facility with portfolio context
   // For portfolio deals, we need to guide the extraction to focus on each facility
   const facilityExtractions = [];
 
@@ -641,22 +678,100 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
     }
   }
 
-  // Step 6: Build portfolio summary by aggregating facility data
-  console.log('[PortfolioExtraction] Step 6: Building portfolio summary...');
+  // Step 7: Build portfolio summary by aggregating facility data
+  console.log('[PortfolioExtraction] Step 7: Building portfolio summary...');
   const portfolioSummary = buildPortfolioSummary(facilityExtractions);
 
-  // Step 7: Validate facility data against portfolio totals
-  console.log('[PortfolioExtraction] Step 7: Validating facility data against portfolio totals...');
+  // Step 8: Validate facility data against portfolio totals
+  console.log('[PortfolioExtraction] Step 8: Validating facility data against portfolio totals...');
   const validation = validatePortfolioVsFacilities(portfolioExtraction, facilityExtractions);
 
   if (validation.warnings.length > 0) {
     console.warn('[PortfolioExtraction] Validation warnings:', validation.warnings);
   }
 
+  // Step 9: Run holistic Deal Overview extraction (the +1)
+  console.log('[PortfolioExtraction] Step 9: Running holistic Deal Overview extraction...');
+  const { runDealOverviewExtraction, prepareDealOverviewInput } = require('./parallelExtractor');
+
+  // Get deal name from first successful facility or use generic name
+  const dealName = portfolioExtraction.extractedData?.deal_name
+    || facilityExtractions[0]?.extraction_result?.extractedData?.deal_name
+    || `${facilityCount}-Facility Portfolio`;
+
+  // Prepare facility data for Deal Overview prompt
+  const dealOverviewInput = prepareDealOverviewInput(dealName, facilityExtractions);
+  console.log('[PortfolioExtraction] Deal Overview input prepared:', {
+    deal_name: dealOverviewInput.deal_name,
+    facility_count: dealOverviewInput.facility_count,
+    facilities_with_data: dealOverviewInput.facilities.filter(f => f.ttm_revenue).length
+  });
+
+  // Run the holistic deal overview extraction
+  let dealOverviewResult = null;
+  try {
+    dealOverviewResult = await runDealOverviewExtraction(dealOverviewInput);
+    if (dealOverviewResult.success) {
+      console.log('[PortfolioExtraction] Deal Overview extraction successful');
+      console.log('[PortfolioExtraction] Recommendation:', dealOverviewResult.data?.investment_thesis?.recommendation);
+    } else {
+      console.warn('[PortfolioExtraction] Deal Overview extraction failed:', dealOverviewResult.error);
+    }
+  } catch (dealOverviewError) {
+    console.error('[PortfolioExtraction] Deal Overview extraction error:', dealOverviewError.message);
+  }
+
   const totalDuration = Date.now() - startTime;
   console.log(`[PortfolioExtraction] Portfolio extraction complete in ${totalDuration}ms`);
 
-  return {
+  // Step 10: Run portfolio vs facility reconciliation
+  console.log('[PortfolioExtraction] Step 10: Running portfolio vs facility data reconciliation...');
+
+  // Build CIM extended data if available
+  let cimExtendedData = null;
+  if (cimExtractionResult?.success && cimExtractionResult.data) {
+    cimExtendedData = {
+      source: 'cim_extraction',
+      deal_overview: cimExtractionResult.data.deal_overview,
+      ownership_narrative: cimExtractionResult.data.ownership_narrative,
+
+      // NOI Bridge with source attribution
+      noi_bridge: cimExtractionResult.data.noi_bridge ? {
+        ...cimExtractionResult.data.noi_bridge,
+        _display_label: cimExtractionResult.data.noi_bridge.broker_provided
+          ? 'NOI Bridge (From CIM)'
+          : cimExtractionResult.data.noi_bridge.source === 'calculated'
+            ? 'NOI Bridge (Calculated from TTM Financials)'
+            : 'NOI Bridge (Not Available)',
+        _source_warning: !cimExtractionResult.data.noi_bridge.broker_provided
+          ? 'This NOI bridge was not explicitly provided by the broker. ' + (cimExtractionResult.data.noi_bridge.notes || '')
+          : null
+      } : null,
+
+      // Value-Add Thesis with source attribution
+      value_add_thesis: cimExtractionResult.data.value_add_thesis ? {
+        ...cimExtractionResult.data.value_add_thesis,
+        _display_label: cimExtractionResult.data.value_add_thesis.broker_provided
+          ? 'Value-Add Thesis (From CIM)'
+          : 'Value-Add Thesis (Not Provided in CIM)',
+        _source_warning: !cimExtractionResult.data.value_add_thesis.broker_provided
+          ? 'No explicit value-add thesis was provided in the CIM. ' + (cimExtractionResult.data.value_add_thesis.notes || '')
+          : null,
+        _is_broker_thesis: cimExtractionResult.data.value_add_thesis.broker_provided === true
+      } : null,
+
+      executive_summary: cimExtractionResult.data.executive_summary,
+      market_analysis: cimExtractionResult.data.market_analysis,
+      reimbursement_detail: cimExtractionResult.data.reimbursement_detail,
+      deal_mechanics: cimExtractionResult.data.deal_mechanics,
+      risks_and_gaps: cimExtractionResult.data.risks_and_gaps,
+      cim_facilities: cimExtractionResult.data.facilities,  // Per-facility data from CIM
+      portfolio_financials: cimExtractionResult.data.portfolio_financials
+    };
+  }
+
+  // Build the result object
+  let result = {
     success: true,
     is_portfolio: true,
     facility_count: facilityCount,
@@ -664,14 +779,24 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
     facility_details: facilityExtractions,
     portfolio_summary: portfolioSummary,
     portfolio_extraction: portfolioExtraction.extractedData,  // Include portfolio-level data
+    deal_overview: dealOverviewResult?.success ? dealOverviewResult.data : null,  // Holistic deal analysis
     validation: validation,  // Include validation results
+
+    // CIM extraction data (NOI bridge, value-add thesis, executive summary, etc.)
+    cim_extraction: cimExtendedData,
+    has_cim: cimDetection.hasCIM,
+    cim_files: cimDetection.cimFileNames,
+
     metadata: {
       totalDuration,
       filesProcessed: processedFiles.length,
       filesSuccessful: successfulFiles.length,
       facilitiesExtracted: facilityExtractions.filter(f => f.success).length,
       facilitiesFailed: facilityExtractions.filter(f => !f.success).length,
-      portfolioExtractionDuration: portfolioExtraction.metadata?.totalDuration
+      portfolioExtractionDuration: portfolioExtraction.metadata?.totalDuration,
+      dealOverviewDuration: dealOverviewResult?.duration || null,
+      cimExtractionDuration: cimExtractionResult?.duration || null,
+      cimExtractionSuccess: cimExtractionResult?.success || false
     },
     processedFiles: processedFiles.map(f => ({
       name: f.name,
@@ -679,9 +804,30 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
       size: f.size,
       textLength: f.text?.length || 0,
       success: !f.error,
-      error: f.error
+      error: f.error,
+      isCIM: cimDetection.cimFileNames?.includes(f.name) || false
     }))
   };
+
+  // Run portfolio vs facility reconciliation
+  // This compares CIM/deal overview totals with sum of facility-level data
+  // and triggers AI analysis if variances exceed thresholds
+  try {
+    result = await reconcilePortfolioExtraction(result);
+    console.log('[PortfolioExtraction] Reconciliation complete:', {
+      performed: result._reconciliation?.performed,
+      hasVariance: result._portfolio_comparison?.hasVariance,
+      varianceFields: result._portfolio_comparison?.varianceFields || []
+    });
+  } catch (reconcileError) {
+    console.error('[PortfolioExtraction] Reconciliation error:', reconcileError.message);
+    result._reconciliation = {
+      performed: false,
+      error: reconcileError.message
+    };
+  }
+
+  return result;
 }
 
 /**
