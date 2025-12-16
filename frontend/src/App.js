@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Deals from "./pages/Deals";
 import CreateDeal from "./pages/CreateDeal";
 import CombinedDealForm from "./pages/CombinedDealForm";
+import CreateDealWizard from "./pages/CreateDealWizard";
 import UserManagement from "./pages/UserManagement";
 import CreateUser from "./pages/CreateUser";
 import EditUser from "./pages/EditUser";
@@ -113,6 +114,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CombinedDealForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deals/new"
+          element={
+            <ProtectedRoute>
+              <CreateDealWizard />
             </ProtectedRoute>
           }
         />

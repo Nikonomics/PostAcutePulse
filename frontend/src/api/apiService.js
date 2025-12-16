@@ -4,7 +4,7 @@ import { generateAccessToken } from "./authService";
 // Create an Axios instance
 const API = axios.create({
   baseURL: process.env.REACT_APP_API_BASE_URL,
-  timeout: 500000,
+  timeout: 900000, // 15 minutes - extraction can take 10+ minutes for large documents
   // headers: {
   //   "Content-Type": "application/json",
   // },

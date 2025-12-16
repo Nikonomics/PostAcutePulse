@@ -389,13 +389,22 @@ function OwnershipProfile() {
   if (!profile) return null;
 
   const totalFacilities = profile.facility_count || 0;
+  // Backend returns nested objects - access them correctly
   const ratingDistribution = {
-    five: profile.five_star_count || 0,
-    four: profile.four_star_count || 0,
-    three: profile.three_star_count || 0,
-    two: profile.two_star_count || 0,
-    one: profile.one_star_count || 0
+    five: profile.rating_distribution?.five_star || profile.five_star_count || 0,
+    four: profile.rating_distribution?.four_star || profile.four_star_count || 0,
+    three: profile.rating_distribution?.three_star || profile.three_star_count || 0,
+    two: profile.rating_distribution?.two_star || profile.two_star_count || 0,
+    one: profile.rating_distribution?.one_star || profile.one_star_count || 0
   };
+  // Access nested ratings - backend returns nested objects
+  const avgOverallRating = profile.ratings?.avg_overall || profile.avg_overall_rating;
+  const avgHealthInspection = profile.ratings?.avg_health_inspection || profile.avg_health_inspection_rating;
+  const avgQualityMeasure = profile.ratings?.avg_quality_measure || profile.avg_quality_measure_rating;
+  const avgStaffing = profile.ratings?.avg_staffing || profile.avg_staffing_rating;
+  const avgDeficiencies = profile.deficiencies?.avg_per_facility || profile.avg_health_deficiencies_per_facility;
+  const totalPenaltiesAmount = profile.penalties?.total_amount || profile.total_penalties_amount;
+  const totalPenaltiesCount = profile.penalties?.total_count || profile.total_penalties_count;
 
   return (
     <div className="ownership-profile-page">
@@ -527,7 +536,7 @@ function OwnershipProfile() {
                 </div>
                 <div className="ownership-metric-content">
                   <span className="ownership-metric-value">
-                    {profile.avg_overall_rating ? parseFloat(profile.avg_overall_rating).toFixed(1) : 'N/A'}
+                    {avgOverallRating ? parseFloat(avgOverallRating).toFixed(1) : 'N/A'}
                   </span>
                   <span className="ownership-metric-label">Avg Rating</span>
                 </div>
@@ -730,32 +739,32 @@ function OwnershipProfile() {
                     <div className="ownership-info-item">
                       <span className="ownership-info-label">Health Inspection</span>
                       <span className="ownership-info-value">
-                        {profile.avg_health_inspection_rating
-                          ? parseFloat(profile.avg_health_inspection_rating).toFixed(1)
+                        {avgHealthInspection
+                          ? parseFloat(avgHealthInspection).toFixed(1)
                           : 'N/A'}
                       </span>
                     </div>
                     <div className="ownership-info-item">
                       <span className="ownership-info-label">Quality Measures</span>
                       <span className="ownership-info-value">
-                        {profile.avg_quality_measure_rating
-                          ? parseFloat(profile.avg_quality_measure_rating).toFixed(1)
+                        {avgQualityMeasure
+                          ? parseFloat(avgQualityMeasure).toFixed(1)
                           : 'N/A'}
                       </span>
                     </div>
                     <div className="ownership-info-item">
                       <span className="ownership-info-label">Staffing</span>
                       <span className="ownership-info-value">
-                        {profile.avg_staffing_rating
-                          ? parseFloat(profile.avg_staffing_rating).toFixed(1)
+                        {avgStaffing
+                          ? parseFloat(avgStaffing).toFixed(1)
                           : 'N/A'}
                       </span>
                     </div>
                     <div className="ownership-info-item">
                       <span className="ownership-info-label">Avg Deficiencies</span>
                       <span className="ownership-info-value">
-                        {profile.avg_health_deficiencies_per_facility
-                          ? parseFloat(profile.avg_health_deficiencies_per_facility).toFixed(1)
+                        {avgDeficiencies
+                          ? parseFloat(avgDeficiencies).toFixed(1)
                           : 'N/A'}
                       </span>
                     </div>
@@ -771,13 +780,13 @@ function OwnershipProfile() {
                     <div className="ownership-info-item">
                       <span className="ownership-info-label">Total Amount</span>
                       <span className="ownership-info-value">
-                        {formatCurrency(profile.total_penalties_amount)}
+                        {formatCurrency(totalPenaltiesAmount)}
                       </span>
                     </div>
                     <div className="ownership-info-item">
                       <span className="ownership-info-label">Penalty Count</span>
                       <span className="ownership-info-value">
-                        {profile.total_penalty_count || 0}
+                        {totalPenaltiesCount || 0}
                       </span>
                     </div>
                   </div>

@@ -651,7 +651,7 @@ const DealsList = () => {
           <div className="header-actions">
             <Button
               className="btn-new-deal d-flex align-items-center gap-2"
-              onClick={() => navigate("/deals/combined-deal-form")}
+              onClick={() => navigate("/deals/new")}
             >
               <Plus size={16} />
               New Deal

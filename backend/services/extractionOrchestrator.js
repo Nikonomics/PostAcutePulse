@@ -41,6 +41,7 @@ async function extractTextFromPDF(buffer) {
 
 /**
  * Extract text from Excel file buffer
+ * Preserves table structure with row numbers and pipe-separated columns
  */
 function extractTextFromExcel(buffer, fileName) {
   try {
@@ -49,8 +50,25 @@ function extractTextFromExcel(buffer, fileName) {
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
-      const csv = XLSX.utils.sheet_to_csv(sheet);
-      allText.push(`--- Sheet: ${sheetName} ---\n${csv}`);
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      let sheetText = `--- Sheet: ${sheetName} ---\n`;
+
+      rows.forEach((row, index) => {
+        if (row.length === 0 || row.every(cell => cell === null || cell === '')) return;
+
+        const formattedCells = row.map(cell => {
+          if (cell === null || cell === undefined) return '';
+          if (typeof cell === 'number' && cell >= 1000) {
+            return cell.toLocaleString();
+          }
+          return String(cell);
+        });
+
+        sheetText += `ROW ${index + 1}: ${formattedCells.join(' | ')}\n`;
+      });
+
+      allText.push(sheetText);
     }
 
     return allText.join('\n\n');

@@ -147,7 +147,7 @@ const Dashboard = () => {
   // console.log('dealsWithFacilities', dealsWithFacilities);
 
   const handleNewDeal = () => {
-    navigate("/deals/combined-deal-form");
+    navigate("/deals/new");
   };
 
   const handleExport = () => {

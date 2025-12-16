@@ -807,6 +807,27 @@ module.exports = {
               }
             }
 
+            // Create deal_facilities record for this deal (enables facility dropdown in UI)
+            if (deal.facility_name || deal.facility_type) {
+              try {
+                await DealFacilities.create({
+                  deal_id: dealCreated.id,
+                  facility_name: deal.facility_name || null,
+                  facility_type: deal.facility_type || null,
+                  street_address: deal.street_address || null,
+                  city: deal.city || null,
+                  state: deal.state || null,
+                  zip_code: deal.zip_code || null,
+                  bed_count: deal.bed_count || null,
+                  display_order: dealIndex,
+                });
+                console.log(`[createDeal] Created deal_facilities record for deal ${dealCreated.id}`);
+              } catch (facilityError) {
+                console.error('Error creating deal_facilities:', facilityError);
+                // Don't fail deal creation if facility record fails
+              }
+            }
+
             // create recent activity for admin:
             const admin = await User.findByPk(1);
             const dealCreatedBy = await User.findByPk(requiredData.user_id);

@@ -84,6 +84,7 @@ const styles = `
   }
 
   .facility-card {
+    background: white;
     border-bottom: 1px solid #f3f4f6;
     transition: background 0.2s;
   }
@@ -98,6 +99,7 @@ const styles = `
 
   .facility-header {
     display: flex;
+    flex-direction: row;
     align-items: center;
     padding: 1rem 1.25rem;
     cursor: pointer;
@@ -135,6 +137,7 @@ const styles = `
 
   .facility-metrics {
     display: flex;
+    flex-direction: row;
     gap: 1.5rem;
     margin-right: 1rem;
   }

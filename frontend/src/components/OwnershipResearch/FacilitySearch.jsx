@@ -282,7 +282,7 @@ function FacilitySearch() {
 
     return (
       <div key={facility.id || facility.federal_provider_number} className="facility-card">
-        <div className="facility-header">
+        <div className="facility-search-header">
           <div className="facility-name-section">
             <h3>{facility.facility_name}</h3>
           </div>

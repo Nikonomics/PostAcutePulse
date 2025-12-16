@@ -26,7 +26,7 @@ const CreateDealChoice = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl">
         {/* Manual Entry Card */}
         <div
-          onClick={() => navigate("/deals/combined-deal-form")}
+          onClick={() => navigate("/deals/new")}
           className="bg-white rounded-xl border-2 border-gray-200 p-8 cursor-pointer hover:border-blue-500 hover:shadow-lg transition-all duration-200 group"
         >
           <div className="flex items-center justify-center w-16 h-16 bg-blue-100 rounded-xl mb-6 group-hover:bg-blue-200 transition-colors">

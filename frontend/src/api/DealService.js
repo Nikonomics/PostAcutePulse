@@ -726,6 +726,28 @@ export const searchFacilities = async (searchTerm, facilityType, state = null) =
 };
 
 /**
+ * Search facilities for matching against database
+ * Used in manual facility entry to find potential matches
+ * @param {Object} criteria - Search criteria
+ * @param {string} criteria.name - Facility name
+ * @param {string} criteria.address - Street address
+ * @param {string} criteria.city - City
+ * @param {string} criteria.state - State abbreviation
+ * @param {string} criteria.zip - Zip code
+ * @param {string} criteria.facility_type - SNF, ALF, ILF, or Other
+ * @returns {Promise} - Matching facilities
+ */
+export const searchFacilitiesForMatch = async (criteria) => {
+  const response = await apiService.post(apiRoutes.matchFacility, {
+    facility_name: criteria.name,
+    city: criteria.city,
+    state: criteria.state,
+    facility_type: criteria.facility_type,
+  });
+  return response.data;
+};
+
+/**
  * Extract portfolio deal with confirmed facilities
  * Final step - runs AI extraction with knowledge of which facilities to extract for
  * @param {File[]} files - Array of uploaded document files

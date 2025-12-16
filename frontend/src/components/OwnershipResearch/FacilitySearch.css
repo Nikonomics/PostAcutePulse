@@ -509,7 +509,7 @@
   border-color: #2563eb;
 }
 
-.facility-header {
+.facility-search-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -524,7 +524,7 @@
   flex: 1;
 }
 
-.facility-header h3 {
+.facility-search-header h3 {
   font-size: 0.875rem;
   font-weight: 600;
   color: #111827;
