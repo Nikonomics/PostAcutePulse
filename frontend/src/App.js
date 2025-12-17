@@ -28,6 +28,7 @@ import MarketAnalysis from "./pages/MarketAnalysis";
 import OwnershipResearch from "./pages/OwnershipResearch";
 import OwnershipProfile from "./pages/OwnershipProfile";
 import FacilityProfile from "./pages/FacilityProfile";
+import FacilityMetrics from "./pages/FacilityMetrics";
 import SavedItems from "./pages/SavedItems";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
@@ -257,6 +258,15 @@ function App() {
           element={
             <ProtectedRoute>
               <FacilityProfile />
+            </ProtectedRoute>
+          }
+        />
+        {/* Facility Metrics route */}
+        <Route
+          path="/facility-metrics"
+          element={
+            <ProtectedRoute>
+              <FacilityMetrics />
             </ProtectedRoute>
           }
         />

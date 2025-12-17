@@ -777,13 +777,16 @@ export const searchFacilitiesForMatch = async (criteria) => {
  *   }
  * }
  */
-export const extractPortfolio = async (files, confirmedFacilities) => {
+export const extractPortfolio = async (files, confirmedFacilities, dealName = null) => {
   const formData = new FormData();
 
   files.forEach((file) => {
     formData.append('documents', file);
   });
   formData.append('confirmedFacilities', JSON.stringify(confirmedFacilities));
+  if (dealName) {
+    formData.append('deal_name', dealName);
+  }
 
   const response = await apiService.post(apiRoutes.extractPortfolio, formData, {
     headers: {

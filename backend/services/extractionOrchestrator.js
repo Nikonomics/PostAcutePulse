@@ -240,8 +240,9 @@ async function runFullExtraction(files) {
   const combinedText = prepareDocumentText(documents);
 
   // Step 4: Run parallel extractions (with period analysis guidance)
+  // Pass documents array for two-phase extraction (condensed overview input)
   console.log('[Orchestrator] Step 4: Running parallel extractions...');
-  const parallelResults = await runParallelExtractions(combinedText, periodPromptSection);
+  const parallelResults = await runParallelExtractions(combinedText, periodPromptSection, documents);
 
   // Step 5: Reconcile results
   console.log('[Orchestrator] Step 5: Reconciling extraction results...');
@@ -274,12 +275,22 @@ async function runFullExtraction(files) {
     occupancy: ratioAnalysis.ratios.occupancy
   };
 
+  // Log deal_overview presence for debugging
+  console.log(`[Orchestrator] deal_overview from parallel extraction: ${parallelResults.overview ? 'present' : 'missing'}`);
+  if (parallelResults.overview) {
+    console.log(`[Orchestrator] deal_overview keys: ${Object.keys(parallelResults.overview).join(', ')}`);
+  }
+
   return {
     success: true,
 
     // Flat summary for backward compatibility with deals table
     // Now includes calculated expense ratios for ProForma
     extractedData: extractedDataWithRatios,
+
+    // Deal overview for single-facility deals (from OVERVIEW_PROMPT extraction)
+    // This matches the structure used by runPortfolioExtraction for consistency
+    deal_overview: parallelResults.overview || null,
 
     // Full time-series data
     monthlyFinancials: reconciledData.financials?.monthly || [],
@@ -727,16 +738,20 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
 
   // Run the holistic deal overview extraction
   let dealOverviewResult = null;
+  let dealOverviewError = null;
   try {
+    console.log('[PortfolioExtraction] Deal Overview input sample:', JSON.stringify(dealOverviewInput.facilities[0], null, 2).substring(0, 500));
     dealOverviewResult = await runDealOverviewExtraction(dealOverviewInput);
     if (dealOverviewResult.success) {
       console.log('[PortfolioExtraction] Deal Overview extraction successful');
       console.log('[PortfolioExtraction] Recommendation:', dealOverviewResult.data?.investment_thesis?.recommendation);
     } else {
       console.warn('[PortfolioExtraction] Deal Overview extraction failed:', dealOverviewResult.error);
+      dealOverviewError = dealOverviewResult.error;
     }
-  } catch (dealOverviewError) {
-    console.error('[PortfolioExtraction] Deal Overview extraction error:', dealOverviewError.message);
+  } catch (err) {
+    console.error('[PortfolioExtraction] Deal Overview extraction error:', err.message);
+    dealOverviewError = err.message;
   }
 
   const totalDuration = Date.now() - startTime;
@@ -813,6 +828,8 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
       facilitiesFailed: facilityExtractions.filter(f => !f.success).length,
       portfolioExtractionDuration: portfolioExtraction.metadata?.totalDuration,
       dealOverviewDuration: dealOverviewResult?.duration || null,
+      dealOverviewSuccess: dealOverviewResult?.success || false,
+      dealOverviewError: dealOverviewError || null,
       cimExtractionDuration: cimExtractionResult?.duration || null,
       cimExtractionSuccess: cimExtractionResult?.success || false
     },
@@ -952,11 +969,12 @@ ${periodPromptSection}
     console.log('[runFacilityExtraction] Built enhanced facility context with portfolio validation for:', facilityName);
 
     // Run parallel extractions with facility context
+    // Pass documents array for two-phase extraction (condensed overview input)
     const { runParallelExtractions, prepareDocumentText } = require('./parallelExtractor');
     const documents = [{ name: 'portfolio_documents', text: documentText }];
     const preparedText = prepareDocumentText(documents);
 
-    const parallelResults = await runParallelExtractions(preparedText, facilityScopedPrompt);
+    const parallelResults = await runParallelExtractions(preparedText, facilityScopedPrompt, documents);
 
     // Reconcile results
     const { reconcileExtractionResults } = require('./extractionReconciler');

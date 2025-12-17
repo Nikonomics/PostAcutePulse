@@ -12,6 +12,7 @@ import {
   MapPin,
   Building2,
   Bookmark,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -24,6 +25,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/deals', icon: Handshake, label: 'Deals' },
     { path: '/market-analysis', icon: MapPin, label: 'Market Analysis' },
     { path: '/ownership-research', icon: Building2, label: 'Ownership Research' },
+    { path: '/facility-metrics', icon: Activity, label: 'Facility Metrics' },
     { path: '/saved-items', icon: Bookmark, label: 'My Saved Items' },
     { path: '/user-management', icon: User, label: 'User Management' },
     { path: '/ai-deals', icon: Bot, label: 'AI Assistant' },
@@ -34,9 +36,9 @@ const Sidebar = ({ isOpen }) => {
   if (user?.role === 'admin') {
     menuItems = allMenuItems;
   } else {
-    // Only show dashboard, deals, market analysis, ownership research, saved items, ai tabs for non-admins
+    // Only show dashboard, deals, market analysis, ownership research, facility metrics, saved items, ai tabs for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/saved-items', '/ai-deals'].includes(item.path)
+      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/facility-metrics', '/saved-items', '/ai-deals'].includes(item.path)
     );
   }
 

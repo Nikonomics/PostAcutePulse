@@ -690,8 +690,14 @@ module.exports = {
         documents: req.body.documents, // Array of uploaded documents from extraction
         extraction_data: req.body.extraction_data, // Raw AI extraction data for analysis view
         enhanced_extraction_data: req.body.enhanced_extraction_data, // Time-series data from enhanced extraction
+        facilities: req.body.facilities, // Array of facilities for portfolio deals
       };
       const requiredData = await helper.validateObject(required, nonrequired);
+
+      // Debug: Log deal creation structure
+      console.log('[createDeal] Received payload structure:',
+        'deals:', requiredData.deals?.length || 0,
+        'facilities:', requiredData.facilities?.length || 0);
 
       // creating master deal:
       const masterDeal = await MasterDeals.create({
@@ -807,8 +813,35 @@ module.exports = {
               }
             }
 
-            // Create deal_facilities record for this deal (enables facility dropdown in UI)
-            if (deal.facility_name || deal.facility_type) {
+            // Create deal_facilities records
+            // If facilities array is provided (new portfolio structure), use it
+            // Otherwise fall back to single facility from deal object (legacy)
+            if (dealIndex === 0 && requiredData.facilities && requiredData.facilities.length > 0) {
+              // New structure: multiple facilities in portfolio
+              console.log(`[createDeal] Creating ${requiredData.facilities.length} facility records for deal ${dealCreated.id}`);
+              for (const facility of requiredData.facilities) {
+                try {
+                  await DealFacilities.create({
+                    deal_id: dealCreated.id,
+                    facility_name: facility.facility_name || null,
+                    facility_type: facility.facility_type || null,
+                    street_address: facility.street_address || null,
+                    city: facility.city || null,
+                    state: facility.state || null,
+                    zip_code: facility.zip_code || null,
+                    county: facility.county || null,
+                    bed_count: facility.bed_count || null,
+                    display_order: facility.display_order || 0,
+                    latitude: facility.latitude || null,
+                    longitude: facility.longitude || null,
+                  });
+                  console.log(`[createDeal] Created facility: ${facility.facility_name}`);
+                } catch (facilityError) {
+                  console.error('Error creating deal_facilities:', facilityError);
+                }
+              }
+            } else if (deal.facility_name || deal.facility_type) {
+              // Legacy: single facility from deal object
               try {
                 await DealFacilities.create({
                   deal_id: dealCreated.id,
@@ -824,7 +857,6 @@ module.exports = {
                 console.log(`[createDeal] Created deal_facilities record for deal ${dealCreated.id}`);
               } catch (facilityError) {
                 console.error('Error creating deal_facilities:', facilityError);
-                // Don't fail deal creation if facility record fails
               }
             }
 
@@ -1783,14 +1815,14 @@ module.exports = {
         }),
 
         Deal.findAll({
-          attributes: ["id", "deal_name", "deal_status"],
+          attributes: ["id", "deal_name", "deal_status", "position"],
           where: {
             ...whereClause,
             deal_status: {
               [Op.in]: ["closed", "due_diligence", "pipeline", "final_review"],
             },
           },
-          order: [["created_at", "DESC"]],
+          order: [["position", "ASC"], ["created_at", "DESC"]],
           raw: true,
         }),
 
@@ -2644,6 +2676,43 @@ module.exports = {
   },
 
   /*
+  This function will update deal positions for reordering within a status column
+  Method: PUT
+  URL: /api/v1/deal/update-deal-position
+  Body: { deals: [{ id, position }, ...] }
+  */
+  updateDealPositions: async (req, res) => {
+    try {
+      const { deals } = req.body;
+
+      if (!deals || !Array.isArray(deals) || deals.length === 0) {
+        return helper.error(res, "Deals array is required");
+      }
+
+      // Validate all deals have id and position
+      for (const deal of deals) {
+        if (!deal.id || typeof deal.position !== 'number') {
+          return helper.error(res, "Each deal must have an id and position");
+        }
+      }
+
+      // Update positions in a transaction
+      const updatedDeals = [];
+      for (const dealData of deals) {
+        const deal = await Deal.findByPk(dealData.id);
+        if (deal) {
+          await deal.update({ position: dealData.position });
+          updatedDeals.push({ id: deal.id, position: dealData.position });
+        }
+      }
+
+      return helper.success(res, "Deal positions updated successfully", { updated: updatedDeals });
+    } catch (err) {
+      return helper.error(res, err);
+    }
+  },
+
+  /*
   This function will help to update the deal extraction data:
   Method: PUT
   URL: /api/v1/deal/:id/extraction-data
@@ -3379,6 +3448,9 @@ module.exports = {
       return helper.success(res, "Deal data extracted successfully using enhanced extraction", {
         // Backward compatible flat data
         extractedData: result.extractedData,
+
+        // Deal overview (from OVERVIEW_PROMPT extraction)
+        deal_overview: result.deal_overview || null,
 
         // Time-series data
         monthlyFinancials: result.monthlyFinancials,
@@ -4503,9 +4575,14 @@ module.exports = {
       await storeTimeSeriesData(dealId, result);
 
       // Update deal's extraction_data and mark as completed
+      // Include deal_overview in extraction_data for the Deal Overview tab
+      const fullExtractionData = {
+        ...result.extractedData,
+        deal_overview: result.deal_overview || null
+      };
       await Deal.update(
         {
-          extraction_data: JSON.stringify(result.extractedData),
+          extraction_data: JSON.stringify(fullExtractionData),
           extraction_status: 'completed',
           extraction_completed_at: new Date(),
           extraction_error: null,
@@ -4532,7 +4609,8 @@ module.exports = {
         monthlyFinancials: result.monthlyFinancials?.length || 0,
         monthlyCensus: result.monthlyCensus?.length || 0,
         monthlyExpenses: result.monthlyExpenses?.length || 0,
-        extractedData: result.extractedData
+        extractedData: result.extractedData,
+        deal_overview: result.deal_overview || null
       });
 
     } catch (err) {

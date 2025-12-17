@@ -108,3 +108,43 @@ export const getFacilityStats = async () => {
   const response = await apiService.get(`${FACILITIES_BASE}/stats`);
   return response.data;
 };
+
+/**
+ * Get detailed deficiency records for a facility
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Deficiency records
+ */
+export const getFacilityDeficiencies = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/deficiencies`);
+  return response.data;
+};
+
+/**
+ * Get penalty records for a facility
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Penalty records
+ */
+export const getFacilityPenalties = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/penalties`);
+  return response.data;
+};
+
+/**
+ * Get ownership records for a facility
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Ownership records
+ */
+export const getFacilityOwnership = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/ownership`);
+  return response.data;
+};
+
+/**
+ * Get benchmark comparisons (market, state, national) for a facility
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Benchmark data
+ */
+export const getFacilityBenchmarks = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/benchmarks`);
+  return response.data;
+};

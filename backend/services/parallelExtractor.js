@@ -14,7 +14,9 @@ const anthropic = new Anthropic({
 // Model configuration
 const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 16384; // Large enough for 12+ months of detailed financial data
-const MAX_TOKENS_OVERVIEW = 64000; // Maximum for claude-sonnet-4 (detailed markdown + 1000-char summary)
+const MAX_TOKENS_OVERVIEW = 64000; // Desired max for overview (detailed markdown + 1000-char summary)
+const CONTEXT_LIMIT = 200000; // Claude's context window limit
+const TOKEN_BUFFER = 5000; // Safety buffer for system prompt overhead
 
 /**
  * ===========================================
@@ -786,17 +788,26 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
   const startTime = Date.now();
 
   try {
-    console.log(`[${extractionType}] Starting extraction... (max_tokens: ${maxTokens})`);
+    // Estimate input tokens (rough estimate: 1 token ≈ 4 characters)
+    const estimatedInputTokens = Math.ceil((documentText?.length || 0) / 4);
+
+    // Calculate available tokens for output, ensuring we don't exceed context limit
+    const availableForOutput = CONTEXT_LIMIT - estimatedInputTokens - TOKEN_BUFFER;
+    const effectiveMaxTokens = Math.min(maxTokens, Math.max(availableForOutput, 8000)); // Minimum 8000 tokens
+
+    console.log(`[${extractionType}] Starting extraction...`);
+    console.log(`[${extractionType}] Document text length: ${documentText?.length || 0} chars (~${estimatedInputTokens} tokens)`);
+    console.log(`[${extractionType}] Requested max_tokens: ${maxTokens}, Effective max_tokens: ${effectiveMaxTokens}`);
 
     let responseText = '';
 
     // Use streaming for large token requests (>20k) to avoid 10-minute timeout
-    if (maxTokens > 20000) {
+    if (effectiveMaxTokens > 20000) {
       console.log(`[${extractionType}] Using streaming due to high token count...`);
 
       const stream = await anthropic.messages.stream({
         model: MODEL,
-        max_tokens: maxTokens,
+        max_tokens: effectiveMaxTokens,
         system: systemPrompt,
         messages: [{
           role: 'user',
@@ -809,11 +820,15 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
           responseText += chunk.delta.text;
         }
       }
+      console.log(`[${extractionType}] Streaming complete. Response length: ${responseText.length} chars`);
+      if (extractionType === 'overview') {
+        console.log(`[overview] Raw response preview (first 500 chars): ${responseText.substring(0, 500)}`);
+      }
     } else {
       // Use regular (non-streaming) for smaller requests
       const response = await anthropic.messages.create({
         model: MODEL,
-        max_tokens: maxTokens,
+        max_tokens: effectiveMaxTokens,
         system: systemPrompt,
         messages: [{
           role: 'user',
@@ -828,8 +843,14 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
     let extractedData;
     try {
       extractedData = JSON.parse(responseText);
+      if (extractionType === 'overview') {
+        console.log(`[overview] Parse successful. Keys: ${Object.keys(extractedData).join(', ')}`);
+      }
     } catch (parseError) {
-      console.log(`[${extractionType}] Initial parse failed, attempting repair...`);
+      console.log(`[${extractionType}] Initial parse failed: ${parseError.message}`);
+      if (extractionType === 'overview') {
+        console.log(`[overview] Failed response (first 1000 chars): ${responseText.substring(0, 1000)}`);
+      }
 
       // Try to extract JSON from response
       const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -874,6 +895,10 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
 
   } catch (error) {
     console.error(`[${extractionType}] Extraction error:`, error.message);
+    if (extractionType === 'overview') {
+      console.error(`[overview] Full error:`, error);
+      console.error(`[overview] Error stack:`, error.stack);
+    }
     return {
       success: false,
       type: extractionType,
@@ -977,8 +1002,8 @@ async function enrichFacilityData(organized) {
  * @param {string} contextSection - Optional context guidance (period analysis or facility context for portfolios)
  * @returns {Promise<Object>} Combined extraction results
  */
-async function runParallelExtractions(combinedDocumentText, contextSection = '') {
-  console.log('Starting parallel extractions...');
+async function runParallelExtractions(combinedDocumentText, contextSection = '', documents = null) {
+  console.log('Starting parallel extractions (two-phase approach)...');
   const startTime = Date.now();
 
   // If context provided (period analysis or portfolio facility context), prepend it to ALL prompts
@@ -1011,23 +1036,7 @@ async function runParallelExtractions(combinedDocumentText, contextSection = '')
     console.log('[ParallelExtractor] Context section added to ALL extraction prompts');
   }
 
-  // Run all 6 extractions in parallel
-  const extractionPromises = [
-    runFocusedExtraction(combinedDocumentText, facilityPromptWithContext, 'facility'),
-    runFocusedExtraction(combinedDocumentText, financialsPromptWithContext, 'financials'),
-    runFocusedExtraction(combinedDocumentText, expensesPromptWithContext, 'expenses'),
-    runFocusedExtraction(combinedDocumentText, censusPromptWithContext, 'census'),
-    runFocusedExtraction(combinedDocumentText, ratesPromptWithContext, 'rates'),
-    runFocusedExtraction(combinedDocumentText, overviewPromptWithContext, 'overview', MAX_TOKENS_OVERVIEW)
-  ];
-
-  // Use allSettled to handle partial failures gracefully
-  const results = await Promise.allSettled(extractionPromises);
-
-  const totalDuration = Date.now() - startTime;
-  console.log(`All extractions completed in ${totalDuration}ms`);
-
-  // Organize results by type
+  // Initialize organized results object
   const organized = {
     facility: null,
     financials: null,
@@ -1037,28 +1046,98 @@ async function runParallelExtractions(combinedDocumentText, contextSection = '')
     overview: null,
     errors: [],
     metadata: {
-      totalDuration,
+      totalDuration: 0,
       successCount: 0,
-      failureCount: 0
+      failureCount: 0,
+      phase1Duration: 0,
+      phase2Duration: 0
     }
   };
 
-  for (const result of results) {
+  // ============================================
+  // PHASE 1: Run 5 data extractions in parallel
+  // ============================================
+  console.log('[ParallelExtractor] Phase 1: Running facility, financials, expenses, census, rates extractions...');
+  const phase1Start = Date.now();
+
+  const phase1Promises = [
+    runFocusedExtraction(combinedDocumentText, facilityPromptWithContext, 'facility'),
+    runFocusedExtraction(combinedDocumentText, financialsPromptWithContext, 'financials'),
+    runFocusedExtraction(combinedDocumentText, expensesPromptWithContext, 'expenses'),
+    runFocusedExtraction(combinedDocumentText, censusPromptWithContext, 'census'),
+    runFocusedExtraction(combinedDocumentText, ratesPromptWithContext, 'rates')
+  ];
+
+  const phase1Results = await Promise.allSettled(phase1Promises);
+  organized.metadata.phase1Duration = Date.now() - phase1Start;
+  console.log(`[ParallelExtractor] Phase 1 completed in ${organized.metadata.phase1Duration}ms`);
+
+  // Process Phase 1 results
+  for (const result of phase1Results) {
     if (result.status === 'fulfilled') {
       const extractionResult = result.value;
       if (extractionResult.success) {
         organized[extractionResult.type] = extractionResult.data;
         organized.metadata.successCount++;
+        console.log(`[ParallelExtractor] ${extractionResult.type}: SUCCESS (${extractionResult.duration}ms)`);
       } else {
         organized.errors.push({ type: extractionResult.type, error: extractionResult.error });
         organized.metadata.failureCount++;
+        console.log(`[ParallelExtractor] ${extractionResult.type}: FAILED - ${extractionResult.error}`);
       }
     } else {
-      // Promise was rejected (crashed)
       console.error(`[Extraction] Promise rejected:`, result.reason);
       organized.errors.push({ type: 'unknown', error: result.reason?.message || 'Promise rejected' });
       organized.metadata.failureCount++;
     }
+  }
+
+  // ============================================
+  // PHASE 2: Run overview with condensed input
+  // ============================================
+  console.log('[ParallelExtractor] Phase 2: Running overview extraction with condensed input...');
+  const phase2Start = Date.now();
+
+  // Build condensed input for overview if we have documents array
+  // Otherwise fall back to full text (backwards compatibility)
+  let overviewInputText;
+  if (documents && documents.length > 0) {
+    overviewInputText = buildOverviewInput(documents, organized);
+    console.log(`[ParallelExtractor] Overview input reduced from ${combinedDocumentText.length} to ${overviewInputText.length} chars`);
+  } else {
+    overviewInputText = combinedDocumentText;
+    console.log(`[ParallelExtractor] No documents array provided, using full text for overview`);
+  }
+
+  const overviewResult = await runFocusedExtraction(
+    overviewInputText,
+    overviewPromptWithContext,
+    'overview',
+    MAX_TOKENS_OVERVIEW
+  );
+
+  organized.metadata.phase2Duration = Date.now() - phase2Start;
+  console.log(`[ParallelExtractor] Phase 2 completed in ${organized.metadata.phase2Duration}ms`);
+
+  // Process overview result
+  if (overviewResult.success) {
+    organized.overview = overviewResult.data;
+    organized.metadata.successCount++;
+    console.log(`[ParallelExtractor] overview: SUCCESS (${overviewResult.duration}ms)`);
+  } else {
+    organized.errors.push({ type: 'overview', error: overviewResult.error });
+    organized.metadata.failureCount++;
+    console.log(`[ParallelExtractor] overview: FAILED - ${overviewResult.error}`);
+  }
+
+  const totalDuration = Date.now() - startTime;
+  organized.metadata.totalDuration = totalDuration;
+  console.log(`[ParallelExtractor] All extractions completed in ${totalDuration}ms (Phase 1: ${organized.metadata.phase1Duration}ms, Phase 2: ${organized.metadata.phase2Duration}ms)`);
+
+  // Log overview status specifically
+  console.log(`[ParallelExtractor] Overview data present: ${organized.overview !== null}`);
+  if (organized.overview) {
+    console.log(`[ParallelExtractor] Overview keys: ${Object.keys(organized.overview).join(', ')}`);
   }
 
   // Auto-populate facility data from ALF database
@@ -1080,6 +1159,137 @@ function prepareDocumentText(documents) {
   });
 
   return sections.join('\n');
+}
+
+/**
+ * Check if a document is a spreadsheet based on filename
+ * @param {string} filename - Document filename
+ * @returns {boolean} True if document is Excel/CSV
+ */
+function isSpreadsheetDocument(filename) {
+  const spreadsheetExtensions = ['.xlsx', '.xls', '.csv', '.xlsm', '.xlsb'];
+  const lowerName = filename.toLowerCase();
+  return spreadsheetExtensions.some(ext => lowerName.endsWith(ext));
+}
+
+/**
+ * Build condensed overview input
+ * Keeps full PDF/CIM text but replaces Excel data with extraction summaries
+ * @param {Array} documents - Array of { name, text } objects
+ * @param {Object} extractionResults - Results from Phase 1 extractions
+ * @returns {string} Condensed document text for overview extraction
+ */
+function buildOverviewInput(documents, extractionResults) {
+  const sections = [];
+
+  // Separate PDF/narrative documents from spreadsheets
+  const pdfDocs = documents.filter(doc => !isSpreadsheetDocument(doc.name));
+  const spreadsheetDocs = documents.filter(doc => isSpreadsheetDocument(doc.name));
+
+  console.log(`[buildOverviewInput] PDF documents: ${pdfDocs.length}, Spreadsheet documents: ${spreadsheetDocs.length}`);
+
+  // Include full text from PDF/narrative documents
+  for (const doc of pdfDocs) {
+    sections.push(`\n========== DOCUMENT: ${doc.name} ==========\n${doc.text}\n`);
+  }
+
+  // For spreadsheets, include condensed extraction summaries instead of raw text
+  if (spreadsheetDocs.length > 0) {
+    const spreadsheetNames = spreadsheetDocs.map(d => d.name).join(', ');
+
+    sections.push(`\n========== EXTRACTED DATA FROM SPREADSHEETS (${spreadsheetNames}) ==========\n`);
+
+    // Add TTM Financial Summary from financials extraction
+    if (extractionResults.financials) {
+      const fin = extractionResults.financials;
+      const ttm = fin.ttm_summary || {};
+      sections.push(`
+--- TTM FINANCIAL SUMMARY ---
+Period: ${ttm.period_start || 'N/A'} to ${ttm.period_end || 'N/A'}
+Total Revenue: $${(ttm.total_revenue || 0).toLocaleString()}
+Total Expenses: $${(ttm.total_expenses || 0).toLocaleString()}
+Net Income: $${(ttm.net_income || 0).toLocaleString()}
+EBITDA: $${(ttm.ebitda || 0).toLocaleString()}
+EBITDAR: $${(ttm.ebitdar || 0).toLocaleString()}
+
+Revenue Breakdown:
+- Medicare Revenue: $${(ttm.medicare_revenue || 0).toLocaleString()}
+- Medicaid Revenue: $${(ttm.medicaid_revenue || 0).toLocaleString()}
+- Private Pay Revenue: $${(ttm.private_pay_revenue || 0).toLocaleString()}
+- Other Revenue: $${(ttm.other_revenue || 0).toLocaleString()}
+`);
+
+      // Add monthly trend summary (condensed)
+      if (fin.monthly_financials && fin.monthly_financials.length > 0) {
+        sections.push(`\nMonthly Trend (${fin.monthly_financials.length} months):`);
+        for (const month of fin.monthly_financials.slice(-6)) { // Last 6 months
+          sections.push(`  ${month.month}: Revenue $${(month.total_revenue || 0).toLocaleString()}, Net Income $${(month.net_income || 0).toLocaleString()}`);
+        }
+      }
+    }
+
+    // Add Census Summary from census extraction
+    if (extractionResults.census) {
+      const census = extractionResults.census;
+      const summary = census.census_summary || {};
+      sections.push(`
+--- CENSUS SUMMARY ---
+Licensed Beds: ${summary.licensed_beds || 'N/A'}
+Average Daily Census: ${summary.average_daily_census || 'N/A'}
+Average Occupancy: ${summary.average_occupancy_pct || 'N/A'}%
+
+Payer Mix (by patient days):
+- Medicare: ${summary.medicare_pct || 'N/A'}%
+- Medicaid: ${summary.medicaid_pct || 'N/A'}%
+- Private Pay: ${summary.private_pay_pct || 'N/A'}%
+- Other: ${summary.other_pct || 'N/A'}%
+`);
+    }
+
+    // Add Expense Summary from expenses extraction
+    if (extractionResults.expenses) {
+      const exp = extractionResults.expenses;
+      if (exp.department_totals) {
+        sections.push(`\n--- EXPENSE SUMMARY BY DEPARTMENT ---`);
+        const depts = exp.department_totals;
+        if (depts.direct_care) sections.push(`Direct Care: $${depts.direct_care.toLocaleString()}`);
+        if (depts.dietary) sections.push(`Dietary/Culinary: $${depts.dietary.toLocaleString()}`);
+        if (depts.housekeeping) sections.push(`Housekeeping: $${depts.housekeeping.toLocaleString()}`);
+        if (depts.maintenance) sections.push(`Maintenance: $${depts.maintenance.toLocaleString()}`);
+        if (depts.administration) sections.push(`Administration: $${depts.administration.toLocaleString()}`);
+        if (depts.activities) sections.push(`Activities: $${depts.activities.toLocaleString()}`);
+      }
+    }
+
+    // Add Rates Summary from rates extraction
+    if (extractionResults.rates) {
+      const rates = extractionResults.rates;
+      if (rates.current_rates) {
+        sections.push(`\n--- RATE INFORMATION ---`);
+        const r = rates.current_rates;
+        if (r.medicare_rate) sections.push(`Medicare Rate: $${r.medicare_rate}/day`);
+        if (r.medicaid_rate) sections.push(`Medicaid Rate: $${r.medicaid_rate}/day`);
+        if (r.private_pay_rate) sections.push(`Private Pay Rate: $${r.private_pay_rate}/day`);
+      }
+    }
+
+    // Add Facility Info from facility extraction
+    if (extractionResults.facility) {
+      const fac = extractionResults.facility;
+      sections.push(`\n--- FACILITY INFORMATION ---`);
+      if (fac.facility_name) sections.push(`Facility Name: ${fac.facility_name}`);
+      if (fac.facility_type) sections.push(`Facility Type: ${fac.facility_type}`);
+      if (fac.licensed_beds) sections.push(`Licensed Beds: ${fac.licensed_beds}`);
+      if (fac.city && fac.state) sections.push(`Location: ${fac.city}, ${fac.state}`);
+    }
+
+    sections.push(`\n========== END EXTRACTED DATA ==========\n`);
+  }
+
+  const result = sections.join('\n');
+  console.log(`[buildOverviewInput] Final input length: ${result.length} chars (reduced from full text)`);
+
+  return result;
 }
 
 
@@ -1387,21 +1597,23 @@ function prepareDealOverviewInput(dealName, facilityExtractions) {
         beds: facilitySnapshot.licensed_beds || data.total_beds || null,
         occupancy_pct: facilitySnapshot.current_occupancy_pct || data.occupancy_pct || null,
 
-        // Financials
-        ttm_revenue: ttmFinancials.revenue || data.ttm_revenue || null,
-        ttm_expenses: ttmFinancials.expenses || data.ttm_expenses || null,
-        ttm_net_income: ttmFinancials.net_income || data.ttm_net_income || null,
+        // Financials - with comprehensive fallbacks for different field names
+        ttm_revenue: ttmFinancials.revenue || data.ttm_revenue || data.total_revenue || data.annual_revenue || null,
+        ttm_expenses: ttmFinancials.expenses || data.ttm_expenses || data.total_expenses || null,
+        ttm_net_income: ttmFinancials.net_income || data.ttm_net_income || data.net_income || null,
         net_income_margin_pct: ttmFinancials.net_income_margin_pct || null,
+        ebitda: data.ebitda || null,
+        ebitdar: data.ebitdar || null,
 
         // Add-backs
-        rent_expense: ttmFinancials.rent_lease || null,
-        interest_expense: ttmFinancials.interest || null,
-        depreciation: ttmFinancials.depreciation || null,
+        rent_expense: ttmFinancials.rent_lease || data.rent_lease_expense || null,
+        interest_expense: ttmFinancials.interest || data.interest_expense || null,
+        depreciation: ttmFinancials.depreciation || data.depreciation || null,
 
         // Payer mix
-        medicaid_pct: payerMix.medicaid_pct || null,
-        private_pay_pct: payerMix.private_pay_pct || null,
-        medicare_pct: payerMix.medicare_pct || null,
+        medicaid_pct: payerMix.medicaid_pct || data.medicaid_pct || null,
+        private_pay_pct: payerMix.private_pay_pct || data.private_pay_pct || null,
+        medicare_pct: payerMix.medicare_pct || data.medicare_pct || null,
 
         // Trends
         revenue_trend: overview.operating_trends?.revenue_trend || null,

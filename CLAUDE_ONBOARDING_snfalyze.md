@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-16 16:39:49
+> Last updated: 2025-12-17 15:59:28
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -3762,6 +3762,7 @@ Solve for IRR using Newton-Raphson method
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
     "csv-parse": "^6.1.0",
+    "csv-parser": "^3.2.0",
     "debug": "~2.6.9",
     "dotenv": "^17.2.0",
     "ejs": "~2.6.1",
@@ -3932,6 +3933,7 @@ frontend/src/pages/Deals.jsx
 frontend/src/pages/EditCombinedDealForm.jsx
 frontend/src/pages/EditCombinedDeatlForm1.jsx
 frontend/src/pages/EditUser.jsx
+frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx

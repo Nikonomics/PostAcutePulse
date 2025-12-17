@@ -14,6 +14,110 @@ const {
 } = require('../services/facilityMatcher');
 
 // ============================================================================
+// FACILITY SEARCH API (must come BEFORE parameterized routes)
+// ============================================================================
+
+/**
+ * GET /api/facilities/snf/search
+ * Search SNF facilities with filters
+ *
+ * NOTE: This route MUST be defined before /snf/:ccn to avoid "search" being
+ * matched as a CCN parameter.
+ */
+router.get('/snf/search', async (req, res) => {
+  try {
+    const {
+      name, state, city, minBeds, maxBeds,
+      minRating, maxRating, limit = 50, offset = 0
+    } = req.query;
+
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      let whereClause = '1=1';
+      const replacements = {};
+
+      if (name) {
+        whereClause += ` AND provider_name ILIKE :name`;
+        replacements.name = `%${name}%`;
+      }
+      if (state) {
+        whereClause += ` AND state = :state`;
+        replacements.state = state.toUpperCase();
+      }
+      if (city) {
+        whereClause += ` AND city ILIKE :city`;
+        replacements.city = `%${city}%`;
+      }
+      if (minBeds) {
+        whereClause += ` AND certified_beds >= :minBeds`;
+        replacements.minBeds = parseInt(minBeds);
+      }
+      if (maxBeds) {
+        whereClause += ` AND certified_beds <= :maxBeds`;
+        replacements.maxBeds = parseInt(maxBeds);
+      }
+      if (minRating) {
+        whereClause += ` AND overall_rating >= :minRating`;
+        replacements.minRating = parseInt(minRating);
+      }
+      if (maxRating) {
+        whereClause += ` AND overall_rating <= :maxRating`;
+        replacements.maxRating = parseInt(maxRating);
+      }
+
+      const [facilities] = await sequelize.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (fs.ccn) fs.*, e.extract_date
+          FROM facility_snapshots fs
+          JOIN cms_extracts e ON fs.extract_id = e.extract_id
+          ORDER BY fs.ccn, e.extract_date DESC
+        )
+        SELECT
+          ccn, provider_name, address, city, state, zip_code,
+          overall_rating, health_inspection_rating, qm_rating as quality_rating, staffing_rating,
+          certified_beds, average_residents_per_day as residents_total,
+          latitude, longitude, ownership_type
+        FROM latest
+        WHERE ${whereClause}
+        ORDER BY provider_name
+        LIMIT :limit OFFSET :offset
+      `, {
+        replacements: { ...replacements, limit: parseInt(limit), offset: parseInt(offset) }
+      });
+
+      // Get total count
+      const [[{ total }]] = await sequelize.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (fs.ccn) fs.*
+          FROM facility_snapshots fs
+          JOIN cms_extracts e ON fs.extract_id = e.extract_id
+          ORDER BY fs.ccn, e.extract_date DESC
+        )
+        SELECT COUNT(*) as total FROM latest WHERE ${whereClause}
+      `, { replacements });
+
+      res.json({
+        success: true,
+        total: parseInt(total),
+        facilities
+      });
+
+    } finally {
+      await sequelize.close();
+    }
+
+  } catch (error) {
+    console.error('Error searching facilities:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
 // FACILITY PROFILE API
 // Comprehensive facility data from CMS time-series database
 // ============================================================================
@@ -271,99 +375,222 @@ router.get('/snf/:ccn/competitors', async (req, res) => {
 });
 
 /**
- * GET /api/facilities/snf/search
- * Search SNF facilities with filters
+ * GET /api/facilities/snf/:ccn/benchmarks
+ * Returns market (county), state, and national averages for key metrics
  */
-router.get('/snf/search', async (req, res) => {
+router.get('/snf/:ccn/benchmarks', async (req, res) => {
   try {
-    const {
-      name, state, city, minBeds, maxBeds,
-      minRating, maxRating, limit = 50, offset = 0
-    } = req.query;
-
+    const { ccn } = req.params;
     const { getSequelizeInstance } = require('../config/database');
     const sequelize = getSequelizeInstance();
 
     try {
-      let whereClause = '1=1';
-      const replacements = {};
+      // First get the facility's state and county
+      const [[facility]] = await sequelize.query(`
+        SELECT state, county
+        FROM facility_snapshots fs
+        JOIN cms_extracts e ON fs.extract_id = e.extract_id
+        WHERE fs.ccn = :ccn
+        ORDER BY e.extract_date DESC
+        LIMIT 1
+      `, { replacements: { ccn } });
 
-      if (name) {
-        whereClause += ` AND provider_name ILIKE :name`;
-        replacements.name = `%${name}%`;
-      }
-      if (state) {
-        whereClause += ` AND state = :state`;
-        replacements.state = state.toUpperCase();
-      }
-      if (city) {
-        whereClause += ` AND city ILIKE :city`;
-        replacements.city = `%${city}%`;
-      }
-      if (minBeds) {
-        whereClause += ` AND certified_beds >= :minBeds`;
-        replacements.minBeds = parseInt(minBeds);
-      }
-      if (maxBeds) {
-        whereClause += ` AND certified_beds <= :maxBeds`;
-        replacements.maxBeds = parseInt(maxBeds);
-      }
-      if (minRating) {
-        whereClause += ` AND overall_rating >= :minRating`;
-        replacements.minRating = parseInt(minRating);
-      }
-      if (maxRating) {
-        whereClause += ` AND overall_rating <= :maxRating`;
-        replacements.maxRating = parseInt(maxRating);
+      if (!facility) {
+        return res.status(404).json({ success: false, error: 'Facility not found' });
       }
 
-      const [facilities] = await sequelize.query(`
-        WITH latest AS (
-          SELECT DISTINCT ON (fs.ccn) fs.*, e.extract_date
-          FROM facility_snapshots fs
-          JOIN cms_extracts e ON fs.extract_id = e.extract_id
-          ORDER BY fs.ccn, e.extract_date DESC
-        )
+      const { state, county } = facility;
+
+      // Get the latest extract_id for consistent comparison
+      const [[latestExtract]] = await sequelize.query(`
+        SELECT extract_id FROM cms_extracts ORDER BY extract_date DESC LIMIT 1
+      `);
+      const extractId = latestExtract.extract_id;
+
+      // National averages
+      const [[nationalAvg]] = await sequelize.query(`
         SELECT
-          ccn, provider_name as facility_name, address, city, state, zip_code,
-          overall_rating, health_inspection_rating, qm_rating as quality_measure_rating, staffing_rating,
-          certified_beds as number_of_certified_beds, average_residents_per_day as number_of_residents_in_certified_beds,
-          latitude, longitude, ownership_type
-        FROM latest
-        WHERE ${whereClause}
-        ORDER BY provider_name
-        LIMIT :limit OFFSET :offset
-      `, {
-        replacements: { ...replacements, limit: parseInt(limit), offset: parseInt(offset) }
-      });
+          AVG(overall_rating) as avg_overall_rating,
+          AVG(qm_rating) as avg_quality_rating,
+          AVG(staffing_rating) as avg_staffing_rating,
+          AVG(health_inspection_rating) as avg_inspection_rating,
+          AVG(CAST(reported_total_nurse_hrs AS FLOAT)) as avg_total_nursing_hprd,
+          AVG(CAST(reported_rn_hrs AS FLOAT)) as avg_rn_hprd,
+          AVG(CAST(reported_lpn_hrs AS FLOAT)) as avg_lpn_hprd,
+          AVG(CAST(reported_na_hrs AS FLOAT)) as avg_cna_hprd,
+          AVG(CAST(rn_turnover AS FLOAT)) as avg_rn_turnover,
+          AVG(CAST(total_nursing_turnover AS FLOAT)) as avg_total_turnover,
+          AVG(CAST(cycle1_total_health_deficiencies AS FLOAT)) as avg_deficiencies,
+          AVG(CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) as avg_occupancy,
+          COUNT(*) as facility_count
+        FROM facility_snapshots
+        WHERE extract_id = :extractId
+      `, { replacements: { extractId } });
 
-      // Get total count
-      const [[{ total }]] = await sequelize.query(`
-        WITH latest AS (
-          SELECT DISTINCT ON (fs.ccn) fs.*
-          FROM facility_snapshots fs
-          JOIN cms_extracts e ON fs.extract_id = e.extract_id
-          ORDER BY fs.ccn, e.extract_date DESC
-        )
-        SELECT COUNT(*) as total FROM latest WHERE ${whereClause}
-      `, { replacements });
+      // State averages
+      const [[stateAvg]] = await sequelize.query(`
+        SELECT
+          AVG(overall_rating) as avg_overall_rating,
+          AVG(qm_rating) as avg_quality_rating,
+          AVG(staffing_rating) as avg_staffing_rating,
+          AVG(health_inspection_rating) as avg_inspection_rating,
+          AVG(CAST(reported_total_nurse_hrs AS FLOAT)) as avg_total_nursing_hprd,
+          AVG(CAST(reported_rn_hrs AS FLOAT)) as avg_rn_hprd,
+          AVG(CAST(reported_lpn_hrs AS FLOAT)) as avg_lpn_hprd,
+          AVG(CAST(reported_na_hrs AS FLOAT)) as avg_cna_hprd,
+          AVG(CAST(rn_turnover AS FLOAT)) as avg_rn_turnover,
+          AVG(CAST(total_nursing_turnover AS FLOAT)) as avg_total_turnover,
+          AVG(CAST(cycle1_total_health_deficiencies AS FLOAT)) as avg_deficiencies,
+          AVG(CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) as avg_occupancy,
+          COUNT(*) as facility_count
+        FROM facility_snapshots
+        WHERE extract_id = :extractId
+          AND state = :state
+      `, { replacements: { extractId, state } });
+
+      // Market (county) averages
+      const [[marketAvg]] = await sequelize.query(`
+        SELECT
+          AVG(overall_rating) as avg_overall_rating,
+          AVG(qm_rating) as avg_quality_rating,
+          AVG(staffing_rating) as avg_staffing_rating,
+          AVG(health_inspection_rating) as avg_inspection_rating,
+          AVG(CAST(reported_total_nurse_hrs AS FLOAT)) as avg_total_nursing_hprd,
+          AVG(CAST(reported_rn_hrs AS FLOAT)) as avg_rn_hprd,
+          AVG(CAST(reported_lpn_hrs AS FLOAT)) as avg_lpn_hprd,
+          AVG(CAST(reported_na_hrs AS FLOAT)) as avg_cna_hprd,
+          AVG(CAST(rn_turnover AS FLOAT)) as avg_rn_turnover,
+          AVG(CAST(total_nursing_turnover AS FLOAT)) as avg_total_turnover,
+          AVG(CAST(cycle1_total_health_deficiencies AS FLOAT)) as avg_deficiencies,
+          AVG(CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) as avg_occupancy,
+          COUNT(*) as facility_count
+        FROM facility_snapshots
+        WHERE extract_id = :extractId
+          AND state = :state
+          AND county = :county
+      `, { replacements: { extractId, state, county } });
 
       res.json({
         success: true,
-        total: parseInt(total),
-        facilities
+        facility: { state, county },
+        benchmarks: {
+          national: nationalAvg,
+          state: stateAvg,
+          market: marketAvg
+        }
       });
 
     } finally {
       await sequelize.close();
     }
-
   } catch (error) {
-    console.error('Error searching facilities:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('Error fetching benchmarks:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/facilities/snf/:ccn/deficiencies
+ * Get detailed deficiency records for a facility
+ */
+router.get('/snf/:ccn/deficiencies', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      const [deficiencies] = await sequelize.query(`
+        SELECT
+          survey_date,
+          survey_type,
+          deficiency_tag,
+          scope_severity,
+          deficiency_text,
+          correction_date,
+          is_corrected
+        FROM cms_facility_deficiencies
+        WHERE federal_provider_number = :ccn
+        ORDER BY survey_date DESC
+        LIMIT 100
+      `, { replacements: { ccn } });
+
+      res.json({ success: true, deficiencies });
+    } finally {
+      await sequelize.close();
+    }
+  } catch (error) {
+    console.error('Error fetching deficiencies:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/facilities/snf/:ccn/penalties
+ * Get penalty records for a facility
+ */
+router.get('/snf/:ccn/penalties', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      const [penalties] = await sequelize.query(`
+        SELECT
+          penalty_date,
+          penalty_type,
+          fine_amount,
+          payment_denial_start_date,
+          payment_denial_days
+        FROM penalty_records
+        WHERE ccn = :ccn
+        ORDER BY penalty_date DESC
+      `, { replacements: { ccn } });
+
+      res.json({ success: true, penalties });
+    } finally {
+      await sequelize.close();
+    }
+  } catch (error) {
+    console.error('Error fetching penalties:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/facilities/snf/:ccn/ownership
+ * Get ownership records for a facility
+ */
+router.get('/snf/:ccn/ownership', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      const [ownership] = await sequelize.query(`
+        SELECT
+          role_type,
+          owner_type,
+          owner_name,
+          ownership_percentage,
+          association_date
+        FROM ownership_records
+        WHERE ccn = :ccn
+        ORDER BY
+          CASE WHEN ownership_percentage IS NOT NULL THEN 0 ELSE 1 END,
+          ownership_percentage DESC NULLS LAST,
+          role_type
+      `, { replacements: { ccn } });
+
+      res.json({ success: true, ownership });
+    } finally {
+      await sequelize.close();
+    }
+  } catch (error) {
+    console.error('Error fetching ownership:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

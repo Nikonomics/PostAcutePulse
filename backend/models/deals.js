@@ -172,6 +172,11 @@ module.exports = function (sequelize, DataTypes) {
       allowNull: true,
       defaultValue: 'pipeline'
     },
+    position: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0
+    },
     email_notification_major_updates: {
       type: DataTypes.STRING(10),
       allowNull: true,

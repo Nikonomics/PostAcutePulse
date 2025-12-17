@@ -56,90 +56,103 @@ const WizardContent = () => {
       // Build payload - merge extraction data with form data like UploadDeal.jsx does
       const extracted = extractionData || {};
 
+      // Build facilities array from detected/entered facilities
+      const facilities = dealData.facilities.map((facility, index) => {
+        const matched = facility.matched_facility || {};
+        return {
+          display_order: index,
+          facility_name: matched.facility_name || facility.facility_name || '',
+          facility_type: facility.facility_type || matched.facility_type || 'SNF',
+          street_address: matched.address || facility.address || '',
+          city: matched.city || facility.city || '',
+          state: matched.state || facility.state || '',
+          zip_code: matched.zip_code || facility.zip_code || '',
+          county: matched.county || '',
+          bed_count: matched.total_beds || matched.capacity || matched.bed_count || null,
+          // SNF-specific fields from CMS database
+          federal_provider_number: matched.federal_provider_number || null,
+          overall_rating: matched.overall_rating || null,
+          health_inspection_rating: matched.health_inspection_rating || null,
+          staffing_rating: matched.staffing_rating || null,
+          quality_rating: matched.quality_rating || null,
+          // Location coordinates
+          latitude: matched.latitude || null,
+          longitude: matched.longitude || null,
+          phone_number: matched.phone_number || '',
+          // Matched facility reference
+          matched_facility_id: matched.id || matched.federal_provider_number || null,
+          match_source: facility.match_source,
+        };
+      });
+
+      // Calculate total bed count for the deal
+      const totalBedCount = facilities.reduce((sum, f) => sum + (f.bed_count || 0), 0);
+
       const payload = {
         address: {
-          street_address: dealData.facilities[0]?.address || extracted.street_address || '',
-          city: dealData.facilities[0]?.city || extracted.city || '',
-          state: dealData.facilities[0]?.state || extracted.state || '',
-          zip_code: dealData.facilities[0]?.zip_code || extracted.zip_code || '',
+          street_address: facilities[0]?.street_address || extracted.street_address || '',
+          city: facilities[0]?.city || extracted.city || '',
+          state: facilities[0]?.state || extracted.state || '',
+          zip_code: facilities[0]?.zip_code || extracted.zip_code || '',
           country: 'United States',
         },
-        deals: dealData.facilities.map((facility) => {
-          // Get matched facility data from SNF/ALF database (if available)
-          const matched = facility.matched_facility || {};
+        // ONE deal for the portfolio with all deal-level data
+        deals: [{
+          // Deal-level fields from form
+          deal_name: dealData.deal_name,
+          deal_type: extracted.deal_type || 'Acquisition',
+          deal_source: dealData.deal_source === 'Other' ? dealData.deal_source_other : dealData.deal_source,
+          primary_contact_name: dealData.contact_name || extracted.primary_contact_name || '',
+          deal_status: dealData.status,
+          priority_level: dealData.priority_level || extracted.priority_level || 'medium',
+          deal_lead_id: dealData.deal_lead_id,
+          assistant_deal_lead_id: dealData.assistant_deal_lead_id,
+          deal_team_members: dealData.deal_team_members,
+          target_close_date: dealData.target_close_date,
 
-          return {
-            // Deal-level fields from form
-            deal_name: dealData.deal_name,
-            deal_type: extracted.deal_type || 'Acquisition',
-            deal_source: dealData.deal_source === 'Other' ? dealData.deal_source_other : dealData.deal_source,
-            primary_contact_name: dealData.contact_name || extracted.primary_contact_name || '',
-            deal_status: dealData.status,
-            priority_level: dealData.priority_level || extracted.priority_level || 'medium',
-            deal_lead_id: dealData.deal_lead_id,
-            assistant_deal_lead_id: dealData.assistant_deal_lead_id,
-            deal_team_members: dealData.deal_team_members,
-            target_close_date: dealData.target_close_date,
+          // For single facility, use facility data; for portfolio, leave blank (facilities have their own)
+          facility_name: facilities.length === 1 ? facilities[0].facility_name : dealData.deal_name,
+          facility_type: facilities.length === 1 ? facilities[0].facility_type : 'Portfolio',
+          street_address: facilities.length === 1 ? facilities[0].street_address : '',
+          city: facilities.length === 1 ? facilities[0].city : '',
+          state: facilities.length === 1 ? facilities[0].state : '',
+          zip_code: facilities.length === 1 ? facilities[0].zip_code : '',
+          county: facilities.length === 1 ? facilities[0].county : '',
+          bed_count: totalBedCount || extracted.bed_count || null,
 
-            // Facility fields - priority: matched DB data > form data > extraction
-            facility_name: matched.facility_name || facility.facility_name || extracted.facility_name || '',
-            facility_type: facility.facility_type || matched.facility_type || extracted.facility_type || 'SNF',
-            street_address: matched.address || facility.address || extracted.street_address || '',
-            city: matched.city || facility.city || extracted.city || '',
-            state: matched.state || facility.state || extracted.state || '',
-            zip_code: matched.zip_code || facility.zip_code || extracted.zip_code || '',
-            county: matched.county || extracted.county || '',
+          // Financial fields from extraction (portfolio-level totals)
+          purchase_price: parseFloat(dealData.purchase_price?.toString().replace(/,/g, '')) || extracted.purchase_price || 0,
+          annual_revenue: extracted.annual_revenue || 0,
+          ebitda: extracted.ebitda || 0,
+          ebitda_margin: extracted.ebitda_margin || 0,
+          ebitdar: extracted.ebitdar || 0,
+          ebitdar_margin: extracted.ebitdar_margin || 0,
+          net_operating_income: extracted.net_operating_income || 0,
+          current_occupancy: extracted.occupancy_pct || extracted.current_occupancy || 0,
+          average_daily_rate: extracted.average_daily_rate || 0,
+          medicare_percentage: extracted.medicare_pct || extracted.medicare_percentage || 0,
+          medicaid_percentage: extracted.medicaid_pct || extracted.medicaid_percentage || 0,
+          private_pay_percentage: extracted.private_pay_pct || extracted.private_pay_percentage || 0,
+          price_per_bed: extracted.price_per_bed || 0,
+          revenue_multiple: extracted.revenue_multiple || 0,
+          ebitda_multiple: extracted.ebitda_multiple || 0,
+          target_irr_percentage: extracted.target_irr_percentage || 0,
+          projected_cap_rate_percentage: extracted.projected_cap_rate_percentage || 0,
+          target_hold_period: extracted.target_hold_period || 0,
 
-            // Bed count from matched facility (total_beds for SNF, capacity for ALF)
-            bed_count: matched.total_beds || matched.capacity || matched.bed_count || extracted.bed_count || null,
+          // Contact info from extraction
+          title: extracted.contact_title || extracted.title || '',
+          phone_number: extracted.contact_phone || extracted.phone_number || '',
+          email: extracted.contact_email || extracted.email || '',
 
-            // SNF-specific fields from CMS database
-            federal_provider_number: matched.federal_provider_number || null,
-            overall_rating: matched.overall_rating || null,
-            health_inspection_rating: matched.health_inspection_rating || null,
-            staffing_rating: matched.staffing_rating || null,
-            quality_rating: matched.quality_rating || null,
-
-            // Location coordinates
-            latitude: matched.latitude || null,
-            longitude: matched.longitude || null,
-
-            // Financial fields from extraction (these populate the deal profile)
-            purchase_price: parseFloat(dealData.purchase_price?.toString().replace(/,/g, '')) || extracted.purchase_price || 0,
-            annual_revenue: extracted.annual_revenue || 0,
-            ebitda: extracted.ebitda || 0,
-            ebitda_margin: extracted.ebitda_margin || 0,
-            ebitdar: extracted.ebitdar || 0,
-            ebitdar_margin: extracted.ebitdar_margin || 0,
-            net_operating_income: extracted.net_operating_income || 0,
-            current_occupancy: extracted.occupancy_pct || extracted.current_occupancy || 0,
-            average_daily_rate: extracted.average_daily_rate || 0,
-            medicare_percentage: extracted.medicare_pct || extracted.medicare_percentage || 0,
-            medicaid_percentage: extracted.medicaid_pct || extracted.medicaid_percentage || 0,
-            private_pay_percentage: extracted.private_pay_pct || extracted.private_pay_percentage || 0,
-            price_per_bed: extracted.price_per_bed || 0,
-            revenue_multiple: extracted.revenue_multiple || 0,
-            ebitda_multiple: extracted.ebitda_multiple || 0,
-            target_irr_percentage: extracted.target_irr_percentage || 0,
-            projected_cap_rate_percentage: extracted.projected_cap_rate_percentage || 0,
-            target_hold_period: extracted.target_hold_period || 0,
-
-            // Contact info from extraction
-            title: extracted.contact_title || extracted.title || '',
-            phone_number: matched.phone_number || extracted.contact_phone || extracted.phone_number || '',
-            email: extracted.contact_email || extracted.email || '',
-
-            // Matched facility reference
-            matched_facility_id: matched.id || matched.federal_provider_number || null,
-            match_source: facility.match_source,
-
-            // Notification settings
-            notificationSettings: {
-              email_notification_major_updates: true,
-              document_upload_notification: true,
-            },
-          };
-        }),
+          // Notification settings
+          notificationSettings: {
+            email_notification_major_updates: true,
+            document_upload_notification: true,
+          },
+        }],
+        // All facilities in the portfolio (stored in deal_facilities table)
+        facilities: facilities,
       };
 
       // Include uploaded documents if AI path
@@ -160,6 +173,8 @@ const WizardContent = () => {
         payload.extraction_data = {
           ...extractionData,
           extraction_timestamp: new Date().toISOString(),
+          // Deal overview for the Deal Overview tab
+          deal_overview: extractionData.deal_overview || null,
           // Time-series data with correct keys (snake_case for backend)
           monthly_financials: extractionData.monthlyFinancials || [],
           monthly_census: extractionData.monthlyCensus || [],
@@ -185,11 +200,17 @@ const WizardContent = () => {
       console.log('deals[0].annual_revenue:', payload.deals?.[0]?.annual_revenue);
       console.log('deals[0].ebitda:', payload.deals?.[0]?.ebitda);
       console.log('deals[0].current_occupancy:', payload.deals?.[0]?.current_occupancy);
+      console.log('deals[0].bed_count:', payload.deals?.[0]?.bed_count);
       console.log('extraction_data keys:', payload.extraction_data ? Object.keys(payload.extraction_data) : 'none');
+      console.log('extraction_data.deal_overview:', payload.extraction_data?.deal_overview ? 'present' : 'missing');
+      if (payload.extraction_data?.deal_overview) {
+        console.log('extraction_data.deal_overview keys:', Object.keys(payload.extraction_data.deal_overview));
+        console.log('extraction_data.deal_overview.facility_snapshot:', payload.extraction_data.deal_overview.facility_snapshot);
+        console.log('extraction_data.deal_overview.ttm_financials:', payload.extraction_data.deal_overview.ttm_financials);
+      }
       console.log('extraction_data.monthly_financials count:', payload.extraction_data?.monthly_financials?.length || 0);
       console.log('extraction_data.monthly_census count:', payload.extraction_data?.monthly_census?.length || 0);
       console.log('extraction_data.monthly_expenses count:', payload.extraction_data?.monthly_expenses?.length || 0);
-      console.log('extraction_data.deal_overview:', payload.extraction_data?.deal_overview ? 'present' : 'missing');
       console.log('extraction_data.ttm_financials:', payload.extraction_data?.ttm_financials ? 'present' : 'missing');
       console.log('documents count:', payload.documents?.length || 0);
       console.log('=== END PAYLOAD ===');

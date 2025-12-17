@@ -7,12 +7,16 @@ import {
   detectFacilities,
   batchMatchFacilities,
   extractDealEnhanced,
+  extractPortfolio,
 } from '../../../api/DealService';
+import { useNavigate } from 'react-router-dom';
 
 const DocumentUpload = () => {
+  const navigate = useNavigate();
   const {
     uploadedFiles,
     setUploadedFiles,
+    isExtracting,
     setIsExtracting,
     setExtractionProgress,
     setDetectedFacilities,
@@ -20,10 +24,12 @@ const DocumentUpload = () => {
     applyExtractionData,
     goToNextStep,
     goToPreviousStep,
+    dealData,
   } = useWizard();
 
   const [isDragging, setIsDragging] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double-clicks
   const [detectionStep, setDetectionStep] = useState('');
   const [localDetectedFacilities, setLocalDetectedFacilities] = useState([]);
   const [confirmedFacilities, setConfirmedFacilities] = useState([]);
@@ -188,6 +194,12 @@ const DocumentUpload = () => {
   };
 
   const handleConfirmAndContinue = async () => {
+    // Prevent double-clicks
+    if (isSubmitting || isExtracting) {
+      console.log('[DocumentUpload] Already submitting/extracting, ignoring click');
+      return;
+    }
+
     const selectedFacilities = confirmedFacilities.filter(f => f.selected);
 
     if (selectedFacilities.length === 0) {
@@ -195,8 +207,10 @@ const DocumentUpload = () => {
       return;
     }
 
+    setIsSubmitting(true);
+
     // Set facilities in wizard context
-    setFacilitiesFromAI(selectedFacilities.map(f => ({
+    const facilitiesForContext = selectedFacilities.map(f => ({
       facility_type: f.detected?.facility_type || 'SNF',
       facility_name: f.matched?.facility_name || f.detected?.name || '',
       address: f.matched?.address || f.detected?.address || '',
@@ -204,22 +218,82 @@ const DocumentUpload = () => {
       state: f.matched?.state || f.detected?.state || '',
       zip_code: f.matched?.zip_code || f.detected?.zip || '',
       matched: f.matched,
+      matched_facility: f.matched, // Also include as matched_facility for CreateDealWizard.jsx
       match_source: f.match_source,
       user_confirmed: f.user_confirmed,
-    })));
+      detected: f.detected,
+    }));
 
+    setFacilitiesFromAI(facilitiesForContext);
     setDetectedFacilities(selectedFacilities);
 
     // Start extraction indicator
     setIsExtracting(true);
     setExtractionProgress(10);
 
+    // BRANCHING LOGIC: Single facility vs Portfolio (2+ facilities)
+    const isPortfolio = selectedFacilities.length > 1;
+
+    console.log(`[DocumentUpload] ${isPortfolio ? 'PORTFOLIO' : 'SINGLE FACILITY'} extraction mode`);
+    console.log(`[DocumentUpload] Selected facilities: ${selectedFacilities.length}`);
+
+    if (isPortfolio) {
+      // === PORTFOLIO PATH: Use extract-portfolio which creates deal directly ===
+      try {
+        console.log('[DocumentUpload] Starting PORTFOLIO extraction with', uploadedFiles.length, 'files');
+        console.log('[DocumentUpload] Confirmed facilities:', selectedFacilities.map(f => f.detected?.name || f.matched?.facility_name));
+
+        setExtractionProgress(20);
+        toast.info(`Extracting portfolio data for ${selectedFacilities.length} facilities...`);
+
+        // Use deal name from wizard context, or generate from first facility name
+        const portfolioDealName = dealData?.deal_name
+          || selectedFacilities[0]?.detected?.name
+          || selectedFacilities[0]?.matched?.facility_name
+          || 'Portfolio Deal';
+
+        const response = await extractPortfolio(uploadedFiles, selectedFacilities, portfolioDealName);
+        console.log('[DocumentUpload] Portfolio extraction response:', response);
+
+        if (response.success && response.body?.deal) {
+          const createdDeal = response.body.deal;
+          console.log('[DocumentUpload] Portfolio deal created:', createdDeal.id);
+          console.log('[DocumentUpload] Deal extraction_data keys:', Object.keys(createdDeal.extraction_data || {}));
+
+          setExtractionProgress(100);
+          setIsExtracting(false);
+          toast.success(`Portfolio deal created with ${selectedFacilities.length} facilities!`);
+
+          // Navigate directly to the created deal detail page
+          navigate(`/deals/deal-detail/${createdDeal.id}`);
+          return; // Exit - don't continue wizard flow
+        } else {
+          console.error('[DocumentUpload] Portfolio extraction failed:', response.message);
+          toast.error(response.message || 'Portfolio extraction failed');
+          setIsExtracting(false);
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (error) {
+        console.error('[DocumentUpload] Portfolio extraction error:', error);
+        toast.error(error.message || 'Failed to extract portfolio');
+        setIsExtracting(false);
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    // === SINGLE FACILITY PATH: Continue with wizard flow ===
     // Move to next step immediately so user can fill in deal basics while extraction runs
     goToNextStep();
 
     // Run actual AI extraction in background
     try {
+      console.log('[DocumentUpload] Starting SINGLE FACILITY extraction with', uploadedFiles.length, 'files');
+      console.log('[DocumentUpload] Files:', uploadedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })));
+
       const response = await extractDealEnhanced(uploadedFiles);
+      console.log('[DocumentUpload] Extraction API response:', response);
 
       if (response.success && response.body?.extractedData) {
         const extracted = response.body.extractedData;
@@ -238,13 +312,19 @@ const DocumentUpload = () => {
         console.log('potentialSavings:', response.body.potentialSavings);
         console.log('insights:', response.body.insights);
         console.log('expensesByDepartment:', response.body.expensesByDepartment);
-        console.log('deal_overview:', extracted?.deal_overview ? 'present' : 'missing');
+        // deal_overview is at response.body level, not inside extractedData
+        console.log('deal_overview:', response.body.deal_overview ? 'present' : 'missing');
+        if (response.body.deal_overview) {
+          console.log('deal_overview keys:', Object.keys(response.body.deal_overview));
+        }
         console.log('uploadedFiles:', response.body.uploadedFiles);
         console.log('=== END EXTRACTION ===');
 
         // Apply extraction data to wizard context - capture ALL fields like UploadDeal.jsx
         applyExtractionData({
           ...extracted,
+          // Deal overview for the Deal Overview tab (returned at response.body level)
+          deal_overview: response.body.deal_overview || null,
           // Include enhanced time-series data
           monthlyFinancials: response.body.monthlyFinancials || [],
           monthlyCensus: response.body.monthlyCensus || [],
@@ -268,12 +348,16 @@ const DocumentUpload = () => {
         toast.success('Document analysis complete!');
       } else {
         console.warn('Extraction returned no data:', response);
+        // Still set progress to 100 so user can proceed, but warn them
         setExtractionProgress(100);
+        toast.warning('Document analysis completed but no financial data was extracted. You can proceed with manual entry.');
       }
     } catch (error) {
-      console.error('Background extraction error:', error);
-      // Don't show error toast - user can still proceed with manual data
+      console.error('[DocumentUpload] Background extraction error:', error);
+      console.error('[DocumentUpload] Error details:', error.response?.data || error.message);
+      // Set progress to 100 so user can proceed, but warn them
       setExtractionProgress(100);
+      toast.warning('Document analysis failed. You can proceed with manual entry.');
     } finally {
       setTimeout(() => {
         setIsExtracting(false);
@@ -455,9 +539,21 @@ const DocumentUpload = () => {
             className="btn btn-primary"
             style={{ width: '100%', justifyContent: 'center', marginTop: '16px' }}
             onClick={handleConfirmAndContinue}
+            disabled={isSubmitting || isExtracting}
           >
-            Confirm & Continue
-            <ArrowRight size={16} />
+            {isSubmitting || isExtracting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                {confirmedFacilities.filter(f => f.selected).length > 1
+                  ? 'Creating Portfolio Deal...'
+                  : 'Processing...'}
+              </>
+            ) : (
+              <>
+                Confirm & Continue
+                <ArrowRight size={16} />
+              </>
+            )}
           </button>
 
           <button
