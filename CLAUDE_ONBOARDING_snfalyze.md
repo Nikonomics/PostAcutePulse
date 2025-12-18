@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-18 10:29:25
+> Last updated: 2025-12-18 10:35:52
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -280,6 +280,21 @@ AWS_SECRET_ACCESS_KEY=your-secret
 AWS_REGION=us-east-1
 AWS_S3_BUCKET_NAME=your-bucket
 ```
+
+---
+
+## Production Databases (Render)
+
+In production, the app uses PostgreSQL on Render with a two-database architecture:
+
+- **Main DB** (`snfalyze_db`) - App data: users, deals, documents, historical snapshots
+- **Market DB** (`snf_market_data`) - Shared reference data for multiple projects
+
+See **[backend/scripts/README.md](backend/scripts/README.md)** for:
+- Why two databases exist
+- Database architecture diagram
+- Sync commands and workflows
+- Troubleshooting production database issues
 
 ---
 
@@ -3879,6 +3894,7 @@ backend/app_snfalyze.js
 backend/check_extraction.js
 backend/create-tables-and-migrate.js
 backend/migrate-to-postgres.js
+backend/run-ccn-migration.js
 backend/run-index-migration.js
 backend/seed.js
 backend/test_cim_extraction.js

@@ -271,6 +271,21 @@ AWS_S3_BUCKET_NAME=your-bucket
 
 ---
 
+## Production Databases (Render)
+
+In production, the app uses PostgreSQL on Render with a two-database architecture:
+
+- **Main DB** (`snfalyze_db`) - App data: users, deals, documents, historical snapshots
+- **Market DB** (`snf_market_data`) - Shared reference data for multiple projects
+
+See **[backend/scripts/README.md](backend/scripts/README.md)** for:
+- Why two databases exist
+- Database architecture diagram
+- Sync commands and workflows
+- Troubleshooting production database issues
+
+---
+
 ## Troubleshooting
 
 **"Cannot find module 'sqlite3'"**
