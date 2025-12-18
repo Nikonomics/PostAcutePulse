@@ -167,6 +167,14 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('CMS data definitions migration error:', err.message);
   }
+
+  try {
+    // Add position column to deals table for Kanban reordering
+    const { runMigration: runDealsPositionMigration } = require('../migrations/add-deals-position-column');
+    await runDealsPositionMigration(sequelize);
+  } catch (err) {
+    console.log('Deals position column migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist
