@@ -6,7 +6,10 @@ import { parse } from 'csv-parse';
 import { createReadStream } from 'fs';
 
 const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform' });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform',
+  ssl: { rejectUnauthorized: false }
+});
 
 const HISTORICAL_DIR = process.env.HOME + '/Desktop/cms_historical_data';
 const CURRENT_DATA_DIR = process.env.HOME + '/Downloads/nursing_homes_including_rehab_services_12_2025';

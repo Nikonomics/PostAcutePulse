@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { Bookmark, BookmarkBorder } from '@mui/icons-material';
-import { saveDeal, saveDealFacility, saveMarketFacility, saveMarket, saveOwnershipGroup, removeSavedItem, checkSavedItems } from '../../api/savedItemsService';
+import { saveDeal, saveDealFacility, saveMarketFacility, saveMarket, saveOwnershipGroup, saveFacility, removeSavedItem, checkSavedItems } from '../../api/savedItemsService';
 import SaveForLaterModal from './SaveForLaterModal';
 
 /**
@@ -9,7 +9,7 @@ import SaveForLaterModal from './SaveForLaterModal';
  * A reusable bookmark/save button for deals, facilities, markets, and ownership groups
  *
  * Props:
- * - itemType: 'deal' | 'facility' | 'market' | 'ownership_group'
+ * - itemType: 'deal' | 'facility' | 'market' | 'ownership_group' | 'cms_facility'
  * - itemId: number (for deals and deal facilities)
  * - facilityType: 'SNF' | 'ALF' (for market facilities)
  * - marketFacilityId: number (for market facilities)
@@ -17,6 +17,8 @@ import SaveForLaterModal from './SaveForLaterModal';
  * - county: string (for markets)
  * - cbsaCode: string (optional, for markets)
  * - ownershipGroupName: string (for ownership groups)
+ * - ccn: string (for CMS facilities)
+ * - facilityName: string (for CMS facilities display name)
  * - size: 'small' | 'medium' | 'large'
  * - showLabel: boolean - show "Save" text next to icon
  * - onSaveChange: (isSaved, savedItemId) => void - callback when save state changes
@@ -30,6 +32,8 @@ const SaveButton = ({
   county,
   cbsaCode,
   ownershipGroupName,
+  ccn,
+  facilityName,
   size = 'medium',
   showLabel = false,
   onSaveChange
@@ -71,6 +75,12 @@ const SaveButton = ({
             setIsSaved(true);
             setSavedItemId(result.data[ownershipGroupName]);
           }
+        } else if (itemType === 'cms_facility' && ccn) {
+          result = await checkSavedItems('cms_facility', { ccns: [ccn] });
+          if (result.success && result.data[ccn]) {
+            setIsSaved(true);
+            setSavedItemId(result.data[ccn]);
+          }
         }
       } catch (error) {
         console.error('Error checking saved status:', error);
@@ -80,7 +90,7 @@ const SaveButton = ({
     };
 
     checkIfSaved();
-  }, [itemType, itemId, facilityType, marketFacilityId, state, county, ownershipGroupName]);
+  }, [itemType, itemId, facilityType, marketFacilityId, state, county, ownershipGroupName, ccn]);
 
   const handleClick = async (e) => {
     e.stopPropagation();
@@ -125,6 +135,8 @@ const SaveButton = ({
         result = await saveMarket(state, county, cbsaCode, note);
       } else if (itemType === 'ownership_group') {
         result = await saveOwnershipGroup(ownershipGroupName, note);
+      } else if (itemType === 'cms_facility') {
+        result = await saveFacility(ccn, facilityName, note);
       }
 
       if (result?.success) {

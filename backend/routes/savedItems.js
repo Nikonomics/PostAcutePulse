@@ -22,7 +22,7 @@ router.get('/', requireAuthentication, async (req, res) => {
     const { type } = req.query;
 
     const whereClause = { user_id: userId };
-    if (type && ['deal', 'facility', 'market', 'ownership_group'].includes(type)) {
+    if (type && ['deal', 'facility', 'market', 'ownership_group', 'cms_facility'].includes(type)) {
       whereClause.item_type = type;
     }
 
@@ -36,6 +36,7 @@ router.get('/', requireAuthentication, async (req, res) => {
     const facilities = [];
     const markets = [];
     const ownershipGroups = [];
+    const cmsFacilities = [];
 
     for (const item of savedItems) {
       const baseItem = {
@@ -96,17 +97,24 @@ router.get('/', requireAuthentication, async (req, res) => {
           ...baseItem,
           ownership_group_name: item.ownership_group_name
         });
+      } else if (item.item_type === 'cms_facility') {
+        cmsFacilities.push({
+          ...baseItem,
+          ccn: item.ccn,
+          facility_name: item.facility_name
+        });
       }
     }
 
     res.json({
       success: true,
-      data: { deals, facilities, markets, ownershipGroups },
+      data: { deals, facilities, markets, ownershipGroups, cmsFacilities },
       counts: {
         deals: deals.length,
         facilities: facilities.length,
         markets: markets.length,
         ownershipGroups: ownershipGroups.length,
+        cmsFacilities: cmsFacilities.length,
         total: savedItems.length
       }
     });
@@ -147,14 +155,16 @@ router.post('/', requireAuthentication, async (req, res) => {
       market_county,
       market_cbsa_code,
       ownership_group_name,
+      ccn,
+      facility_name,
       note
     } = req.body;
 
     // Validate item_type
-    if (!item_type || !['deal', 'facility', 'market', 'ownership_group'].includes(item_type)) {
+    if (!item_type || !['deal', 'facility', 'market', 'ownership_group', 'cms_facility'].includes(item_type)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid item_type. Must be deal, facility, market, or ownership_group.'
+        message: 'Invalid item_type. Must be deal, facility, market, ownership_group, or cms_facility.'
       });
     }
 
@@ -184,6 +194,13 @@ router.post('/', requireAuthentication, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'ownership_group_name is required for ownership group items'
+      });
+    }
+
+    if (item_type === 'cms_facility' && !ccn) {
+      return res.status(400).json({
+        success: false,
+        message: 'ccn is required for CMS facility items'
       });
     }
 
@@ -220,6 +237,13 @@ router.post('/', requireAuthentication, async (req, res) => {
           ownership_group_name
         }
       });
+    } else if (item_type === 'cms_facility') {
+      existingItem = await db.user_saved_items.findOne({
+        where: {
+          user_id: userId,
+          ccn
+        }
+      });
     }
 
     if (existingItem) {
@@ -242,6 +266,8 @@ router.post('/', requireAuthentication, async (req, res) => {
       market_county: item_type === 'market' ? market_county : null,
       market_cbsa_code: item_type === 'market' ? market_cbsa_code : null,
       ownership_group_name: item_type === 'ownership_group' ? ownership_group_name : null,
+      ccn: item_type === 'cms_facility' ? ccn : null,
+      facility_name: item_type === 'cms_facility' ? facility_name : null,
       note: note || null,
       created_at: new Date()
     });
@@ -354,7 +380,7 @@ router.get('/check', requireAuthentication, async (req, res) => {
     const userId = req.user.id;
     const { type, ids, markets } = req.query;
 
-    if (!type || !['deal', 'facility', 'market', 'ownership_group'].includes(type)) {
+    if (!type || !['deal', 'facility', 'market', 'ownership_group', 'cms_facility'].includes(type)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid type parameter'
@@ -435,6 +461,23 @@ router.get('/check', requireAuthentication, async (req, res) => {
             success: false,
             message: 'Invalid names parameter - must be valid JSON array'
           });
+        }
+      }
+    } else if (type === 'cms_facility') {
+      // Check CMS facilities by CCN - expects ccns query param as comma-separated list
+      const { ccns } = req.query;
+      if (ccns) {
+        const ccnList = ccns.split(',').map(ccn => ccn.trim()).filter(ccn => ccn);
+        for (const ccn of ccnList) {
+          const savedItem = await db.user_saved_items.findOne({
+            where: {
+              user_id: userId,
+              item_type: 'cms_facility',
+              ccn: ccn
+            },
+            attributes: ['id']
+          });
+          result[ccn] = savedItem ? savedItem.id : null;
         }
       }
     }

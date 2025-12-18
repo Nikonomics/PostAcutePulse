@@ -94,6 +94,8 @@ export const checkSavedItems = async (type, options) => {
       params += `&markets=${encodeURIComponent(JSON.stringify(options.markets))}`;
     } else if (type === 'ownership_group' && options.names) {
       params += `&names=${encodeURIComponent(JSON.stringify(options.names))}`;
+    } else if (type === 'cms_facility' && options.ccns) {
+      params += `&ccns=${options.ccns.join(',')}`;
     }
 
     const response = await apiService.get(`${apiRoutes.checkSavedItems}${params}`);

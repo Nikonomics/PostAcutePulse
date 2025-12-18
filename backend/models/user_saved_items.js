@@ -26,12 +26,12 @@ module.exports = function (sequelize, DataTypes) {
         key: 'id'
       }
     },
-    // Polymorphic type discriminator: 'deal', 'facility', 'market', 'ownership_group'
+    // Polymorphic type discriminator: 'deal', 'facility', 'market', 'ownership_group', 'cms_facility'
     item_type: {
       type: DataTypes.STRING(20),
       allowNull: false,
       validate: {
-        isIn: [['deal', 'facility', 'market', 'ownership_group']]
+        isIn: [['deal', 'facility', 'market', 'ownership_group', 'cms_facility']]
       }
     },
     // Deal reference (for item_type = 'deal')
@@ -79,6 +79,16 @@ module.exports = function (sequelize, DataTypes) {
     },
     // Ownership group/chain name (for item_type = 'ownership_group')
     ownership_group_name: {
+      type: DataTypes.STRING(500),
+      allowNull: true
+    },
+    // CMS facility CCN (for item_type = 'cms_facility')
+    ccn: {
+      type: DataTypes.STRING(10),
+      allowNull: true
+    },
+    // Facility name for display (for item_type = 'cms_facility')
+    facility_name: {
       type: DataTypes.STRING(500),
       allowNull: true
     },
@@ -148,6 +158,15 @@ module.exports = function (sequelize, DataTypes) {
         name: 'idx_saved_items_user_ownership_unique',
         where: {
           ownership_group_name: { [Sequelize.Op.ne]: null }
+        }
+      },
+      // Unique constraint: one save per user per CMS facility (by CCN)
+      {
+        fields: ['user_id', 'ccn'],
+        unique: true,
+        name: 'idx_saved_items_user_ccn_unique',
+        where: {
+          ccn: { [Sequelize.Op.ne]: null }
         }
       }
     ]

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { FileDown, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import {
   calculateRegulatoryRisk,
   calculateStaffingRisk,
@@ -15,6 +18,37 @@ const formatDate = (dateStr) => {
 const formatCurrency = (value) => {
   if (value == null) return '$0';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+};
+
+// Helper to render star ratings as text (using simple characters for PDF compatibility)
+const renderStars = (rating) => {
+  if (rating == null || rating === 'N/A') return 'N/A';
+  const numRating = parseInt(rating);
+  if (isNaN(numRating)) return rating;
+  const filled = Math.min(5, Math.max(0, numRating));
+  const empty = 5 - filled;
+  // Use asterisks for filled and dashes for empty (PDF font compatible)
+  return '*'.repeat(filled) + '-'.repeat(empty) + ` (${numRating}/5)`;
+};
+
+// Helper to calculate VS National difference
+const calcVsNational = (facilityValue, nationalValue, isPercentage = false, lowerIsBetter = false) => {
+  if (facilityValue == null || nationalValue == null) return { diff: 'N/A', isNegative: false };
+  const fVal = parseFloat(facilityValue);
+  const nVal = parseFloat(nationalValue);
+  if (isNaN(fVal) || isNaN(nVal)) return { diff: 'N/A', isNegative: false };
+  const diff = fVal - nVal;
+  const formatted = isPercentage ? `${diff >= 0 ? '+' : ''}${Math.round(diff)}%` : `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}`;
+  // For ratings/staffing/occupancy: higher is better. For deficiencies: lower is better
+  const isNegative = lowerIsBetter ? diff > 0 : diff < 0;
+  return { diff: formatted, isNegative };
+};
+
+// Get risk color for PDF [R, G, B]
+const getRiskColor = (score) => {
+  if (score >= 60) return [220, 38, 38]; // Red - High Risk
+  if (score >= 40) return [245, 158, 11]; // Orange - Medium Risk
+  return [34, 197, 94]; // Green - Low Risk
 };
 
 // Helper to get benchmark value - handles both avg_* and regular field names
@@ -44,9 +78,6 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
   const generatePdfReport = async () => {
     setExportingPdf(true);
     try {
-      const { jsPDF } = await import('jspdf');
-      await import('jspdf-autotable');
-
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPos = 20;
@@ -75,27 +106,60 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, yPos, { align: 'center' });
       yPos += 15;
 
-      // Overview Section
+      // Overview Section - Enhanced layout like website
       if (selectedSections.includes('overview')) {
         addSectionHeader('Facility Overview');
-        doc.text(`Name: ${facility.provider_name || facility.facility_name}`, 14, yPos); yPos += 6;
-        doc.text(`Location: ${facility.city}, ${facility.state} ${facility.zip}`, 14, yPos); yPos += 6;
-        doc.text(`CCN: ${facility.ccn}`, 14, yPos); yPos += 6;
-        doc.text(`Certified Beds: ${facility.certified_beds || 'N/A'}`, 14, yPos); yPos += 6;
-        doc.text(`Ownership: ${facility.ownership_type || 'N/A'}`, 14, yPos); yPos += 12;
+
+        // Facility name as prominent header
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(facility.provider_name || facility.facility_name || 'Unknown Facility', 14, yPos);
+        yPos += 7;
+
+        // Location and phone
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text(`${facility.city || ''}, ${facility.state || ''} ${facility.zip || ''}`.trim(), 14, yPos);
+        yPos += 5;
+        if (facility.phone) {
+          doc.text(facility.phone, 14, yPos);
+          yPos += 5;
+        }
+        doc.setTextColor(0, 0, 0);
+        yPos += 3;
+
+        // Details table
+        autoTable(doc, {
+          startY: yPos,
+          body: [
+            ['CCN:', facility.ccn || 'N/A'],
+            ['Certified Beds:', facility.certified_beds || 'N/A'],
+            ['Ownership:', facility.ownership_type || 'N/A'],
+            ['Provider Type:', facility.provider_type || 'Medicare and Medicaid'],
+          ],
+          theme: 'plain',
+          styles: { cellPadding: 2, fontSize: 10 },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 40, textColor: [100, 100, 100] },
+            1: { cellWidth: 'auto' },
+          },
+          margin: { left: 14, right: 14 },
+        });
+        yPos = doc.lastAutoTable.finalY + 12;
       }
 
-      // Star Ratings Section
+      // Star Ratings Section - With star symbols
       if (selectedSections.includes('ratings')) {
         addSectionHeader('Star Ratings Summary');
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Rating', 'Facility', 'National Avg']],
           body: [
-            ['Overall Rating', facility.overall_rating || 'N/A', getBenchmark(benchmarks, 'national', 'overall_rating')?.toFixed(1) || '3.0'],
-            ['Quality Rating', facility.quality_rating || 'N/A', getBenchmark(benchmarks, 'national', 'quality_rating')?.toFixed(1) || '3.0'],
-            ['Staffing Rating', facility.staffing_rating || 'N/A', getBenchmark(benchmarks, 'national', 'staffing_rating')?.toFixed(1) || '3.0'],
-            ['Inspection Rating', facility.health_inspection_rating || 'N/A', getBenchmark(benchmarks, 'national', 'health_inspection_rating')?.toFixed(1) || '3.0'],
+            ['Overall Rating', renderStars(facility.overall_rating), getBenchmark(benchmarks, 'national', 'overall_rating')?.toFixed(1) || '3.0'],
+            ['Quality Rating', renderStars(facility.quality_rating), getBenchmark(benchmarks, 'national', 'quality_rating')?.toFixed(1) || '3.0'],
+            ['Staffing Rating', renderStars(facility.staffing_rating), getBenchmark(benchmarks, 'national', 'staffing_rating')?.toFixed(1) || '3.0'],
+            ['Inspection Rating', renderStars(facility.health_inspection_rating), getBenchmark(benchmarks, 'national', 'health_inspection_rating')?.toFixed(1) || '3.0'],
           ],
           theme: 'striped',
           headStyles: { fillColor: [59, 130, 246] },
@@ -107,7 +171,7 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
       // Key Metrics Section
       if (selectedSections.includes('metrics')) {
         addSectionHeader('Key Metrics');
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Metric', 'Facility', 'State Avg', 'National Avg']],
           body: [
@@ -124,43 +188,122 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
         yPos = doc.lastAutoTable.finalY + 12;
       }
 
-      // Benchmark Comparison Section
+      // Benchmark Comparison Section - With VS NATL column and color coding
       if (selectedSections.includes('benchmarks')) {
         addSectionHeader('Benchmark Comparison');
-        doc.autoTable({
+
+        // Calculate VS National differences
+        const ratingVsNatl = calcVsNational(facility.overall_rating, getBenchmark(benchmarks, 'national', 'overall_rating'));
+        const staffingVsNatl = calcVsNational(facility.total_nursing_hprd, getBenchmark(benchmarks, 'national', 'total_nursing_hprd'));
+        const occupancyVsNatl = calcVsNational(facility.occupancy_rate, getBenchmark(benchmarks, 'national', 'occupancy'), true);
+
+        // Store row data for color coding
+        const benchmarkRows = [
+          {
+            data: ['Overall Rating', facility.overall_rating || 'N/A', getBenchmark(benchmarks, 'market', 'overall_rating')?.toFixed(1) || 'N/A', getBenchmark(benchmarks, 'state', 'overall_rating')?.toFixed(1) || 'N/A', getBenchmark(benchmarks, 'national', 'overall_rating')?.toFixed(1) || 'N/A', ratingVsNatl.diff],
+            isNegative: ratingVsNatl.isNegative,
+          },
+          {
+            data: ['Staffing HPRD', facility.total_nursing_hprd?.toFixed(2) || 'N/A', getBenchmark(benchmarks, 'market', 'total_nursing_hprd')?.toFixed(2) || 'N/A', getBenchmark(benchmarks, 'state', 'total_nursing_hprd')?.toFixed(2) || 'N/A', getBenchmark(benchmarks, 'national', 'total_nursing_hprd')?.toFixed(2) || 'N/A', staffingVsNatl.diff],
+            isNegative: staffingVsNatl.isNegative,
+          },
+          {
+            data: ['Occupancy', facility.occupancy_rate ? `${Math.round(facility.occupancy_rate)}%` : 'N/A', getBenchmark(benchmarks, 'market', 'occupancy') ? `${Math.round(getBenchmark(benchmarks, 'market', 'occupancy'))}%` : 'N/A', getBenchmark(benchmarks, 'state', 'occupancy') ? `${Math.round(getBenchmark(benchmarks, 'state', 'occupancy'))}%` : 'N/A', getBenchmark(benchmarks, 'national', 'occupancy') ? `${Math.round(getBenchmark(benchmarks, 'national', 'occupancy'))}%` : 'N/A', occupancyVsNatl.diff],
+            isNegative: occupancyVsNatl.isNegative,
+          },
+        ];
+
+        autoTable(doc, {
           startY: yPos,
-          head: [['Metric', 'Facility', 'Market', 'State', 'National']],
-          body: [
-            ['Overall Rating', facility.overall_rating || 'N/A', getBenchmark(benchmarks, 'market', 'overall_rating')?.toFixed(1) || 'N/A', getBenchmark(benchmarks, 'state', 'overall_rating')?.toFixed(1) || 'N/A', getBenchmark(benchmarks, 'national', 'overall_rating')?.toFixed(1) || 'N/A'],
-            ['Staffing HPRD', facility.total_nursing_hprd?.toFixed(2) || 'N/A', getBenchmark(benchmarks, 'market', 'total_nursing_hprd')?.toFixed(2) || 'N/A', getBenchmark(benchmarks, 'state', 'total_nursing_hprd')?.toFixed(2) || 'N/A', getBenchmark(benchmarks, 'national', 'total_nursing_hprd')?.toFixed(2) || 'N/A'],
-            ['Occupancy', facility.occupancy_rate ? `${Math.round(facility.occupancy_rate)}%` : 'N/A', getBenchmark(benchmarks, 'market', 'occupancy') ? `${Math.round(getBenchmark(benchmarks, 'market', 'occupancy'))}%` : 'N/A', getBenchmark(benchmarks, 'state', 'occupancy') ? `${Math.round(getBenchmark(benchmarks, 'state', 'occupancy'))}%` : 'N/A', getBenchmark(benchmarks, 'national', 'occupancy') ? `${Math.round(getBenchmark(benchmarks, 'national', 'occupancy'))}%` : 'N/A'],
-          ],
+          head: [['Metric', 'Facility', 'Market', 'State', 'National', 'VS NATL']],
+          body: benchmarkRows.map(r => r.data),
           theme: 'striped',
           headStyles: { fillColor: [59, 130, 246] },
           margin: { left: 14, right: 14 },
+          didParseCell: (data) => {
+            // Color the VS NATL column based on whether it's negative
+            if (data.section === 'body' && data.column.index === 5) {
+              const rowInfo = benchmarkRows[data.row.index];
+              if (rowInfo) {
+                data.cell.styles.textColor = rowInfo.isNegative ? [220, 38, 38] : [34, 197, 94];
+                data.cell.styles.fontStyle = 'bold';
+              }
+            }
+          },
         });
         yPos = doc.lastAutoTable.finalY + 12;
       }
 
-      // Risk Assessment Section
+      // Risk Assessment Section - With visual composite score and colored risk levels
       if (selectedSections.includes('risk')) {
         addSectionHeader('Risk Assessment');
         const regulatoryRisk = calculateRegulatoryRisk(facility);
         const staffingRisk = calculateStaffingRisk(facility);
         const financialRisk = calculateFinancialRisk(facility);
         const compositeScore = Math.round(regulatoryRisk * 0.40 + staffingRisk * 0.35 + financialRisk * 0.25);
+        const compositeColor = getRiskColor(compositeScore);
 
-        doc.text(`Composite Risk Score: ${compositeScore} (${getRiskLabel(compositeScore)})`, 14, yPos); yPos += 6;
-        doc.text(`Regulatory Risk: ${regulatoryRisk} - ${getRiskLabel(regulatoryRisk)}`, 14, yPos); yPos += 6;
-        doc.text(`Staffing Risk: ${staffingRisk} - ${getRiskLabel(staffingRisk)}`, 14, yPos); yPos += 6;
-        doc.text(`Financial Risk: ${financialRisk} - ${getRiskLabel(financialRisk)}`, 14, yPos); yPos += 12;
+        // Draw composite score circle
+        const circleX = 35;
+        const circleY = yPos + 15;
+        const circleRadius = 15;
+
+        // Draw circle outline with risk color
+        doc.setDrawColor(compositeColor[0], compositeColor[1], compositeColor[2]);
+        doc.setLineWidth(2);
+        doc.circle(circleX, circleY, circleRadius);
+
+        // Draw score text in center
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(compositeColor[0], compositeColor[1], compositeColor[2]);
+        doc.text(String(compositeScore), circleX, circleY + 1, { align: 'center' });
+
+        // Draw risk label below
+        doc.setFontSize(8);
+        doc.text(getRiskLabel(compositeScore).toUpperCase(), circleX, circleY + circleRadius + 6, { align: 'center' });
+
+        // Reset text color
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+
+        // Risk breakdown table to the right of the circle
+        const riskRows = [
+          { category: 'Regulatory Risk', score: regulatoryRisk, label: getRiskLabel(regulatoryRisk), color: getRiskColor(regulatoryRisk) },
+          { category: 'Staffing Risk', score: staffingRisk, label: getRiskLabel(staffingRisk), color: getRiskColor(staffingRisk) },
+          { category: 'Financial Risk', score: financialRisk, label: getRiskLabel(financialRisk), color: getRiskColor(financialRisk) },
+        ];
+
+        autoTable(doc, {
+          startY: yPos,
+          body: riskRows.map(r => [r.category, `${r.score} - ${r.label}`]),
+          theme: 'plain',
+          styles: { cellPadding: 3, fontSize: 10 },
+          columnStyles: {
+            0: { cellWidth: 50 },
+            1: { cellWidth: 50, halign: 'right' },
+          },
+          margin: { left: 60, right: 14 },
+          didParseCell: (data) => {
+            // Color the score/label column based on risk level
+            if (data.section === 'body' && data.column.index === 1) {
+              const rowInfo = riskRows[data.row.index];
+              if (rowInfo) {
+                data.cell.styles.textColor = rowInfo.color;
+                data.cell.styles.fontStyle = 'bold';
+              }
+            }
+          },
+        });
+        yPos = Math.max(circleY + circleRadius + 12, doc.lastAutoTable.finalY + 12);
       }
 
       // Trends Section
       if (selectedSections.includes('trends')) {
         addSectionHeader('Trends Summary');
         const snapshots = facility.snapshots || [];
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Metric', 'Current', '6mo Ago']],
           body: [
@@ -178,7 +321,7 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
       // Deficiencies Section
       if (selectedSections.includes('deficiencies') && deficiencies?.length > 0) {
         addSectionHeader('Deficiency History');
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Date', 'Tag', 'Scope/Severity']],
           body: deficiencies.slice(0, 10).map(d => [
@@ -198,7 +341,7 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
         addSectionHeader('Penalty History');
         const totalFines = facility.total_penalties_amount || penalties.reduce((sum, p) => sum + (parseFloat(p.fine_amount) || 0), 0);
         doc.text(`Total Fines: ${formatCurrency(totalFines)}`, 14, yPos); yPos += 8;
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Date', 'Type', 'Amount']],
           body: penalties.slice(0, 10).map(p => [
@@ -226,7 +369,6 @@ const ExportButtons = ({ facility, benchmarks, deficiencies, penalties, selected
   const generateExcelReport = async () => {
     setExportingExcel(true);
     try {
-      const XLSX = await import('xlsx');
       const workbook = XLSX.utils.book_new();
 
       // Overview Sheet
