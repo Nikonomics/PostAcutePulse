@@ -8,6 +8,8 @@
     "db:sync": "node scripts/syncDatabase.js",
     "db:migrate:cms": "node scripts/migrate-cms-schema-production.js",
     "db:import:cms": "node scripts/import-cms-to-production.js",
+    "db:sync:market": "node scripts/sync-to-market-db.js",
+    "db:sync:market:dry": "node scripts/sync-to-market-db.js --dry-run",
     "test:proforma": "node scripts/testProforma.js",
     "context": "cd .. && ./scripts/generate-context-bundle.sh"
   },

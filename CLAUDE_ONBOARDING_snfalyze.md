@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-18 09:55:52
+> Last updated: 2025-12-18 10:23:56
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -3748,6 +3748,8 @@ Solve for IRR using Newton-Raphson method
     "db:sync": "node scripts/syncDatabase.js",
     "db:migrate:cms": "node scripts/migrate-cms-schema-production.js",
     "db:import:cms": "node scripts/import-cms-to-production.js",
+    "db:sync:market": "node scripts/sync-to-market-db.js",
+    "db:sync:market:dry": "node scripts/sync-to-market-db.js --dry-run",
     "test:proforma": "node scripts/testProforma.js",
     "context": "cd .. && ./scripts/generate-context-bundle.sh"
   },
