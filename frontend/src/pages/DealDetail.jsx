@@ -1338,28 +1338,26 @@ const DealDetailPage = () => {
             {/* Main Content */}
             <div className="col-span-2">
               {/* Deal Analysis / AI Extraction Viewer (includes Calculator tab) */}
-              {currentViewData && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <DealExtractionViewer
-                    extractionData={unflattenExtractedData(currentViewData)}
-                    showComparison={false}
-                    dealDocuments={uploadedDocuments || []}
-                    dealId={deal.id}
-                    deal={deal}
-                    selectedView={selectedView}
-                    isPortfolioView={selectedView === 'deal-overview' && deal.extraction_data?.is_portfolio_deal}
-                    isFacilityView={selectedView !== 'deal-overview'}
-                    onDocumentUpload={handleDocumentUpload}
-                    isUploading={uploading}
-                    onDocumentView={handleDocumentView}
-                    onDocumentDelete={handleDeleteDocument}
-                    onDocumentDownload={handleDocumentDownload}
-                    deleteLoadingId={deleteLoadingId}
-                    onFieldEdit={handleFieldEdit}
-                    onDealStatusChange={handleDealStatusChange}
-                  />
-                </div>
-              )}
+              <div style={{ marginBottom: '1rem' }}>
+                <DealExtractionViewer
+                  extractionData={unflattenExtractedData(currentViewData || {})}
+                  showComparison={false}
+                  dealDocuments={uploadedDocuments || []}
+                  dealId={deal.id}
+                  deal={deal}
+                  selectedView={selectedView}
+                  isPortfolioView={selectedView === 'deal-overview' && deal.extraction_data?.is_portfolio_deal}
+                  isFacilityView={selectedView !== 'deal-overview'}
+                  onDocumentUpload={handleDocumentUpload}
+                  isUploading={uploading}
+                  onDocumentView={handleDocumentView}
+                  onDocumentDelete={handleDeleteDocument}
+                  onDocumentDownload={handleDocumentDownload}
+                  deleteLoadingId={deleteLoadingId}
+                  onFieldEdit={handleFieldEdit}
+                  onDealStatusChange={handleDealStatusChange}
+                />
+              </div>
 
               {/* Multi-Facility Management Section - Uses CIM as source of truth */}
               <FacilitiesSection
