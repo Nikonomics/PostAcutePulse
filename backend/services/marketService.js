@@ -406,8 +406,6 @@ async function getCompetitors(latitude, longitude, radiusMiles = 25, facilityTyp
           chain_avg_overall_rating,
           -- Quality
           substantiated_complaints,
-          long_stay_qm_rating,
-          short_stay_qm_rating,
           ${HAVERSINE_SQL} AS distance_miles
         FROM snf_facilities
         WHERE latitude IS NOT NULL
@@ -451,8 +449,8 @@ async function getCompetitors(latitude, longitude, radiusMiles = 25, facilityTyp
           healthInspection: row.health_inspection_rating,
           qualityMeasure: row.quality_measure_rating,
           staffing: row.staffing_rating,
-          longStayQm: row.long_stay_qm_rating,
-          shortStayQm: row.short_stay_qm_rating
+          longStayQm: null,
+          shortStayQm: null
         },
         // Staffing hours (per resident per day)
         staffing: {
@@ -1527,8 +1525,6 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           f.health_inspection_rating,
           f.quality_measure_rating,
           f.staffing_rating,
-          f.long_stay_qm_rating,
-          f.short_stay_qm_rating,
           f.occupancy_rate,
           f.ownership_type,
           f.provider_type,
@@ -1593,8 +1589,8 @@ async function getFacilitiesInCounty(state, county, facilityType = 'SNF', limit 
           healthInspection: row.health_inspection_rating,
           qualityMeasure: row.quality_measure_rating,
           staffing: row.staffing_rating,
-          longStayQm: row.long_stay_qm_rating,
-          shortStayQm: row.short_stay_qm_rating
+          longStayQm: null,
+          shortStayQm: null
         },
         occupancyRate: row.occupancy_rate ? parseFloat(row.occupancy_rate) : null,
         // Staffing hours (per resident per day)
