@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Search,
   Building2,
@@ -7,6 +7,7 @@ import {
   ChevronDown,
   X,
   Loader2,
+  Filter,
 } from 'lucide-react';
 import { searchFacilities } from '../../api/facilityService';
 import SaveButton from '../common/SaveButton';
@@ -121,13 +122,94 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [recentFacilities, setRecentFacilities] = useState([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Load recent facilities on mount
   useEffect(() => {
     setRecentFacilities(getRecentFacilities());
   }, []);
+
+  // Calculate active filter count
+  const activeFilters = useMemo(() => {
+    const filters = [];
+    if (stateFilter) {
+      const state = US_STATES.find(s => s.code === stateFilter);
+      filters.push({ type: 'state', value: stateFilter, label: state?.name || stateFilter });
+    }
+    if (chainFilter) {
+      filters.push({ type: 'chain', value: chainFilter, label: `Chain: ${chainFilter}` });
+    }
+    if (ratingFilter) {
+      filters.push({ type: 'rating', value: ratingFilter, label: `${ratingFilter} Star${ratingFilter !== '1' ? 's' : ''}` });
+    }
+    return filters;
+  }, [stateFilter, chainFilter, ratingFilter]);
+
+  const clearFilter = (type) => {
+    if (type === 'state') setStateFilter('');
+    if (type === 'chain') setChainFilter('');
+    if (type === 'rating') setRatingFilter('');
+  };
+
+  const clearAllFilters = () => {
+    setStateFilter('');
+    setChainFilter('');
+    setRatingFilter('');
+  };
+
+  // Get the list of items currently shown in dropdown
+  const dropdownItems = useMemo(() => {
+    if (searchTerm.length < 2 && recentFacilities.length > 0) {
+      return recentFacilities;
+    }
+    return results;
+  }, [searchTerm, results, recentFacilities]);
+
+  // Reset highlighted index when results change
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [results, searchTerm]);
+
+  // Keyboard navigation handler
+  const handleKeyDown = useCallback((e) => {
+    if (!showDropdown || dropdownItems.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev =>
+          prev < dropdownItems.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev =>
+          prev > 0 ? prev - 1 : dropdownItems.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < dropdownItems.length) {
+          handleSelectFacility(dropdownItems[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowDropdown(false);
+        setHighlightedIndex(-1);
+        inputRef.current?.blur();
+        break;
+      case 'Tab':
+        setShowDropdown(false);
+        setHighlightedIndex(-1);
+        break;
+      default:
+        break;
+    }
+  }, [showDropdown, dropdownItems, highlightedIndex]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -296,11 +378,13 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
             <div className="facility-search-input-wrapper">
               <Search size={18} className="search-icon" />
               <input
+                ref={inputRef}
                 type="search"
                 className="facility-search-input"
                 placeholder="Search facilities by name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleKeyDown}
                 onFocus={() => {
                   if (searchTerm.length >= 2) {
                     setShowDropdown(true);
@@ -316,19 +400,50 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
                 data-lpignore="true"
                 data-form-type="other"
                 name={`facility-search-${Date.now()}`}
+                role="combobox"
+                aria-expanded={showDropdown}
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
               />
               {isLoading && <Loader2 size={18} className="loading-icon" />}
             </div>
 
             {/* Filter Toggle */}
             <button
-              className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
+              className={`filter-toggle-btn ${showFilters ? 'active' : ''} ${activeFilters.length > 0 ? 'has-filters' : ''}`}
               onClick={() => setShowFilters(!showFilters)}
             >
+              <Filter size={16} />
               Filters
+              {activeFilters.length > 0 && (
+                <span className="filter-count-badge">{activeFilters.length}</span>
+              )}
               <ChevronDown size={16} className={showFilters ? 'rotated' : ''} />
             </button>
           </div>
+
+          {/* Active Filter Chips */}
+          {activeFilters.length > 0 && (
+            <div className="active-filter-chips">
+              {activeFilters.map((filter) => (
+                <span key={filter.type} className="filter-chip">
+                  {filter.label}
+                  <button
+                    className="filter-chip-remove"
+                    onClick={() => clearFilter(filter.type)}
+                    aria-label={`Remove ${filter.label} filter`}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+              {activeFilters.length > 1 && (
+                <button className="clear-all-filters" onClick={clearAllFilters}>
+                  Clear all
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Filters Row */}
           {showFilters && (
@@ -369,16 +484,19 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
 
           {/* Search Results Dropdown */}
           {showDropdown && (
-            <div className="facility-search-dropdown" ref={dropdownRef}>
+            <div className="facility-search-dropdown" ref={dropdownRef} role="listbox">
               {/* Show recent facilities when search is empty */}
               {searchTerm.length < 2 && recentFacilities.length > 0 ? (
                 <>
                   <div className="dropdown-section-header">Recent Facilities</div>
-                  {recentFacilities.map((facility) => (
+                  {recentFacilities.map((facility, index) => (
                     <div
                       key={facility.ccn}
-                      className="facility-search-result"
+                      className={`facility-search-result ${highlightedIndex === index ? 'highlighted' : ''}`}
                       onClick={() => handleSelectFacility(facility)}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      role="option"
+                      aria-selected={highlightedIndex === index}
                     >
                       <div
                         className="result-rating"
@@ -404,11 +522,14 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
                   No facilities found. Try a different search term.
                 </div>
               ) : (
-                results.map((facility) => (
+                results.map((facility, index) => (
                   <div
                     key={facility.ccn || facility.provider_id || facility.id}
-                    className="facility-search-result"
+                    className={`facility-search-result ${highlightedIndex === index ? 'highlighted' : ''}`}
                     onClick={() => handleSelectFacility(facility)}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    role="option"
+                    aria-selected={highlightedIndex === index}
                   >
                     <div
                       className="result-rating"

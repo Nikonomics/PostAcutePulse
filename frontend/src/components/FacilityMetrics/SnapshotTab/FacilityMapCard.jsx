@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
-import { MapPin, Star, Building2, Navigation } from 'lucide-react';
+import { MapPin, Building2, Navigation } from 'lucide-react';
 import { useGoogleMaps } from '../../../context/GoogleMapsContext';
 import { getFacilityCompetitors } from '../../../api/facilityService';
 

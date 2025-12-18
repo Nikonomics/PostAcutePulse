@@ -1,11 +1,10 @@
 import React, { useMemo } from 'react';
-import { FileText, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle } from 'lucide-react';
 
 /**
  * Generate a natural language summary of the facility based on available data
  */
-const generateSummary = (facility, benchmarks) => {
-  const insights = [];
+const generateSummary = (facility) => {
   const strengths = [];
   const concerns = [];
 
@@ -107,11 +106,11 @@ const generateSummary = (facility, benchmarks) => {
   };
 };
 
-const FacilitySummaryCard = ({ facility, benchmarks }) => {
+const FacilitySummaryCard = ({ facility }) => {
   const summary = useMemo(() => {
     if (!facility) return null;
-    return generateSummary(facility, benchmarks);
-  }, [facility, benchmarks]);
+    return generateSummary(facility);
+  }, [facility]);
 
   if (!facility || !summary) {
     return null;

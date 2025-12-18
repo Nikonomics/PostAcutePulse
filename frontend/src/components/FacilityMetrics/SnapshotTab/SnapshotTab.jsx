@@ -1,5 +1,6 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
+import FacilitySummaryCard from './FacilitySummaryCard';
 import OverallHealthScoreCard from './OverallHealthScoreCard';
 import StarRatingsCard from './StarRatingsCard';
 import KeyMetricsComparisonCard from './KeyMetricsComparisonCard';
@@ -8,6 +9,8 @@ import RiskFlagsCard from './RiskFlagsCard';
 import OwnershipContextCard from './OwnershipContextCard';
 import FacilityMapCard from './FacilityMapCard';
 import CovidVaccinationCard from './CovidVaccinationCard';
+import VBPPerformanceCard from './VBPPerformanceCard';
+import SurveyInfoCard from './SurveyInfoCard';
 
 const SnapshotTab = ({ facility, comparisonMode, benchmarks }) => {
   if (!facility) {
@@ -22,6 +25,9 @@ const SnapshotTab = ({ facility, comparisonMode, benchmarks }) => {
 
   return (
     <div className="snapshot-tab">
+      {/* Summary Card - Full Width Intro */}
+      <FacilitySummaryCard facility={facility} />
+
       {/* Row 1: Overall Health Score + Star Ratings */}
       <div className="snapshot-row">
         <OverallHealthScoreCard facility={facility} />
@@ -37,13 +43,19 @@ const SnapshotTab = ({ facility, comparisonMode, benchmarks }) => {
         <RiskFlagsCard facility={facility} />
       </div>
 
-      {/* Row 4: COVID Vaccination + Ownership */}
+      {/* Row 4: COVID Vaccination + VBP */}
       <div className="snapshot-row">
         <CovidVaccinationCard facility={facility} />
+        <VBPPerformanceCard facility={facility} />
+      </div>
+
+      {/* Row 5: Survey History + Ownership */}
+      <div className="snapshot-row">
+        <SurveyInfoCard facility={facility} />
         <OwnershipContextCard facility={facility} />
       </div>
 
-      {/* Row 5: Location Map with Competitors */}
+      {/* Row 6: Location Map with Competitors */}
       <FacilityMapCard facility={facility} />
     </div>
   );

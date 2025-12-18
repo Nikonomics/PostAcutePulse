@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, TrendingDown, Shield, DollarSign, X, Info } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { AlertTriangle, TrendingDown, Shield, DollarSign, X } from 'lucide-react';
 
 const DISMISSED_ALERTS_KEY = 'snfalyze_dismissed_alerts';
 
@@ -144,7 +144,8 @@ const AlertBanner = ({ facility }) => {
   const alerts = useMemo(() => {
     const allAlerts = generateAlerts(facility);
     return allAlerts.filter(alert => !isAlertDismissed(alert.id));
-  }, [facility, dismissedIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facility, dismissedIds.length]);
 
   const handleDismiss = (alertId) => {
     dismissAlert(alertId);

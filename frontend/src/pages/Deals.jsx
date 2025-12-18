@@ -372,11 +372,14 @@ const DealsList = () => {
     try {
       setLoading(true);
       const response = await getDealsWithActivity(search, status, type, page);
-      setTotalDeals(response.body.total);
-      setFilteredDeals(response.body.deals);
-      setTotalPages(response.body.totalPages);
+      setTotalDeals(response?.body?.total || 0);
+      setFilteredDeals(response?.body?.deals || []);
+      setTotalPages(response?.body?.totalPages || 0);
     } catch (error) {
       console.error("Error fetching filtered deals:", error);
+      setFilteredDeals([]);
+      setTotalDeals(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -435,7 +438,7 @@ const DealsList = () => {
       const response = await updateDealStatus({ id: dealId, deal_status: newStatus });
       if (response.success) {
         // Update local state
-        setFilteredDeals(prev => prev.map(deal =>
+        setFilteredDeals(prev => (prev || []).map(deal =>
           deal.id === dealId ? { ...deal, deal_status: newStatus } : deal
         ));
         toast.success(`Status updated to ${getStatusLabel(newStatus)}`);
@@ -464,7 +467,7 @@ const DealsList = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedDeals.size === filteredDeals.length) {
+    if (!filteredDeals || selectedDeals.size === filteredDeals.length) {
       setSelectedDeals(new Set());
     } else {
       setSelectedDeals(new Set(filteredDeals.map(deal => deal.id)));
@@ -776,7 +779,7 @@ const DealsList = () => {
               <Spinner animation="border" variant="primary" />
               <p className="mt-2 text-muted">Loading deals...</p>
             </div>
-          ) : filteredDeals.length === 0 ? (
+          ) : !filteredDeals || filteredDeals.length === 0 ? (
             <div className="empty-state">
               <Building size={48} className="empty-state-icon" />
               <h5>No deals found</h5>
@@ -790,7 +793,7 @@ const DealsList = () => {
                     <input
                       type="checkbox"
                       className="deal-checkbox"
-                      checked={selectedDeals.size === filteredDeals.length && filteredDeals.length > 0}
+                      checked={filteredDeals && selectedDeals.size === filteredDeals.length && filteredDeals.length > 0}
                       onChange={handleSelectAll}
                       title="Select all"
                     />
@@ -805,7 +808,7 @@ const DealsList = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredDeals.map((deal) => (
+                {(filteredDeals || []).map((deal) => (
                   <tr key={deal.id} className={selectedDeals.has(deal.id) ? 'selected' : ''}>
                     <td className="checkbox-cell">
                       <input

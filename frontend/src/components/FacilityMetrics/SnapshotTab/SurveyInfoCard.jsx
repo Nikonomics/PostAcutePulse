@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ClipboardCheck, Calendar, AlertCircle, Flame, Clock } from 'lucide-react';
+import { ClipboardCheck, AlertCircle, Flame, Clock } from 'lucide-react';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A';
@@ -52,10 +52,9 @@ const SurveyItem = ({ label, date, icon: Icon, showDaysSince = false }) => {
 };
 
 const SurveyInfoCard = ({ facility }) => {
-  const surveyDates = facility?.surveyDates || [];
-
   // Group surveys by type and get most recent of each
   const surveysByType = useMemo(() => {
+    const surveyDates = facility?.surveyDates || [];
     const grouped = {};
     surveyDates.forEach(survey => {
       const type = (survey.survey_type || 'Unknown').toLowerCase();
@@ -64,7 +63,9 @@ const SurveyInfoCard = ({ facility }) => {
       }
     });
     return grouped;
-  }, [surveyDates]);
+  }, [facility?.surveyDates]);
+
+  const surveyDates = facility?.surveyDates || [];
 
   const lastHealth = surveysByType['health'] || surveysByType['standard'] || null;
   const lastComplaint = surveysByType['complaint'] || null;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Award, Target, BarChart2 } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Award, Target } from 'lucide-react';
 
 const formatPercent = (value, decimals = 2) => {
   if (value === null || value === undefined) return 'N/A';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Syringe, Users, UserCheck, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Syringe, Users, UserCheck } from 'lucide-react';
 
 const formatPercent = (value) => {
   if (value === null || value === undefined) return 'N/A';

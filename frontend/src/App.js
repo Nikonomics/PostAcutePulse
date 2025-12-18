@@ -261,9 +261,17 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Facility Metrics route */}
+        {/* Facility Metrics routes - with optional CCN for deep linking */}
         <Route
           path="/facility-metrics"
+          element={
+            <ProtectedRoute>
+              <FacilityMetrics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/facility-metrics/:ccn"
           element={
             <ProtectedRoute>
               <FacilityMetrics />

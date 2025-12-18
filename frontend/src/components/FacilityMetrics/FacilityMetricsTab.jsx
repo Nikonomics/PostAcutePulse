@@ -16,6 +16,7 @@ import RiskAnalysisTab from './RiskAnalysisTab';
 import ReportsTab from './ReportsTab';
 import { SkeletonFacilityMetrics } from './SkeletonCard';
 import { ComparisonView } from './ComparisonView';
+import AlertBanner from './AlertBanner';
 import { getFacilityProfile, getFacilityBenchmarks } from '../../api/facilityService';
 import './FacilityMetrics.css';
 
@@ -112,6 +113,8 @@ const FacilityMetricsTab = () => {
               ...normalizedFacility,
               snapshots: response.snapshots || [],
               covidData: response.covidData || null,
+              vbpScores: response.vbpScores || [],
+              surveyDates: response.surveyDates || [],
             });
           }
         })
@@ -161,6 +164,8 @@ const FacilityMetricsTab = () => {
           ...normalizedFacility,
           snapshots: response.snapshots || [],
           covidData: response.covidData || null,
+          vbpScores: response.vbpScores || [],
+          surveyDates: response.surveyDates || [],
         });
       }
     } catch (error) {
@@ -283,6 +288,9 @@ const FacilityMetricsTab = () => {
           })}
         </div>
       </div>
+
+      {/* Alert Banners */}
+      {selectedFacility && <AlertBanner facility={selectedFacility} />}
 
       {/* Comparison View */}
       {showComparison && selectedFacility && (
