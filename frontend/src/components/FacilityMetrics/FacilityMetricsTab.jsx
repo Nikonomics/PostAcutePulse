@@ -1,10 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Activity,
   TrendingUp,
   BarChart3,
   AlertTriangle,
   FileText,
+  ArrowLeftRight,
 } from 'lucide-react';
 import FacilitySelector from './FacilitySelector';
 import { SnapshotTab } from './SnapshotTab';
@@ -12,7 +14,9 @@ import TrendsTab from './TrendsTab';
 import BenchmarksTab from './BenchmarksTab';
 import RiskAnalysisTab from './RiskAnalysisTab';
 import ReportsTab from './ReportsTab';
-import { getFacilityProfile } from '../../api/facilityService';
+import { SkeletonFacilityMetrics } from './SkeletonCard';
+import { ComparisonView } from './ComparisonView';
+import { getFacilityProfile, getFacilityBenchmarks } from '../../api/facilityService';
 import './FacilityMetrics.css';
 
 /**
@@ -62,18 +66,90 @@ const COMPARISON_MODES = [
 ];
 
 const FacilityMetricsTab = () => {
-  const [activeTab, setActiveTab] = useState('snapshot');
+  const { ccn: urlCcn } = useParams();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Initialize activeTab from URL or default to 'snapshot'
+  const tabFromUrl = searchParams.get('tab');
+  const validTabs = ['snapshot', 'trends', 'benchmarks', 'risk', 'reports'];
+  const initialTab = validTabs.includes(tabFromUrl) ? tabFromUrl : 'snapshot';
+
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedFacility, setSelectedFacility] = useState(null);
+  const [benchmarks, setBenchmarks] = useState(null);
   const [comparisonMode, setComparisonMode] = useState('state');
+  const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(!!urlCcn);
+  const [showComparison, setShowComparison] = useState(false);
+  const compareCcn = searchParams.get('compare');
+
+  // Fetch benchmarks when facility changes
+  useEffect(() => {
+    if (selectedFacility?.ccn) {
+      getFacilityBenchmarks(selectedFacility.ccn)
+        .then((response) => {
+          if (response.success) {
+            setBenchmarks(response.benchmarks);
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching benchmarks:', error);
+        });
+    } else {
+      setBenchmarks(null);
+    }
+  }, [selectedFacility?.ccn]);
+
+  // Load facility from URL on mount
+  useEffect(() => {
+    if (urlCcn && !selectedFacility) {
+      setIsLoadingFromUrl(true);
+      getFacilityProfile(urlCcn)
+        .then((response) => {
+          if (response.success && response.facility) {
+            const normalizedFacility = normalizeFacilityData(response.facility);
+            setSelectedFacility({
+              ...normalizedFacility,
+              snapshots: response.snapshots || [],
+              covidData: response.covidData || null,
+            });
+          }
+        })
+        .catch((error) => {
+          console.error('Error loading facility from URL:', error);
+        })
+        .finally(() => {
+          setIsLoadingFromUrl(false);
+        });
+    }
+  }, [urlCcn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update URL when tab changes
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab === 'snapshot') {
+      // Remove tab param for default tab
+      searchParams.delete('tab');
+    } else {
+      searchParams.set('tab', tab);
+    }
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handleFacilitySelect = useCallback(async (facility) => {
     if (!facility) {
       setSelectedFacility(null);
+      // Navigate to base path without CCN
+      navigate('/facility-metrics', { replace: true });
       return;
     }
 
     // Set basic info immediately for UI responsiveness
     setSelectedFacility(facility);
+
+    // Update URL with selected facility CCN
+    const tabParam = activeTab !== 'snapshot' ? `?tab=${activeTab}` : '';
+    navigate(`/facility-metrics/${facility.ccn}${tabParam}`, { replace: true });
 
     try {
       // Fetch full details by CCN
@@ -83,23 +159,57 @@ const FacilityMetricsTab = () => {
         const normalizedFacility = normalizeFacilityData(response.facility);
         setSelectedFacility({
           ...normalizedFacility,
-          snapshots: response.snapshots || [], // Include historical snapshots for Trends tab
+          snapshots: response.snapshots || [],
+          covidData: response.covidData || null,
         });
       }
     } catch (error) {
       console.error('Error fetching facility details:', error);
       // Keep basic facility data if full fetch fails
     }
-  }, []);
+  }, [navigate, activeTab]);
 
   const handleComparisonChange = useCallback((mode) => {
     setComparisonMode(mode);
   }, []);
 
+  // Handle opening/closing comparison view
+  const handleToggleComparison = useCallback(() => {
+    if (showComparison) {
+      // Close comparison - remove compare param from URL
+      searchParams.delete('compare');
+      setSearchParams(searchParams, { replace: true });
+    }
+    setShowComparison(!showComparison);
+  }, [showComparison, searchParams, setSearchParams]);
+
+  // Handle compare facility change
+  const handleCompareFacilityChange = useCallback((ccn) => {
+    if (ccn) {
+      searchParams.set('compare', ccn);
+    } else {
+      searchParams.delete('compare');
+    }
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // Open comparison view if compare param is in URL
+  useEffect(() => {
+    if (compareCcn && selectedFacility && !showComparison) {
+      setShowComparison(true);
+    }
+  }, [compareCcn, selectedFacility]);
+
   const renderTabContent = () => {
+    // Show skeleton while loading facility from URL
+    if (isLoadingFromUrl) {
+      return <SkeletonFacilityMetrics />;
+    }
+
     const props = {
       facility: selectedFacility,
       comparisonMode,
+      benchmarks,
     };
 
     switch (activeTab) {
@@ -142,6 +252,17 @@ const FacilityMetricsTab = () => {
             ))}
           </div>
         </div>
+
+        {/* Compare Button - show when facility is selected */}
+        {selectedFacility && (
+          <button
+            className={`compare-btn ${showComparison ? 'active' : ''}`}
+            onClick={handleToggleComparison}
+          >
+            <ArrowLeftRight size={16} />
+            Compare
+          </button>
+        )}
       </div>
 
       {/* Sub-navigation Tabs */}
@@ -153,7 +274,7 @@ const FacilityMetricsTab = () => {
               <button
                 key={tab.id}
                 className={`facility-metrics-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
               >
                 <Icon size={16} />
                 {tab.label}
@@ -162,6 +283,16 @@ const FacilityMetricsTab = () => {
           })}
         </div>
       </div>
+
+      {/* Comparison View */}
+      {showComparison && selectedFacility && (
+        <ComparisonView
+          facilityA={selectedFacility}
+          compareCcn={compareCcn}
+          onClose={handleToggleComparison}
+          onCompareFacilityChange={handleCompareFacilityChange}
+        />
+      )}
 
       {/* Tab Content */}
       <div className="facility-metrics-content">

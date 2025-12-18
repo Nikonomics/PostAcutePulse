@@ -6,8 +6,10 @@ import KeyMetricsComparisonCard from './KeyMetricsComparisonCard';
 import FinancialIndicatorsCard from './FinancialIndicatorsCard';
 import RiskFlagsCard from './RiskFlagsCard';
 import OwnershipContextCard from './OwnershipContextCard';
+import FacilityMapCard from './FacilityMapCard';
+import CovidVaccinationCard from './CovidVaccinationCard';
 
-const SnapshotTab = ({ facility }) => {
+const SnapshotTab = ({ facility, comparisonMode, benchmarks }) => {
   if (!facility) {
     return (
       <div className="placeholder-tab">
@@ -27,7 +29,7 @@ const SnapshotTab = ({ facility }) => {
       </div>
 
       {/* Row 2: Key Metrics Comparison */}
-      <KeyMetricsComparisonCard facility={facility} />
+      <KeyMetricsComparisonCard facility={facility} comparisonMode={comparisonMode} benchmarks={benchmarks} />
 
       {/* Row 3: Financial Indicators + Risk Flags */}
       <div className="snapshot-row">
@@ -35,8 +37,14 @@ const SnapshotTab = ({ facility }) => {
         <RiskFlagsCard facility={facility} />
       </div>
 
-      {/* Row 4: Ownership & Context (full width) */}
-      <OwnershipContextCard facility={facility} />
+      {/* Row 4: COVID Vaccination + Ownership */}
+      <div className="snapshot-row">
+        <CovidVaccinationCard facility={facility} />
+        <OwnershipContextCard facility={facility} />
+      </div>
+
+      {/* Row 5: Location Map with Competitors */}
+      <FacilityMapCard facility={facility} />
     </div>
   );
 };

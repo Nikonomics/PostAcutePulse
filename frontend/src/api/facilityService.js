@@ -148,3 +148,22 @@ export const getFacilityBenchmarks = async (ccn) => {
   const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/benchmarks`);
   return response.data;
 };
+
+/**
+ * Get percentile rankings for a facility compared to peers
+ * @param {string} ccn - CMS Certification Number
+ * @param {Object} options - Filter options
+ * @param {string} options.scope - 'national' or 'state'
+ * @param {string} options.state - State filter (optional)
+ * @param {string} options.size - Size filter: 'small', 'medium', 'large' (optional)
+ * @returns {Promise<Object>} Percentile data with distributions
+ */
+export const getFacilityPercentiles = async (ccn, options = {}) => {
+  const params = {};
+  if (options.scope) params.scope = options.scope;
+  if (options.state) params.state = options.state;
+  if (options.size) params.size = options.size;
+
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/percentiles`, params);
+  return response.data;
+};

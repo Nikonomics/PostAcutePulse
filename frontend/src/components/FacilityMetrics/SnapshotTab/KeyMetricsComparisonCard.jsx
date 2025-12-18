@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BarChart3, Loader2 } from 'lucide-react';
-import { getFacilityBenchmarks } from '../../../api/facilityService';
+import React from 'react';
+import { BarChart3 } from 'lucide-react';
 
 // Metrics configuration with facility field -> benchmark field mapping
 const METRICS = [
@@ -116,38 +115,7 @@ const getDeltaIndicator = (facilityValue, nationalValue, higherIsBetter) => {
   };
 };
 
-const KeyMetricsComparisonCard = ({ facility }) => {
-  const [benchmarks, setBenchmarks] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchBenchmarks = async () => {
-      if (!facility?.ccn) {
-        setBenchmarks(null);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getFacilityBenchmarks(facility.ccn);
-        if (data.success) {
-          setBenchmarks(data.benchmarks);
-        } else {
-          setError('Failed to load benchmarks');
-        }
-      } catch (err) {
-        console.error('Failed to fetch benchmarks:', err);
-        setError('Failed to load benchmarks');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBenchmarks();
-  }, [facility?.ccn]);
-
+const KeyMetricsComparisonCard = ({ facility, comparisonMode = 'state', benchmarks }) => {
   if (!facility) return null;
 
   // Get facility value with fallback to alternate key
@@ -159,12 +127,50 @@ const KeyMetricsComparisonCard = ({ facility }) => {
     return value;
   };
 
+  // Get comparison value based on selected mode
+  const getComparisonValue = (metric) => {
+    const benchmarkKey = metric.benchmarkKey;
+    switch (comparisonMode) {
+      case 'market':
+        return benchmarks?.market?.[benchmarkKey];
+      case 'state':
+        return benchmarks?.state?.[benchmarkKey];
+      case 'national':
+        return benchmarks?.national?.[benchmarkKey];
+      case 'chain':
+        return benchmarks?.chain?.[benchmarkKey] || benchmarks?.national?.[benchmarkKey];
+      case 'custom':
+        return benchmarks?.custom?.[benchmarkKey] || benchmarks?.national?.[benchmarkKey];
+      default:
+        return benchmarks?.state?.[benchmarkKey];
+    }
+  };
+
+  // Map comparisonMode to column key for highlighting
+  const getActiveColumn = () => {
+    switch (comparisonMode) {
+      case 'market':
+        return 'market';
+      case 'state':
+        return 'state';
+      case 'national':
+        return 'national';
+      case 'chain':
+        return 'market'; // chain uses market column for now
+      case 'custom':
+        return 'national'; // custom uses national column for now
+      default:
+        return 'state';
+    }
+  };
+
+  const activeColumn = getActiveColumn();
+
   return (
     <div className="metrics-card key-metrics-card">
       <div className="metrics-card-header">
         <BarChart3 size={18} className="status-neutral" />
         <h4>Key Metrics</h4>
-        {loading && <Loader2 size={14} className="spinning" style={{ marginLeft: 'auto' }} />}
       </div>
 
       <div className="key-metrics-table-wrapper">
@@ -173,9 +179,9 @@ const KeyMetricsComparisonCard = ({ facility }) => {
             <tr>
               <th className="col-metric">Metric</th>
               <th className="col-value">Facility</th>
-              <th className="col-benchmark">Mkt</th>
-              <th className="col-benchmark">State</th>
-              <th className="col-benchmark">Natl</th>
+              <th className={`col-benchmark ${activeColumn === 'market' ? 'col-active' : ''}`}>Mkt</th>
+              <th className={`col-benchmark ${activeColumn === 'state' ? 'col-active' : ''}`}>State</th>
+              <th className={`col-benchmark ${activeColumn === 'national' ? 'col-active' : ''}`}>Natl</th>
               <th className="col-delta"></th>
             </tr>
           </thead>
@@ -185,15 +191,16 @@ const KeyMetricsComparisonCard = ({ facility }) => {
               const marketValue = benchmarks?.market?.[metric.benchmarkKey];
               const stateValue = benchmarks?.state?.[metric.benchmarkKey];
               const nationalValue = benchmarks?.national?.[metric.benchmarkKey];
-              const delta = getDeltaIndicator(facilityValue, nationalValue, metric.higherIsBetter);
+              const comparisonValue = getComparisonValue(metric);
+              const delta = getDeltaIndicator(facilityValue, comparisonValue, metric.higherIsBetter);
 
               return (
                 <tr key={metric.key}>
                   <td className="col-metric">{metric.label}</td>
                   <td className="col-value">{formatValue(facilityValue, metric.format)}</td>
-                  <td className="col-benchmark">{formatBenchmark(marketValue, metric.format)}</td>
-                  <td className="col-benchmark">{formatBenchmark(stateValue, metric.format)}</td>
-                  <td className="col-benchmark">{formatBenchmark(nationalValue, metric.format)}</td>
+                  <td className={`col-benchmark ${activeColumn === 'market' ? 'col-active' : ''}`}>{formatBenchmark(marketValue, metric.format)}</td>
+                  <td className={`col-benchmark ${activeColumn === 'state' ? 'col-active' : ''}`}>{formatBenchmark(stateValue, metric.format)}</td>
+                  <td className={`col-benchmark ${activeColumn === 'national' ? 'col-active' : ''}`}>{formatBenchmark(nationalValue, metric.format)}</td>
                   <td className={`col-delta ${delta.className}`}>{delta.text}</td>
                 </tr>
               );
@@ -208,10 +215,6 @@ const KeyMetricsComparisonCard = ({ facility }) => {
           {benchmarks.state?.facility_count?.toLocaleString() || '—'} state, {' '}
           {benchmarks.national?.facility_count?.toLocaleString() || '—'} national facilities
         </div>
-      )}
-
-      {error && !loading && (
-        <div className="benchmarks-error">{error}</div>
       )}
     </div>
   );

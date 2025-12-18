@@ -9,6 +9,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { searchFacilities } from '../../api/facilityService';
+import SaveButton from '../common/SaveButton';
 
 // US States for dropdown
 const US_STATES = [
@@ -75,6 +76,41 @@ const RATINGS = [
   { value: '1', label: '1 Star' },
 ];
 
+const RECENT_FACILITIES_KEY = 'snfalyze_recent_facilities';
+const MAX_RECENT_FACILITIES = 5;
+
+// Helper functions for recent facilities
+const getRecentFacilities = () => {
+  try {
+    const stored = localStorage.getItem(RECENT_FACILITIES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const addToRecentFacilities = (facility) => {
+  if (!facility?.ccn) return;
+
+  const recent = getRecentFacilities();
+  // Remove if already exists
+  const filtered = recent.filter(f => f.ccn !== facility.ccn);
+  // Add to front
+  const updated = [
+    {
+      ccn: facility.ccn,
+      provider_name: facility.provider_name || facility.facility_name || facility.name,
+      city: facility.city,
+      state: facility.state,
+      overall_rating: facility.overall_rating,
+      certified_beds: facility.certified_beds || facility.beds
+    },
+    ...filtered
+  ].slice(0, MAX_RECENT_FACILITIES);
+
+  localStorage.setItem(RECENT_FACILITIES_KEY, JSON.stringify(updated));
+};
+
 const FacilitySelector = ({ selectedFacility, onSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [stateFilter, setStateFilter] = useState('');
@@ -84,8 +120,14 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [recentFacilities, setRecentFacilities] = useState([]);
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  // Load recent facilities on mount
+  useEffect(() => {
+    setRecentFacilities(getRecentFacilities());
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -170,6 +212,10 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
   }, [searchTerm, handleSearch]);
 
   const handleSelectFacility = (facility) => {
+    // Add to recent facilities
+    addToRecentFacilities(facility);
+    setRecentFacilities(getRecentFacilities());
+
     onSelect(facility);
     setShowDropdown(false);
     setSearchTerm('');
@@ -231,9 +277,17 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
               </span>
             </div>
           </div>
-          <button className="clear-selection-btn" onClick={handleClearSelection}>
-            <X size={16} />
-          </button>
+          <div className="selected-facility-actions">
+            <SaveButton
+              itemType="cms_facility"
+              ccn={selectedFacility.ccn}
+              facilityName={getFacilityName(selectedFacility)}
+              size="small"
+            />
+            <button className="clear-selection-btn" onClick={handleClearSelection}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -247,7 +301,14 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
                 placeholder="Search facilities by name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => searchTerm.length >= 2 && setShowDropdown(true)}
+                onFocus={() => {
+                  if (searchTerm.length >= 2) {
+                    setShowDropdown(true);
+                  } else if (recentFacilities.length > 0) {
+                    // Show recent facilities when input is focused and empty
+                    setShowDropdown(true);
+                  }
+                }}
                 autoComplete="new-password"
                 autoCorrect="off"
                 autoCapitalize="off"
@@ -309,7 +370,36 @@ const FacilitySelector = ({ selectedFacility, onSelect }) => {
           {/* Search Results Dropdown */}
           {showDropdown && (
             <div className="facility-search-dropdown" ref={dropdownRef}>
-              {results.length === 0 && !isLoading ? (
+              {/* Show recent facilities when search is empty */}
+              {searchTerm.length < 2 && recentFacilities.length > 0 ? (
+                <>
+                  <div className="dropdown-section-header">Recent Facilities</div>
+                  {recentFacilities.map((facility) => (
+                    <div
+                      key={facility.ccn}
+                      className="facility-search-result"
+                      onClick={() => handleSelectFacility(facility)}
+                    >
+                      <div
+                        className="result-rating"
+                        style={{ backgroundColor: getRatingColor(facility.overall_rating) }}
+                      >
+                        {facility.overall_rating || '?'}
+                      </div>
+                      <div className="result-info">
+                        <span className="result-name">
+                          {facility.provider_name}
+                        </span>
+                        <span className="result-meta">
+                          {facility.city}, {facility.state}
+                          <span className="meta-separator">•</span>
+                          {facility.certified_beds || 'N/A'} beds
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : results.length === 0 && !isLoading ? (
                 <div className="no-results">
                   No facilities found. Try a different search term.
                 </div>

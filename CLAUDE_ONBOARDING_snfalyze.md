@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-17 15:59:28
+> Last updated: 2025-12-17 17:51:26
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -3812,6 +3812,8 @@ Solve for IRR using Newton-Raphson method
     "ajv": "^8.17.1",
     "axios": "^1.10.0",
     "date-fns": "^4.1.0",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.525.0",
     "mammoth": "^1.11.0",
     "react": "^19.1.0",

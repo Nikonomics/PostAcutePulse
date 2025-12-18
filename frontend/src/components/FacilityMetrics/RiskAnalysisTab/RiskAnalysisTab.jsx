@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Shield } from 'lucide-react';
 import RiskExplainerCard from './RiskExplainerCard';
 import CompositeRiskScore from './CompositeRiskScore';
@@ -6,35 +6,8 @@ import RegulatoryRiskCard from './RegulatoryRiskCard';
 import StaffingRiskCard from './StaffingRiskCard';
 import FinancialRiskCard from './FinancialRiskCard';
 import RiskTrendCard from './RiskTrendCard';
-import { getFacilityBenchmarks } from '../../../api/facilityService';
 
-const RiskAnalysisTab = ({ facility }) => {
-  const [benchmarks, setBenchmarks] = useState(null);
-  const [loadingBenchmarks, setLoadingBenchmarks] = useState(false);
-
-  useEffect(() => {
-    const fetchBenchmarks = async () => {
-      if (!facility?.ccn) {
-        setBenchmarks(null);
-        return;
-      }
-
-      setLoadingBenchmarks(true);
-      try {
-        const data = await getFacilityBenchmarks(facility.ccn);
-        if (data.success) {
-          setBenchmarks(data.benchmarks);
-        }
-      } catch (err) {
-        console.error('Failed to fetch benchmarks:', err);
-      } finally {
-        setLoadingBenchmarks(false);
-      }
-    };
-
-    fetchBenchmarks();
-  }, [facility?.ccn]);
-
+const RiskAnalysisTab = ({ facility, benchmarks }) => {
   if (!facility) {
     return (
       <div className="placeholder-tab">

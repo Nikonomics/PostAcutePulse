@@ -39,7 +39,8 @@ router.get('/snf/search', async (req, res) => {
       const replacements = {};
 
       if (name) {
-        whereClause += ` AND provider_name ILIKE :name`;
+        // Use ILIKE for case-insensitive search on facility_name
+        whereClause += ` AND facility_name ILIKE :name`;
         replacements.name = `%${name}%`;
       }
       if (state) {
@@ -67,35 +68,34 @@ router.get('/snf/search', async (req, res) => {
         replacements.maxRating = parseInt(maxRating);
       }
 
+      // Query snf_facilities directly - much faster than facility_snapshots CTE
       const [facilities] = await sequelize.query(`
-        WITH latest AS (
-          SELECT DISTINCT ON (fs.ccn) fs.*, e.extract_date
-          FROM facility_snapshots fs
-          JOIN cms_extracts e ON fs.extract_id = e.extract_id
-          ORDER BY fs.ccn, e.extract_date DESC
-        )
         SELECT
-          ccn, provider_name, address, city, state, zip_code,
-          overall_rating, health_inspection_rating, qm_rating as quality_rating, staffing_rating,
+          federal_provider_number as ccn,
+          facility_name as provider_name,
+          address, city, state, zip_code,
+          overall_rating, health_inspection_rating,
+          quality_measure_rating as quality_rating, staffing_rating,
           certified_beds, average_residents_per_day as residents_total,
-          latitude, longitude, ownership_type
-        FROM latest
+          latitude, longitude, ownership_type, chain_name
+        FROM snf_facilities
         WHERE ${whereClause}
-        ORDER BY provider_name
+        ORDER BY
+          CASE WHEN facility_name ILIKE :exactMatch THEN 0 ELSE 1 END,
+          facility_name
         LIMIT :limit OFFSET :offset
       `, {
-        replacements: { ...replacements, limit: parseInt(limit), offset: parseInt(offset) }
+        replacements: {
+          ...replacements,
+          exactMatch: name ? `${name}%` : '%',
+          limit: parseInt(limit),
+          offset: parseInt(offset)
+        }
       });
 
-      // Get total count
+      // Get total count (fast query on snf_facilities)
       const [[{ total }]] = await sequelize.query(`
-        WITH latest AS (
-          SELECT DISTINCT ON (fs.ccn) fs.*
-          FROM facility_snapshots fs
-          JOIN cms_extracts e ON fs.extract_id = e.extract_id
-          ORDER BY fs.ccn, e.extract_date DESC
-        )
-        SELECT COUNT(*) as total FROM latest WHERE ${whereClause}
+        SELECT COUNT(*) as total FROM snf_facilities WHERE ${whereClause}
       `, { replacements });
 
       res.json({
@@ -877,6 +877,222 @@ router.post('/nearby', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * GET /api/facilities/snf/:ccn/percentiles
+ * Get percentile rankings for a facility compared to peers
+ */
+router.get('/snf/:ccn/percentiles', async (req, res) => {
+  try {
+    const { ccn } = req.params;
+    const { scope = 'national', state: filterState, size } = req.query;
+    const { getSequelizeInstance } = require('../config/database');
+    const sequelize = getSequelizeInstance();
+
+    try {
+      // Get the facility's current data
+      const [[facility]] = await sequelize.query(`
+        SELECT * FROM facility_snapshots
+        WHERE ccn = :ccn
+        ORDER BY extract_id DESC
+        LIMIT 1
+      `, { replacements: { ccn } });
+
+      if (!facility) {
+        return res.status(404).json({ success: false, error: 'Facility not found' });
+      }
+
+      // Get the latest extract_id
+      const extractId = facility.extract_id;
+
+      // Build WHERE clause based on peer group filters
+      let whereClause = 'WHERE extract_id = :extractId';
+      const replacements = { extractId, ccn };
+
+      if (scope === 'state' || filterState) {
+        whereClause += ' AND state = :filterState';
+        replacements.filterState = filterState || facility.state;
+      }
+
+      if (size) {
+        // Size buckets: small (<60 beds), medium (60-120), large (>120)
+        if (size === 'small') {
+          whereClause += ' AND CAST(certified_beds AS INTEGER) < 60';
+        } else if (size === 'medium') {
+          whereClause += ' AND CAST(certified_beds AS INTEGER) >= 60 AND CAST(certified_beds AS INTEGER) <= 120';
+        } else if (size === 'large') {
+          whereClause += ' AND CAST(certified_beds AS INTEGER) > 120';
+        }
+      }
+
+      // Get total count for peer group
+      const [[{ facility_count }]] = await sequelize.query(`
+        SELECT COUNT(*) as facility_count FROM facility_snapshots ${whereClause}
+      `, { replacements });
+
+      // Calculate percentiles for each metric
+      const metrics = [
+        { key: 'overall_rating', field: 'overall_rating', higherIsBetter: true },
+        { key: 'quality_rating', field: 'qm_rating', higherIsBetter: true },
+        { key: 'staffing_rating', field: 'staffing_rating', higherIsBetter: true },
+        { key: 'inspection_rating', field: 'health_inspection_rating', higherIsBetter: true },
+        { key: 'total_nursing_hprd', field: 'reported_total_nurse_hrs', higherIsBetter: true },
+        { key: 'rn_hprd', field: 'reported_rn_hrs', higherIsBetter: true },
+        { key: 'rn_turnover', field: 'rn_turnover', higherIsBetter: false },
+        { key: 'deficiency_count', field: 'cycle1_total_health_deficiencies', higherIsBetter: false },
+        { key: 'occupancy', field: null, higherIsBetter: true } // Calculated field
+      ];
+
+      const percentiles = {};
+
+      for (const metric of metrics) {
+        let facilityValue;
+        let countQuery;
+
+        if (metric.key === 'occupancy') {
+          // Occupancy is calculated
+          const beds = parseFloat(facility.certified_beds) || 1;
+          const residents = parseFloat(facility.average_residents_per_day) || 0;
+          facilityValue = (residents / beds) * 100;
+
+          if (metric.higherIsBetter) {
+            countQuery = `
+              SELECT COUNT(*) as count FROM facility_snapshots
+              ${whereClause}
+              AND (CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) < :facilityValue
+            `;
+          } else {
+            countQuery = `
+              SELECT COUNT(*) as count FROM facility_snapshots
+              ${whereClause}
+              AND (CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) > :facilityValue
+            `;
+          }
+        } else {
+          facilityValue = parseFloat(facility[metric.field]) || 0;
+
+          if (metric.higherIsBetter) {
+            countQuery = `
+              SELECT COUNT(*) as count FROM facility_snapshots
+              ${whereClause}
+              AND CAST(${metric.field} AS FLOAT) < :facilityValue
+            `;
+          } else {
+            countQuery = `
+              SELECT COUNT(*) as count FROM facility_snapshots
+              ${whereClause}
+              AND CAST(${metric.field} AS FLOAT) > :facilityValue
+            `;
+          }
+        }
+
+        const [[{ count }]] = await sequelize.query(countQuery, {
+          replacements: { ...replacements, facilityValue }
+        });
+
+        const betterThan = parseInt(count);
+        const percentile = facility_count > 0 ? Math.round((betterThan / facility_count) * 100) : 0;
+
+        percentiles[metric.key] = {
+          value: Math.round(facilityValue * 100) / 100,
+          percentile,
+          better_than: betterThan
+        };
+      }
+
+      // Get distribution data for histograms (ratings and key metrics)
+      const distributions = {};
+
+      // Overall rating distribution (1-5)
+      const [ratingDist] = await sequelize.query(`
+        SELECT overall_rating as bucket, COUNT(*) as count
+        FROM facility_snapshots
+        ${whereClause}
+        AND overall_rating IS NOT NULL
+        GROUP BY overall_rating
+        ORDER BY overall_rating
+      `, { replacements });
+      distributions.overall_rating = ratingDist;
+
+      // Staffing HPRD distribution (buckets of 0.5)
+      const [hprdDist] = await sequelize.query(`
+        SELECT
+          FLOOR(CAST(reported_total_nurse_hrs AS FLOAT) * 2) / 2 as bucket,
+          COUNT(*) as count
+        FROM facility_snapshots
+        ${whereClause}
+        AND reported_total_nurse_hrs IS NOT NULL
+        GROUP BY FLOOR(CAST(reported_total_nurse_hrs AS FLOAT) * 2) / 2
+        ORDER BY bucket
+      `, { replacements });
+      distributions.total_nursing_hprd = hprdDist;
+
+      // Deficiency count distribution (buckets of 5)
+      const [defDist] = await sequelize.query(`
+        SELECT
+          FLOOR(CAST(cycle1_total_health_deficiencies AS FLOAT) / 5) * 5 as bucket,
+          COUNT(*) as count
+        FROM facility_snapshots
+        ${whereClause}
+        AND cycle1_total_health_deficiencies IS NOT NULL
+        GROUP BY FLOOR(CAST(cycle1_total_health_deficiencies AS FLOAT) / 5) * 5
+        ORDER BY bucket
+      `, { replacements });
+      distributions.deficiency_count = defDist;
+
+      // RN Turnover distribution (buckets of 10%)
+      const [turnoverDist] = await sequelize.query(`
+        SELECT
+          FLOOR(CAST(rn_turnover AS FLOAT) / 10) * 10 as bucket,
+          COUNT(*) as count
+        FROM facility_snapshots
+        ${whereClause}
+        AND rn_turnover IS NOT NULL
+        GROUP BY FLOOR(CAST(rn_turnover AS FLOAT) / 10) * 10
+        ORDER BY bucket
+      `, { replacements });
+      distributions.rn_turnover = turnoverDist;
+
+      // Occupancy distribution (buckets of 10%)
+      const [occDist] = await sequelize.query(`
+        SELECT
+          FLOOR((CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) / 10) * 10 as bucket,
+          COUNT(*) as count
+        FROM facility_snapshots
+        ${whereClause}
+        AND average_residents_per_day IS NOT NULL
+        AND certified_beds IS NOT NULL
+        AND CAST(certified_beds AS FLOAT) > 0
+        GROUP BY FLOOR((CAST(average_residents_per_day AS FLOAT) / NULLIF(CAST(certified_beds AS FLOAT), 0) * 100) / 10) * 10
+        ORDER BY bucket
+      `, { replacements });
+      distributions.occupancy = occDist;
+
+      res.json({
+        success: true,
+        facility: {
+          ccn: facility.ccn,
+          name: facility.provider_name,
+          state: facility.state
+        },
+        percentiles,
+        distributions,
+        peer_group: {
+          scope: scope,
+          state: filterState || (scope === 'state' ? facility.state : null),
+          size: size || null,
+          facility_count: parseInt(facility_count)
+        }
+      });
+
+    } finally {
+      await sequelize.close();
+    }
+  } catch (error) {
+    console.error('Error fetching percentiles:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
