@@ -2,6 +2,40 @@
 
 This folder contains scripts for managing the snfalyze databases.
 
+## Why Two Databases?
+
+We maintain two separate databases for different purposes:
+
+### Main DB (`snfalyze_db`)
+- **Purpose:** Application-specific data for snfalyze
+- **Contains:** User accounts, deals, documents, comments, historical snapshots
+- **Access:** Only snfalyze application
+
+### Market DB (`snf_market_data`)
+- **Purpose:** Shared reference data across multiple projects
+- **Contains:** Facility listings, demographics, deficiencies - data that doesn't change per-user
+- **Access:** Multiple applications (snfalyze, future tools, analytics projects)
+
+### Why not just one database?
+
+1. **Shared data across projects** - Other tools/projects can connect to the market DB without accessing snfalyze's private user data, deals, or documents.
+
+2. **Separation of concerns** - Market data (public CMS data) is kept separate from application data (user-generated content).
+
+3. **Independent scaling** - Market DB can be optimized for read-heavy analytics queries; Main DB for transactional app operations.
+
+4. **Data governance** - Easier to manage who has access to what. Market data is "public" CMS data; app data contains private business information.
+
+### Why does Main DB also have market data?
+
+The Main DB contains a **superset** of the Market DB data because:
+- Faster queries (no cross-database joins)
+- Historical snapshots link to facility data
+- Single source of truth for the app
+- Market DB is synced FROM Main DB (not the other way around)
+
+**Think of it as:** Main DB is the "master" for snfalyze. Market DB is a "published copy" of just the shared tables for other projects to use.
+
 ## Database Architecture
 
 ```
