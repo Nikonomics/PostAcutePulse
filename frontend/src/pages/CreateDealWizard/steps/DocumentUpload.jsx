@@ -238,49 +238,61 @@ const DocumentUpload = () => {
     console.log(`[DocumentUpload] Selected facilities: ${selectedFacilities.length}`);
 
     if (isPortfolio) {
-      // === PORTFOLIO PATH: Use extract-portfolio which creates deal directly ===
-      try {
-        console.log('[DocumentUpload] Starting PORTFOLIO extraction with', uploadedFiles.length, 'files');
-        console.log('[DocumentUpload] Confirmed facilities:', selectedFacilities.map(f => f.detected?.name || f.matched?.facility_name));
+      // === PORTFOLIO PATH: Start extraction in background, continue wizard flow ===
+      console.log('[DocumentUpload] Starting PORTFOLIO extraction with', uploadedFiles.length, 'files');
+      console.log('[DocumentUpload] Confirmed facilities:', selectedFacilities.map(f => f.detected?.name || f.matched?.facility_name));
 
-        setExtractionProgress(20);
-        toast.info(`Extracting portfolio data for ${selectedFacilities.length} facilities...`);
+      setExtractionProgress(20);
+      toast.info(`Extracting portfolio data for ${selectedFacilities.length} facilities in background...`);
 
-        // Use deal name from wizard context, or generate from first facility name
-        const portfolioDealName = dealData?.deal_name
-          || selectedFacilities[0]?.detected?.name
-          || selectedFacilities[0]?.matched?.facility_name
-          || 'Portfolio Deal';
+      // Use deal name from wizard context, or generate from first facility name
+      const portfolioDealName = dealData?.deal_name
+        || selectedFacilities[0]?.detected?.name
+        || selectedFacilities[0]?.matched?.facility_name
+        || 'Portfolio Deal';
 
-        const response = await extractPortfolio(uploadedFiles, selectedFacilities, portfolioDealName);
-        console.log('[DocumentUpload] Portfolio extraction response:', response);
+      // Move to next step immediately so user can fill in details while extraction runs
+      goToNextStep();
 
-        if (response.success && response.body?.deal) {
-          const createdDeal = response.body.deal;
-          console.log('[DocumentUpload] Portfolio deal created:', createdDeal.id);
-          console.log('[DocumentUpload] Deal extraction_data keys:', Object.keys(createdDeal.extraction_data || {}));
+      // Run portfolio extraction in background (don't await blocking the UI)
+      extractPortfolio(uploadedFiles, selectedFacilities, portfolioDealName)
+        .then(response => {
+          console.log('[DocumentUpload] Portfolio extraction response:', response);
 
+          if (response.success && response.body?.deal) {
+            const createdDeal = response.body.deal;
+            console.log('[DocumentUpload] Portfolio deal created:', createdDeal.id);
+            console.log('[DocumentUpload] Deal extraction_data keys:', Object.keys(createdDeal.extraction_data || {}));
+
+            // Apply extraction data to wizard context so it can be used/updated
+            if (createdDeal.extraction_data) {
+              applyExtractionData({
+                ...createdDeal.extraction_data,
+                deal_overview: createdDeal.extraction_data.deal_overview || null,
+                _portfolioDealId: createdDeal.id, // Store the created deal ID for later navigation
+              });
+            }
+
+            setExtractionProgress(100);
+            toast.success(`Portfolio extraction complete! ${selectedFacilities.length} facilities processed.`);
+          } else {
+            console.error('[DocumentUpload] Portfolio extraction failed:', response.message);
+            setExtractionProgress(100);
+            toast.warning(response.message || 'Portfolio extraction completed with issues. You can proceed with manual entry.');
+          }
+        })
+        .catch(error => {
+          console.error('[DocumentUpload] Portfolio extraction error:', error);
           setExtractionProgress(100);
-          setIsExtracting(false);
-          toast.success(`Portfolio deal created with ${selectedFacilities.length} facilities!`);
+          toast.warning('Portfolio extraction failed. You can proceed with manual entry.');
+        })
+        .finally(() => {
+          setTimeout(() => {
+            setIsExtracting(false);
+          }, 500);
+        });
 
-          // Navigate directly to the created deal detail page
-          navigate(`/deals/deal-detail/${createdDeal.id}`);
-          return; // Exit - don't continue wizard flow
-        } else {
-          console.error('[DocumentUpload] Portfolio extraction failed:', response.message);
-          toast.error(response.message || 'Portfolio extraction failed');
-          setIsExtracting(false);
-          setIsSubmitting(false);
-          return;
-        }
-      } catch (error) {
-        console.error('[DocumentUpload] Portfolio extraction error:', error);
-        toast.error(error.message || 'Failed to extract portfolio');
-        setIsExtracting(false);
-        setIsSubmitting(false);
-        return;
-      }
+      return; // Exit after starting background extraction
     }
 
     // === SINGLE FACILITY PATH: Continue with wizard flow ===

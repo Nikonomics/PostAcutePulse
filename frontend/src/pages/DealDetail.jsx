@@ -375,31 +375,26 @@ const styles = `
   }
 
   .container {
-    max-width: 1600px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
     padding: 1rem 1.5rem;
+    box-sizing: border-box;
   }
 
   .grid {
-    display: grid;
-    gap: 1rem;
+    display: block;
+    width: 100%;
   }
 
   .grid-cols-3 {
-    grid-template-columns: 1fr;
+    display: block;
+    width: 100%;
   }
 
   .col-span-2 {
-    grid-column: span 1;
-  }
-
-  @media (max-width: 1024px) {
-    .grid-cols-3 {
-      grid-template-columns: 1fr;
-    }
-    .col-span-2 {
-      grid-column: span 1;
-    }
+    width: 100%;
+    min-width: 600px;
   }
 
   .header-actions {
@@ -1154,11 +1149,22 @@ const DealDetailPage = () => {
 
     const cimFacilities = deal.extraction_data?.cim_extraction?.cim_facilities || [];
 
+    // Helper to normalize facility names for matching (handles "and" vs "&", extra spaces, etc.)
+    const normalizeName = (name) => {
+      if (!name) return '';
+      return name
+        .toLowerCase()
+        .trim()
+        .replace(/&/g, 'and')           // Convert & to and
+        .replace(/\s+/g, ' ')           // Collapse multiple spaces
+        .replace(/[^\w\s]/g, '');       // Remove special characters except spaces
+    };
+
     return deal.deal_facility.map((facility) => {
       // Try to match CIM facility by name (fuzzy matching by normalizing names)
-      const normalizedFacilityName = (facility.facility_name || '').toLowerCase().trim();
+      const normalizedFacilityName = normalizeName(facility.facility_name);
       const matchedCimFacility = cimFacilities.find((cf) => {
-        const normalizedCimName = (cf.facility_name || '').toLowerCase().trim();
+        const normalizedCimName = normalizeName(cf.facility_name);
         return normalizedCimName === normalizedFacilityName ||
                normalizedCimName.includes(normalizedFacilityName) ||
                normalizedFacilityName.includes(normalizedCimName);
@@ -1169,17 +1175,23 @@ const DealDetailPage = () => {
       }
 
       // Merge CIM data as the primary source
+      // CIM structure: { financials: { total_revenue, noi, ... }, payer_mix: { ... }, census_and_occupancy: { ... } }
+      const cimFinancials = matchedCimFacility.financials || {};
+      const cimPayerMix = matchedCimFacility.payer_mix || {};
+      const cimCensus = matchedCimFacility.census_and_occupancy || {};
+
       return {
         ...facility,
         // CIM data takes priority for these fields
-        annual_revenue: matchedCimFacility.ttm_revenue || matchedCimFacility.annual_revenue || matchedCimFacility.ttm_financials?.total_revenue || facility.annual_revenue,
-        noi: matchedCimFacility.noi || matchedCimFacility.net_operating_income || matchedCimFacility.ttm_financials?.noi || facility.noi,
-        ebitda: matchedCimFacility.ebitda || matchedCimFacility.ttm_financials?.ebitda || facility.ebitda,
-        ebitdar: matchedCimFacility.ebitdar || matchedCimFacility.ttm_financials?.ebitdar || facility.ebitdar,
-        occupancy_rate: matchedCimFacility.current_occupancy || matchedCimFacility.census_and_occupancy?.current_occupancy_pct || facility.occupancy_rate,
-        medicare_mix: matchedCimFacility.payer_mix?.medicare_pct || matchedCimFacility.census_and_occupancy?.payer_mix_by_census?.medicare_pct || facility.medicare_mix,
-        medicaid_mix: matchedCimFacility.payer_mix?.medicaid_pct || matchedCimFacility.census_and_occupancy?.payer_mix_by_census?.medicaid_pct || facility.medicaid_mix,
-        private_pay_mix: matchedCimFacility.payer_mix?.private_pay_pct || matchedCimFacility.census_and_occupancy?.payer_mix_by_census?.private_pay_pct || facility.private_pay_mix,
+        annual_revenue: cimFinancials.total_revenue || matchedCimFacility.ttm_revenue || facility.annual_revenue,
+        noi: cimFinancials.noi || matchedCimFacility.noi || facility.noi,
+        ebitda: cimFinancials.ebitda || matchedCimFacility.ebitda || facility.ebitda,
+        ebitdar: cimFinancials.ebitdar || matchedCimFacility.ebitdar || facility.ebitdar,
+        ebitdarm: cimFinancials.ebitdarm || matchedCimFacility.ebitdarm || facility.ebitdarm,
+        occupancy_rate: cimCensus.current_occupancy_pct || matchedCimFacility.current_occupancy || facility.current_occupancy || facility.occupancy_rate,
+        medicare_mix: cimPayerMix.medicare_pct || facility.medicare_percentage || facility.medicare_mix,
+        medicaid_mix: cimPayerMix.medicaid_pct || facility.medicaid_percentage || facility.medicaid_mix,
+        private_pay_mix: cimPayerMix.private_pay_pct || facility.private_pay_percentage || facility.private_pay_mix,
         // Also include CIM data that might not be in deal_facility
         licensed_beds: matchedCimFacility.licensed_beds || facility.licensed_beds || facility.bed_count,
         functional_beds: matchedCimFacility.functional_beds || facility.functional_beds,

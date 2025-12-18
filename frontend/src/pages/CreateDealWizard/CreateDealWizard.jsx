@@ -29,6 +29,8 @@ const WizardContent = () => {
     validateStep,
     goToNextStep,
     resetWizard,
+    isExtracting,
+    detectedFacilities,
   } = useWizard();
 
   // Handle final submission
@@ -42,6 +44,25 @@ const WizardContent = () => {
     setIsSubmitting(true);
 
     try {
+      // Check if this is a portfolio deal (2+ facilities detected)
+      const isPortfolioDeal = detectedFacilities && detectedFacilities.filter(f => f.selected).length > 1;
+
+      // Check if a portfolio deal was already created during extraction
+      const portfolioDealId = extractionData?._portfolioDealId;
+      if (portfolioDealId) {
+        console.log('[CreateDealWizard] Portfolio deal already exists:', portfolioDealId);
+        toast.success('Deal ready! Redirecting to deal details...');
+        navigate(`/deals/deal-detail/${portfolioDealId}`);
+        return;
+      }
+
+      // If portfolio extraction is still running, wait for it
+      if (isPortfolioDeal && isExtracting) {
+        toast.info('Portfolio extraction still in progress. Please wait...');
+        setIsSubmitting(false);
+        return;
+      }
+
       // === EXTRACTION DATA AT SUBMIT TIME ===
       console.log('=== EXTRACTION DATA AT SUBMIT TIME ===');
       console.log('extractionData exists:', !!extractionData);

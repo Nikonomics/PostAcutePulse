@@ -31,14 +31,18 @@ const styles = `
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
     border: 1px solid #e5e7eb;
     margin-bottom: 1rem;
+    width: 100% !important;
+    min-width: 600px;
+    box-sizing: border-box;
   }
 
   .facilities-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid #e5e7eb;
+    gap: 1rem;
   }
 
   .facilities-title {
@@ -49,6 +53,7 @@ const styles = `
     font-weight: 600;
     color: #111827;
     margin: 0;
+    flex: 1;
   }
 
   .facilities-count {
@@ -63,16 +68,21 @@ const styles = `
   .add-facility-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
     background: #2563eb;
     color: white;
     border: none;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    flex-grow: 0;
+    width: auto !important;
+    max-width: fit-content;
   }
 
   .add-facility-btn:hover {
@@ -81,12 +91,29 @@ const styles = `
 
   .facilities-list {
     padding: 0;
+    margin: 0;
   }
 
   .facility-card {
     background: white;
     border-bottom: 1px solid #f3f4f6;
     transition: background 0.2s;
+    width: 100% !important;
+    min-width: 580px;
+    box-sizing: border-box;
+    height: auto !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .facility-card.collapsed {
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  .facility-card.expanded {
+    max-height: 288px;
+    overflow-y: auto;
   }
 
   .facility-card:last-child {
@@ -98,12 +125,16 @@ const styles = `
   }
 
   .facility-header {
-    display: flex;
-    flex-direction: row;
+    display: flex !important;
+    flex-direction: row !important;
     align-items: center;
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     cursor: pointer;
-    gap: 0.75rem;
+    gap: 1rem;
+    flex-wrap: nowrap !important;
+    width: 100%;
+    min-width: 560px;
+    box-sizing: border-box;
   }
 
   .facility-drag-handle {
@@ -117,7 +148,8 @@ const styles = `
 
   .facility-main-info {
     flex: 1;
-    min-width: 0;
+    min-width: 200px;
+    max-width: 400px;
   }
 
   .facility-name {
@@ -125,6 +157,10 @@ const styles = `
     color: #111827;
     margin: 0 0 0.25rem 0;
     font-size: 0.9375rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 380px;
   }
 
   .facility-location {
@@ -140,6 +176,7 @@ const styles = `
     flex-direction: row;
     gap: 1.5rem;
     margin-right: 1rem;
+    flex-shrink: 0;
   }
 
   .facility-metric {
@@ -166,6 +203,7 @@ const styles = `
   .facility-actions {
     display: flex;
     gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .facility-action-btn {
@@ -195,27 +233,37 @@ const styles = `
     border: none;
     color: #6b7280;
     cursor: pointer;
+    flex-shrink: 0;
   }
 
   .facility-details {
-    padding: 0 1.25rem 1rem 3rem;
+    padding: 0.5rem 1rem 0.75rem 1rem;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    background: #fafafa;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  @media (max-width: 900px) {
+    .facility-details {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
 
   .facility-detail-group {
-    background: #f9fafb;
-    padding: 0.75rem;
-    border-radius: 0.375rem;
+    background: white;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid #e5e7eb;
   }
 
   .facility-detail-group-title {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: #6b7280;
     text-transform: uppercase;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -224,8 +272,9 @@ const styles = `
   .facility-detail-item {
     display: flex;
     justify-content: space-between;
-    font-size: 0.8125rem;
-    padding: 0.25rem 0;
+    font-size: 0.6875rem;
+    padding: 0.0625rem 0;
+    line-height: 1.2;
   }
 
   .facility-detail-label {
@@ -262,23 +311,22 @@ const styles = `
   }
 
   .portfolio-summary {
-    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-    color: white;
-    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+    color: #1e3a8a;
+    padding: 0.75rem 1rem;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+    border-bottom: 1px solid #c7d2fe;
   }
 
   .portfolio-summary .portfolio-metric-value {
-    color: white;
+    color: #1e3a8a;
     font-weight: 700;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   }
 
   .portfolio-summary .portfolio-metric-label {
-    color: rgba(255, 255, 255, 0.95);
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    color: #4b5563;
   }
 
   .portfolio-metric {
@@ -848,7 +896,7 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand, sh
   };
 
   return (
-    <div className={`facility-card ${isCompetitor ? 'competitor' : ''}`}>
+    <div className={`facility-card ${isCompetitor ? 'competitor' : ''} ${expanded ? 'expanded' : 'collapsed'}`}>
       <div className="facility-header" onClick={onToggleExpand}>
         <div className="facility-drag-handle">
           <GripVertical size={16} />
