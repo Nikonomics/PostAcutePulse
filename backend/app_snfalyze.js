@@ -1,4 +1,5 @@
 require('dotenv').config()
+// Force redeploy - database schema updated 2025-12-18
 var createError = require('http-errors');
 var express = require('express');
 var bodyParser = require('body-parser');
