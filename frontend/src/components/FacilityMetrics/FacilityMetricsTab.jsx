@@ -15,6 +15,7 @@ import {
   MapPin,
   Building2,
   Users,
+  ClipboardCheck,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import FacilitySelector from './FacilitySelector';
@@ -26,6 +27,7 @@ import VBPTab from './VBPTab';
 import OwnershipTab from './OwnershipTab';
 import { CompetitionTab } from './CompetitionTab';
 import ReportsTab from './ReportsTab';
+import SurveyIntelligenceTab from './SurveyIntelligenceTab';
 import { SkeletonFacilityMetrics } from './SkeletonCard';
 import { ComparisonView } from './ComparisonView';
 import AlertBanner from './AlertBanner';
@@ -73,6 +75,7 @@ const TABS = [
   { id: 'ownership', label: 'Ownership', icon: Building2 },
   { id: 'competition', label: 'Competition', icon: Users },
   { id: 'reports', label: 'Reports', icon: FileText },
+  { id: 'survey', label: 'Survey Intelligence', icon: ClipboardCheck },
 ];
 
 const COMPARISON_MODES = [
@@ -89,7 +92,7 @@ const FacilityMetricsTab = () => {
 
   // Initialize activeTab from URL or default to 'snapshot'
   const tabFromUrl = searchParams.get('tab');
-  const validTabs = ['snapshot', 'trends', 'benchmarks', 'risk', 'vbp', 'ownership', 'competition', 'reports'];
+  const validTabs = ['snapshot', 'trends', 'benchmarks', 'risk', 'vbp', 'ownership', 'competition', 'reports', 'survey'];
   const initialTab = validTabs.includes(tabFromUrl) ? tabFromUrl : 'snapshot';
 
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -362,6 +365,8 @@ const FacilityMetricsTab = () => {
         return <CompetitionTab {...props} />;
       case 'reports':
         return <ReportsTab {...props} />;
+      case 'survey':
+        return <SurveyIntelligenceTab {...props} />;
       default:
         return <SnapshotTab {...props} />;
     }

@@ -1,10 +1,77 @@
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 7, 2025
+**Last Updated:** December 19, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
 ---
+
+## 📅 Recent Changes (Auto-Generated)
+
+> This section is automatically updated on each commit.
+
+### Last 7 Days
+
+- **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
+- **2025-12-18** - Add production database reference to main README
+- **2025-12-18** - Add explanation of why two databases exist
+- **2025-12-18** - Add database scripts documentation
+- **2025-12-18** - Add market database sync script
+- **2025-12-18** - Trigger redeploy for database schema refresh
+- **2025-12-18** - Add CMS data sync scripts and saved items improvements
+- **2025-12-17** - Fix deal detail tabs not showing when extraction_data is null
+- **2025-12-17** - Fix market analysis - remove non-existent long_stay_qm_rating columns
+- **2025-12-17** - Add position column migration for deals table
+- **2025-12-17** - Fix Deals.jsx crash and add CMS production migration scripts
+- **2025-12-17** - Improve facilities section UI and portfolio extraction flow
+- **2025-12-17** - Add remaining missing FacilityMetrics components
+- **2025-12-17** - Add missing ComparisonView component
+- **2025-12-17** - Add missing SkeletonCard component
+- **2025-12-17** - Add Benchmarks and Reports tabs to Facility Metrics
+- **2025-12-17** - Add deal position ordering, fix portfolio extraction, and sync risk scores
+- **2025-12-16** - Fix OwnershipProfile aggregate metrics display
+- **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
+- **2025-12-15** - Add ownership field to contact_information TypeScript schema
+- **2025-12-15** - Improve Deal Overview page for portfolio deals
+- **2025-12-15** - Add debug logging for deal edit issue
+- **2025-12-15** - Fix deal edit navigation and add save button to deals
+- **2025-12-15** - Dashboard map filter fix, Market Dynamics county resolution, and various improvements
+- **2025-12-14** - Add facilities map to Ownership Profile page
+- **2025-12-14** - Add Ownership Database with editable profiles and save functionality
+
+### Areas Modified (Last 20 Commits)
+
+```
+Backend:     61 files
+Frontend:    154 files
+Routes:      4 files
+Services:    9 files
+Components:  117 files
+Migrations:  8 files
+```
+
+### New Files Added (Last 20 Commits)
+
+```
+backend/bellwether_validation.js
+backend/docs/DATA_ROADMAP.md
+backend/migrations/20241218-add-ccn-to-deal-facilities.js
+backend/migrations/20241218-add-cms-facility-to-saved-items.js
+backend/migrations/20241218-add-deal-match-status.js
+backend/migrations/20241218-create-vbp-rankings-table.js
+backend/migrations/add-cms-facility-saved-items.js
+backend/migrations/add-deals-position-column.js
+backend/models/cascadia_facility.js
+backend/run-ccn-migration.js
+backend/scripts/README.md
+backend/scripts/add-search-indexes.js
+backend/scripts/analyze-cms-historical.js
+backend/scripts/calculate-vbp-rankings.js
+backend/scripts/check_data_coverage.js
+```
+
+---
+
 
 ## 📊 Executive Summary
 

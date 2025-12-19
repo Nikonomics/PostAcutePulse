@@ -1,0 +1,56 @@
+[
+  {
+    "fieldName": "Baseline Period: FY 2019 National Average Readmission Rate",
+    "cmsColumnHeader": "Baseline Period: FY 2019 National Average Readmission Rate",
+    "description": "The SNF VBP Program's unadjusted national average rate of unplanned readmissions in the baseline period (FY 2019).",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Performance Period: FY 2023 National Average Readmission Rate",
+    "cmsColumnHeader": "Performance Period: FY 2023 National Average Readmission Rate",
+    "description": "The SNF VBP Program's unadjusted national average rate of unplanned readmissions in the performance period (FY 2023).",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "FY 2025 Achievement Threshold",
+    "cmsColumnHeader": "FY 2025 Achievement Threshold",
+    "description": "The 25th percentile of all SNFs' performance on the SNF 30-Day All-Cause Readmission Measure (SNFRM) during the baseline period (FY 2019). This value was previously published in the FY 2023 SNF Prospective Payment System (PPS) final rule (87 FR 47502).",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "FY 2025 Benchmark",
+    "cmsColumnHeader": "FY 2025 Benchmark",
+    "description": "The mean of the top decile of all SNFs' performance on the SNFRM during the baseline period (FY 2019). This value was previously published in the FY 2023 SNF PPS final rule (87 FR 47502).",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Range of Performance Scores",
+    "cmsColumnHeader": "Range of Performance Scores",
+    "description": "The range of SNF VBP Program performance scores for the FY 2025 SNF VBP Program year.",
+    "dataType": "Numeric range"
+  },
+  {
+    "fieldName": "Total Number of SNFs Receiving Value-Based Incentive Payments",
+    "cmsColumnHeader": "Total Number of SNFs Receiving Value-Based Incentive Payments",
+    "description": "The total number of SNFs receiving SNF VBP Program value-based incentive payments in FY 2025.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Range of Incentive Payment Multipliers",
+    "cmsColumnHeader": "Range of Incentive Payment Multipliers",
+    "description": "The range of SNF VBP Program incentive payment multipliers for the FY 2025 SNF VBP Program year.",
+    "dataType": "Numeric range"
+  },
+  {
+    "fieldName": "Range of Value-Based Incentive Payments ($)",
+    "cmsColumnHeader": "Range of Value-Based Incentive Payments ($)",
+    "description": "The range of SNF VBP Program value-based incentive payments paid to SNFs in FY 2025.",
+    "dataType": "Dollar range"
+  },
+  {
+    "fieldName": "Total Amount of Value-Based Incentive Payments ($)",
+    "cmsColumnHeader": "Total Amount of Value-Based Incentive Payments ($)",
+    "description": "The total amount of SNF VBP Program value-based incentive payments paid to SNFs in FY 2025.",
+    "dataType": "Dollars"
+  }
+]

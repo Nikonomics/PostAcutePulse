@@ -1,0 +1,608 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "CMS Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider Street Address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider City/Town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider State – postal abbreviation",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider Zip Code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Telephone Number",
+    "cmsColumnHeader": "Telephone Number",
+    "description": "Provider Phone Number",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Provider SSA County Code",
+    "cmsColumnHeader": "Provider SSA County Code",
+    "description": "SSA county code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "County/Parish",
+    "cmsColumnHeader": "County/Parish",
+    "description": "Provider County/Parish Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Urban",
+    "cmsColumnHeader": "Urban",
+    "description": "Urban/Rural flag: Y=Urban; N=Rural. Urban is defined by a non-missing CBSA (core-based statistical area) code or a MSA (metropolitan statistical area) code > 0.",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Ownership Type",
+    "cmsColumnHeader": "Ownership Type",
+    "description": "Nature of organization that operates a provider of services",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Number of Certified Beds",
+    "cmsColumnHeader": "Number of Certified Beds",
+    "description": "Number of Federally Certified Beds",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Average Number of Residents per Day",
+    "cmsColumnHeader": "Average Number of Residents per Day",
+    "description": "Average number of residents based on MDS daily census",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Average Number of Residents per Day Footnote",
+    "cmsColumnHeader": "Average Number of Residents per Day Footnote",
+    "description": "Footnote for Resident Census value (see footnote table for definitions of footnote codes)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Provider Type",
+    "cmsColumnHeader": "Provider Type",
+    "description": "Category which is most indicative of provider",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Resides in Hospital",
+    "cmsColumnHeader": "Provider Resides in Hospital",
+    "description": "Facility Resides in Hospital Indicator",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Legal Business Name",
+    "cmsColumnHeader": "Legal Business Name",
+    "description": "Legal Business Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Date First Approved to Provide Medicare and Medicaid services",
+    "cmsColumnHeader": "Date First Approved to Provide Medicare and Medicaid services",
+    "description": "Date First Approved to Provide Medicare/Medicaid Services",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Chain Name",
+    "cmsColumnHeader": "Chain Name",
+    "description": "Unique name identifying a group of nursing homes that share at least one individual or organizational owner, officer, or entity with operational/managerial control",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Chain ID",
+    "cmsColumnHeader": "Chain ID",
+    "description": "Unique numeric identifier assigned to each chain",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of Facilities in Chain",
+    "cmsColumnHeader": "Number of Facilities in Chain",
+    "description": "Number of facilities in the chain. Missing if the provider is not part of a chain.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Chain Average Overall 5-star Rating",
+    "cmsColumnHeader": "Chain Average Overall 5-star Rating",
+    "description": "Average overall 5-star rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Chain Average Health Inspection Rating",
+    "cmsColumnHeader": "Chain Average Health Inspection Rating",
+    "description": "Average health inspection rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Chain Average Staffing Rating",
+    "cmsColumnHeader": "Chain Average Staffing Rating",
+    "description": "Average staffing rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Chain Average QM Rating",
+    "cmsColumnHeader": "Chain Average QM Rating",
+    "description": "Average quality measure (QM) rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Continuing Care Retirement Community",
+    "cmsColumnHeader": "Continuing Care Retirement Community",
+    "description": "Continuing Care Retirement Community Indicator",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Special Focus Status",
+    "cmsColumnHeader": "Special Focus Status",
+    "description": "Special Focus Status (SFF, SFF Candidate or null if provider not SFF or Candidate)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Abuse Icon",
+    "cmsColumnHeader": "Abuse Icon",
+    "description": "Cited for abuse or neglect at harm level or above on survey cycle 1 (Scope/severity G or greater) or cited for abuse or neglect at potential harm level (Scope/Severity D or above) on both survey cycles 1 and 2.",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Most Recent Health Inspection More Than 2 Years Ago",
+    "cmsColumnHeader": "Most Recent Health Inspection More Than 2 Years Ago",
+    "description": "Most recent survey occurred more than 2 years ago indicator",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Provider Changed Ownership in Last 12 Months",
+    "cmsColumnHeader": "Provider Changed Ownership in Last 12 Months",
+    "description": "Facility Changed Ownership in Last 12 Months Indicator",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "With a Resident and Family Council",
+    "cmsColumnHeader": "With a Resident and Family Council",
+    "description": "With a Resident and Family Council (Resident, Family, Both, None)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Automatic Sprinkler Systems in All Required Areas",
+    "cmsColumnHeader": "Automatic Sprinkler Systems in All Required Areas",
+    "description": "Automatic Sprinkler Systems in All Required Areas (Yes, Partial, No, Data Not Available)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Overall Rating",
+    "cmsColumnHeader": "Overall Rating",
+    "description": "Overall Rating (1-5)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Overall Rating Footnote",
+    "cmsColumnHeader": "Overall Rating Footnote",
+    "description": "Overall Rating Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Health Inspection Rating",
+    "cmsColumnHeader": "Health Inspection Rating",
+    "description": "Health Inspection Rating (1-5)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Health Inspection Rating Footnote",
+    "cmsColumnHeader": "Health Inspection Rating Footnote",
+    "description": "Health Inspection Rating Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "QM Rating",
+    "cmsColumnHeader": "QM Rating",
+    "description": "Quality Measure (QM) Rating (1-5)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "QM Rating Footnote",
+    "cmsColumnHeader": "QM Rating Footnote",
+    "description": "QM Rating Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Long-Stay QM Rating",
+    "cmsColumnHeader": "Long-Stay QM Rating",
+    "description": "Long-stay QM Rating (1-5)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Long-Stay QM Rating Footnote",
+    "cmsColumnHeader": "Long-Stay QM Rating Footnote",
+    "description": "Long-Stay QM Rating Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Short-Stay QM Rating",
+    "cmsColumnHeader": "Short-Stay QM Rating",
+    "description": "Short-Stay QM Rating (1-5)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Short-Stay QM Rating Footnote",
+    "cmsColumnHeader": "Short-Stay QM Rating Footnote",
+    "description": "Short-Stay QM Rating Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Staffing Rating",
+    "cmsColumnHeader": "Staffing Rating",
+    "description": "Staffing Rating (1-5)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Staffing Rating Footnote",
+    "cmsColumnHeader": "Staffing Rating Footnote",
+    "description": "Staffing Rating Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Staffing Footnote",
+    "cmsColumnHeader": "Reported Staffing Footnote",
+    "description": "Reported Staffing Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Physical Therapist Staffing Footnote",
+    "cmsColumnHeader": "Physical Therapist Staffing Footnote",
+    "description": "Physical Therapy Staffing Footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Nurse Aide Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported Nurse Aide Staffing Hours per Resident per Day",
+    "description": "Reported Nurse Aide Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported LPN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported LPN Staffing Hours per Resident per Day",
+    "description": "Reported LPN Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported RN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported RN Staffing Hours per Resident per Day",
+    "description": "Reported RN Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Licensed Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported Licensed Staffing Hours per Resident per Day",
+    "description": "Reported Licensed Staffing - Hours per Resident per Day (RN + LPN)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported Total Nurse Staffing Hours per Resident per Day",
+    "description": "Reported Total Nurse Staffing - Hours per Resident per Day (Aide+LPN+RN)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total number of nurse staff hours per resident per day on the weekend",
+    "cmsColumnHeader": "Total number of nurse staff hours per resident per day on the weekend",
+    "description": "Total number of nurse staff hours on the weekend - Hours per resident per day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Registered Nurse hours per resident per day on the weekend",
+    "cmsColumnHeader": "Registered Nurse hours per resident per day on the weekend",
+    "description": "Registered Nurse hours on the weekend - Hours per resident per day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+    "cmsColumnHeader": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+    "description": "Reported Physical Therapy Staffing - Hours per Resident Per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total nursing staff turnover",
+    "cmsColumnHeader": "Total nursing staff turnover",
+    "description": "Total nursing staff turnover",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total nursing staff turnover footnote",
+    "cmsColumnHeader": "Total nursing staff turnover footnote",
+    "description": "Total nursing staff turnover footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Registered Nurse turnover",
+    "cmsColumnHeader": "Registered Nurse turnover",
+    "description": "Registered Nurse turnover",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Registered Nurse turnover footnote",
+    "cmsColumnHeader": "Registered Nurse turnover footnote",
+    "description": "Registered Nurse turnover footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of administrators who have left the nursing home",
+    "cmsColumnHeader": "Number of administrators who have left the nursing home",
+    "description": "Number of administrators who have left the nursing home",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Administrator turnover footnote",
+    "cmsColumnHeader": "Administrator turnover footnote",
+    "description": "Administrator turnover footnote",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Nursing Case-Mix Index",
+    "cmsColumnHeader": "Nursing Case-Mix Index",
+    "description": "Weighted Average Nursing Case-Mix Index",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Nursing Case-Mix Index Ratio",
+    "cmsColumnHeader": "Nursing Case-Mix Index Ratio",
+    "description": "Weighted Average Nursing Case-Mix Index divided by National Weighted Average Nursing Case-Mix Index",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix Nurse Aide Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix Nurse Aide Staffing Hours per Resident per Day",
+    "description": "Case-Mix Nurse Aide Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix LPN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix LPN Staffing Hours per Resident per Day",
+    "description": "Case-Mix LPN Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix RN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix RN Staffing Hours per Resident per Day",
+    "description": "Case-Mix RN Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+    "description": "Case-Mix Total Nurse Staffing - Hours per Resident per Day (Aide+LPN+RN)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+    "description": "Case-Mix Weekend Total Nurse Staffing – Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Adjusted Nurse Aide Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Adjusted Nurse Aide Staffing Hours per Resident per Day",
+    "description": "Adjusted Nurse Aide Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Adjusted LPN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Adjusted LPN Staffing Hours per Resident per Day",
+    "description": "Adjusted LPN Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Adjusted RN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Adjusted RN Staffing Hours per Resident per Day",
+    "description": "Adjusted RN Staffing - Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Adjusted Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Adjusted Total Nurse Staffing Hours per Resident per Day",
+    "description": "Adjusted Total Nurse Staffing - Hours per Resident per Day (Aide+LPN+RN)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Adjusted Weekend Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Adjusted Weekend Total Nurse Staffing Hours per Resident per Day",
+    "description": "Adjusted Weekend Total Nurse Staffing – Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Standard Survey Health Date",
+    "cmsColumnHeader": "Rating cycle 1 Standard Survey Health Date",
+    "description": "Date of Rating cycle 1 Standard Health Survey Date, which is the most recent health inspection. See CMS 5-Star Technical Users' Guide for description of Rating cycles and Health Inspection Scoring",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Rating cycle 1 Total Number of Health Deficiencies",
+    "cmsColumnHeader": "Rating cycle 1 Total Number of Health Deficiencies",
+    "description": "Total Number of Health Deficiencies in Rating cycle 1, which includes the most recent standard survey, as well as complaint and infection control surveys from the most recent 12 months.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Number of Standard Health Deficiencies",
+    "cmsColumnHeader": "Rating cycle 1 Number of Standard Health Deficiencies",
+    "description": "Number of Health Deficiencies from the Standard Survey During Rating cycle 1",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Number of Complaint Health Deficiencies",
+    "cmsColumnHeader": "Rating cycle 1 Number of Complaint Health Deficiencies",
+    "description": "Number of Health Deficiencies from Complaint Surveys during Rating cycle 1 for complaints",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Health Deficiency Score",
+    "cmsColumnHeader": "Rating cycle 1 Health Deficiency Score",
+    "description": "Rating cycle 1 - Health Deficiency Score",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Number of Health Revisits",
+    "cmsColumnHeader": "Rating cycle 1 Number of Health Revisits",
+    "description": "Number of Health Survey Repeat-Revisits for Rating cycle 1",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Health Revisit Score",
+    "cmsColumnHeader": "Rating cycle 1 Health Revisit Score",
+    "description": "Points Associated with Health Survey Repeat Revisits for Rating cycle 1",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 1 Total Health Score",
+    "cmsColumnHeader": "Rating cycle 1 Total Health Score",
+    "description": "Rating cycle 1 - Total Health Inspection Score",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2 Standard Health Survey Date",
+    "cmsColumnHeader": "Rating cycle 2 Standard Health Survey Date",
+    "description": "Date of Rating cycle 2 Standard Health Survey Date",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Rating cycle 2/3 Total Number of Health Deficiencies",
+    "cmsColumnHeader": "Rating cycle 2/3 Total Number of Health Deficiencies",
+    "description": "Total Number of Health Deficiencies in Rating cycle 2/3. This includes the second most recent standard survey, as well as complaint and infection control surveys from 13-36 months ago. See CMS 5-Star Technical Users' Guide for more details.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2 Number of Standard Health Deficiencies",
+    "cmsColumnHeader": "Rating cycle 2 Number of Standard Health Deficiencies",
+    "description": "Number of Health Deficiencies from the Standard Survey during Rating cycle 2",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2/3 Number of Complaint Health Deficiencies",
+    "cmsColumnHeader": "Rating cycle 2/3 Number of Complaint Health Deficiencies",
+    "description": "Number of Health Deficiencies from Complaint Surveys from 13-36 months ago.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2/3 Health Deficiency Score",
+    "cmsColumnHeader": "Rating cycle 2/3 Health Deficiency Score",
+    "description": "Rating cycle 2/3 - Health Deficiency Score",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2/3 Number of Health Revisits",
+    "cmsColumnHeader": "Rating cycle 2/3 Number of Health Revisits",
+    "description": "Number of Health Survey Repeat-Revisits for Rating cycle 2/3",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2/3 Health Revisit Score",
+    "cmsColumnHeader": "Rating cycle 2/3 Health Revisit Score",
+    "description": "Points Associated with Health Survey Repeat Revisits for Rating cycle 2/3",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Rating cycle 2/3 Total Health Score",
+    "cmsColumnHeader": "Rating cycle 2/3 Total Health Score",
+    "description": "Rating cycle 2/3 - Total Health Inspection Score",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total Weighted Health Survey Score",
+    "cmsColumnHeader": "Total Weighted Health Survey Score",
+    "description": "Total Weighted Health Survey Score - See CMS 5-Star Technical Users' Guide for detailed explanation",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of Facility Reported Incidents",
+    "cmsColumnHeader": "Number of Facility Reported Incidents",
+    "description": "Number of times in the past 3 years that a facility-reported issue resulted in a citation",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of Substantiated Complaints",
+    "cmsColumnHeader": "Number of Substantiated Complaints",
+    "description": "Number of Complaints in the past 3 years that resulted in a citation",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of citations from infection control inspections",
+    "cmsColumnHeader": "Number of citations from infection control inspections",
+    "description": "Number of citations from infection control inspections in the past 3 years",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of Fines",
+    "cmsColumnHeader": "Number of Fines",
+    "description": "Number of Fines",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total Amount of Fines in Dollars",
+    "cmsColumnHeader": "Total Amount of Fines in Dollars",
+    "description": "Total Amount of Fines in Dollars",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of Payment Denials",
+    "cmsColumnHeader": "Number of Payment Denials",
+    "description": "Number of Payment Denials",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total Number of Penalties",
+    "cmsColumnHeader": "Total Number of Penalties",
+    "description": "Total Number of Penalties",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Location",
+    "cmsColumnHeader": "Location",
+    "description": "Location of facility (provider address, city, state, zip)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Latitude",
+    "cmsColumnHeader": "Latitude",
+    "description": "Latitude of facility address",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Longitude",
+    "cmsColumnHeader": "Longitude",
+    "description": "Longitude of facility address",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Geocoding Footnote",
+    "cmsColumnHeader": "Geocoding Footnote",
+    "description": "Footnote for geocoding facility address",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

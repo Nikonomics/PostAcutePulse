@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-18 18:01:14
+> Last updated: 2025-12-19 09:29:14
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1279,6 +1279,163 @@ Investment Targets:
 
 [If SNF algorithm already ran, include evaluation results]
 ```
+
+
+## Key Files (Auto-Updated)
+
+> This section is automatically updated on each commit.
+
+### Backend Routes
+```
+backend/routes/apiUsers.js
+backend/routes/auth.js
+backend/routes/authentication.js
+backend/routes/contracts.js
+backend/routes/deal.js
+backend/routes/dueDiligence.js
+backend/routes/facilities.js
+backend/routes/index.js
+backend/routes/market.js
+backend/routes/markets.js
+backend/routes/ownership.js
+backend/routes/savedItems.js
+backend/routes/stateRouter.js
+backend/routes/taxonomy.js
+backend/routes/user.js
+backend/routes/users.js
+backend/routes/wages.js
+```
+
+### Backend Services
+```
+backend/services/aiExtractor.js
+backend/services/calculatorService.js
+backend/services/censusDataRefreshService.js
+backend/services/cimExtractor.js
+backend/services/cmsDataRefreshService.js
+backend/services/dealChangeTracker.js
+backend/services/extractionMerger.js
+backend/services/extractionOrchestrator.js
+backend/services/extractionPrompts.js
+backend/services/extractionReconciler.js
+backend/services/extractionValidator.js
+backend/services/facilityMatcher.js
+backend/services/fileStorage.js
+backend/services/marketService.js
+backend/services/normalizationService.js
+backend/services/parallelExtractor.js
+backend/services/periodAnalyzer.js
+backend/services/periodAnalyzer.test.js
+backend/services/proformaService.js
+backend/services/ratioCalculator.js
+```
+
+### Backend Controllers
+```
+backend/controller/AuthenticationController.js
+backend/controller/DealController.js
+backend/controller/stateController.js
+```
+
+### Frontend Pages
+```
+frontend/src/pages/AIAssistant.jsx
+frontend/src/pages/ChatInterfaceAI.jsx
+frontend/src/pages/CombinedDealForm.jsx
+frontend/src/pages/CreateDeal.jsx
+frontend/src/pages/CreateDealChoice.jsx
+frontend/src/pages/CreateUser.jsx
+frontend/src/pages/Dashboard.jsx
+frontend/src/pages/DealDetail.jsx
+frontend/src/pages/Deals.jsx
+frontend/src/pages/EditCombinedDealForm.jsx
+frontend/src/pages/EditCombinedDeatlForm1.jsx
+frontend/src/pages/EditUser.jsx
+frontend/src/pages/FacilityMetrics.jsx
+frontend/src/pages/FacilityProfile.jsx
+frontend/src/pages/LocationTest.jsx
+frontend/src/pages/Login.jsx
+frontend/src/pages/MarketAnalysis.jsx
+frontend/src/pages/OwnershipProfile.jsx
+frontend/src/pages/OwnershipResearch.jsx
+frontend/src/pages/Profile.jsx
+frontend/src/pages/renderStep1.jsx
+frontend/src/pages/renderStep2.jsx
+frontend/src/pages/renderStep3.jsx
+frontend/src/pages/renderStep4.jsx
+frontend/src/pages/SavedItems.jsx
+frontend/src/pages/Signup.jsx
+frontend/src/pages/UploadDeal.jsx
+frontend/src/pages/UserManagement.jsx
+No pages found
+```
+
+### Frontend Components (Top Level)
+```
+common
+DataDictionaryTab
+DealExtractionViewer
+FacilityMetrics
+MarketAnalysis
+MarketDynamicsTab
+MarketScorecard
+NotificationCenter
+OwnershipResearch
+ProFormaTab
+SNFalyzePanel
+ui
+```
+
+### Database Models
+```
+benchmark_configurations
+cascadia_facility
+comment_mentions
+deal_change_logs
+deal_comments
+deal_documents
+deal_expense_ratios
+deal_external_advisors
+deal_extracted_text
+deal_facilities
+deal_monthly_census
+deal_monthly_expenses
+deal_monthly_financials
+deal_proforma_scenarios
+deal_rate_schedules
+deal_team_members
+deal_user_views
+deals
+extraction_history
+index
+init-models
+master_deals
+ownership_change_logs
+ownership_comment_mentions
+ownership_comments
+ownership_contacts
+recent_activity
+state
+user_notifications
+user_saved_items
+users
+```
+
+### Recent Migrations
+```
+backend/migrations/20241218-add-deal-match-status.js
+backend/migrations/20241218-add-cms-facility-to-saved-items.js
+backend/migrations/20241218-create-vbp-rankings-table.js
+backend/migrations/20241218-add-ccn-to-deal-facilities.js
+backend/migrations/add-deals-position-column.js
+backend/migrations/add-cms-facility-saved-items.js
+backend/migrations/create-cms-data-definitions.js
+backend/migrations/create-snf-vbp-performance.js
+backend/migrations/create-cms-state-benchmarks.js
+backend/migrations/add-cms-staffing-columns.js
+```
+
+---
 ```
 
 ---
@@ -1288,11 +1445,78 @@ Investment Targets:
 ```markdown
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 7, 2025
+**Last Updated:** December 19, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
 ---
+
+## 📅 Recent Changes (Auto-Generated)
+
+> This section is automatically updated on each commit.
+
+### Last 7 Days
+
+- **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
+- **2025-12-18** - Add production database reference to main README
+- **2025-12-18** - Add explanation of why two databases exist
+- **2025-12-18** - Add database scripts documentation
+- **2025-12-18** - Add market database sync script
+- **2025-12-18** - Trigger redeploy for database schema refresh
+- **2025-12-18** - Add CMS data sync scripts and saved items improvements
+- **2025-12-17** - Fix deal detail tabs not showing when extraction_data is null
+- **2025-12-17** - Fix market analysis - remove non-existent long_stay_qm_rating columns
+- **2025-12-17** - Add position column migration for deals table
+- **2025-12-17** - Fix Deals.jsx crash and add CMS production migration scripts
+- **2025-12-17** - Improve facilities section UI and portfolio extraction flow
+- **2025-12-17** - Add remaining missing FacilityMetrics components
+- **2025-12-17** - Add missing ComparisonView component
+- **2025-12-17** - Add missing SkeletonCard component
+- **2025-12-17** - Add Benchmarks and Reports tabs to Facility Metrics
+- **2025-12-17** - Add deal position ordering, fix portfolio extraction, and sync risk scores
+- **2025-12-16** - Fix OwnershipProfile aggregate metrics display
+- **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
+- **2025-12-15** - Add ownership field to contact_information TypeScript schema
+- **2025-12-15** - Improve Deal Overview page for portfolio deals
+- **2025-12-15** - Add debug logging for deal edit issue
+- **2025-12-15** - Fix deal edit navigation and add save button to deals
+- **2025-12-15** - Dashboard map filter fix, Market Dynamics county resolution, and various improvements
+- **2025-12-14** - Add facilities map to Ownership Profile page
+- **2025-12-14** - Add Ownership Database with editable profiles and save functionality
+
+### Areas Modified (Last 20 Commits)
+
+```
+Backend:     61 files
+Frontend:    154 files
+Routes:      4 files
+Services:    9 files
+Components:  117 files
+Migrations:  8 files
+```
+
+### New Files Added (Last 20 Commits)
+
+```
+backend/bellwether_validation.js
+backend/docs/DATA_ROADMAP.md
+backend/migrations/20241218-add-ccn-to-deal-facilities.js
+backend/migrations/20241218-add-cms-facility-to-saved-items.js
+backend/migrations/20241218-add-deal-match-status.js
+backend/migrations/20241218-create-vbp-rankings-table.js
+backend/migrations/add-cms-facility-saved-items.js
+backend/migrations/add-deals-position-column.js
+backend/models/cascadia_facility.js
+backend/run-ccn-migration.js
+backend/scripts/README.md
+backend/scripts/add-search-indexes.js
+backend/scripts/analyze-cms-historical.js
+backend/scripts/calculate-vbp-rankings.js
+backend/scripts/check_data_coverage.js
+```
+
+---
+
 
 ## 📊 Executive Summary
 

@@ -1,0 +1,80 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "CMS Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider Street Address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider City/Town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider State – postal abbreviation",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider Zip Code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Role played by Owner or Manager in Facility",
+    "cmsColumnHeader": "Role played by Owner or Manager in Facility",
+    "description": "Role description; possible values are: 5% or greater direct ownership interest; 5% or greater indirect ownership interest; 5% OR GREATER MORTGAGE INTEREST; 5% OR GREATER SECURITY INTEREST; CONTRACTED MANAGING EMPLOYEE; W-2 MANAGING EMPLOYEE; CORPORATE DIRECTOR; CORPORATE OFFICER; OPERATIONAL/MANAGERIAL CONTROL; GENERAL PARTNERSHIP INTEREST; LIMITED PARTNERSHIP INTEREST",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Owner Type",
+    "cmsColumnHeader": "Owner Type",
+    "description": "Indicates if owner is an individual or organization (Individual or Organization)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Owner Name",
+    "cmsColumnHeader": "Owner Name",
+    "description": "Name of Owner",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Ownership Percentage",
+    "cmsColumnHeader": "Ownership Percentage",
+    "description": "Ownership percentage – value provided only for owners with role description of \"5% or greater direct ownership interest\" or \"5% or greater indirect ownership interest\"",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Association Date",
+    "cmsColumnHeader": "Association Date",
+    "description": "Date when given owner/manager became associated with provider in this role",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Location",
+    "cmsColumnHeader": "Location",
+    "description": "Location of facility (provider address, city, state, zip)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

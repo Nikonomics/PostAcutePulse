@@ -1,0 +1,110 @@
+[
+  {
+    "fieldName": "Footnote Code 1",
+    "cmsColumnHeader": "1",
+    "description": "Newly certified nursing home with less than 12-15 months of data available or the nursing opened less than 6 months ago, and there were no data to submit or claims for this measure.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 2",
+    "cmsColumnHeader": "2",
+    "description": "Not enough data available to calculate a star rating.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 6",
+    "cmsColumnHeader": "6",
+    "description": "This facility submitted data that did not meet the criteria required to calculate a staffing measure.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 7",
+    "cmsColumnHeader": "7",
+    "description": "CMS determined that the percentage was not accurate, or data suppressed by CMS for one or more quarters.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 9",
+    "cmsColumnHeader": "9",
+    "description": "The number of residents or resident stays is too small to report. Call the facility to discuss this quality measure.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 10",
+    "cmsColumnHeader": "10",
+    "description": "The data for this measure is missing or was not submitted. Call the facility to discuss this quality measure.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 13",
+    "cmsColumnHeader": "13",
+    "description": "Results are based on a shorter time period than required.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 14",
+    "cmsColumnHeader": "14",
+    "description": "This nursing home is not required to submit data for the Skilled Nursing Facility Quality Reporting Program.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 18",
+    "cmsColumnHeader": "18",
+    "description": "This facility is not rated due to a history of serious quality issues and is included in the special focus facility program.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 20",
+    "cmsColumnHeader": "20",
+    "description": "The accuracy of the data for this rating could not be validated by CMS.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 21",
+    "cmsColumnHeader": "21",
+    "description": "The accuracy of the data for this measure could not be validated by CMS.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 22",
+    "cmsColumnHeader": "22",
+    "description": "The street address for this facility could not be matched to latitude/longitude coordinates. Therefore, the latitude/longitude coordinates are based on the facility's zip code.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 23",
+    "cmsColumnHeader": "23",
+    "description": "This facility did not submit staffing data.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 24",
+    "cmsColumnHeader": "24",
+    "description": "This facility reported a high number of days without a registered nurse onsite.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 25",
+    "cmsColumnHeader": "25",
+    "description": "The accuracy of the staffing data for this measure could not be validated by CMS.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 26",
+    "cmsColumnHeader": "26",
+    "description": "This facility did not submit staffing data or submitted staffing data that is considered to be invalid for the purpose of calculating turnover. This measure will receive the minimum points for calculating the overall staffing score and rating.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 27",
+    "cmsColumnHeader": "27",
+    "description": "This facility submitted staffing data that did not meet the criteria required to calculate a turnover measure. This measure will be excluded from the staffing rating and the staffing score will be rescaled.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote Code 28",
+    "cmsColumnHeader": "28",
+    "description": "This is an annual measure. Data for individual quarters is not available.",
+    "dataType": "Numeric"
+  }
+]

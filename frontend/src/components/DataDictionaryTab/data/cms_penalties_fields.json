@@ -1,0 +1,80 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "CMS Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider Street Address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider City/Town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider State – postal abbreviation",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider Zip Code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Penalty Date",
+    "cmsColumnHeader": "Penalty Date",
+    "description": "Date of inspection that triggered the penalty",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Penalty Type",
+    "cmsColumnHeader": "Penalty Type",
+    "description": "Penalty type: Fine or Payment Denial",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Fine Amount",
+    "cmsColumnHeader": "Fine Amount",
+    "description": "Fine amount in whole dollars",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Payment Denial Start Date",
+    "cmsColumnHeader": "Payment Denial Start Date",
+    "description": "Date on which Medicare/Medicaid payment for new admissions was suspended",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Payment Denial Length in Days",
+    "cmsColumnHeader": "Payment Denial Length in Days",
+    "description": "Number of days for which Medicare/Medicaid payment was suspended",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Location",
+    "cmsColumnHeader": "Location",
+    "description": "Location of facility (provider address, city, state, zip)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

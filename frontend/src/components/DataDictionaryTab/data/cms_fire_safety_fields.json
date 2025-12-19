@@ -1,0 +1,146 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "CMS Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider Street Address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider City/Town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider State – postal abbreviation",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider Zip Code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Survey Date",
+    "cmsColumnHeader": "Survey Date",
+    "description": "Survey Date",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Survey Type",
+    "cmsColumnHeader": "Survey Type",
+    "description": "Type of survey: Health or Fire Safety",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Deficiency Prefix",
+    "cmsColumnHeader": "Deficiency Prefix",
+    "description": "The alphabetic character that is assigned to a series of data tags that apply to a provider (K or E)",
+    "dataType": "Text (1)"
+  },
+  {
+    "fieldName": "Deficiency Category",
+    "cmsColumnHeader": "Deficiency Category",
+    "description": "Category of Fire Safety Deficiency",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Deficiency Tag Number",
+    "cmsColumnHeader": "Deficiency Tag Number",
+    "description": "Deficiency Tag Number",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Tag Version",
+    "cmsColumnHeader": "Tag Version",
+    "description": "Indicates whether tag was cited before (old) or on/after (new) 7/5/2016; for a small number of life safety deficiencies (K tags), the same deficiency tag number has a different description in the two versions",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Deficiency Description",
+    "cmsColumnHeader": "Deficiency Description",
+    "description": "Text definition of deficiency",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Scope Severity Code",
+    "cmsColumnHeader": "Scope Severity Code",
+    "description": "Indicates the level of harm to the resident(s) involved and the scope of the problem within the nursing home (B-L)",
+    "dataType": "Text (1)"
+  },
+  {
+    "fieldName": "Deficiency Corrected",
+    "cmsColumnHeader": "Deficiency Corrected",
+    "description": "Indicates whether the deficiency has been corrected, a plan of correction has been devised, or the deficiency has yet to be corrected",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Correction Date",
+    "cmsColumnHeader": "Correction Date",
+    "description": "Date the deficiency was corrected",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Inspection Cycle",
+    "cmsColumnHeader": "Inspection Cycle",
+    "description": "The inspection cycle of deficiency, where 1 is the most recent cycle. Standard inspection cycles are counted sequentially into the past, complaint inspection cycles are counted annually into the past. If a deficiency is found on a co-occurring standard and complaint inspection, it is assigned to the standard cycle. Life Safety Deficiencies are not used in calculating the Health Inspection Rating",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Standard Deficiency",
+    "cmsColumnHeader": "Standard Deficiency",
+    "description": "Indicates that the deficiency was found on a standard inspection",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Complaint Deficiency",
+    "cmsColumnHeader": "Complaint Deficiency",
+    "description": "Indicates that the deficiency was found on a complaint inspection",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Infection Control Inspection Deficiency",
+    "cmsColumnHeader": "Infection Control Inspection Deficiency",
+    "description": "Indicates that the deficiency was found on an infection control inspection",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Citation under IDR",
+    "cmsColumnHeader": "Citation under IDR",
+    "description": "Indicates that the deficiency is under Informal Dispute Resolution (IDR)",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Citation under IIDR",
+    "cmsColumnHeader": "Citation under IIDR",
+    "description": "Indicates that the deficiency is under Independent Informal Dispute Resolution (IIDR)",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Location",
+    "cmsColumnHeader": "Location",
+    "description": "Location of facility (provider address, city, state, zip)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

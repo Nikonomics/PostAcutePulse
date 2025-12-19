@@ -83,7 +83,11 @@
       "Bash(# Check when each table was created by looking at migrations or scripts find /Users/nikolashulewsky/snfalyze-local -name \"\"*.sql\"\" -o -name \"\"*migration*\"\" | xargs grep -l \"\"cms_facility_deficiencies\\\\|health_citations\"\")",
       "Bash(__NEW_LINE__ echo \"=== CSV Headers ===\")",
       "Bash(pip3 install:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(# Look for context generation scripts find /Users/nikolashulewsky/snfalyze-local -name \"\"*context*\"\" -type f)",
+      "Bash(# Check for git hooks ls -la /Users/nikolashulewsky/snfalyze-local/.git/hooks/)",
+      "Bash(# Look for any update scripts find /Users/nikolashulewsky/snfalyze-local -name \"\"*generate*context*\"\" -o -name \"\"*update*context*\"\" -o -name \"\"*onboarding*\"\")",
+      "Bash(./scripts/update-project-docs.sh:*)"
     ],
     "deny": [],
     "ask": []

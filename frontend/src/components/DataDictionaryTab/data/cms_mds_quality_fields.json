@@ -1,0 +1,140 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "CMS Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider Street Address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider City/Town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider State – postal abbreviation",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider Zip Code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Measure Code",
+    "cmsColumnHeader": "Measure Code",
+    "description": "Numeric code assigned to each quality measure (###)",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Measure Description",
+    "cmsColumnHeader": "Measure Description",
+    "description": "Measure Description",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Resident type",
+    "cmsColumnHeader": "Resident type",
+    "description": "Identifies the measure as pertaining to either short-stay or long-stay stay residents",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Q1 Measure Score",
+    "cmsColumnHeader": "Q1 Measure Score",
+    "description": "The value for the quality measure for quarter one",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote for Q1 Measure Score",
+    "cmsColumnHeader": "Footnote for Q1 Measure Score",
+    "description": "Footnote for the quality measure for quarter one",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Q2 Measure Score",
+    "cmsColumnHeader": "Q2 Measure Score",
+    "description": "The value for the quality measure for quarter two",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote for Q2 Measure Score",
+    "cmsColumnHeader": "Footnote for Q2 Measure Score",
+    "description": "Footnote for the quality measure for quarter two",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Q3 Measure Score",
+    "cmsColumnHeader": "Q3 Measure Score",
+    "description": "The value for the quality measure for quarter three",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote for Q3 Measure Score",
+    "cmsColumnHeader": "Footnote for Q3 Measure Score",
+    "description": "Footnote for the quality measure for quarter three",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Q4 Measure Score",
+    "cmsColumnHeader": "Q4 Measure Score",
+    "description": "The value for the quality measure for quarter four",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote for Q4 Measure Score",
+    "cmsColumnHeader": "Footnote for Q4 Measure Score",
+    "description": "Footnote for the quality measure for quarter four",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Four Quarter Average Score",
+    "cmsColumnHeader": "Four Quarter Average Score",
+    "description": "The value for the four quarter average",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote for Four Quarter Average Score",
+    "cmsColumnHeader": "Footnote for Four Quarter Average Score",
+    "description": "Footnote for four quarter average score",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Used in Quality Measure Five Star Rating",
+    "cmsColumnHeader": "Used in Quality Measure Five Star Rating",
+    "description": "Identifies whether the quality measure is used in the calculation of the quality measure rating in the Five-Star Quality Rating System",
+    "dataType": "Y/N"
+  },
+  {
+    "fieldName": "Measure Period",
+    "cmsColumnHeader": "Measure Period",
+    "description": "Indicates the 4 Quarter range covered by the measures (format yyyyQq-yyyyQq)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Location",
+    "cmsColumnHeader": "Location",
+    "description": "Location of facility (provider address, city, state, zip)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

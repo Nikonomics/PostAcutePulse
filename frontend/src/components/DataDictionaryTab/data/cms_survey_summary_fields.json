@@ -1,0 +1,248 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "CMS Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider Name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider Street Address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider City/Town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider State – postal abbreviation",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider Zip Code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Inspection Cycle",
+    "cmsColumnHeader": "Inspection Cycle",
+    "description": "The inspection cycle of deficiency for display on Nursing Home Compare, where 1 is the most recent cycle. Values can be 1, 2 or 3",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Health Survey Date",
+    "cmsColumnHeader": "Health Survey Date",
+    "description": "Health Survey Date",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Fire Safety Survey Date",
+    "cmsColumnHeader": "Fire Safety Survey Date",
+    "description": "Fire Safety Survey Date",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Total Number of Health Deficiencies",
+    "cmsColumnHeader": "Total Number of Health Deficiencies",
+    "description": "Total Number of Health Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total Number of Fire Safety Deficiencies",
+    "cmsColumnHeader": "Total Number of Fire Safety Deficiencies",
+    "description": "Total Number of Fire Safety Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Freedom from Abuse, Neglect, and Exploitation Deficiencies",
+    "cmsColumnHeader": "Count of Freedom from Abuse, Neglect, and Exploitation Deficiencies",
+    "description": "Count of Freedom from Abuse, Neglect, and Exploitation Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Quality of Life and Care Deficiencies",
+    "cmsColumnHeader": "Count of Quality of Life and Care Deficiencies",
+    "description": "Count of Quality of Life and Care Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Resident Assessment and Care Planning Deficiencies",
+    "cmsColumnHeader": "Count of Resident Assessment and Care Planning Deficiencies",
+    "description": "Count of Resident Assessment and Care Planning Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Nursing and Physician Services Deficiencies",
+    "cmsColumnHeader": "Count of Nursing and Physician Services Deficiencies",
+    "description": "Count of Nursing and Physician Services Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Resident Rights Deficiencies",
+    "cmsColumnHeader": "Count of Resident Rights Deficiencies",
+    "description": "Count of Resident Rights Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Nutrition and Dietary Deficiencies",
+    "cmsColumnHeader": "Count of Nutrition and Dietary Deficiencies",
+    "description": "Count of Nutrition and Dietary Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Pharmacy Service Deficiencies",
+    "cmsColumnHeader": "Count of Pharmacy Service Deficiencies",
+    "description": "Count of Pharmacy Service Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Environmental Deficiencies",
+    "cmsColumnHeader": "Count of Environmental Deficiencies",
+    "description": "Count of Environmental Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Administration Deficiencies",
+    "cmsColumnHeader": "Count of Administration Deficiencies",
+    "description": "Count of Administration Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Infection Control Deficiencies",
+    "cmsColumnHeader": "Count of Infection Control Deficiencies",
+    "description": "Count of Infection Control Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Emergency Preparedness Deficiencies",
+    "cmsColumnHeader": "Count of Emergency Preparedness Deficiencies",
+    "description": "Count of Emergency Preparedness Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Automatic Sprinkler Systems Deficiencies",
+    "cmsColumnHeader": "Count of Automatic Sprinkler Systems Deficiencies",
+    "description": "Count of Automatic Sprinkler Systems Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Construction Deficiencies",
+    "cmsColumnHeader": "Count of Construction Deficiencies",
+    "description": "Count of Construction Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Services Deficiencies",
+    "cmsColumnHeader": "Count of Services Deficiencies",
+    "description": "Count of Services Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Corridor Walls and Doors Deficiencies",
+    "cmsColumnHeader": "Count of Corridor Walls and Doors Deficiencies",
+    "description": "Count of Corridor Walls and Doors Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Egress Deficiencies",
+    "cmsColumnHeader": "Count of Egress Deficiencies",
+    "description": "Count of Egress Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Electrical Deficiencies",
+    "cmsColumnHeader": "Count of Electrical Deficiencies",
+    "description": "Count of Electrical Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Emergency Plans and Fire Drills Deficiencies",
+    "cmsColumnHeader": "Count of Emergency Plans and Fire Drills Deficiencies",
+    "description": "Count of Emergency Plans and Fire Drills Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Fire Alarm Systems Deficiencies",
+    "cmsColumnHeader": "Count of Fire Alarm Systems Deficiencies",
+    "description": "Count of Fire Alarm Systems Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Smoke Deficiencies",
+    "cmsColumnHeader": "Count of Smoke Deficiencies",
+    "description": "Count of Smoke Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Interior Deficiencies",
+    "cmsColumnHeader": "Count of Interior Deficiencies",
+    "description": "Count of Interior Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Gas, Vacuum, and Electrical Systems",
+    "cmsColumnHeader": "Count of Gas, Vacuum, and Electrical Systems",
+    "description": "Count of Gas, Vacuum, and Electrical Systems",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Hazardous Area Deficiencies",
+    "cmsColumnHeader": "Count of Hazardous Area Deficiencies",
+    "description": "Count of Hazardous Area Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Illumination and Emergency Power Deficiencies",
+    "cmsColumnHeader": "Count of Illumination and Emergency Power Deficiencies",
+    "description": "Count of Illumination and Emergency Power Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Laboratories Deficiencies",
+    "cmsColumnHeader": "Count of Laboratories Deficiencies",
+    "description": "Count of Laboratories Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Medical Gases and Anesthetizing Areas Deficiencies",
+    "cmsColumnHeader": "Count of Medical Gases and Anesthetizing Areas Deficiencies",
+    "description": "Count of Medical Gases and Anesthetizing Areas Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Smoking Regulations Deficiencies",
+    "cmsColumnHeader": "Count of Smoking Regulations Deficiencies",
+    "description": "Count of Smoking Regulations Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Count of Miscellaneous Deficiencies",
+    "cmsColumnHeader": "Count of Miscellaneous Deficiencies",
+    "description": "Count of Miscellaneous Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Location",
+    "cmsColumnHeader": "Location",
+    "description": "Location of facility (provider address, city, state, zip)",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

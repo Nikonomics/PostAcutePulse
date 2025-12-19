@@ -1,0 +1,503 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "The CMS certification number (CCN) is used to identify the facility listed.",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Name of the facility.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Address Line 1",
+    "cmsColumnHeader": "Address Line 1",
+    "description": "The first line of the address of the facility.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Address Line 2",
+    "cmsColumnHeader": "Address Line 2",
+    "description": "The second line of the address of the facility. Note: This variable is only included in the Skilled Nursing Facility Quality Reporting Program – Swing Bed data.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "The name of the city/town where the facility is located.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "The two-character postal code used to identify the state where the facility is located.",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "The five-digit postal ZIP code where the facility is located.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "County/Parish",
+    "cmsColumnHeader": "County/Parish",
+    "description": "The name of the county/parish where the facility is located.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Telephone Number",
+    "cmsColumnHeader": "Telephone Number",
+    "description": "The ten-digit telephone number of the facility. The format is (xxx) yyy-zzzz.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "CMS Region",
+    "cmsColumnHeader": "CMS Region",
+    "description": "The CMS region where the facility is located. 1=Boston, 2=New York, 3=Philadelphia, 4=Atlanta, 5=Chicago, 6=Dallas, 7=Kansas City, 8=Denver, 9=San Francisco, 10=Seattle.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Measure Code",
+    "cmsColumnHeader": "Measure Code",
+    "description": "The measure code consists of the CMS ID (prefix) and the variable name (suffix) for the corresponding measure score. Example = S_038_02_ADJ_RATE. Prefix: S_038_02, Suffix: ADJ_RATE.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Score",
+    "cmsColumnHeader": "Score",
+    "description": "The measure score for the corresponding measure code.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Footnote",
+    "cmsColumnHeader": "Footnote",
+    "description": "Indicates the relevant footnote(s). If there is more than one relevant footnote, the values are separated by commas (e.g., 9,13).",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Start Date",
+    "cmsColumnHeader": "Start Date",
+    "description": "The start date of the reporting period for the corresponding measure code and score.",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "End Date",
+    "cmsColumnHeader": "End Date",
+    "description": "The end date of the reporting period for the corresponding measure code and score.",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Measure Date Range",
+    "cmsColumnHeader": "Measure Date Range",
+    "description": "The start date through the end date of the reporting period(s) for the corresponding measure code and score. Note: Only reporting periods that are 'split' are populated and represented by the use of a semicolon between the split periods.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "LOCATION1",
+    "cmsColumnHeader": "LOCATION1",
+    "description": "The full facility address. Note: This variable is only included in the Skilled Nursing Facility Quality Reporting Program - Provider Data.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_OBS_READM",
+    "cmsColumnHeader": "S_004_01_PPR_PD_OBS_READM",
+    "description": "Number of potentially preventable readmissions following discharge",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_VOLUME",
+    "cmsColumnHeader": "S_004_01_PPR_PD_VOLUME",
+    "description": "Number of eligible stays",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_OBS",
+    "cmsColumnHeader": "S_004_01_PPR_PD_OBS",
+    "description": "Unadjusted potentially preventable readmission rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_RSRR",
+    "cmsColumnHeader": "S_004_01_PPR_PD_RSRR",
+    "description": "Risk-standardized potentially preventable readmission rate (RSRR)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_RSRR_2_5",
+    "cmsColumnHeader": "S_004_01_PPR_PD_RSRR_2_5",
+    "description": "Lower limit of the 95% confidence interval on the RSRR",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_RSRR_97_5",
+    "cmsColumnHeader": "S_004_01_PPR_PD_RSRR_97_5",
+    "description": "Upper limit of the 95% confidence interval on the RSRR",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_COMP_PERF",
+    "cmsColumnHeader": "S_004_01_PPR_PD_COMP_PERF",
+    "description": "Comparative performance category",
+    "dataType": "Text",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_005_02_DTC_NUMBER",
+    "cmsColumnHeader": "S_005_02_DTC_NUMBER",
+    "description": "Observed number of discharges to community (DTC)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_VOLUME",
+    "cmsColumnHeader": "S_005_02_DTC_VOLUME",
+    "description": "Number of eligible stays for DTC measure",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_OBS_RATE",
+    "cmsColumnHeader": "S_005_02_DTC_OBS_RATE",
+    "description": "Observed discharge to community rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_RS_RATE",
+    "cmsColumnHeader": "S_005_02_DTC_RS_RATE",
+    "description": "Risk-standardized discharge to community rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_RS_RATE_2_5",
+    "cmsColumnHeader": "S_005_02_DTC_RS_RATE_2_5",
+    "description": "Lower limit of the 95% confidence interval on the risk-standardized discharge to community rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_RS_RATE_97_5",
+    "cmsColumnHeader": "S_005_02_DTC_RS_RATE_97_5",
+    "description": "Upper limit of the 95% confidence interval on the risk-standardized discharge to community rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_COMP_PERF",
+    "cmsColumnHeader": "S_005_02_DTC_COMP_PERF",
+    "description": "Comparative performance category",
+    "dataType": "Text",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_006_01_MSPB_NUMB",
+    "cmsColumnHeader": "S_006_01_MSPB_NUMB",
+    "description": "Number of eligible episodes",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_006_01"
+  },
+  {
+    "fieldName": "S_006_01_MSPB_SCORE",
+    "cmsColumnHeader": "S_006_01_MSPB_SCORE",
+    "description": "MSPB score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_006_01"
+  },
+  {
+    "fieldName": "S_007_02_NUMERATOR",
+    "cmsColumnHeader": "S_007_02_NUMERATOR",
+    "description": "Numerator - Drug Regimen Review Conducted with Follow-Up for Identified Issues",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_007_02"
+  },
+  {
+    "fieldName": "S_007_02_DENOMINATOR",
+    "cmsColumnHeader": "S_007_02_DENOMINATOR",
+    "description": "Denominator - Drug Regimen Review Conducted with Follow-Up for Identified Issues",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_007_02"
+  },
+  {
+    "fieldName": "S_007_02_OBS_RATE",
+    "cmsColumnHeader": "S_007_02_OBS_RATE",
+    "description": "Facility rate - Drug Regimen Review Conducted with Follow-Up for Identified Issues",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_007_02"
+  },
+  {
+    "fieldName": "S_013_02_NUMERATOR",
+    "cmsColumnHeader": "S_013_02_NUMERATOR",
+    "description": "Numerator - Falls with major injury",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_013_02"
+  },
+  {
+    "fieldName": "S_013_02_DENOMINATOR",
+    "cmsColumnHeader": "S_013_02_DENOMINATOR",
+    "description": "Denominator - Falls with major injury",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_013_02"
+  },
+  {
+    "fieldName": "S_013_02_OBS_RATE",
+    "cmsColumnHeader": "S_013_02_OBS_RATE",
+    "description": "Facility rate - Falls with major injury",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_013_02"
+  },
+  {
+    "fieldName": "S_024_06_NUMERATOR",
+    "cmsColumnHeader": "S_024_06_NUMERATOR",
+    "description": "Numerator - Discharge Self-Care Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_024_06"
+  },
+  {
+    "fieldName": "S_024_06_DENOMINATOR",
+    "cmsColumnHeader": "S_024_06_DENOMINATOR",
+    "description": "Denominator - Discharge Self-Care Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_024_06"
+  },
+  {
+    "fieldName": "S_024_06_OBS_RATE",
+    "cmsColumnHeader": "S_024_06_OBS_RATE",
+    "description": "Facility rate - Discharge Self-Care Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_024_06"
+  },
+  {
+    "fieldName": "S_025_06_NUMERATOR",
+    "cmsColumnHeader": "S_025_06_NUMERATOR",
+    "description": "Numerator - Discharge Mobility Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_025_06"
+  },
+  {
+    "fieldName": "S_025_06_DENOMINATOR",
+    "cmsColumnHeader": "S_025_06_DENOMINATOR",
+    "description": "Denominator - Discharge Mobility Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_025_06"
+  },
+  {
+    "fieldName": "S_025_06_OBS_RATE",
+    "cmsColumnHeader": "S_025_06_OBS_RATE",
+    "description": "Facility rate - Discharge Mobility Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_025_06"
+  },
+  {
+    "fieldName": "S_038_02_NUMERATOR",
+    "cmsColumnHeader": "S_038_02_NUMERATOR",
+    "description": "Numerator - Pressure ulcers/pressure injuries new or worsened",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_038_02"
+  },
+  {
+    "fieldName": "S_038_02_DENOMINATOR",
+    "cmsColumnHeader": "S_038_02_DENOMINATOR",
+    "description": "Denominator - Pressure ulcers/pressure injuries new or worsened",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_038_02"
+  },
+  {
+    "fieldName": "S_038_02_OBS_RATE",
+    "cmsColumnHeader": "S_038_02_OBS_RATE",
+    "description": "Facility observed rate - Pressure ulcers/pressure injuries new or worsened",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_038_02"
+  },
+  {
+    "fieldName": "S_038_02_ADJ_RATE",
+    "cmsColumnHeader": "S_038_02_ADJ_RATE",
+    "description": "Facility adjusted rate - Pressure ulcers/pressure injuries new or worsened",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_038_02"
+  },
+  {
+    "fieldName": "S_039_01_HAI_NUMBER",
+    "cmsColumnHeader": "S_039_01_HAI_NUMBER",
+    "description": "Observed number of healthcare-Associated Infections",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_VOLUME",
+    "cmsColumnHeader": "S_039_01_HAI_VOLUME",
+    "description": "Number of eligible stays",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_OBS_RATE",
+    "cmsColumnHeader": "S_039_01_HAI_OBS_RATE",
+    "description": "Observed healthcare-associated infection rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_RS_RATE",
+    "cmsColumnHeader": "S_039_01_HAI_RS_RATE",
+    "description": "Risk-standardized healthcare-associated infection rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_RS_RATE_2_5",
+    "cmsColumnHeader": "S_039_01_HAI_RS_RATE_2_5",
+    "description": "Lower 95% confidence limit of the risk-standardized healthcare-associated infection rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_RS_RATE_97_5",
+    "cmsColumnHeader": "S_039_01_HAI_RS_RATE_97_5",
+    "description": "Upper 95% confidence limit of the risk-standardized healthcare-associated infection rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_COMP_PERF",
+    "cmsColumnHeader": "S_039_01_HAI_COMP_PERF",
+    "description": "Comparative performance category",
+    "dataType": "Text",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_040_02_NUMERATOR",
+    "cmsColumnHeader": "S_040_02_NUMERATOR",
+    "description": "Number of health care workers vaccinated (COVID-19)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_040_02"
+  },
+  {
+    "fieldName": "S_040_02_DENOMINATOR",
+    "cmsColumnHeader": "S_040_02_DENOMINATOR",
+    "description": "Number of health care workers (COVID-19)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_040_02"
+  },
+  {
+    "fieldName": "S_040_02_OBS_RATE",
+    "cmsColumnHeader": "S_040_02_OBS_RATE",
+    "description": "Rate of COVID-19 vaccination",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_040_02"
+  },
+  {
+    "fieldName": "S_041_01_NUMERATOR",
+    "cmsColumnHeader": "S_041_01_NUMERATOR",
+    "description": "Number of health care workers vaccinated (flu)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_041_01"
+  },
+  {
+    "fieldName": "S_041_01_DENOMINATOR",
+    "cmsColumnHeader": "S_041_01_DENOMINATOR",
+    "description": "Number of health care workers (flu)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_041_01"
+  },
+  {
+    "fieldName": "S_041_01_OBS_RATE",
+    "cmsColumnHeader": "S_041_01_OBS_RATE",
+    "description": "Rate of flu vaccination",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_041_01"
+  },
+  {
+    "fieldName": "S_042_02_NUMERATOR",
+    "cmsColumnHeader": "S_042_02_NUMERATOR",
+    "description": "Numerator - Discharge Function Score (self-care and mobility combined)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_042_02"
+  },
+  {
+    "fieldName": "S_042_02_DENOMINATOR",
+    "cmsColumnHeader": "S_042_02_DENOMINATOR",
+    "description": "Denominator - Discharge Function Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_042_02"
+  },
+  {
+    "fieldName": "S_042_02_OBS_RATE",
+    "cmsColumnHeader": "S_042_02_OBS_RATE",
+    "description": "Facility Rate - Discharge Function Score",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_042_02"
+  },
+  {
+    "fieldName": "S_043_02_NUMERATOR",
+    "cmsColumnHeader": "S_043_02_NUMERATOR",
+    "description": "Numerator - Transfer of Health Information to Provider",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_043_02"
+  },
+  {
+    "fieldName": "S_043_02_DENOMINATOR",
+    "cmsColumnHeader": "S_043_02_DENOMINATOR",
+    "description": "Denominator - Transfer of Health Information to Provider",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_043_02"
+  },
+  {
+    "fieldName": "S_043_02_OBS_RATE",
+    "cmsColumnHeader": "S_043_02_OBS_RATE",
+    "description": "Facility Rate - Transfer of Health Information to Provider",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_043_02"
+  },
+  {
+    "fieldName": "S_044_02_NUMERATOR",
+    "cmsColumnHeader": "S_044_02_NUMERATOR",
+    "description": "Numerator - Transfer of Health Information to Patient",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_044_02"
+  },
+  {
+    "fieldName": "S_044_02_DENOMINATOR",
+    "cmsColumnHeader": "S_044_02_DENOMINATOR",
+    "description": "Denominator - Transfer of Health Information to Patient",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_044_02"
+  },
+  {
+    "fieldName": "S_044_02_OBS_RATE",
+    "cmsColumnHeader": "S_044_02_OBS_RATE",
+    "description": "Facility Rate - Transfer of Health Information to Patient",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_044_02"
+  },
+  {
+    "fieldName": "S_045_01_NUMERATOR",
+    "cmsColumnHeader": "S_045_01_NUMERATOR",
+    "description": "Numerator - SNF residents up to date with COVID-19 vaccines",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_045_01"
+  },
+  {
+    "fieldName": "S_045_01_DENOMINATOR",
+    "cmsColumnHeader": "S_045_01_DENOMINATOR",
+    "description": "Denominator - SNF residents up to date with COVID-19 vaccines",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_045_01"
+  },
+  {
+    "fieldName": "S_045_01_OBS_RATE",
+    "cmsColumnHeader": "S_045_01_OBS_RATE",
+    "description": "Facility Rate - SNF residents up to date with COVID-19 vaccines",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_045_01"
+  }
+]

@@ -1,0 +1,233 @@
+[
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "The CMS certification number (CCN) is used to identify the facility listed. However, since this is the national data set, the CCN is listed as 'Nation.'",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Measure Code",
+    "cmsColumnHeader": "Measure Code",
+    "description": "The measure code consists of the CMS ID (prefix) and the variable name (suffix) for the corresponding measure score. Example = S_038_02_NATL_OBS_RATE. Prefix: S_038_02, Suffix: NATL_OBS_RATE. See Table 20 for a complete listing of national data measure codes.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Score",
+    "cmsColumnHeader": "Score",
+    "description": "The measure score for the corresponding measure code.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Footnote",
+    "cmsColumnHeader": "Footnote",
+    "description": "Indicates the relevant footnote. Currently, there are no footnotes related to the national data.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Start Date",
+    "cmsColumnHeader": "Start Date",
+    "description": "The start date of the reporting period for the corresponding measure code and score.",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "End Date",
+    "cmsColumnHeader": "End Date",
+    "description": "The end date of the reporting period for the corresponding measure code and score.",
+    "dataType": "Date"
+  },
+  {
+    "fieldName": "Measure Date Range",
+    "cmsColumnHeader": "Measure Date Range",
+    "description": "The start date through the end date of the reporting period(s) for the corresponding measure code and score. Note: Only reporting periods that are 'split' are populated and represented by the use of a semicolon between the split periods (e.g., 04/01/2019-12/31/2019; 07/01/2020-09/30/2021).",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_NAT_UNADJUST_AVG",
+    "cmsColumnHeader": "S_004_01_PPR_PD_NAT_UNADJUST_AVG",
+    "description": "National unadjusted average potentially preventable readmission rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_N_BETTER_NAT",
+    "cmsColumnHeader": "S_004_01_PPR_PD_N_BETTER_NAT",
+    "description": "Number of SNFs in the nation that performed better than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_N_NO_DIFF_NAT",
+    "cmsColumnHeader": "S_004_01_PPR_PD_N_NO_DIFF_NAT",
+    "description": "Number of SNFs in the nation that performed no different than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_N_WORSE_NAT",
+    "cmsColumnHeader": "S_004_01_PPR_PD_N_WORSE_NAT",
+    "description": "Number of SNFs in the nation that performed worse than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_004_01_PPR_PD_N_TOO_SMALL",
+    "cmsColumnHeader": "S_004_01_PPR_PD_N_TOO_SMALL",
+    "description": "Number of SNFs too small to report",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_004_01"
+  },
+  {
+    "fieldName": "S_005_02_DTC_NAT_OBS_RATE",
+    "cmsColumnHeader": "S_005_02_DTC_NAT_OBS_RATE",
+    "description": "National observed discharge to community rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_N_BETTER_NAT",
+    "cmsColumnHeader": "S_005_02_DTC_N_BETTER_NAT",
+    "description": "Number of SNFs in the nation that performed better than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_N_NO_DIFF_NAT",
+    "cmsColumnHeader": "S_005_02_DTC_N_NO_DIFF_NAT",
+    "description": "Number of SNFs in the nation that performed no different than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_N_WORSE_NAT",
+    "cmsColumnHeader": "S_005_02_DTC_N_WORSE_NAT",
+    "description": "Number of SNFs in the nation that performed worse than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_005_02_DTC_N_TOO_SMALL",
+    "cmsColumnHeader": "S_005_02_DTC_N_TOO_SMALL",
+    "description": "Number of SNFs too small to report",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_005_02"
+  },
+  {
+    "fieldName": "S_006_01_MSPB_SCORE_NATL",
+    "cmsColumnHeader": "S_006_01_MSPB_SCORE_NATL",
+    "description": "MSPB score (national)",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_006_01"
+  },
+  {
+    "fieldName": "S_007_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_007_02_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents whose medications were reviewed and who received follow-up care when medication issues were identified",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_007_02"
+  },
+  {
+    "fieldName": "S_013_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_013_02_NATL_OBS_RATE",
+    "description": "National rate - Percentage of SNF residents who experience one or more falls with major injury during their SNF stay",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_013_02"
+  },
+  {
+    "fieldName": "S_024_06_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_024_06_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents who are at or above an expected ability to care for themselves at discharge",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_024_06"
+  },
+  {
+    "fieldName": "S_025_06_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_025_06_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents who are at or above an expected ability to move around at discharge",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_025_06"
+  },
+  {
+    "fieldName": "S_038_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_038_02_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents with pressure ulcers/pressure injuries that are new or worsened",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_038_02"
+  },
+  {
+    "fieldName": "S_039_01_HAI_NAT_OBS_RATE",
+    "cmsColumnHeader": "S_039_01_HAI_NAT_OBS_RATE",
+    "description": "National observed healthcare-associated infection rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_N_BETTER_NAT",
+    "cmsColumnHeader": "S_039_01_HAI_N_BETTER_NAT",
+    "description": "Number of SNFs in the nation that performed better than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_N_NO_DIFF_NAT",
+    "cmsColumnHeader": "S_039_01_HAI_N_NO_DIFF_NAT",
+    "description": "Number of SNFs in the nation that performed no different than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_N_WORSE_NAT",
+    "cmsColumnHeader": "S_039_01_HAI_N_WORSE_NAT",
+    "description": "Number of SNFs in the nation that performed worse than the national rate",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_039_01_HAI_N_TOO_SMALL",
+    "cmsColumnHeader": "S_039_01_HAI_N_TOO_SMALL",
+    "description": "Number of SNFs too small to report",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_039_01"
+  },
+  {
+    "fieldName": "S_040_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_040_02_NATL_OBS_RATE",
+    "description": "National rate of COVID-19 vaccination - Percentage of SNF healthcare personnel who are up to date with their COVID-19 vaccines",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_040_02"
+  },
+  {
+    "fieldName": "S_041_01_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_041_01_NATL_OBS_RATE",
+    "description": "National rate of flu vaccination - Percentage of healthcare personnel who got a flu shot for the current season",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_041_01"
+  },
+  {
+    "fieldName": "S_042_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_042_02_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents who are at or above an expected ability to care for themselves and move around at discharge",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_042_02"
+  },
+  {
+    "fieldName": "S_043_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_043_02_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents where the SNF provided a current medication list to the next healthcare setting",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_043_02"
+  },
+  {
+    "fieldName": "S_044_02_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_044_02_NATL_OBS_RATE",
+    "description": "National rate - Percentage of residents where the SNF provided a current medication list to the resident, family, and/or caregiver at final discharge",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_044_02"
+  },
+  {
+    "fieldName": "S_045_01_NATL_OBS_RATE",
+    "cmsColumnHeader": "S_045_01_NATL_OBS_RATE",
+    "description": "National rate - Percentage of SNF residents who are up to date with their COVID-19 vaccines",
+    "dataType": "Numeric",
+    "cmsMeasureCode": "S_045_01"
+  }
+]

@@ -1,0 +1,308 @@
+[
+  {
+    "fieldName": "State or Nation",
+    "cmsColumnHeader": "State or Nation",
+    "description": "State or Nation – two-character postal abbreviation for state or 'NATION'",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Overall Rating",
+    "cmsColumnHeader": "Overall Rating",
+    "description": "Overall Rating",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Health Inspection Rating",
+    "cmsColumnHeader": "Health Inspection Rating",
+    "description": "Health Inspection Rating",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "QM Rating",
+    "cmsColumnHeader": "QM Rating",
+    "description": "QM Rating",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Staffing Rating",
+    "cmsColumnHeader": "Staffing Rating",
+    "description": "Staffing Rating",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Cycle 1 Total Number of Health Deficiencies",
+    "cmsColumnHeader": "Cycle 1 Total Number of Health Deficiencies",
+    "description": "Cycle 1 Number of Health Deficiencies. This includes the most recent standard survey as well as complaint and infection control surveys from the most recent 12 months.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Cycle 1 Total Number of Fire Safety Deficiencies",
+    "cmsColumnHeader": "Cycle 1 Total Number of Fire Safety Deficiencies",
+    "description": "Cycle 1 Number of Fire Safety and Emergency Preparedness Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Cycle 2 Total Number of Health Deficiencies",
+    "cmsColumnHeader": "Cycle 2 Total Number of Health Deficiencies",
+    "description": "Cycle 2 Number of Health Deficiencies. This includes the second most recent standard survey as well as complaint and infection control surveys from 13-24 months ago.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Cycle 2 Total Number of Fire Safety Deficiencies",
+    "cmsColumnHeader": "Cycle 2 Total Number of Fire Safety Deficiencies",
+    "description": "Cycle 2 Number of Fire Safety and Emergency Preparedness Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Cycle 3 Total Number of Health Deficiencies",
+    "cmsColumnHeader": "Cycle 3 Total Number of Health Deficiencies",
+    "description": "Cycle 3 Number of Health Deficiencies. This includes the third most recent standard survey as well as complaint and infection control surveys from 25-36 months ago. Note that cycle 3 standard surveys are not used for the health inspection rating.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Cycle 3 Total Number of Fire Safety Deficiencies",
+    "cmsColumnHeader": "Cycle 3 Total Number of Fire Safety Deficiencies",
+    "description": "Cycle 3 Number of Fire Safety and Emergency Preparedness Deficiencies",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Average Number of Residents per Day",
+    "cmsColumnHeader": "Average Number of Residents per Day",
+    "description": "Average of daily census derived from MDS",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Nurse Aide Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported Nurse Aide Staffing Hours per Resident per Day",
+    "description": "Reported Nurse Aide Staffing – Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported LPN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported LPN Staffing Hours per Resident per Day",
+    "description": "Reported LPN Staffing – Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported RN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported RN Staffing Hours per Resident per Day",
+    "description": "Reported RN Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Licensed Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported Licensed Staffing Hours per Resident per Day",
+    "description": "Reported Licensed Staffing – Hours per Resident per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Reported Total Nurse Staffing Hours per Resident per Day",
+    "description": "Reported Total Nurse Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total number of nurse staff hours per resident per day on the weekend",
+    "cmsColumnHeader": "Total number of nurse staff hours per resident per day on the weekend",
+    "description": "Total number of nurse staff hours on the weekend Hours per resident per day – US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Registered Nurse hours per resident per day on the weekend",
+    "cmsColumnHeader": "Registered Nurse hours per resident per day on the weekend",
+    "description": "Registered Nurse hours on the weekend – Hours per resident per day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+    "cmsColumnHeader": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+    "description": "Reported Physical Therapy Staffing – Hours per Resident Per Day",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Total nursing staff turnover",
+    "cmsColumnHeader": "Total nursing staff turnover",
+    "description": "Total nursing staff turnover",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Registered Nurse turnover",
+    "cmsColumnHeader": "Registered Nurse turnover",
+    "description": "Registered Nurse turnover",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of administrators who have left the nursing home",
+    "cmsColumnHeader": "Number of administrators who have left the nursing home",
+    "description": "Number of administrators who have left the nursing home",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Nursing Case-Mix Index",
+    "cmsColumnHeader": "Nursing Case-Mix Index",
+    "description": "Weighted Average Nursing Case-Mix Index – US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix RN Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix RN Staffing Hours per Resident per Day",
+    "description": "Case-Mix RN Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+    "description": "Case-Mix Total Nurse Staffing Hours per Resident per Day- US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+    "cmsColumnHeader": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+    "description": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of Fines",
+    "cmsColumnHeader": "Number of Fines",
+    "description": "Number of Fines; state and US averages include 0s for providers with no fines",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Fine Amount in Dollars",
+    "cmsColumnHeader": "Fine Amount in Dollars",
+    "description": "Fine Amount in Dollars; state and US averages include 0s for providers with no fines",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents whose need for help with daily activities has increased",
+    "cmsColumnHeader": "Percentage of long stay residents whose need for help with daily activities has increased",
+    "description": "Percentage of long stay residents whose need for help with daily activities has increased",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents who lose too much weight",
+    "cmsColumnHeader": "Percentage of long stay residents who lose too much weight",
+    "description": "Percentage of long stay residents who lose too much weight",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents with a catheter inserted and left in their bladder",
+    "cmsColumnHeader": "Percentage of long stay residents with a catheter inserted and left in their bladder",
+    "description": "Percentage of long stay residents with a catheter inserted and left in their bladder",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents with a urinary tract infection",
+    "cmsColumnHeader": "Percentage of long stay residents with a urinary tract infection",
+    "description": "Percentage of long stay residents with a urinary tract infection",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents who have depressive symptoms",
+    "cmsColumnHeader": "Percentage of long stay residents who have depressive symptoms",
+    "description": "Percentage of long stay residents who have depressive symptoms",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents who were physically restrained",
+    "cmsColumnHeader": "Percentage of long stay residents who were physically restrained",
+    "description": "Percentage of long stay residents who were physically restrained",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents experiencing one or more falls with major injury",
+    "cmsColumnHeader": "Percentage of long stay residents experiencing one or more falls with major injury",
+    "description": "Percentage of long stay residents experiencing one or more falls with major injury",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents assessed and appropriately given the pneumococcal vaccine",
+    "cmsColumnHeader": "Percentage of long stay residents assessed and appropriately given the pneumococcal vaccine",
+    "description": "Percentage of long stay residents assessed and appropriately given the pneumococcal vaccine",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents who received an antipsychotic medication",
+    "cmsColumnHeader": "Percentage of long stay residents who received an antipsychotic medication",
+    "description": "Percentage of long stay residents who received an antipsychotic medication",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of short stay residents assessed and appropriately given the pneumococcal vaccine",
+    "cmsColumnHeader": "Percentage of short stay residents assessed and appropriately given the pneumococcal vaccine",
+    "description": "Percentage of short stay residents assessed and appropriately given the pneumococcal vaccine",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of short stay residents who newly received an antipsychotic medication",
+    "cmsColumnHeader": "Percentage of short stay residents who newly received an antipsychotic medication",
+    "description": "Percentage of short stay residents who newly received an antipsychotic medication",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents whose ability to walk independently worsened",
+    "cmsColumnHeader": "Percentage of long stay residents whose ability to walk independently worsened",
+    "description": "Percentage of long stay residents whose ability to walk independently worsened",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents who received an antianxiety or hypnotic medication",
+    "cmsColumnHeader": "Percentage of long stay residents who received an antianxiety or hypnotic medication",
+    "description": "Percentage of long stay residents who received an antianxiety or hypnotic medication",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents assessed and appropriately given the seasonal influenza vaccine",
+    "cmsColumnHeader": "Percentage of long stay residents assessed and appropriately given the seasonal influenza vaccine",
+    "description": "Percentage of long stay residents assessed and appropriately given the seasonal influenza vaccine",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of short stay residents who were assessed and appropriately given the seasonal influenza vaccine",
+    "cmsColumnHeader": "Percentage of short stay residents who were assessed and appropriately given the seasonal influenza vaccine",
+    "description": "Percentage of short stay residents who were assessed and appropriately given the seasonal influenza vaccine",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents with pressure ulcers",
+    "cmsColumnHeader": "Percentage of long stay residents with pressure ulcers",
+    "description": "Percentage of long stay residents with pressure ulcers",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of long stay residents with new or worsened bowel or bladder incontinence",
+    "cmsColumnHeader": "Percentage of long stay residents with new or worsened bowel or bladder incontinence",
+    "description": "Percentage of long stay residents with new or worsened bowel or bladder incontinence",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of short stay residents who were rehospitalized after a nursing home admission",
+    "cmsColumnHeader": "Percentage of short stay residents who were rehospitalized after a nursing home admission",
+    "description": "Percentage of short stay residents who were rehospitalized after a nursing home admission",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Percentage of short stay residents who had an outpatient emergency department visit",
+    "cmsColumnHeader": "Percentage of short stay residents who had an outpatient emergency department visit",
+    "description": "Percentage of short stay residents who had an outpatient emergency department visit",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of hospitalizations per 1000 long-stay resident days",
+    "cmsColumnHeader": "Number of hospitalizations per 1000 long-stay resident days",
+    "description": "Number of hospitalizations per 1000 long-stay resident days",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Number of outpatient emergency department visits per 1000 long-stay resident days",
+    "cmsColumnHeader": "Number of outpatient emergency department visits per 1000 long-stay resident days",
+    "description": "Number of outpatient emergency department visits per 1000 long-stay resident days",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Processing Date",
+    "cmsColumnHeader": "Processing Date",
+    "description": "Date the data was retrieved",
+    "dataType": "Date"
+  }
+]

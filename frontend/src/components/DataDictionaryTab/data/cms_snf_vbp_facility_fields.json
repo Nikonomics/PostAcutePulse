@@ -1,0 +1,122 @@
+[
+  {
+    "fieldName": "SNF VBP Program Ranking",
+    "cmsColumnHeader": "SNF VBP Program Ranking",
+    "description": "A skilled nursing facility's (SNF's) national rank among eligible, included SNFs in the SNF VBP Program. Calculated by sorting and ranking all eligible, included SNFs' performance scores. Lower ranks reflect better performance. Any SNFs with equal performance scores each receive the best (that is, lowest) rank within the tie.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Footnote -- SNF VBP Program Ranking",
+    "cmsColumnHeader": "Footnote -- SNF VBP Program Ranking",
+    "description": "Footnote for the SNF VBP Program Ranking",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "CMS Certification Number (CCN)",
+    "cmsColumnHeader": "CMS Certification Number (CCN)",
+    "description": "Centers for Medicare & Medicaid Services (CMS) Certification Number (CCN)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Provider Name",
+    "cmsColumnHeader": "Provider Name",
+    "description": "Provider name",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Provider Address",
+    "cmsColumnHeader": "Provider Address",
+    "description": "Provider address",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "City/Town",
+    "cmsColumnHeader": "City/Town",
+    "description": "Provider city/town",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "State",
+    "cmsColumnHeader": "State",
+    "description": "Provider state (2-digit postal code abbreviation)",
+    "dataType": "Text (2)"
+  },
+  {
+    "fieldName": "ZIP Code",
+    "cmsColumnHeader": "ZIP Code",
+    "description": "Provider ZIP code",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+    "cmsColumnHeader": "Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+    "description": "A SNF's rate of unplanned readmissions during the baseline period (FY 2019), adjusted for stay-level risk factors such as clinical characteristics and comorbidities, as calculated by the SNF 30-Day All-Cause Readmission Measure (SNFRM).",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Footnote -- Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+    "cmsColumnHeader": "Footnote -- Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+    "description": "Footnote for the Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+    "cmsColumnHeader": "Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+    "description": "A SNF's rate of unplanned readmissions during the performance period (FY 2023), adjusted for stay-level risk factors such as clinical characteristics and comorbidities, as calculated by the SNFRM.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote -- Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+    "cmsColumnHeader": "Footnote -- Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+    "description": "Footnote for the Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Achievement Score",
+    "cmsColumnHeader": "Achievement Score",
+    "description": "A calculation of how well a SNF performed during the performance period (FY 2023) compared with national SNF performance during the baseline period (FY 2019). Scores range from 0 to 100, with higher scores indicating better performance.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote -- Achievement Score",
+    "cmsColumnHeader": "Footnote -- Achievement Score",
+    "description": "Footnote for the Achievement Score",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Improvement Score",
+    "cmsColumnHeader": "Improvement Score",
+    "description": "A calculation of how much a SNF has improved from the baseline period (FY 2019) to the performance period (FY 2023). Scores range from 0 to 90, with higher scores indicating better performance.",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Footnote -- Improvement Score",
+    "cmsColumnHeader": "Footnote -- Improvement Score",
+    "description": "Footnote for the Improvement Score",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Performance Score",
+    "cmsColumnHeader": "Performance Score",
+    "description": "The higher of a SNF's achievement score and improvement score. Scores range from 0 to 100, with higher scores indicating better performance. CMS uses this score to calculate incentive payment multipliers for the SNF VBP Program.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote -- Performance Score",
+    "cmsColumnHeader": "Footnote -- Performance Score",
+    "description": "Footnote for the Performance Score",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Incentive Payment Multiplier",
+    "cmsColumnHeader": "Incentive Payment Multiplier",
+    "description": "A multiplier assigned to a SNF based on its performance in the SNF VBP Program. When payments are made to a SNF's Medicare fee-for-service (FFS) Part A claims in FY 2025, CMS multiplies the SNF's adjusted federal per diem rate by this multiplier.",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Footnote -- Incentive Payment Multiplier",
+    "cmsColumnHeader": "Footnote -- Incentive Payment Multiplier",
+    "description": "Footnote for the Incentive Payment Multiplier",
+    "dataType": "Text"
+  }
+]

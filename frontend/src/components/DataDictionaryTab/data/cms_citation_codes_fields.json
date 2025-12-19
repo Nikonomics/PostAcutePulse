@@ -1,0 +1,32 @@
+[
+  {
+    "fieldName": "Deficiency Prefix",
+    "cmsColumnHeader": "Deficiency Prefix",
+    "description": "Deficiency Prefix (F, K, E)",
+    "dataType": "Text (1)"
+  },
+  {
+    "fieldName": "Deficiency Tag Number",
+    "cmsColumnHeader": "Deficiency Tag Number",
+    "description": "Deficiency Tag Number",
+    "dataType": "Numeric"
+  },
+  {
+    "fieldName": "Deficiency Prefix and Number",
+    "cmsColumnHeader": "Deficiency Prefix and Number",
+    "description": "Deficiency Prefix and Number (e.g., F-0880)",
+    "dataType": "Text (6)"
+  },
+  {
+    "fieldName": "Deficiency Description",
+    "cmsColumnHeader": "Deficiency Description",
+    "description": "Deficiency Description",
+    "dataType": "Text"
+  },
+  {
+    "fieldName": "Deficiency Category",
+    "cmsColumnHeader": "Deficiency Category",
+    "description": "Category Description for Care Compare website",
+    "dataType": "Text"
+  }
+]
