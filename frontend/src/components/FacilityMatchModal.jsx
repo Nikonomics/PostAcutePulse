@@ -1,23 +1,234 @@
-import React, { useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Card, CardContent, Chip, IconButton, Collapse } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography,
+  Card, CardContent, Chip, Link, RadioGroup, FormControlLabel, Radio,
+  TextField, Alert, Divider
+} from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import HotelIcon from '@mui/icons-material/Hotel';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+
+/**
+ * Format field name for display
+ */
+const formatFieldName = (field) => {
+  const fieldLabels = {
+    bed_count: 'Bed Count',
+    street_address: 'Street Address',
+    city: 'City',
+    state: 'State',
+    zip_code: 'ZIP Code',
+    facility_name: 'Facility Name'
+  };
+  return fieldLabels[field] || field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+/**
+ * Format value for display based on field type
+ */
+const formatValue = (field, value) => {
+  if (value === null || value === undefined) return 'Not provided';
+  if (field === 'bed_count') return `${value} beds`;
+  return value.toString();
+};
+
+/**
+ * Conflict Resolution Component
+ */
+const ConflictResolution = ({ conflicts, resolutions, onResolve }) => {
+  if (!conflicts || conflicts.length === 0) return null;
+
+  const unresolvedConflicts = conflicts.filter(c => !c.resolved);
+  if (unresolvedConflicts.length === 0) return null;
+
+  return (
+    <Box sx={{ mb: 3 }}>
+      <Alert
+        severity="warning"
+        icon={<WarningAmberIcon />}
+        sx={{ mb: 2 }}
+      >
+        <Typography variant="subtitle2" fontWeight="bold">
+          Data Conflicts Detected
+        </Typography>
+        <Typography variant="body2">
+          The extracted data differs from the database. Please choose which values to use.
+        </Typography>
+      </Alert>
+
+      {unresolvedConflicts.map((conflict) => (
+        <Card
+          key={conflict.field}
+          variant="outlined"
+          sx={{
+            mb: 2,
+            borderColor: resolutions[conflict.field] ? 'success.main' : 'warning.main',
+            borderWidth: 2
+          }}
+        >
+          <CardContent>
+            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+              {formatFieldName(conflict.field)}
+            </Typography>
+
+            <RadioGroup
+              value={resolutions[conflict.field]?.choice || ''}
+              onChange={(e) => {
+                const choice = e.target.value;
+                let value;
+                if (choice === 'extracted') {
+                  value = conflict.extracted_value;
+                } else if (choice === 'database') {
+                  value = conflict.database_value;
+                } else {
+                  value = resolutions[conflict.field]?.customValue || '';
+                }
+                onResolve(conflict.field, choice, value);
+              }}
+            >
+              <FormControlLabel
+                value="extracted"
+                control={<Radio color="primary" />}
+                label={
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {formatValue(conflict.field, conflict.extracted_value)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Extracted from: {conflict.source_extracted || 'Document'}
+                    </Typography>
+                  </Box>
+                }
+                sx={{
+                  mb: 1,
+                  p: 1,
+                  borderRadius: 1,
+                  bgcolor: resolutions[conflict.field]?.choice === 'extracted' ? 'action.selected' : 'transparent',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+              />
+
+              <FormControlLabel
+                value="database"
+                control={<Radio color="primary" />}
+                label={
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {formatValue(conflict.field, conflict.database_value)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      From: {conflict.source_database || 'Database'}
+                    </Typography>
+                  </Box>
+                }
+                sx={{
+                  mb: 1,
+                  p: 1,
+                  borderRadius: 1,
+                  bgcolor: resolutions[conflict.field]?.choice === 'database' ? 'action.selected' : 'transparent',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+              />
+
+              <FormControlLabel
+                value="custom"
+                control={<Radio color="primary" />}
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" fontWeight="medium">
+                      Other:
+                    </Typography>
+                    <TextField
+                      size="small"
+                      variant="outlined"
+                      placeholder={conflict.field === 'bed_count' ? 'Enter beds' : 'Enter value'}
+                      type={conflict.field === 'bed_count' ? 'number' : 'text'}
+                      value={resolutions[conflict.field]?.customValue || ''}
+                      onChange={(e) => {
+                        onResolve(conflict.field, 'custom', e.target.value);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{ width: conflict.field === 'bed_count' ? 120 : 200 }}
+                      InputProps={{
+                        endAdornment: conflict.field === 'bed_count' ? (
+                          <Typography variant="caption" color="text.secondary">beds</Typography>
+                        ) : null
+                      }}
+                    />
+                  </Box>
+                }
+                sx={{
+                  p: 1,
+                  borderRadius: 1,
+                  bgcolor: resolutions[conflict.field]?.choice === 'custom' ? 'action.selected' : 'transparent',
+                  '&:hover': { bgcolor: 'action.hover' }
+                }}
+              />
+            </RadioGroup>
+
+            {resolutions[conflict.field]?.choice && (
+              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <CheckCircleIcon fontSize="small" color="success" />
+                <Typography variant="caption" color="success.main">
+                  Resolved: Using {resolutions[conflict.field]?.choice === 'extracted' ? 'extracted' :
+                    resolutions[conflict.field]?.choice === 'database' ? 'database' : 'custom'} value
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </Box>
+  );
+};
 
 /**
  * Facility Match Review Modal
  * Shows facility matches from ALF database after extraction
  * User can select match, skip, or mark as "not sure"
+ * Now also handles conflict resolution between extracted and database values
  */
-const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNotSure }) => {
+const FacilityMatchModal = ({
+  open,
+  matches,
+  searchName,
+  conflicts = [],  // Array of conflict objects from extraction_data._conflicts
+  onSelect,        // Called with (facilityId, resolvedConflicts)
+  onSkip,
+  onNotSure
+}) => {
   const [showAll, setShowAll] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [conflictResolutions, setConflictResolutions] = useState({});
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      setSelectedId(null);
+      setConflictResolutions({});
+    }
+  }, [open]);
 
   // Show top 5 by default, all when "Show More" clicked
   const displayedMatches = showAll ? matches : matches.slice(0, 5);
   const hasMore = matches.length > 5;
+
+  // Get unresolved conflicts
+  const unresolvedConflicts = (conflicts || []).filter(c => !c.resolved);
+  const hasUnresolvedConflicts = unresolvedConflicts.length > 0;
+
+  // Check if all conflicts are resolved
+  const allConflictsResolved = unresolvedConflicts.every(
+    c => conflictResolutions[c.field]?.choice &&
+         (conflictResolutions[c.field].choice !== 'custom' || conflictResolutions[c.field].customValue)
+  );
+
+  // Can confirm only if a match is selected AND all conflicts are resolved
+  const canConfirm = selectedId && (!hasUnresolvedConflicts || allConflictsResolved);
 
   const getConfidenceColor = (confidence) => {
     switch (confidence) {
@@ -29,9 +240,40 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
   };
 
   const handleSelectMatch = (facilityId) => {
-    // Only update the visual selection - don't call API yet
-    // User must click "Confirm Selection" button to actually submit
     setSelectedId(facilityId);
+  };
+
+  const handleResolveConflict = (field, choice, value) => {
+    setConflictResolutions(prev => ({
+      ...prev,
+      [field]: {
+        choice,
+        value: choice === 'custom' ? value : (choice === 'extracted' ?
+          conflicts.find(c => c.field === field)?.extracted_value :
+          conflicts.find(c => c.field === field)?.database_value),
+        customValue: choice === 'custom' ? value : prev[field]?.customValue
+      }
+    }));
+  };
+
+  const handleConfirm = () => {
+    if (!selectedId) return;
+
+    // Build resolved_conflicts object for API
+    const resolvedConflicts = {};
+    for (const [field, resolution] of Object.entries(conflictResolutions)) {
+      if (resolution.choice && resolution.value !== undefined) {
+        // Convert to appropriate type
+        let value = resolution.value;
+        if (field === 'bed_count') {
+          value = parseInt(value) || 0;
+        }
+        resolvedConflicts[field] = value;
+      }
+    }
+
+    // Call onSelect with facility ID and resolved conflicts
+    onSelect(selectedId, Object.keys(resolvedConflicts).length > 0 ? resolvedConflicts : null);
   };
 
   return (
@@ -41,7 +283,6 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
       fullWidth
       disableEscapeKeyDown
       onClose={(event, reason) => {
-        // Prevent closing by clicking outside or pressing escape
         if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
           return;
         }
@@ -57,6 +298,19 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
       </DialogTitle>
 
       <DialogContent dividers>
+        {/* Conflict Resolution Section - Show first if conflicts exist */}
+        {hasUnresolvedConflicts && (
+          <>
+            <ConflictResolution
+              conflicts={unresolvedConflicts}
+              resolutions={conflictResolutions}
+              onResolve={handleResolveConflict}
+            />
+            <Divider sx={{ my: 2 }} />
+          </>
+        )}
+
+        {/* Facility Matches Section */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {displayedMatches.map((match, index) => (
             <Card
@@ -82,6 +336,25 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
                       <Typography variant="h6" component="div">
                         {match.facility_name}
                       </Typography>
+                      {match.federal_provider_number && (
+                        <Link
+                          href={`/facility-metrics/${match.federal_provider_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            fontSize: '0.75rem',
+                            textDecoration: 'none',
+                            '&:hover': { textDecoration: 'underline' }
+                          }}
+                        >
+                          View
+                          <OpenInNewIcon sx={{ fontSize: 12 }} />
+                        </Link>
+                      )}
                       {index === 0 && (
                         <Chip
                           label="Best Match"
@@ -138,7 +411,9 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
                   <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
                     <CheckCircleIcon />
                     <Typography variant="body2" fontWeight="bold">
-                      Selected - Click "Confirm" to apply
+                      Selected {hasUnresolvedConflicts && !allConflictsResolved ?
+                        '- Resolve conflicts above to confirm' :
+                        '- Click "Confirm" to apply'}
                     </Typography>
                   </Box>
                 )}
@@ -171,7 +446,9 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
 
         <Box sx={{ mt: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            <strong>Note:</strong> Selecting a facility will automatically populate its address, bed count, and coordinates in your deal. You can always change this later in the General Info tab.
+            <strong>Note:</strong> Selecting a facility will automatically populate its address, bed count, and coordinates in your deal.
+            {hasUnresolvedConflicts && ' Conflicting values will use your chosen resolution.'}
+            {' '}You can always change this later in the General Info tab.
           </Typography>
         </Box>
       </DialogContent>
@@ -195,13 +472,15 @@ const FacilityMatchModal = ({ open, matches, searchName, onSelect, onSkip, onNot
         </Box>
 
         <Button
-          onClick={() => selectedId && onSelect(selectedId)}
+          onClick={handleConfirm}
           variant="contained"
           color="primary"
-          disabled={!selectedId}
+          disabled={!canConfirm}
           size="large"
         >
-          Confirm Selection
+          {hasUnresolvedConflicts && !allConflictsResolved ?
+            `Resolve ${unresolvedConflicts.length - Object.keys(conflictResolutions).filter(k => conflictResolutions[k]?.choice).length} Conflict(s)` :
+            'Confirm Selection'}
         </Button>
       </DialogActions>
     </Dialog>

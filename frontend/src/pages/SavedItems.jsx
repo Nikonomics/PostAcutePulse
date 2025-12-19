@@ -8,8 +8,8 @@ const SavedItems = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
-  const [savedItems, setSavedItems] = useState({ deals: [], facilities: [], markets: [], ownershipGroups: [] });
-  const [counts, setCounts] = useState({ deals: 0, facilities: 0, markets: 0, ownershipGroups: 0, total: 0 });
+  const [savedItems, setSavedItems] = useState({ deals: [], facilities: [], markets: [], ownershipGroups: [], cmsFacilities: [] });
+  const [counts, setCounts] = useState({ deals: 0, facilities: 0, markets: 0, ownershipGroups: 0, cmsFacilities: 0, total: 0 });
   const [editingNote, setEditingNote] = useState(null);
   const [noteText, setNoteText] = useState('');
   const [expandedNotes, setExpandedNotes] = useState({});
@@ -100,7 +100,8 @@ const SavedItems = () => {
   const tabs = [
     { id: 'all', label: 'All', count: counts.total },
     { id: 'deals', label: 'Deals', count: counts.deals, icon: Handshake },
-    { id: 'facilities', label: 'Facilities', count: counts.facilities, icon: Building2 },
+    { id: 'facilities', label: 'Deal Facilities', count: counts.facilities, icon: Building2 },
+    { id: 'cmsFacilities', label: 'SNF Facilities', count: counts.cmsFacilities, icon: Building2 },
     { id: 'markets', label: 'Markets', count: counts.markets, icon: MapPin },
     { id: 'ownershipGroups', label: 'Ownership Groups', count: counts.ownershipGroups, icon: Users },
   ];
@@ -330,6 +331,59 @@ const SavedItems = () => {
     );
   };
 
+  const renderCmsFacilityCard = (item) => {
+    return (
+      <div
+        key={item.id}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1">
+            <div className="p-2 bg-teal-100 rounded-lg">
+              <Building2 size={20} className="text-teal-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 truncate">
+                  {item.facility_name || 'Unknown Facility'}
+                </h3>
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-teal-100 text-teal-800">
+                  SNF
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                CCN: {item.ccn}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Saved {formatDate(item.created_at)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/facility-metrics/${item.ccn}`)}
+              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="View Facility"
+            >
+              <ExternalLink size={18} />
+            </button>
+            <button
+              onClick={() => handleRemove(item.id, 'cmsFacilities')}
+              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Remove"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Note section */}
+        {renderNoteSection(item, 'cmsFacilities')}
+      </div>
+    );
+  };
+
   const renderNoteSection = (item, type) => {
     const isEditing = editingNote === item.id;
     const isExpanded = expandedNotes[item.id];
@@ -412,6 +466,7 @@ const SavedItems = () => {
       return {
         deals: savedItems.deals,
         facilities: savedItems.facilities,
+        cmsFacilities: savedItems.cmsFacilities,
         markets: savedItems.markets,
         ownershipGroups: savedItems.ownershipGroups
       };
@@ -419,13 +474,14 @@ const SavedItems = () => {
     return {
       deals: activeTab === 'deals' ? savedItems.deals : [],
       facilities: activeTab === 'facilities' ? savedItems.facilities : [],
+      cmsFacilities: activeTab === 'cmsFacilities' ? savedItems.cmsFacilities : [],
       markets: activeTab === 'markets' ? savedItems.markets : [],
       ownershipGroups: activeTab === 'ownershipGroups' ? savedItems.ownershipGroups : []
     };
   };
 
   const filteredItems = getFilteredItems();
-  const hasItems = filteredItems.deals.length + filteredItems.facilities.length + filteredItems.markets.length + filteredItems.ownershipGroups.length > 0;
+  const hasItems = filteredItems.deals.length + filteredItems.facilities.length + filteredItems.cmsFacilities.length + filteredItems.markets.length + filteredItems.ownershipGroups.length > 0;
 
   if (loading) {
     return (
@@ -503,17 +559,32 @@ const SavedItems = () => {
             </div>
           )}
 
-          {/* Facilities Section */}
+          {/* Deal Facilities Section */}
           {filteredItems.facilities.length > 0 && (
             <div>
               {activeTab === 'all' && (
                 <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <Building2 size={20} className="text-purple-600" />
-                  Facilities ({filteredItems.facilities.length})
+                  Deal Facilities ({filteredItems.facilities.length})
                 </h2>
               )}
               <div className="space-y-3">
                 {filteredItems.facilities.map(renderFacilityCard)}
+              </div>
+            </div>
+          )}
+
+          {/* CMS/SNF Facilities Section */}
+          {filteredItems.cmsFacilities.length > 0 && (
+            <div>
+              {activeTab === 'all' && (
+                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Building2 size={20} className="text-teal-600" />
+                  SNF Facilities ({filteredItems.cmsFacilities.length})
+                </h2>
+              )}
+              <div className="space-y-3">
+                {filteredItems.cmsFacilities.map(renderCmsFacilityCard)}
               </div>
             </div>
           )}

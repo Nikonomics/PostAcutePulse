@@ -346,7 +346,7 @@ const DealLocationsMap = ({
     <div className="border-b border-gray-200 last:border-b-0">
       <button
         onClick={() => toggleFilterSection(filterKey)}
-        className="w-full flex items-center justify-between p-2 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between py-1.5 px-2 hover:bg-gray-50 transition-colors"
       >
         <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
           {title}
@@ -356,14 +356,14 @@ const DealLocationsMap = ({
             </span>
           )}
         </span>
-        {expandedFilters[filterKey] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        {expandedFilters[filterKey] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
       {expandedFilters[filterKey] && (
-        <div className="px-2 pb-2 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+        <div className="px-2 pb-1 space-y-0.5">
           {options.map((option) => (
             <label
               key={option.value}
-              className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded text-sm"
+              className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 py-0.5 px-1 rounded text-sm"
             >
               <input
                 type="checkbox"
@@ -429,9 +429,9 @@ const DealLocationsMap = ({
   return (
     <div className="w-full flex gap-4">
       {/* Sidebar */}
-      <div className="w-80 bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col" style={{ maxHeight: `calc(${height} + 50px)` }}>
+      <div className="w-80 bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col overflow-hidden" style={{ height }}>
         {/* Header */}
-        <div className="p-3 border-b border-gray-200">
+        <div className="p-3 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-gray-900">Property Locations</h3>
           </div>
@@ -451,148 +451,71 @@ const DealLocationsMap = ({
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="border-b border-gray-200">
-          <div className="p-2 flex items-center justify-between bg-gray-50">
-            <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
-              <Filter size={14} />
-              Filters
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Filters */}
+          <div className="border-b border-gray-200">
+            <div className="p-2 flex items-center justify-between bg-gray-50 sticky top-0 z-10">
+              <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                <Filter size={14} />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-1">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </span>
               {activeFilterCount > 0 && (
-                <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-1">
-                  {activeFilterCount}
-                </span>
+                <button
+                  onClick={clearAllFilters}
+                  className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                >
+                  <X size={12} />
+                  Clear All
+                </button>
               )}
-            </span>
-            {activeFilterCount > 0 && (
-              <button
-                onClick={clearAllFilters}
-                className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
-              >
-                <X size={12} />
-                Clear All
-              </button>
+            </div>
+
+            <FilterSection
+              title="Status"
+              filterKey="status"
+              options={options.statuses}
+              currentFilter={statusFilter}
+            />
+            <FilterSection
+              title="Service Line"
+              filterKey="serviceLine"
+              options={options.serviceLines}
+              currentFilter={serviceLineFilter}
+            />
+            {options.companies?.length > 0 && (
+              <FilterSection
+                title="Company"
+                filterKey="company"
+                options={options.companies}
+                currentFilter={companyFilter}
+              />
+            )}
+            {options.teams?.length > 0 && (
+              <FilterSection
+                title="Team"
+                filterKey="team"
+                options={options.teams}
+                currentFilter={teamFilter}
+              />
             )}
           </div>
 
-          <FilterSection
-            title="Status"
-            filterKey="status"
-            options={options.statuses}
-            currentFilter={statusFilter}
-          />
-          <FilterSection
-            title="Service Line"
-            filterKey="serviceLine"
-            options={options.serviceLines}
-            currentFilter={serviceLineFilter}
-          />
-          {options.companies?.length > 0 && (
-            <FilterSection
-              title="Company"
-              filterKey="company"
-              options={options.companies}
-              currentFilter={companyFilter}
-            />
-          )}
-          {options.teams?.length > 0 && (
-            <FilterSection
-              title="Team"
-              filterKey="team"
-              options={options.teams}
-              currentFilter={teamFilter}
-            />
-          )}
-        </div>
-
-        {/* Deals list */}
-        <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
-          {deals.length === 0 ? (
-            <div className="text-center py-6 text-gray-500">
-              <div className="w-10 h-10 mx-auto mb-2 bg-gray-100 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-600">No locations found</p>
-              <p className="text-xs text-gray-400 mt-1">Apply filters to see locations</p>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {deals.map((deal) => {
-                const isSelected = selectedDeals.has(deal.id);
-                const color = dealColors[deal.id] || DEAL_COLORS[0];
-                const facilityCount = deal.deal_facility?.length || 0;
-
-                return (
-                  <div
-                    key={deal.id}
-                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50 shadow-sm'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                    onClick={() => toggleDealSelection(deal.id)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: color }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-gray-900 truncate">
-                          {deal.deal_name}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {facilityCount} {facilityCount !== 1 ? 'facilities' : 'facility'}
-                          {deal.deal_status && (
-                            <span className="ml-1 text-gray-400">
-                              • {deal.deal_status.replace(/_/g, ' ')}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {isSelected && (
-                        <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* Footer */}
-        <div className="p-2 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 text-center">
+        <div className="p-2 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 text-center flex-shrink-0">
           {visibleMarkers.length} markers on map
         </div>
       </div>
 
       {/* Map */}
       <div className="flex-1 relative bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-        {/* Legend */}
-        <div className="absolute top-3 right-3 z-10 bg-white rounded-lg shadow-md border border-gray-200 p-2">
-          <div className="text-xs font-medium text-gray-700 mb-1.5">Legend</div>
-          <div className="space-y-1">
-            <div className="text-xs text-gray-500 font-medium">Service Lines:</div>
-            {Object.entries(SERVICE_LINE_COLORS).map(([type, color]) => (
-              <div key={type} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-xs text-gray-600">{type}</span>
-              </div>
-            ))}
-            <div className="text-xs text-gray-500 font-medium mt-1.5">Deal Status:</div>
-            {Object.entries(STATUS_COLORS).filter(([status]) => status !== 'current_operations').map(([status, color]) => (
-              <div key={status} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-xs text-gray-600">{status.replace(/_/g, ' ')}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         <GoogleMap
           mapContainerStyle={{ ...containerStyle, height }}
           center={center}

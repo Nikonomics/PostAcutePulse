@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useWizard, WIZARD_STEPS } from '../WizardContext';
+import ValidationAlerts from '../../../components/ValidationAlerts';
 
 const DEAL_SOURCES = [
   { value: 'Broker', label: 'Broker' },
@@ -33,7 +34,13 @@ const DealBasics = () => {
     goToPreviousStep,
     isExtracting,
     extractionProgress,
+    extractionData,
+    validationWarningsDismissed,
+    setValidationWarningsDismissed,
   } = useWizard();
+
+  // Get validation from extraction data
+  const validation = extractionData?._validation;
 
   const handleChange = (field, value) => {
     updateDealData({ [field]: value });
@@ -65,6 +72,18 @@ const DealBasics = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Validation Alerts - Show errors and warnings from extraction */}
+      {!isExtracting && validation && (
+        <ValidationAlerts
+          validation={validationWarningsDismissed
+            ? { ...validation, warnings: [], allWarnings: [] }
+            : validation
+          }
+          onDismissWarnings={() => setValidationWarningsDismissed(true)}
+          className="mb-3"
+        />
       )}
 
       <h2 className="step-title">Deal Basics</h2>

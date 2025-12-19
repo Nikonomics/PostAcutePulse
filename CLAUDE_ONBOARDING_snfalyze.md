@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-18 10:35:52
+> Last updated: 2025-12-18 18:01:14
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -3891,6 +3891,7 @@ Solve for IRR using Newton-Raphson method
 ```
 Backend:
 backend/app_snfalyze.js
+backend/bellwether_validation.js
 backend/check_extraction.js
 backend/create-tables-and-migrate.js
 backend/migrate-to-postgres.js
@@ -3939,6 +3940,7 @@ backend/services/marketService.js
 backend/services/normalizationService.js
 backend/services/parallelExtractor.js
 backend/services/periodAnalyzer.js
+backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
 backend/services/ratioCalculator.js
 

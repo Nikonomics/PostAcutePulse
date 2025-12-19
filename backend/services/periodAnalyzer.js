@@ -382,6 +382,9 @@ function detectPeriodFromContent(content) {
 /**
  * Parses month name and year into ISO date string
  *
+ * IMPORTANT: Uses Date.UTC() to create dates in UTC timezone
+ * This avoids timezone bugs where local midnight shifts to previous day in UTC
+ *
  * @param {string} month - Month name or number
  * @param {string|number} year - Four digit year
  * @returns {string|null} ISO date string (YYYY-MM-DD) or null
@@ -410,13 +413,17 @@ function parseMonthYear(month, year) {
   const yearNum = parseInt(year);
   if (isNaN(yearNum)) return null;
 
-  // Return first day of month
-  const date = new Date(yearNum, monthNum, 1);
+  // FIX: Use Date.UTC() to create date in UTC timezone
+  // Previously: new Date(yearNum, monthNum, 1) created in LOCAL time
+  // which caused issues when converting to ISO string
+  const date = new Date(Date.UTC(yearNum, monthNum, 1));
   return date.toISOString().split('T')[0];
 }
 
 /**
  * Subtracts months from a date string
+ *
+ * IMPORTANT: Uses UTC methods to avoid timezone issues
  *
  * @param {string} dateStr - ISO date string
  * @param {number} months - Number of months to subtract
@@ -424,12 +431,15 @@ function parseMonthYear(month, year) {
  */
 function subtractMonths(dateStr, months) {
   const date = new Date(dateStr);
-  date.setMonth(date.getMonth() - months);
+  // FIX: Use setUTCMonth/getUTCMonth instead of local time methods
+  date.setUTCMonth(date.getUTCMonth() - months);
   return date.toISOString().split('T')[0];
 }
 
 /**
  * Adds months to a date string
+ *
+ * IMPORTANT: Uses UTC methods to avoid timezone issues
  *
  * @param {string} dateStr - ISO date string
  * @param {number} months - Number of months to add
@@ -437,12 +447,15 @@ function subtractMonths(dateStr, months) {
  */
 function addMonths(dateStr, months) {
   const date = new Date(dateStr);
-  date.setMonth(date.getMonth() + months);
+  // FIX: Use setUTCMonth/getUTCMonth instead of local time methods
+  date.setUTCMonth(date.getUTCMonth() + months);
   return date.toISOString().split('T')[0];
 }
 
 /**
  * Calculates the number of months between two dates (inclusive)
+ *
+ * IMPORTANT: Uses UTC methods to avoid timezone issues
  *
  * @param {string} startDate - ISO date string
  * @param {string} endDate - ISO date string
@@ -452,8 +465,9 @@ function calculateMonthsBetween(startDate, endDate) {
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  return (end.getFullYear() - start.getFullYear()) * 12 +
-         (end.getMonth() - start.getMonth()) + 1;
+  // FIX: Use getUTCFullYear/getUTCMonth instead of local time methods
+  return (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+         (end.getUTCMonth() - start.getUTCMonth()) + 1;
 }
 
 /**
@@ -471,6 +485,9 @@ function getFileExtension(filename) {
 /**
  * Generates a list of months between two dates
  *
+ * IMPORTANT: Uses UTC methods to avoid timezone bugs where local time
+ * causes dates to shift by a month (e.g., Sept 1 UTC = Aug 31 PDT)
+ *
  * @param {string} startDate - ISO date string
  * @param {string} endDate - ISO date string
  * @returns {Array<string>} Array of YYYY-MM strings
@@ -480,12 +497,33 @@ function generateMonthList(startDate, endDate) {
   const current = new Date(startDate);
   const end = new Date(endDate);
 
+  // Debug: Log the actual dates being processed
+  console.log('[PeriodAnalyzer] generateMonthList:', {
+    startDate,
+    endDate,
+    currentUTC: current.toISOString(),
+    endUTC: end.toISOString(),
+    // Show potential timezone issue
+    currentLocalMonth: current.getMonth(),
+    currentUTCMonth: current.getUTCMonth(),
+    endLocalMonth: end.getMonth(),
+    endUTCMonth: end.getUTCMonth()
+  });
+
+  // FIX: Use UTC methods to avoid timezone issues
+  // Previously used getMonth()/setMonth() which use local time
   while (current <= end) {
-    const year = current.getFullYear();
-    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const year = current.getUTCFullYear();
+    const month = String(current.getUTCMonth() + 1).padStart(2, '0');
     months.push(`${year}-${month}`);
-    current.setMonth(current.getMonth() + 1);
+    current.setUTCMonth(current.getUTCMonth() + 1);
   }
+
+  console.log('[PeriodAnalyzer] generateMonthList result:', {
+    monthCount: months.length,
+    firstMonth: months[0],
+    lastMonth: months[months.length - 1]
+  });
 
   return months;
 }
@@ -497,6 +535,15 @@ function generateMonthList(startDate, endDate) {
  * @returns {Object} Optimal T12 recommendation
  */
 function determineOptimalT12(financialDocs) {
+  console.log('=== PERIOD ANALYSIS DEBUG ===');
+  console.log('[PeriodAnalyzer] Documents analyzed:', financialDocs.map(d => ({
+    name: d.filename,
+    type: d.period_type,
+    start: d.start_date,
+    end: d.end_date,
+    confidence: d.confidence
+  })));
+
   const result = {
     freshest_month: null,
     recommended_t12: null,
@@ -513,6 +560,7 @@ function determineOptimalT12(financialDocs) {
     if (doc.end_date) {
       if (!freshestEndDate || new Date(doc.end_date) > new Date(freshestEndDate)) {
         freshestEndDate = doc.end_date;
+        console.log(`[PeriodAnalyzer] New freshest end date: ${freshestEndDate} from ${doc.filename}`);
       }
     }
   }
@@ -523,11 +571,23 @@ function determineOptimalT12(financialDocs) {
   }
 
   result.freshest_month = freshestEndDate;
+  console.log('[PeriodAnalyzer] Final freshest month:', freshestEndDate);
 
   // Calculate optimal T12 period
   const optimalStart = subtractMonths(freshestEndDate, 11);
   const optimalEnd = freshestEndDate;
+
+  console.log('[PeriodAnalyzer] Calculating optimal T12:', {
+    freshestEndDate,
+    optimalStart,
+    optimalEnd,
+    // Verify timezone handling
+    freshestDateParsed: new Date(freshestEndDate).toISOString(),
+    optimalStartParsed: new Date(optimalStart).toISOString()
+  });
+
   const optimalMonths = generateMonthList(optimalStart, optimalEnd);
+  console.log('[PeriodAnalyzer] Optimal T12 months:', optimalMonths);
 
   // Build source map - determine which document to use for each month
   const sourceMap = {};
@@ -614,6 +674,18 @@ function determineOptimalT12(financialDocs) {
     result.recommended_t12.source_breakdown = sourceBreakdown;
   }
 
+  // Final debug output
+  console.log('[PeriodAnalyzer] === FINAL RESULT ===');
+  console.log('[PeriodAnalyzer] Recommended T12 period:', result.recommended_t12?.start, 'to', result.recommended_t12?.end);
+  console.log('[PeriodAnalyzer] Data sources by month:', sourceMap);
+  console.log('[PeriodAnalyzer] Combination needed:', result.combination_needed);
+  console.log('[PeriodAnalyzer] Sources used:', uniqueSources);
+  console.log('[PeriodAnalyzer] Overlapping months:', overlappingMonths);
+  if (uncoveredMonths.length > 0) {
+    console.log('[PeriodAnalyzer] ⚠️ UNCOVERED MONTHS:', uncoveredMonths);
+  }
+  console.log('=== END PERIOD ANALYSIS ===');
+
   return result;
 }
 
@@ -633,8 +705,44 @@ Extract financial data from available documents using standard procedures.
 `;
   }
 
+  // Determine the target period - either from combination or primary document
+  let targetStart = null;
+  let targetEnd = null;
+
+  if (analysis.combination_needed && analysis.recommended_t12) {
+    targetStart = analysis.recommended_t12.start;
+    targetEnd = analysis.recommended_t12.end;
+  } else if (analysis.financial_documents.length > 0) {
+    const primaryDoc = analysis.financial_documents[0];
+    targetStart = primaryDoc.start_date;
+    targetEnd = primaryDoc.end_date;
+  }
+
+  // Build the prompt with HARD CONSTRAINTS at the top
   let prompt = `
-## FINANCIAL PERIOD ANALYSIS
+## 🚨 CRITICAL: PERIOD CONSTRAINTS (READ FIRST)
+
+**THESE DATE BOUNDARIES ARE MANDATORY FOR ALL EXTRACTIONS**
+
+${targetStart && targetEnd ? `
+╔══════════════════════════════════════════════════════════════════╗
+║  AUTHORIZED EXTRACTION PERIOD: ${targetStart} to ${targetEnd}
+║
+║  ❌ DO NOT extract data for months BEFORE ${targetStart}
+║  ❌ DO NOT extract data for months AFTER ${targetEnd}
+║  ✅ ONLY extract data within this 12-month window
+╚══════════════════════════════════════════════════════════════════╝
+` : ''}
+
+This constraint applies to ALL data types you extract:
+- Monthly financials (revenue, expenses, EBITDA)
+- Monthly census (occupancy, patient days, payer mix)
+- Monthly expenses by department
+- Rate schedules (use rates effective within this period)
+
+If a document contains data outside this period, IGNORE IT.
+
+---
 
 ### Documents Identified
 ${analysis.financial_documents.map(doc => `
@@ -650,22 +758,24 @@ ${analysis.financial_documents.map(doc => `
     const t12 = analysis.recommended_t12;
 
     prompt += `
-### ⚠️ COMBINATION REQUIRED
+### ⚠️ DOCUMENT COMBINATION REQUIRED
 
-Multiple financial documents cover different periods. Combine them to extract the **freshest possible T12**.
+Multiple financial documents cover different periods. You MUST combine them to extract the **freshest possible T12**.
 
-**Target Period**: ${t12.start} to ${t12.end}
+**Target T12 Period**: ${t12.start} to ${t12.end} (EXACTLY 12 months)
 
 **Source Map** (which document to use for each month):
 ${Object.entries(t12.source_map).map(([month, source]) =>
-  `- ${month}: ${source || '⚠️ NO DATA'}`
+  `- ${month}: ${source || '⚠️ NO DATA - skip this month'}`
 ).join('\n')}
 
-**Instructions**:
-1. For each month listed above, pull data from the specified document
-2. Sum monthly values to get T12 totals
-3. For overlapping months (${analysis.overlapping_months.join(', ')}), use the source specified above (more recent document preferred)
-4. If values in overlapping months differ by >5%, flag in data_quality_notes
+**Combination Rules**:
+1. For EACH of the 12 months above, pull data from the specified document
+2. For overlapping months (${analysis.overlapping_months.join(', ')}), use the source specified above (more recent document preferred)
+3. If values in overlapping months differ by >5%, flag in data_quality_notes
+4. Sum monthly values to get T12/TTM totals
+
+**VALIDATION**: Your extracted monthly data should have EXACTLY 12 records, one for each month from ${t12.start} to ${t12.end}.
 
 **Include in your output**:
 \`\`\`json
@@ -687,6 +797,8 @@ ${Object.entries(t12.source_map).map(([month, source]) =>
 ### Single Document Period
 
 Extract financials for the period: ${primaryDoc.start_date || 'start'} to ${primaryDoc.end_date || 'end'}
+
+**VALIDATION**: Only extract monthly data within this date range.
 
 **Include in your output**:
 \`\`\`json

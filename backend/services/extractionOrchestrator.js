@@ -16,6 +16,7 @@ const { reconcileExtractionResults, reconcilePortfolioExtraction } = require('./
 const { analyzeRatios } = require('./ratioCalculator');
 const { analyzeFinancialPeriods, generatePromptSection } = require('./periodAnalyzer');
 const { runCIMExtraction, detectCIMDocument, transformCIMToFrontendSchema } = require('./cimExtractor');
+const { ExtractionDataValidator } = require('./extractionValidator');
 
 // Minimum text length to consider extraction successful
 const MIN_TEXT_LENGTH = 100;
@@ -227,9 +228,15 @@ async function runFullExtraction(files) {
   if (periodAnalysis.combination_needed) {
     console.log(`[Orchestrator] Period analysis: Combining ${periodAnalysis.financial_documents.length} documents for optimal T12`);
     console.log(`[Orchestrator] Target period: ${periodAnalysis.recommended_t12?.start} to ${periodAnalysis.recommended_t12?.end}`);
-  } else {
+    console.log(`[Orchestrator] Period constraint will be enforced across ALL parallel extractions`);
+  } else if (periodAnalysis.financial_documents.length > 0) {
+    const primaryDoc = periodAnalysis.financial_documents[0];
     console.log(`[Orchestrator] Period analysis: ${periodAnalysis.financial_documents.length} financial documents identified`);
+    console.log(`[Orchestrator] Target period: ${primaryDoc.start_date} to ${primaryDoc.end_date}`);
+  } else {
+    console.log(`[Orchestrator] Period analysis: No financial documents identified`);
   }
+  console.log(`[Orchestrator] Period prompt section length: ${periodPromptSection.length} chars`);
 
   // Step 3: Prepare combined document text
   console.log('[Orchestrator] Step 3: Preparing documents for parallel extraction...');
@@ -252,6 +259,48 @@ async function runFullExtraction(files) {
   console.log('[Orchestrator] Step 6: Calculating ratios and benchmarks...');
   const ratioAnalysis = analyzeRatios(reconciledData);
 
+  // Step 7: Validate extraction data quality
+  console.log('[Orchestrator] Step 7: Validating extraction data...');
+  const dataValidation = ExtractionDataValidator.validate(reconciledData.summary);
+
+  // Also validate monthly data if present
+  const monthlyFinancialsValidation = ExtractionDataValidator.validateMonthlyData(
+    reconciledData.financials?.monthly || [],
+    'financials'
+  );
+  const monthlyCensusValidation = ExtractionDataValidator.validateMonthlyData(
+    reconciledData.census?.monthly || [],
+    'census'
+  );
+
+  // Combine all validation results
+  const combinedValidation = {
+    ...dataValidation,
+    monthlyFinancials: monthlyFinancialsValidation,
+    monthlyCensus: monthlyCensusValidation,
+    // Overall validity requires all validations to pass
+    valid: dataValidation.valid && monthlyFinancialsValidation.valid && monthlyCensusValidation.valid,
+    // Combine all errors and warnings
+    allErrors: [
+      ...dataValidation.errors,
+      ...monthlyFinancialsValidation.errors.map(e => ({ ...e, source: 'monthly_financials' })),
+      ...monthlyCensusValidation.errors.map(e => ({ ...e, source: 'monthly_census' }))
+    ],
+    allWarnings: [
+      ...dataValidation.warnings,
+      ...monthlyFinancialsValidation.warnings.map(w => ({ ...w, source: 'monthly_financials' })),
+      ...monthlyCensusValidation.warnings.map(w => ({ ...w, source: 'monthly_census' }))
+    ]
+  };
+
+  console.log(`[Orchestrator] Validation result: ${combinedValidation.summary}`);
+  if (combinedValidation.allErrors.length > 0) {
+    console.warn(`[Orchestrator] Validation errors: ${combinedValidation.allErrors.map(e => e.message).join('; ')}`);
+  }
+  if (combinedValidation.allWarnings.length > 0) {
+    console.log(`[Orchestrator] Validation warnings: ${combinedValidation.allWarnings.map(w => w.message).join('; ')}`);
+  }
+
   // Build final result
   const totalDuration = Date.now() - startTime;
   console.log(`[Orchestrator] Extraction complete in ${totalDuration}ms`);
@@ -272,7 +321,9 @@ async function runFullExtraction(files) {
     // Additional ratios for ProForma
     ebitda_margin: ratioAnalysis.ratios.ebitda_margin,
     ebitdar_margin: ratioAnalysis.ratios.ebitdar_margin,
-    occupancy: ratioAnalysis.ratios.occupancy
+    occupancy: ratioAnalysis.ratios.occupancy,
+    // Attach validation results for frontend display
+    _validation: combinedValidation
   };
 
   // Log deal_overview presence for debugging
@@ -312,13 +363,17 @@ async function runFullExtraction(files) {
     // Facility info
     facility: reconciledData.facility,
 
+    // Data quality validation results
+    validation: combinedValidation,
+
     // Metadata
     metadata: {
       totalDuration,
       filesProcessed: processedFiles.length,
       filesSuccessful: successfulFiles.length,
       extractionErrors: reconciledData.metadata?.extraction_errors || [],
-      parallelExtractionDuration: parallelResults.metadata?.totalDuration
+      parallelExtractionDuration: parallelResults.metadata?.totalDuration,
+      validationSummary: combinedValidation.summary
     },
 
     // File info
@@ -713,11 +768,54 @@ async function runPortfolioExtraction(files, confirmedFacilities) {
 
   // Step 8: Validate facility data against portfolio totals
   console.log('[PortfolioExtraction] Step 8: Validating facility data against portfolio totals...');
-  const validation = validatePortfolioVsFacilities(portfolioExtraction, facilityExtractions);
+  const portfolioVsFacilityValidation = validatePortfolioVsFacilities(portfolioExtraction, facilityExtractions);
 
-  if (validation.warnings.length > 0) {
-    console.warn('[PortfolioExtraction] Validation warnings:', validation.warnings);
+  if (portfolioVsFacilityValidation.warnings.length > 0) {
+    console.warn('[PortfolioExtraction] Portfolio vs facility validation warnings:', portfolioVsFacilityValidation.warnings);
   }
+
+  // Step 8.5: Run data quality validation on portfolio and each facility
+  console.log('[PortfolioExtraction] Step 8.5: Running data quality validation...');
+  const portfolioDataValidation = ExtractionDataValidator.validate(portfolioExtraction.extractedData, { isPortfolio: true });
+
+  // Validate each facility's extracted data
+  const facilityValidations = facilityExtractions.map(fe => {
+    const facilityName = fe.facility_name || 'Unknown Facility';
+    return {
+      facility_name: facilityName,
+      validation: ExtractionDataValidator.validate(
+        fe.extraction_result?.extractedData || {},
+        { facilityName }
+      )
+    };
+  });
+
+  // Also validate portfolio consistency
+  const portfolioConsistencyValidation = ExtractionDataValidator.validatePortfolioConsistency(
+    portfolioExtraction.extractedData,
+    facilityExtractions
+  );
+
+  // Combine all validation results
+  const combinedDataValidation = {
+    portfolio: portfolioDataValidation,
+    facilities: facilityValidations,
+    portfolioConsistency: portfolioConsistencyValidation,
+    portfolioVsFacility: portfolioVsFacilityValidation,
+    // Aggregate summary
+    valid: portfolioDataValidation.valid && facilityValidations.every(fv => fv.validation.valid),
+    totalErrors: portfolioDataValidation.errorCount +
+      facilityValidations.reduce((sum, fv) => sum + fv.validation.errorCount, 0),
+    totalWarnings: portfolioDataValidation.warningCount +
+      facilityValidations.reduce((sum, fv) => sum + fv.validation.warningCount, 0) +
+      portfolioVsFacilityValidation.warnings.length,
+    summary: `Portfolio: ${portfolioDataValidation.summary}; Facilities: ${facilityValidations.length} validated`
+  };
+
+  console.log(`[PortfolioExtraction] Data validation: ${combinedDataValidation.totalErrors} errors, ${combinedDataValidation.totalWarnings} warnings`);
+
+  // Use the combined validation as the main validation object
+  const validation = combinedDataValidation;
 
   // Step 9: Run holistic Deal Overview extraction (the +1)
   console.log('[PortfolioExtraction] Step 9: Running holistic Deal Overview extraction...');

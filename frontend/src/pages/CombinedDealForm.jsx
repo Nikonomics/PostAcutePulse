@@ -23,6 +23,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { getActiveUsers } from "../api/authService";
 import FacilityMatchModal from "../components/FacilityMatchModal";
+import ValidationAlerts from "../components/ValidationAlerts";
 // import LocationMultiSelect from "../components/ui/LocationMultiSelect";
 
 // --- Validation Schema ---
@@ -217,6 +218,7 @@ const CombinedDealForm = () => {
   const [documentTypes, setDocumentTypes] = useState([]);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [extractionResponseData, setExtractionResponseData] = useState(null); // Store full extraction response
+  const [validationWarningsDismissed, setValidationWarningsDismissed] = useState(false); // Track if user dismissed validation warnings
 
   // Upload & Analyze state
   const [isExtracting, setIsExtracting] = useState(false);
@@ -226,6 +228,7 @@ const CombinedDealForm = () => {
   // Facility matching state
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [facilityMatches, setFacilityMatches] = useState([]);
+  const [facilityConflicts, setFacilityConflicts] = useState([]); // Conflicts from extraction
   const [matchSearchName, setMatchSearchName] = useState('');
   const [createdDealId, setCreatedDealId] = useState(null);
 
@@ -1718,8 +1721,10 @@ const CombinedDealForm = () => {
                 // Show modal if there are matches pending review
                 if (matchData.status === 'pending_review' && matchData.matches && matchData.matches.length > 0) {
                   console.log(`[CombinedDealForm] ✅ SHOWING MODAL with ${matchData.matches.length} matches`);
+                  console.log(`[CombinedDealForm] Conflicts: ${matchData.conflicts?.length || 0}`);
                   setCreatedDealId(firstDealId);
                   setFacilityMatches(matchData.matches);
+                  setFacilityConflicts(matchData.conflicts || []); // Store conflicts for resolution
                   setMatchSearchName(matchData.search_name || 'this facility');
                   setShowMatchModal(true);
                   return; // CRITICAL: Don't navigate yet - wait for user to review matches
@@ -1765,16 +1770,25 @@ const CombinedDealForm = () => {
   };
 
   // Facility match modal handlers
-  const handleSelectFacilityMatch = async (facilityId) => {
+  const handleSelectFacilityMatch = async (facilityId, resolvedConflicts = null) => {
     try {
-      const response = await selectFacilityMatch(createdDealId, {
+      const requestBody = {
         facility_id: facilityId,
         action: 'select'
-      });
+      };
+
+      // Include resolved conflicts if user resolved any
+      if (resolvedConflicts && Object.keys(resolvedConflicts).length > 0) {
+        requestBody.resolved_conflicts = resolvedConflicts;
+        console.log('[CombinedDealForm] Sending resolved conflicts:', resolvedConflicts);
+      }
+
+      const response = await selectFacilityMatch(createdDealId, requestBody);
 
       if (response.code === 200) {
         toast.success("Facility data applied successfully!");
         setShowMatchModal(false);
+        setFacilityConflicts([]); // Clear conflicts after resolution
         // Navigate to the deal profile page with tabs (General Info, Pro Forma, etc.)
         // Add timestamp to force page to refetch data
         navigate(`/deals/deal-detail/${createdDealId}?refresh=${Date.now()}`);
@@ -2810,6 +2824,18 @@ const CombinedDealForm = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* Validation Alerts - Show errors and warnings from extraction */}
+        {isFromAiExtraction && extractionResponseData?.extractedData?._validation && (
+          <ValidationAlerts
+            validation={validationWarningsDismissed
+              ? { ...extractionResponseData.extractedData._validation, warnings: [], allWarnings: [] }
+              : extractionResponseData.extractedData._validation
+            }
+            onDismissWarnings={() => setValidationWarningsDismissed(true)}
+            className="mt-3"
+          />
         )}
 
         {/* Documents List Section - Above the form */}
@@ -4810,7 +4836,11 @@ const CombinedDealForm = () => {
                     type="button"
                     className="btn btn-success btn-lg"
                     onClick={handleFinalSubmit}
-                    disabled={loading}
+                    disabled={loading || (extractionResponseData?.extractedData?._validation?.errors?.length > 0)}
+                    title={extractionResponseData?.extractedData?._validation?.errors?.length > 0
+                      ? "Please fix extraction errors before creating the deal"
+                      : ""
+                    }
                   >
                     {loading ? (
                       <>
@@ -4840,6 +4870,7 @@ const CombinedDealForm = () => {
         open={showMatchModal}
         matches={facilityMatches}
         searchName={matchSearchName}
+        conflicts={facilityConflicts}
         onSelect={handleSelectFacilityMatch}
         onSkip={handleSkipFacilityMatch}
         onNotSure={handleNotSureFacilityMatch}

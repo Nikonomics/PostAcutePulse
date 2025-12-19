@@ -5,19 +5,32 @@ import {
   TrendingUp,
   BarChart3,
   AlertTriangle,
+  Award,
   FileText,
   ArrowLeftRight,
+  ArrowLeft,
+  Bookmark,
+  BookmarkCheck,
+  Loader,
+  MapPin,
+  Building2,
+  Users,
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import FacilitySelector from './FacilitySelector';
 import { SnapshotTab } from './SnapshotTab';
 import TrendsTab from './TrendsTab';
 import BenchmarksTab from './BenchmarksTab';
 import RiskAnalysisTab from './RiskAnalysisTab';
+import VBPTab from './VBPTab';
+import OwnershipTab from './OwnershipTab';
+import { CompetitionTab } from './CompetitionTab';
 import ReportsTab from './ReportsTab';
 import { SkeletonFacilityMetrics } from './SkeletonCard';
 import { ComparisonView } from './ComparisonView';
 import AlertBanner from './AlertBanner';
 import { getFacilityProfile, getFacilityBenchmarks } from '../../api/facilityService';
+import { saveFacility, removeSavedItem, checkSavedItems } from '../../api/savedItemsService';
 import './FacilityMetrics.css';
 
 /**
@@ -56,6 +69,9 @@ const TABS = [
   { id: 'trends', label: 'Trends', icon: TrendingUp },
   { id: 'benchmarks', label: 'Benchmarks', icon: BarChart3 },
   { id: 'risk', label: 'Risk Analysis', icon: AlertTriangle },
+  { id: 'vbp', label: 'VBP', icon: Award },
+  { id: 'ownership', label: 'Ownership', icon: Building2 },
+  { id: 'competition', label: 'Competition', icon: Users },
   { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
@@ -73,7 +89,7 @@ const FacilityMetricsTab = () => {
 
   // Initialize activeTab from URL or default to 'snapshot'
   const tabFromUrl = searchParams.get('tab');
-  const validTabs = ['snapshot', 'trends', 'benchmarks', 'risk', 'reports'];
+  const validTabs = ['snapshot', 'trends', 'benchmarks', 'risk', 'vbp', 'ownership', 'competition', 'reports'];
   const initialTab = validTabs.includes(tabFromUrl) ? tabFromUrl : 'snapshot';
 
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -83,6 +99,46 @@ const FacilityMetricsTab = () => {
   const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(!!urlCcn);
   const [showComparison, setShowComparison] = useState(false);
   const compareCcn = searchParams.get('compare');
+
+  // Save/bookmark state
+  const [isSaved, setIsSaved] = useState(false);
+  const [savedItemId, setSavedItemId] = useState(null);
+  const [savingBookmark, setSavingBookmark] = useState(false);
+
+  // Back navigation - read 'from' param from URL
+  const fromParam = searchParams.get('from');
+
+  // Sync activeTab with URL when tab param changes (e.g., navigating from competitor)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && validTabs.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    } else if (!tabParam && activeTab !== 'snapshot') {
+      // No tab in URL means default to snapshot
+      setActiveTab('snapshot');
+    }
+  }, [searchParams, urlCcn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Get contextual back button label based on 'from' value
+  const getBackLabel = () => {
+    switch (fromParam) {
+      case 'deal': return 'Back to Deal';
+      case 'market': return 'Back to Market Analysis';
+      case 'search': return 'Back to Search';
+      case 'ownership': return 'Back to Ownership Profile';
+      default: return 'Back';
+    }
+  };
+
+  // Handle back navigation
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      // Fallback if no history
+      navigate('/ownership-research');
+    }
+  };
 
   // Fetch benchmarks when facility changes
   useEffect(() => {
@@ -101,9 +157,81 @@ const FacilityMetricsTab = () => {
     }
   }, [selectedFacility?.ccn]);
 
-  // Load facility from URL on mount
+  // Check if facility is saved when facility changes
   useEffect(() => {
-    if (urlCcn && !selectedFacility) {
+    const checkIfSaved = async () => {
+      if (!selectedFacility?.ccn) {
+        setIsSaved(false);
+        setSavedItemId(null);
+        return;
+      }
+
+      try {
+        const result = await checkSavedItems('cms_facility', { ccns: [selectedFacility.ccn] });
+        if (result.success && result.data) {
+          // API returns { data: { "CCN123": saved_item_id_or_null } }
+          const savedItemId = result.data[selectedFacility.ccn];
+          if (savedItemId) {
+            setIsSaved(true);
+            setSavedItemId(savedItemId);
+          } else {
+            setIsSaved(false);
+            setSavedItemId(null);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking saved status:', error);
+        // Don't show error to user - just default to not saved
+        setIsSaved(false);
+        setSavedItemId(null);
+      }
+    };
+
+    checkIfSaved();
+  }, [selectedFacility?.ccn]);
+
+  // Toggle save/bookmark
+  const handleToggleSave = async () => {
+    if (!selectedFacility?.ccn) return;
+
+    setSavingBookmark(true);
+    try {
+      if (isSaved && savedItemId) {
+        await removeSavedItem(savedItemId);
+        setIsSaved(false);
+        setSavedItemId(null);
+        toast.success('Removed from saved items');
+      } else {
+        const result = await saveFacility(
+          selectedFacility.ccn,
+          selectedFacility.provider_name || selectedFacility.facility_name
+        );
+
+        if (result.success) {
+          setIsSaved(true);
+          setSavedItemId(result.data?.id);
+          toast.success('Added to saved items');
+        } else if (result.alreadySaved) {
+          setIsSaved(true);
+          setSavedItemId(result.saved_item_id);
+          toast.info('Facility is already in your saved items');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling save:', error);
+      toast.error('Failed to update saved status');
+    } finally {
+      setSavingBookmark(false);
+    }
+  };
+
+  // Load facility from URL on mount or when URL CCN changes
+  useEffect(() => {
+    // Only load if URL has CCN and it's different from current facility (or no facility loaded)
+    const currentCcn = selectedFacility?.ccn || selectedFacility?.federal_provider_number;
+    const shouldLoad = urlCcn && (!currentCcn || urlCcn !== currentCcn);
+
+    if (shouldLoad) {
       setIsLoadingFromUrl(true);
       getFacilityProfile(urlCcn)
         .then((response) => {
@@ -226,6 +354,12 @@ const FacilityMetricsTab = () => {
         return <BenchmarksTab {...props} />;
       case 'risk':
         return <RiskAnalysisTab {...props} />;
+      case 'vbp':
+        return <VBPTab {...props} />;
+      case 'ownership':
+        return <OwnershipTab {...props} />;
+      case 'competition':
+        return <CompetitionTab {...props} />;
       case 'reports':
         return <ReportsTab {...props} />;
       default:
@@ -235,6 +369,54 @@ const FacilityMetricsTab = () => {
 
   return (
     <div className="facility-metrics">
+      {/* Top Navigation Bar - Back, Facility Info, Save */}
+      {selectedFacility && (
+        <div className="facility-metrics-nav">
+          {/* Left: Back Button */}
+          <button className="back-button" onClick={handleBack}>
+            <ArrowLeft size={18} />
+            <span>{getBackLabel()}</span>
+          </button>
+
+          {/* Center: Facility Info */}
+          <div className="facility-info-header">
+            <h1 className="facility-name">
+              {selectedFacility.provider_name || selectedFacility.facility_name}
+            </h1>
+            <div className="facility-meta">
+              <span className="facility-address">
+                <MapPin size={14} />
+                {selectedFacility.city}, {selectedFacility.state}
+              </span>
+              <span className="facility-ccn">
+                CCN: {selectedFacility.ccn}
+              </span>
+              <span className="facility-beds">
+                <Building2 size={14} />
+                {selectedFacility.certified_beds || selectedFacility.total_beds || 0} Beds
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Save Button */}
+          <button
+            className={`save-button ${isSaved ? 'saved' : ''}`}
+            onClick={handleToggleSave}
+            disabled={savingBookmark}
+            title={isSaved ? 'Remove from saved items' : 'Save facility'}
+          >
+            {savingBookmark ? (
+              <Loader size={18} className="spin" />
+            ) : isSaved ? (
+              <BookmarkCheck size={18} />
+            ) : (
+              <Bookmark size={18} />
+            )}
+            <span>{isSaved ? 'Saved' : 'Save'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Facility Selector */}
       <div className="facility-metrics-header">
         <FacilitySelector

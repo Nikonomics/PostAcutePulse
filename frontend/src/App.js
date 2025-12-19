@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import Layout from "./components/common/Layout";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -27,7 +27,7 @@ import Profile from "./pages/Profile";
 import MarketAnalysis from "./pages/MarketAnalysis";
 import OwnershipResearch from "./pages/OwnershipResearch";
 import OwnershipProfile from "./pages/OwnershipProfile";
-import FacilityProfile from "./pages/FacilityProfile";
+// FacilityProfile import removed - now redirects to FacilityMetrics
 import FacilityMetrics from "./pages/FacilityMetrics";
 import SavedItems from "./pages/SavedItems";
 // Protected route wrapper component
@@ -51,6 +51,15 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   return children;
+};
+
+// Redirect /facility/:ccn to /facility-metrics/:ccn (preserving query params)
+const FacilityRedirect = () => {
+  const { ccn } = useParams();
+  const location = useLocation();
+  // Preserve any query parameters (e.g., ?from=deal&dealId=123)
+  const queryString = location.search || '';
+  return <Navigate to={`/facility-metrics/${ccn}${queryString}`} replace />;
 };
 
 function App() {
@@ -252,12 +261,12 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Facility Profile route */}
+        {/* Facility Profile redirect - redirects to FacilityMetrics */}
         <Route
           path="/facility/:ccn"
           element={
             <ProtectedRoute>
-              <FacilityProfile />
+              <FacilityRedirect />
             </ProtectedRoute>
           }
         />

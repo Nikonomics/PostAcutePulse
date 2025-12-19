@@ -177,6 +177,12 @@ module.exports = function (sequelize, DataTypes) {
       allowNull: true,
       defaultValue: 0
     },
+    match_status: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      defaultValue: 'no_match_needed',
+      comment: 'Facility match status: no_match_needed, pending_match, matched, skipped, not_sure'
+    },
     email_notification_major_updates: {
       type: DataTypes.STRING(10),
       allowNull: true,
@@ -245,6 +251,30 @@ module.exports = function (sequelize, DataTypes) {
   }, {
     sequelize,
     tableName: 'deals',
-    timestamps: false
+    timestamps: false,
+    scopes: {
+      // Deals ready for analytics (not pending match or uncertain)
+      analyticsReady: {
+        where: {
+          match_status: {
+            [Sequelize.Op.notIn]: ['pending_match', 'not_sure']
+          }
+        }
+      },
+      // Only deals with confirmed facility matches
+      matchConfirmed: {
+        where: {
+          match_status: {
+            [Sequelize.Op.in]: ['matched', 'no_match_needed']
+          }
+        }
+      },
+      // Deals pending facility match review
+      pendingMatch: {
+        where: {
+          match_status: 'pending_match'
+        }
+      }
+    }
   });
 };

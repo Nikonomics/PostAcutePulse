@@ -229,10 +229,10 @@ async function getMapFilterOptions() {
   return filterOptions;
 }
 
-async function syncFacilityData(dealId, facilityData, source, transaction = null) {
+async function syncFacilityData(dealId, facilityData, source, skipConflictDetection = false, transaction = null) {
   const queryOptions = transaction ? { transaction } : {};
 
-  // Extract facility fields
+  // Extract facility fields from incoming data (typically from database match)
   const {
     facility_name,
     street_address,
@@ -245,54 +245,13 @@ async function syncFacilityData(dealId, facilityData, source, transaction = null
     facility_type
   } = facilityData;
 
-  // 1. Update deals table flat columns
+  // 1. First, load the deal and existing extraction_data to check for conflicts
   const deal = await Deal.findByPk(dealId, queryOptions);
   if (!deal) {
     throw new Error(`Deal ${dealId} not found`);
   }
 
-  const dealUpdateFields = {};
-  if (facility_name !== undefined) dealUpdateFields.facility_name = facility_name;
-  if (street_address !== undefined) dealUpdateFields.street_address = street_address;
-  if (city !== undefined) dealUpdateFields.city = city;
-  if (state !== undefined) dealUpdateFields.state = state;
-  if (zip_code !== undefined) dealUpdateFields.zip_code = zip_code;
-  if (bed_count !== undefined) dealUpdateFields.bed_count = bed_count;
-  if (latitude !== undefined) dealUpdateFields.latitude = latitude;
-  if (longitude !== undefined) dealUpdateFields.longitude = longitude;
-
-  if (Object.keys(dealUpdateFields).length > 0) {
-    await deal.update(dealUpdateFields, queryOptions);
-  }
-
-  // 2. Update deal_facilities record (create if doesn't exist)
-  let facility = await DealFacilities.findOne({ where: { deal_id: dealId }, ...queryOptions });
-
-  const facilityUpdateFields = {};
-  if (facility_name !== undefined) facilityUpdateFields.facility_name = facility_name;
-  if (street_address !== undefined) facilityUpdateFields.street_address = street_address;
-  if (city !== undefined) facilityUpdateFields.city = city;
-  if (state !== undefined) facilityUpdateFields.state = state;
-  if (zip_code !== undefined) facilityUpdateFields.zip_code = zip_code;
-  if (bed_count !== undefined) facilityUpdateFields.bed_count = bed_count;
-  if (latitude !== undefined) facilityUpdateFields.latitude = latitude;
-  if (longitude !== undefined) facilityUpdateFields.longitude = longitude;
-  if (facility_type !== undefined) facilityUpdateFields.facility_type = facility_type;
-
-  if (facility) {
-    await facility.update(facilityUpdateFields, queryOptions);
-  } else if (Object.keys(facilityUpdateFields).length > 0) {
-    // Create facility record if it doesn't exist
-    facility = await DealFacilities.create({
-      deal_id: dealId,
-      ...facilityUpdateFields
-    }, queryOptions);
-  }
-
-  // 3. Update extraction_data JSON (update flat fields, _sourceMap, and _confidenceMap)
-  const confidenceLevel = 'high'; // All synced data is high confidence
-
-  // Try enhanced_extraction_data first, then extraction_data
+  // Parse existing extraction_data to get extracted values
   let extractionData = null;
   let useEnhanced = false;
 
@@ -317,29 +276,177 @@ async function syncFacilityData(dealId, facilityData, source, transaction = null
     }
   }
 
-  if (extractionData) {
-    // For enhanced data, update extractedData sub-object; otherwise update root
-    const targetData = useEnhanced && extractionData.extractedData ? extractionData.extractedData : extractionData;
+  // Get the target data object (extractedData for enhanced, root for regular)
+  const targetData = extractionData
+    ? (useEnhanced && extractionData.extractedData ? extractionData.extractedData : extractionData)
+    : {};
 
+  // Helper to normalize strings for comparison
+  const normalizeString = (s) => s ? s.toString().toLowerCase().trim().replace(/\s+/g, ' ') : '';
+
+  // Helper to check if two strings are significantly different (not just formatting)
+  const areSignificantlyDifferent = (a, b) => {
+    const normA = normalizeString(a);
+    const normB = normalizeString(b);
+    if (!normA || !normB) return false; // Can't compare if one is empty
+    // Remove common abbreviations and punctuation for comparison
+    const cleanA = normA.replace(/[.,#-]/g, '').replace(/\b(st|rd|ave|blvd|dr|ln|ct|cir|way|pl)\b/g, '');
+    const cleanB = normB.replace(/[.,#-]/g, '').replace(/\b(st|rd|ave|blvd|dr|ln|ct|cir|way|pl)\b/g, '');
+    return cleanA !== cleanB;
+  };
+
+  // 2. CONFLICT DETECTION: Check for conflicts between extracted and database values
+  const conflicts = [];
+  const fieldsToSkip = new Set(); // Fields with conflicts - don't overwrite
+
+  // Skip conflict detection if user already resolved conflicts (e.g., from FacilityMatchModal)
+  if (skipConflictDetection) {
+    console.log(`[SYNC] Skipping conflict detection - user already resolved conflicts`);
+  }
+
+  // Fields that require conflict detection (critical data that affects calculations)
+  const conflictFields = skipConflictDetection ? [] : [
+    {
+      field: 'bed_count',
+      extractedKey: 'bed_count', // Also check total_beds
+      altExtractedKeys: ['total_beds'],
+      databaseValue: bed_count,
+      compare: (extracted, database) => {
+        const extNum = parseInt(extracted);
+        const dbNum = parseInt(database);
+        // Only conflict if both are valid numbers and they differ
+        return !isNaN(extNum) && !isNaN(dbNum) && extNum !== dbNum;
+      }
+    },
+    {
+      field: 'street_address',
+      extractedKey: 'street_address',
+      altExtractedKeys: ['address'],
+      databaseValue: street_address,
+      compare: (extracted, database) => areSignificantlyDifferent(extracted, database)
+    },
+    {
+      field: 'city',
+      extractedKey: 'city',
+      altExtractedKeys: [],
+      databaseValue: city,
+      compare: (extracted, database) => {
+        // City comparison: case-insensitive, but catch actual different cities
+        const normExtracted = normalizeString(extracted);
+        const normDatabase = normalizeString(database);
+        return normExtracted && normDatabase && normExtracted !== normDatabase;
+      }
+    }
+  ];
+
+  for (const cf of conflictFields) {
+    // Get extracted value (check primary key and alternates)
+    let extractedValue = targetData[cf.extractedKey];
+    if (extractedValue === undefined || extractedValue === null) {
+      for (const altKey of cf.altExtractedKeys) {
+        if (targetData[altKey] !== undefined && targetData[altKey] !== null) {
+          extractedValue = targetData[altKey];
+          break;
+        }
+      }
+    }
+
+    const databaseValue = cf.databaseValue;
+
+    // Check if conflict exists
+    if (extractedValue !== undefined && extractedValue !== null &&
+        databaseValue !== undefined && databaseValue !== null &&
+        cf.compare(extractedValue, databaseValue)) {
+
+      // Get source info for the extracted value
+      const extractedSource = targetData._sourceMap?.[cf.extractedKey] || 'AI Extraction';
+
+      console.log(`[SYNC] CONFLICT DETECTED for ${cf.field}: extracted=${extractedValue} (from ${extractedSource}), database=${databaseValue} (from ${source})`);
+
+      conflicts.push({
+        field: cf.field,
+        extracted_value: extractedValue,
+        database_value: databaseValue,
+        source_extracted: extractedSource,
+        source_database: source,
+        detected_at: new Date().toISOString(),
+        resolved: false,
+        resolved_value: null,
+        resolved_by: null,
+        resolved_at: null
+      });
+
+      // Mark this field to skip - keep extracted value
+      fieldsToSkip.add(cf.field);
+    }
+  }
+
+  // Log conflicts summary
+  if (conflicts.length > 0) {
+    console.log(`[SYNC] Deal ${dealId}: Found ${conflicts.length} conflict(s) - keeping extracted values for: ${Array.from(fieldsToSkip).join(', ')}`);
+  }
+
+  // 3. Update deals table flat columns (SKIP conflicted fields)
+  const dealUpdateFields = {};
+  if (facility_name !== undefined) dealUpdateFields.facility_name = facility_name;
+  if (street_address !== undefined && !fieldsToSkip.has('street_address')) dealUpdateFields.street_address = street_address;
+  if (city !== undefined && !fieldsToSkip.has('city')) dealUpdateFields.city = city;
+  if (state !== undefined) dealUpdateFields.state = state;
+  if (zip_code !== undefined) dealUpdateFields.zip_code = zip_code;
+  if (bed_count !== undefined && !fieldsToSkip.has('bed_count')) dealUpdateFields.bed_count = bed_count;
+  if (latitude !== undefined) dealUpdateFields.latitude = latitude;
+  if (longitude !== undefined) dealUpdateFields.longitude = longitude;
+
+  if (Object.keys(dealUpdateFields).length > 0) {
+    await deal.update(dealUpdateFields, queryOptions);
+  }
+
+  // 4. Update deal_facilities record (SKIP conflicted fields)
+  let facility = await DealFacilities.findOne({ where: { deal_id: dealId }, ...queryOptions });
+
+  const facilityUpdateFields = {};
+  if (facility_name !== undefined) facilityUpdateFields.facility_name = facility_name;
+  if (street_address !== undefined && !fieldsToSkip.has('street_address')) facilityUpdateFields.street_address = street_address;
+  if (city !== undefined && !fieldsToSkip.has('city')) facilityUpdateFields.city = city;
+  if (state !== undefined) facilityUpdateFields.state = state;
+  if (zip_code !== undefined) facilityUpdateFields.zip_code = zip_code;
+  if (bed_count !== undefined && !fieldsToSkip.has('bed_count')) facilityUpdateFields.bed_count = bed_count;
+  if (latitude !== undefined) facilityUpdateFields.latitude = latitude;
+  if (longitude !== undefined) facilityUpdateFields.longitude = longitude;
+  if (facility_type !== undefined) facilityUpdateFields.facility_type = facility_type;
+
+  if (facility) {
+    await facility.update(facilityUpdateFields, queryOptions);
+  } else if (Object.keys(facilityUpdateFields).length > 0) {
+    // Create facility record if it doesn't exist
+    facility = await DealFacilities.create({
+      deal_id: dealId,
+      ...facilityUpdateFields
+    }, queryOptions);
+  }
+
+  // 5. Update extraction_data JSON (SKIP conflicted fields, store conflicts)
+  const confidenceLevel = 'high'; // All synced data is high confidence
+
+  if (extractionData) {
     // Quick validation check - warn if data structure seems invalid
     if (!isValidFlatFormat(targetData)) {
       console.warn(`[SYNC] Deal ${dealId}: extraction_data may have nested structure - check data integrity`);
     }
 
-    // Update flat field values
+    // Update flat field values (SKIP conflicted fields)
     if (facility_name !== undefined) targetData.facility_name = facility_name;
-    if (street_address !== undefined) targetData.street_address = street_address;
-    if (city !== undefined) targetData.city = city;
+    if (street_address !== undefined && !fieldsToSkip.has('street_address')) targetData.street_address = street_address;
+    if (city !== undefined && !fieldsToSkip.has('city')) targetData.city = city;
     if (state !== undefined) targetData.state = state;
     if (zip_code !== undefined) targetData.zip_code = zip_code;
-    if (bed_count !== undefined) targetData.bed_count = bed_count;
+    if (bed_count !== undefined && !fieldsToSkip.has('bed_count')) targetData.bed_count = bed_count;
 
     // Initialize maps if they don't exist
     if (!targetData._confidenceMap) targetData._confidenceMap = {};
     if (!targetData._sourceMap) targetData._sourceMap = {};
 
-    // Update confidence and source maps for changed fields
-    // Maps input field names to extraction_data field names
+    // Update confidence and source maps for changed fields (SKIP conflicted)
     const fieldMappings = [
       { input: 'facility_name', extraction: 'facility_name' },
       { input: 'street_address', extraction: 'street_address' },
@@ -350,11 +457,31 @@ async function syncFacilityData(dealId, facilityData, source, transaction = null
     ];
 
     fieldMappings.forEach(({ input, extraction }) => {
-      if (facilityData[input] !== undefined) {
+      if (facilityData[input] !== undefined && !fieldsToSkip.has(input)) {
         targetData._confidenceMap[extraction] = confidenceLevel;
         targetData._sourceMap[extraction] = source;
       }
     });
+
+    // 6. STORE CONFLICTS in extraction_data for UI resolution
+    if (conflicts.length > 0) {
+      // Initialize conflicts array if it doesn't exist, or merge with existing
+      if (!targetData._conflicts) {
+        targetData._conflicts = [];
+      }
+
+      // Add new conflicts (avoid duplicates by checking field name)
+      for (const newConflict of conflicts) {
+        // Remove any existing unresolved conflict for the same field
+        targetData._conflicts = targetData._conflicts.filter(
+          c => c.field !== newConflict.field || c.resolved === true
+        );
+        // Add the new conflict
+        targetData._conflicts.push(newConflict);
+      }
+
+      console.log(`[SYNC] Deal ${dealId}: Stored ${conflicts.length} conflict(s) in extraction_data._conflicts`);
+    }
 
     // Save back to deal
     // Note: Model setters auto-stringify, don't double-encode
@@ -365,9 +492,9 @@ async function syncFacilityData(dealId, facilityData, source, transaction = null
     }
     await deal.save(queryOptions);
 
-    // Record extraction history for the changed fields
+    // Record extraction history for the changed fields (excluding conflicted)
     const changedFieldNames = fieldMappings
-      .filter(({ input }) => facilityData[input] !== undefined)
+      .filter(({ input }) => facilityData[input] !== undefined && !fieldsToSkip.has(input))
       .map(({ extraction }) => extraction);
 
     if (changedFieldNames.length > 0) {
@@ -382,9 +509,12 @@ async function syncFacilityData(dealId, facilityData, source, transaction = null
     }
   }
 
-  console.log(`[SYNC] Deal ${dealId}: Updated facility data from ${source}`);
+  const conflictSummary = conflicts.length > 0
+    ? ` (${conflicts.length} conflict(s) detected - user review needed)`
+    : '';
+  console.log(`[SYNC] Deal ${dealId}: Updated facility data from ${source}${conflictSummary}`);
 
-  return { deal, facility };
+  return { deal, facility, conflicts };
 }
 
 /**
@@ -777,40 +907,135 @@ module.exports = {
             // and is reviewed manually via FacilityMatchModal. See selectFacilityMatch() endpoint.
 
             // create deal:
-            // Get index to check if this is the first deal (for extraction_data)
+            // Get index to determine extraction_data handling
             const dealIndex = requiredData.deals.indexOf(deal);
+
+            // Determine extraction_data for this deal
+            // For portfolio deals with per-facility data, each deal gets its own extraction_data
+            // For single deals, only the first deal stores extraction_data
+            let dealExtractionData = null;
+            const enhancedDataForDeal = requiredData.enhanced_extraction_data;
+
+            if (enhancedDataForDeal?.facility_details && Array.isArray(enhancedDataForDeal.facility_details)) {
+              // Portfolio deal: Find facility-specific extraction data
+              const facilityName = deal.facility_name;
+              const matchingFacility = enhancedDataForDeal.facility_details.find(fd => {
+                const fdName = fd.facility_name || fd.extraction_result?.extractedData?.facility_name;
+                return fdName && facilityName &&
+                  (fdName.toLowerCase().includes(facilityName.toLowerCase()) ||
+                   facilityName.toLowerCase().includes(fdName.toLowerCase()));
+              });
+
+              if (matchingFacility?.extraction_result?.extractedData) {
+                // Store facility-specific extraction data
+                dealExtractionData = matchingFacility.extraction_result.extractedData;
+                console.log(`[createDeal] Deal ${dealIndex}: Using facility-specific extraction_data for "${facilityName}"`);
+              } else if (dealIndex === 0) {
+                // First deal in portfolio gets full extraction_data as fallback
+                dealExtractionData = requiredData.extraction_data;
+                console.log(`[createDeal] Deal ${dealIndex}: No matching facility found, using shared extraction_data`);
+              }
+            } else if (dealIndex === 0) {
+              // Single deal or legacy: Only first deal stores extraction_data
+              dealExtractionData = requiredData.extraction_data;
+            }
 
             const dealCreated = await Deal.create({
               ...deal,
               user_id: requiredData.user_id,
               master_deal_id: masterDeal.id,
-              // Only store extraction_data on the first deal
-              extraction_data: dealIndex === 0 ? requiredData.extraction_data : null,
+              extraction_data: dealExtractionData,
             });
 
-            // Store time-series data if present (for first deal only)
+            // Set match_status based on facility_matches in extraction data
+            // Check if this deal has pending facility matches that need user review
+            let matchStatus = 'no_match_needed';
+            const extData = dealExtractionData || requiredData.extraction_data;
+            const enhData = requiredData.enhanced_extraction_data;
+
+            // Check enhanced_extraction_data first (newer format)
+            const facilityMatches = enhData?.extractedData?.overview?.facility_matches
+              || extData?.overview?.facility_matches
+              || extData?.deal_overview?.facility_matches;
+
+            if (facilityMatches?.status === 'pending_review' && facilityMatches?.matches?.length > 0) {
+              matchStatus = 'pending_match';
+              console.log(`[createDeal] Deal ${dealIndex}: Setting match_status to 'pending_match' (${facilityMatches.matches.length} matches found)`);
+            } else if (facilityMatches?.status === 'selected') {
+              matchStatus = 'matched';
+            } else if (facilityMatches?.status === 'skipped') {
+              matchStatus = 'skipped';
+            } else if (facilityMatches?.status === 'not_sure') {
+              matchStatus = 'not_sure';
+            }
+
+            if (matchStatus !== 'no_match_needed') {
+              await dealCreated.update({ match_status: matchStatus });
+            }
+
+            // Store time-series data for EVERY deal (not just the first)
+            // For portfolio deals, try to find facility-specific extraction data
             // Prefer enhanced_extraction_data if available (from parallel extraction)
-            if (dealIndex === 0) {
-              const timeSeriesSource = requiredData.enhanced_extraction_data || requiredData.extraction_data;
-              console.log('[createDeal] Time-series data check:',
-                'enhanced_extraction_data exists:', !!requiredData.enhanced_extraction_data,
-                'extraction_data exists:', !!requiredData.extraction_data);
-              if (timeSeriesSource) {
-                console.log('[createDeal] Time-series source has:',
-                  'monthlyFinancials:', Array.isArray(timeSeriesSource.monthlyFinancials) ? timeSeriesSource.monthlyFinancials.length : 'none',
-                  'monthlyCensus:', Array.isArray(timeSeriesSource.monthlyCensus) ? timeSeriesSource.monthlyCensus.length : 'none',
-                  'monthlyExpenses:', Array.isArray(timeSeriesSource.monthlyExpenses) ? timeSeriesSource.monthlyExpenses.length : 'none');
-                try {
-                  console.log('[createDeal] Storing time-series data from:',
-                    requiredData.enhanced_extraction_data ? 'enhanced_extraction_data' : 'extraction_data');
-                  await storeTimeSeriesData(dealCreated.id, timeSeriesSource);
-                } catch (timeSeriesError) {
-                  console.error('Error storing time-series data:', timeSeriesError);
-                  // Don't fail deal creation if time-series storage fails
-                }
+            const enhancedData = requiredData.enhanced_extraction_data;
+            const baseExtractionData = requiredData.extraction_data;
+
+            // Determine the time-series source for this specific deal
+            let timeSeriesSource = null;
+            let timeSeriesSourceName = 'none';
+
+            // For portfolio deals, check if we have per-facility extraction data
+            if (enhancedData?.facility_details && Array.isArray(enhancedData.facility_details)) {
+              // Portfolio deal: Find extraction data matching this facility
+              const facilityName = deal.facility_name || dealCreated.facility_name;
+              console.log(`[createDeal] Portfolio deal - looking for facility: "${facilityName}"`);
+
+              const matchingFacility = enhancedData.facility_details.find(fd => {
+                const fdName = fd.facility_name || fd.extraction_result?.extractedData?.facility_name;
+                // Case-insensitive partial match
+                return fdName && facilityName &&
+                  (fdName.toLowerCase().includes(facilityName.toLowerCase()) ||
+                   facilityName.toLowerCase().includes(fdName.toLowerCase()));
+              });
+
+              if (matchingFacility?.extraction_result) {
+                timeSeriesSource = matchingFacility.extraction_result;
+                timeSeriesSourceName = `facility_details[${matchingFacility.facility_name}]`;
+                console.log(`[createDeal] Found matching facility extraction: ${matchingFacility.facility_name}`);
               } else {
-                console.log('[createDeal] No time-series data source available');
+                console.log(`[createDeal] No matching facility found for "${facilityName}", using portfolio-level data`);
+                // Fall back to portfolio-level extraction for this facility
+                timeSeriesSource = enhancedData;
+                timeSeriesSourceName = 'enhanced_extraction_data (portfolio-level)';
               }
+            } else if (enhancedData) {
+              // Single facility deal with enhanced extraction data
+              timeSeriesSource = enhancedData;
+              timeSeriesSourceName = 'enhanced_extraction_data';
+            } else if (baseExtractionData) {
+              // Fall back to basic extraction data
+              timeSeriesSource = baseExtractionData;
+              timeSeriesSourceName = 'extraction_data';
+            }
+
+            console.log(`[createDeal] Deal ${dealIndex} (${deal.facility_name || 'unnamed'}) - Time-series data check:`,
+              'source:', timeSeriesSourceName,
+              'enhanced_extraction_data exists:', !!enhancedData,
+              'extraction_data exists:', !!baseExtractionData);
+
+            if (timeSeriesSource) {
+              console.log(`[createDeal] Deal ${dealIndex} - Time-series source has:`,
+                'monthlyFinancials:', Array.isArray(timeSeriesSource.monthlyFinancials) ? timeSeriesSource.monthlyFinancials.length : 'none',
+                'monthlyCensus:', Array.isArray(timeSeriesSource.monthlyCensus) ? timeSeriesSource.monthlyCensus.length : 'none',
+                'monthlyExpenses:', Array.isArray(timeSeriesSource.monthlyExpenses) ? timeSeriesSource.monthlyExpenses.length : 'none');
+              try {
+                console.log(`[createDeal] Deal ${dealIndex} - Storing time-series data from: ${timeSeriesSourceName}`);
+                await storeTimeSeriesData(dealCreated.id, timeSeriesSource);
+              } catch (timeSeriesError) {
+                console.error(`Error storing time-series data for deal ${dealIndex}:`, timeSeriesError);
+                // Don't fail deal creation if time-series storage fails
+              }
+            } else {
+              console.log(`[createDeal] Deal ${dealIndex} - No time-series data source available`);
             }
 
             // Create deal_facilities records
@@ -825,6 +1050,7 @@ module.exports = {
                     deal_id: dealCreated.id,
                     facility_name: facility.facility_name || null,
                     facility_type: facility.facility_type || null,
+                    federal_provider_number: facility.federal_provider_number || null,
                     street_address: facility.street_address || null,
                     city: facility.city || null,
                     state: facility.state || null,
@@ -835,7 +1061,7 @@ module.exports = {
                     latitude: facility.latitude || null,
                     longitude: facility.longitude || null,
                   });
-                  console.log(`[createDeal] Created facility: ${facility.facility_name}`);
+                  console.log(`[createDeal] Created facility: ${facility.facility_name} (CCN: ${facility.federal_provider_number || 'none'})`);
                 } catch (facilityError) {
                   console.error('Error creating deal_facilities:', facilityError);
                 }
@@ -973,6 +1199,7 @@ module.exports = {
               deal_id: firstDealId,
               facility_name: facility.facility_name,
               facility_type: facility.facility_type,
+              federal_provider_number: facility.federal_provider_number || null,
               street_address: facility.address || facility.street_address,
               city: facility.city,
               state: facility.state,
@@ -1683,6 +1910,13 @@ module.exports = {
 
       const whereClause = isAdmin ? {} : { id: { [Op.in]: userDealIds } };
 
+      // Exclude deals with pending facility match or uncertain status from analytics
+      // These deals may have incomplete/incorrect facility data
+      const analyticsWhereClause = {
+        ...whereClause,
+        match_status: { [Op.notIn]: ['pending_match', 'not_sure'] }
+      };
+
       const currentDate = new Date();
 
       const startOfWeek = new Date();
@@ -1741,12 +1975,12 @@ module.exports = {
         }),
 
         Deal.sum("purchase_price", {
-          where: { ...whereClause, deal_status: "pipeline" },
+          where: { ...analyticsWhereClause, deal_status: "pipeline" },
         }),
 
         Deal.sum("annual_revenue", {
           where: {
-            ...whereClause,
+            ...analyticsWhereClause,
             deal_status: "pipeline",
             created_at: { [Op.between]: [firstDayOfMonth, lastDayOfMonth] },
           },
@@ -1826,8 +2060,9 @@ module.exports = {
           raw: true,
         }),
 
-        Deal.sum("bed_count", { where: { ...whereClause } }),
-        Deal.sum("annual_revenue", { where: { ...whereClause } }),
+        // Use analyticsWhereClause for metrics to exclude deals with incomplete/uncertain facility data
+        Deal.sum("bed_count", { where: { ...analyticsWhereClause } }),
+        Deal.sum("annual_revenue", { where: { ...analyticsWhereClause } }),
 
         Deal.findOne({
           attributes: [
@@ -1836,7 +2071,7 @@ module.exports = {
               "average_occupancy",
             ],
           ],
-          where: { ...whereClause },
+          where: { ...analyticsWhereClause },
           raw: true,
         }),
       ]);
@@ -3777,6 +4012,7 @@ module.exports = {
         deal_id: dealId,
         facility_name: facilityData.facility_name,
         facility_type: facilityData.facility_type,
+        federal_provider_number: facilityData.federal_provider_number || null,
         street_address: facilityData.street_address,
         city: facilityData.city,
         state: facilityData.state,
@@ -5042,12 +5278,20 @@ module.exports = {
         console.log(`[getFacilityMatches] No facility matches in extraction data for deal ${dealId}`);
         return helper.success(res, "No facility matches found", {
           status: 'no_matches',
-          matches: []
+          matches: [],
+          conflicts: []
         });
       }
 
+      // Include conflicts from extraction_data._conflicts
+      const conflicts = extractionData?._conflicts || enhancedData?.extractedData?._conflicts || [];
+      console.log(`[getFacilityMatches] Found ${conflicts.length} conflicts`);
+
       console.log(`[getFacilityMatches] ✅ Returning ${facilityMatches.matches?.length || 0} matches with status: ${facilityMatches.status}`);
-      return helper.success(res, "Facility matches retrieved", facilityMatches);
+      return helper.success(res, "Facility matches retrieved", {
+        ...facilityMatches,
+        conflicts: conflicts.filter(c => !c.resolved) // Only return unresolved conflicts
+      });
 
     } catch (err) {
       console.error('[getFacilityMatches] Error:', err);
@@ -5062,9 +5306,12 @@ module.exports = {
   selectFacilityMatch: async (req, res) => {
     try {
       const dealId = req.params.dealId;
-      const { facility_id, action } = req.body; // action: 'select' | 'skip' | 'not_sure'
+      const { facility_id, action, resolved_conflicts } = req.body; // action: 'select' | 'skip' | 'not_sure'
 
       console.log(`[selectFacilityMatch] Deal ${dealId}, Facility ${facility_id}, Action: ${action}`);
+      if (resolved_conflicts) {
+        console.log(`[selectFacilityMatch] Resolved conflicts:`, Object.keys(resolved_conflicts));
+      }
 
       // Find the deal
       const deal = await Deal.findByPk(dealId);
@@ -5117,6 +5364,10 @@ module.exports = {
           deal.extraction_data = extractionData;
         }
 
+        // Update match_status column
+        deal.match_status = action === 'skip' ? 'skipped' : 'not_sure';
+        console.log(`[selectFacilityMatch] Setting match_status to '${deal.match_status}'`);
+
         await deal.save();
 
         return helper.success(res, `Facility matching ${action === 'skip' ? 'skipped' : 'marked as unsure'}`, {
@@ -5150,18 +5401,29 @@ module.exports = {
         }
       }
 
-      // Use centralized syncFacilityData for three-way sync (deals, deal_facilities, extraction_data)
-      const { facility } = await syncFacilityData(dealId, {
+      // Build facility data, applying resolved conflicts where user chose a different value
+      const facilityData = {
         facility_name: selectedMatch.facility_name,
-        street_address: selectedMatch.address,
-        city: selectedMatch.city,
+        street_address: resolved_conflicts?.street_address ?? selectedMatch.address,
+        city: resolved_conflicts?.city ?? selectedMatch.city,
         state: selectedMatch.state,
         zip_code: selectedMatch.zip_code,
-        bed_count: selectedMatch.capacity,
+        bed_count: resolved_conflicts?.bed_count ?? selectedMatch.capacity,
         latitude: selectedMatch.latitude,
         longitude: selectedMatch.longitude,
         facility_type: selectedMatch.facility_type
-      }, 'ALF Database');
+      };
+
+      console.log(`[selectFacilityMatch] Applying facility data:`, {
+        bed_count: facilityData.bed_count,
+        street_address: facilityData.street_address,
+        city: facilityData.city,
+        used_resolved_conflicts: !!resolved_conflicts
+      });
+
+      // Use centralized syncFacilityData for three-way sync (deals, deal_facilities, extraction_data)
+      // Pass skipConflictDetection=true since user already resolved conflicts
+      const { facility } = await syncFacilityData(dealId, facilityData, 'ALF Database', resolved_conflicts ? true : false);
 
       // Additionally update facility_matches status in extraction_data (specific to this endpoint)
       // Re-fetch deal to get updated extraction_data from syncFacilityData
@@ -5185,18 +5447,50 @@ module.exports = {
         } catch (e) { /* ignore */ }
       }
 
-      // Mark facility_matches as selected
+      // Mark facility_matches as selected and resolve any conflicts
       if (updatedEnhancedData?.extractedData?.overview?.facility_matches) {
         updatedEnhancedData.extractedData.overview.facility_matches.status = 'selected';
         updatedEnhancedData.extractedData.overview.facility_matches.selected_facility_id = facility_id;
         updatedEnhancedData.extractedData.overview.facility_matches.selected_match = selectedMatch;
+
+        // Mark conflicts as resolved if user provided resolutions
+        if (resolved_conflicts && updatedEnhancedData.extractedData._conflicts) {
+          for (const conflict of updatedEnhancedData.extractedData._conflicts) {
+            if (resolved_conflicts.hasOwnProperty(conflict.field) && !conflict.resolved) {
+              conflict.resolved = true;
+              conflict.resolved_value = resolved_conflicts[conflict.field];
+              conflict.resolved_by = 'user';
+              conflict.resolved_at = new Date().toISOString();
+              console.log(`[selectFacilityMatch] Marked conflict resolved: ${conflict.field} = ${conflict.resolved_value}`);
+            }
+          }
+        }
+
         deal.enhanced_extraction_data = updatedEnhancedData; // Model setter auto-stringifies
+        deal.match_status = 'matched'; // Update match_status column
+        console.log(`[selectFacilityMatch] Setting match_status to 'matched'`);
         await deal.save();
       } else if (updatedExtractionData?.overview?.facility_matches) {
         updatedExtractionData.overview.facility_matches.status = 'selected';
         updatedExtractionData.overview.facility_matches.selected_facility_id = facility_id;
         updatedExtractionData.overview.facility_matches.selected_match = selectedMatch;
+
+        // Mark conflicts as resolved if user provided resolutions
+        if (resolved_conflicts && updatedExtractionData._conflicts) {
+          for (const conflict of updatedExtractionData._conflicts) {
+            if (resolved_conflicts.hasOwnProperty(conflict.field) && !conflict.resolved) {
+              conflict.resolved = true;
+              conflict.resolved_value = resolved_conflicts[conflict.field];
+              conflict.resolved_by = 'user';
+              conflict.resolved_at = new Date().toISOString();
+              console.log(`[selectFacilityMatch] Marked conflict resolved: ${conflict.field} = ${conflict.resolved_value}`);
+            }
+          }
+        }
+
         deal.extraction_data = updatedExtractionData; // Model setter auto-stringifies
+        deal.match_status = 'matched'; // Update match_status column
+        console.log(`[selectFacilityMatch] Setting match_status to 'matched'`);
         await deal.save();
       }
 
@@ -5729,6 +6023,7 @@ module.exports = {
               facility.private_pay_pct || facility.private_pay_mix || facility.private_pay_percentage
             ) || null,
             // CMS data from matched facility
+            federal_provider_number: matched.federal_provider_number || null,
             latitude: matched.latitude || null,
             longitude: matched.longitude || null,
             // Store full extraction data (model setter auto-stringifies via create())

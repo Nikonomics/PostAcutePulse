@@ -174,6 +174,17 @@ const styles = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  facilityNameLink: {
+    fontWeight: 500,
+    color: '#2563eb',
+    maxWidth: '200px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    transition: 'color 0.15s',
+  },
   cityCell: {
     display: 'flex',
     alignItems: 'center',
@@ -931,9 +942,24 @@ const FacilityList = ({
                 >
                   {/* Facility Name */}
                   <td style={styles.td}>
-                    <div style={styles.facilityName} title={facility.facilityName}>
-                      {facility.facilityName}
-                    </div>
+                    {facility.federalProviderNumber ? (
+                      <div
+                        style={styles.facilityNameLink}
+                        title={facility.facilityName}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/facility-metrics/${facility.federalProviderNumber}?from=market`);
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                        onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                      >
+                        {facility.facilityName}
+                      </div>
+                    ) : (
+                      <div style={styles.facilityName} title={facility.facilityName}>
+                        {facility.facilityName}
+                      </div>
+                    )}
                   </td>
 
                   {/* City */}

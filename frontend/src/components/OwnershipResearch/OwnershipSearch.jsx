@@ -5,9 +5,9 @@ import { getTopChains, searchOwnership, getOwnerDetails, starItem, unstarItem, g
 import OwnerDetailsModal from './OwnerDetailsModal';
 import './OwnershipSearch.css';
 
-function OwnershipSearch() {
+function OwnershipSearch({ initialSearch }) {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearch || '');
   const [loading, setLoading] = useState(false);
   const [ownershipData, setOwnershipData] = useState([]);
   const [selectedOwner, setSelectedOwner] = useState(null);
@@ -32,6 +32,15 @@ function OwnershipSearch() {
   useEffect(() => {
     loadStarredItems();
   }, []);
+
+  // Auto-search if initialSearch prop is provided
+  useEffect(() => {
+    if (initialSearch && initialSearch.trim()) {
+      setSearchTerm(initialSearch);
+      // Trigger search after state update
+      performSearch(initialSearch);
+    }
+  }, [initialSearch]);
 
   const loadStarredItems = async () => {
     try {
@@ -59,22 +68,19 @@ function OwnershipSearch() {
     }
   };
 
-  const handleSearch = async (e) => {
-    e?.preventDefault();
-    if (!searchTerm.trim()) return;
+  // Perform search with given term (for auto-search from URL params)
+  const performSearch = async (term) => {
+    if (!term?.trim()) return;
 
     setLoading(true);
     try {
-      console.log('Searching for:', searchTerm, 'with filters:', filters);
       const response = await searchOwnership({
-        search: searchTerm,
+        search: term,
         ...filters
       });
-      console.log('Search response:', response);
       if (response.success) {
         setOwnershipData(response.data);
       } else {
-        console.error('Search failed:', response);
         setOwnershipData([]);
       }
     } catch (error) {
@@ -83,6 +89,11 @@ function OwnershipSearch() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = async (e) => {
+    e?.preventDefault();
+    performSearch(searchTerm);
   };
 
   const loadOwnerDetails = async (ownerName) => {

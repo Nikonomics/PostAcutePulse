@@ -945,7 +945,7 @@ function OwnershipProfile() {
                     <td>
                       <span
                         className="facility-name-link clickable"
-                        onClick={() => navigate(`/facility/${facility.federal_provider_number}`)}
+                        onClick={() => navigate(`/facility-metrics/${facility.federal_provider_number}?from=ownership`)}
                         title="View facility profile"
                       >
                         {facility.facility_name}

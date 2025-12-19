@@ -7,6 +7,152 @@
   background-color: #f9fafb;
 }
 
+/* Top Navigation Bar - Back, Facility Info, Save */
+.facility-metrics-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Back Button */
+.facility-metrics-nav .back-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.facility-metrics-nav .back-button:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+/* Facility Info Header */
+.facility-info-header {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+
+.facility-info-header .facility-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.facility-info-header .facility-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.facility-info-header .facility-meta > span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.facility-info-header .facility-ccn {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  background: #f3f4f6;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+/* Save Button */
+.facility-metrics-nav .save-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.facility-metrics-nav .save-button:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.facility-metrics-nav .save-button.saved {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.facility-metrics-nav .save-button.saved:hover {
+  background: #fde68a;
+}
+
+.facility-metrics-nav .save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.facility-metrics-nav .save-button .spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Mobile responsiveness for nav */
+@media (max-width: 768px) {
+  .facility-metrics-nav {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .facility-metrics-nav .back-button span {
+    display: none;
+  }
+
+  .facility-info-header {
+    order: 3;
+    width: 100%;
+    text-align: left;
+  }
+
+  .facility-info-header .facility-name {
+    font-size: 1.125rem;
+  }
+
+  .facility-info-header .facility-meta {
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+
+  .facility-metrics-nav .save-button span {
+    display: none;
+  }
+}
+
 /* Header with Facility Selector */
 .facility-metrics-header {
   display: flex;
@@ -1765,6 +1911,205 @@
     transparent 4px,
     transparent 8px
   );
+}
+
+/* Survey History Card */
+.survey-history-card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.25rem;
+}
+
+.survey-history-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.survey-history-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.survey-history-icon {
+  color: #6b7280;
+}
+
+.survey-count {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.survey-history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.survey-year-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.survey-year-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.survey-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-left: 0.75rem;
+  margin-left: 0.25rem;
+  border-left: 2px solid #e5e7eb;
+}
+
+.survey-timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.survey-timeline-dot {
+  width: 10px;
+  height: 10px;
+  background: #3b82f6;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+  margin-left: -0.75rem;
+  position: relative;
+  left: -6px;
+}
+
+.survey-timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+}
+
+.survey-date-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.survey-date {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.survey-type-badge {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.survey-deficiency-count {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #ef4444;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+.survey-deficiency-count.clickable {
+  cursor: pointer;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  transition: all 0.15s ease;
+}
+
+.survey-deficiency-count.clickable:hover {
+  background: #fef2f2;
+  text-decoration: underline;
+}
+
+.survey-deficiency-none {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #22c55e;
+}
+
+/* Survey History Empty State */
+.survey-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #9ca3af;
+  gap: 0.5rem;
+}
+
+.survey-history-empty p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* Survey History Loading Skeleton */
+.survey-history-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.survey-skeleton-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-date {
+  width: 100px;
+  height: 16px;
+}
+
+.skeleton-type {
+  width: 80px;
+  height: 20px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Risk Explainer Card */
@@ -4795,6 +5140,89 @@
   /* Map */
   .map-legend {
     flex-wrap: wrap;
+  }
+}
+
+/* iPhone SE and similar (375px) */
+@media (max-width: 375px) {
+  /* Tab bar - ensure proper scroll */
+  .facility-metrics-tabs {
+    padding: 0 0.75rem;
+  }
+
+  .facility-metrics-tab {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+
+  .facility-metrics-tab svg {
+    display: none;
+  }
+
+  /* Nav header - tighter layout */
+  .facility-metrics-nav {
+    padding: 0.75rem 1rem;
+  }
+
+  .facility-info-header .facility-name {
+    font-size: 0.9375rem;
+  }
+
+  .facility-meta {
+    gap: 0.5rem;
+  }
+
+  .facility-meta span {
+    font-size: 0.6875rem;
+  }
+
+  /* Selector */
+  .facility-search-input {
+    font-size: 0.9375rem;
+  }
+
+  /* Cards */
+  .metrics-card {
+    padding: 0.875rem;
+  }
+
+  .metrics-card-header h4 {
+    font-size: 0.8125rem;
+  }
+
+  /* Star ratings - smaller */
+  .star-ratings-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rating-item-value {
+    font-size: 1.5rem;
+  }
+
+  /* Key metrics table - tighter */
+  .key-metrics-table th,
+  .key-metrics-table td {
+    padding: 0.375rem 0.25rem;
+    font-size: 0.6875rem;
+  }
+
+  /* Comparison buttons */
+  .comparison-buttons {
+    gap: 0.25rem;
+  }
+
+  .comparison-btn {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.6875rem;
+  }
+
+  /* Risk cards */
+  .composite-risk-header h3 {
+    font-size: 0.9375rem;
+  }
+
+  .risk-score-value {
+    font-size: 2rem;
   }
 }
 

@@ -15,6 +15,7 @@ import {
   Target,
   Users,
   EyeOff,
+  ExternalLink,
 } from 'lucide-react';
 
 // Facility role options
@@ -244,8 +245,29 @@ const FacilityCard = ({
                           style={{ accentColor: '#0d6efd' }}
                         />
                         <div className="flex-grow-1">
-                          <div className="fw-semibold" style={{ color: '#212529' }}>
+                          <div className="fw-semibold d-flex align-items-center gap-2" style={{ color: '#212529' }}>
                             {match.facility_name}
+                            {match.federal_provider_number && (
+                              <a
+                                href={`/facility-metrics/${match.federal_provider_number}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  fontSize: '0.75rem',
+                                  color: '#2563eb',
+                                  textDecoration: 'none'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                              >
+                                View
+                                <ExternalLink size={12} />
+                              </a>
+                            )}
                           </div>
                           <small style={{ color: '#6c757d' }}>
                             {match.address}, {match.city}, {match.state} {match.zip_code}

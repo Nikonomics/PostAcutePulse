@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Building2, Search } from 'lucide-react';
 import FacilitySearch from '../components/OwnershipResearch/FacilitySearch';
 import OwnershipSearch from '../components/OwnershipResearch/OwnershipSearch';
 import './OwnershipResearch.css';
 
 function OwnershipResearchPage() {
-  const [activeTab, setActiveTab] = useState('facility');
+  const [searchParams] = useSearchParams();
+  const ownerParam = searchParams.get('owner');
+  const searchParam = searchParams.get('search');
+
+  // Default to ownership tab if owner/search param is present
+  const [activeTab, setActiveTab] = useState(ownerParam || searchParam ? 'ownership' : 'facility');
+
+  // Update tab when URL params change
+  useEffect(() => {
+    if (ownerParam || searchParam) {
+      setActiveTab('ownership');
+    }
+  }, [ownerParam, searchParam]);
 
   return (
     <div className="ownership-research-page">
@@ -45,7 +58,7 @@ function OwnershipResearchPage() {
         {/* Tab Content */}
         <div className="ownership-tab-content">
           {activeTab === 'facility' && <FacilitySearch />}
-          {activeTab === 'ownership' && <OwnershipSearch />}
+          {activeTab === 'ownership' && <OwnershipSearch initialSearch={ownerParam || searchParam} />}
         </div>
       </div>
     </div>

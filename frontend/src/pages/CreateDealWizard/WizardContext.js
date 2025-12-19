@@ -83,6 +83,7 @@ export const WizardProvider = ({ children }) => {
   const [extractionProgress, setExtractionProgress] = useState(0);
   const [isExtracting, setIsExtracting] = useState(false);
   const [detectedFacilities, setDetectedFacilities] = useState([]);
+  const [validationWarningsDismissed, setValidationWarningsDismissed] = useState(false);
 
   // Validation errors
   const [errors, setErrors] = useState({});
@@ -290,6 +291,8 @@ export const WizardProvider = ({ children }) => {
     detectedFacilities,
     setDetectedFacilities,
     applyExtractionData,
+    validationWarningsDismissed,
+    setValidationWarningsDismissed,
 
     // Validation
     errors,

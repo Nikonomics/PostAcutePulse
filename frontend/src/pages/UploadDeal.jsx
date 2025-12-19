@@ -97,6 +97,7 @@ const UploadDeal = () => {
   // Facility matching modal (single facility flow)
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [facilityMatches, setFacilityMatches] = useState([]);
+  const [facilityConflicts, setFacilityConflicts] = useState([]); // Conflicts from extraction
   const [matchSearchName, setMatchSearchName] = useState('');
   const [createdDealId, setCreatedDealId] = useState(null);
 
@@ -693,8 +694,10 @@ const UploadDeal = () => {
               // Show modal if there are matches pending review
               if (matchData.status === 'pending_review' && matchData.matches && matchData.matches.length > 0) {
                 console.log(`[UploadDeal] ✅ SHOWING MODAL with ${matchData.matches.length} matches`);
+                console.log(`[UploadDeal] Conflicts: ${matchData.conflicts?.length || 0}`);
                 setCreatedDealId(createdDealId);
                 setFacilityMatches(matchData.matches);
+                setFacilityConflicts(matchData.conflicts || []); // Store conflicts for resolution
                 setMatchSearchName(matchData.search_name || 'this facility');
                 setShowMatchModal(true);
                 return; // CRITICAL: Don't navigate yet - wait for user to review matches
@@ -728,16 +731,25 @@ const UploadDeal = () => {
   };
 
   // Facility match modal handlers
-  const handleSelectFacilityMatch = async (facilityId) => {
+  const handleSelectFacilityMatch = async (facilityId, resolvedConflicts = null) => {
     try {
-      const response = await selectFacilityMatch(createdDealId, {
+      const requestBody = {
         facility_id: facilityId,
         action: 'select'
-      });
+      };
+
+      // Include resolved conflicts if user resolved any
+      if (resolvedConflicts && Object.keys(resolvedConflicts).length > 0) {
+        requestBody.resolved_conflicts = resolvedConflicts;
+        console.log('[UploadDeal] Sending resolved conflicts:', resolvedConflicts);
+      }
+
+      const response = await selectFacilityMatch(createdDealId, requestBody);
 
       if (response.code === 200) {
         toast.success("Facility data applied successfully!");
         setShowMatchModal(false);
+        setFacilityConflicts([]); // Clear conflicts after resolution
         navigate("/deals");
       } else {
         toast.error(response.message || "Failed to apply facility match");
@@ -1214,6 +1226,7 @@ const UploadDeal = () => {
         open={showMatchModal}
         matches={facilityMatches}
         searchName={matchSearchName}
+        conflicts={facilityConflicts}
         onSelect={handleSelectFacilityMatch}
         onSkip={handleSkipFacilityMatch}
         onNotSure={handleNotSureFacilityMatch}

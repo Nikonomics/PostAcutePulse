@@ -91,35 +91,54 @@ async function detectFacilitiesFromText(documentText, facilityTypes = ['SNF', 'A
       ? 'skilled nursing facilities (SNF)'
       : 'assisted living facilities (ALF)';
 
-  const prompt = `Extract ALL healthcare facility names from this document. Return ONLY valid JSON, no other text.
+  const prompt = `Extract ONLY the facilities that are THE SUBJECT OF THIS DEAL/ACQUISITION. Return ONLY valid JSON, no other text.
 
 Document type: ${facilityTypeDesc}
 
-CRITICAL INSTRUCTIONS:
-- This is a PORTFOLIO deal - expect MULTIPLE facilities
-- ANY name that looks like a facility name (e.g., "Big Horn", "Polaris", "Cedar Ridge" + "Care Center", "Rehabilitation", etc.) IS a separate facility
-- Do NOT skip facilities because they appear in financial tables or subsidiary accounts - those ARE separate operating facilities
-- Extract ALL facility names you find, even with incomplete info
+CRITICAL INSTRUCTIONS - READ CAREFULLY:
+1. Extract ONLY facilities being ACQUIRED/SOLD in this deal
+2. DO NOT extract:
+   - Competitor facilities mentioned for market comparison
+   - Market analysis comparison facilities
+   - Historical facilities mentioned in passing
+   - Benchmark or reference facilities
+   - Facilities owned by other companies
+   - Facilities mentioned only in competitive landscape sections
 
-WHERE TO LOOK:
-- Document headers and titles
-- Balance sheets (facility names appear in account names)
-- P&L statements (revenue broken down by facility)
-- Census/occupancy tables
-- Property descriptions
-- Any table with facility names in rows
+3. HOW TO IDENTIFY DEAL FACILITIES:
+   - Look for "The Property", "The Facility", "Subject Property", "Portfolio", "Acquisition Target"
+   - Facilities with detailed financials (P&L, census, revenue breakdowns) are usually the deal facilities
+   - Facilities mentioned in the executive summary as being offered for sale
+   - Properties with physical descriptions, addresses, and specific bed counts
+   - Facilities whose operations are described in detail
 
-WHAT TO EXTRACT for each facility:
-- name: Full facility name (e.g., "Big Horn Rehabilitation and Care Center")
+4. RED FLAGS - These are likely NOT deal facilities:
+   - Mentioned in "Competitive Analysis", "Market Overview", or "Comparable Facilities" sections
+   - Described as "competitor", "comparable", "similar facility", "market comp", "nearby facility"
+   - Only mentioned for benchmarking or market context
+   - Owned by different operators/companies than the seller
+   - Listed in tables showing "market competitors" or "area facilities"
+
+WHERE TO LOOK FOR DEAL FACILITIES:
+- Executive summary / deal overview / investment highlights
+- Property description sections
+- Financial statements with facility-level P&L detail
+- Census/occupancy tables for the subject properties
+- Detailed operational descriptions
+
+WHAT TO EXTRACT for each DEAL facility:
+- name: Full facility name
 - city: City if known, or null
 - state: 2-letter state code
 - beds: Number if known, or null
 - facility_type: "SNF" or "ALF"
-- confidence: 0.0 to 1.0
+- confidence: 0.0 to 1.0 (higher if clearly a deal facility, lower if uncertain)
 - source_hint: Where you found it
 
 RESPOND WITH ONLY THIS JSON FORMAT (no explanation, no markdown):
-[{"name":"Facility One Name","city":"City","state":"XX","beds":100,"facility_type":"SNF","confidence":0.9,"source_hint":"found in header"},{"name":"Facility Two Name","city":"City","state":"XX","beds":80,"facility_type":"SNF","confidence":0.85,"source_hint":"found in table"}]
+[{"name":"Facility One Name","city":"City","state":"XX","beds":100,"facility_type":"SNF","confidence":0.9,"source_hint":"found in property description"}]
+
+If you cannot identify ANY facilities that are clearly part of the deal, return an empty array: []
 
 DOCUMENT:
 ${truncatedText}`;

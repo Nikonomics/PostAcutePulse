@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal, Button, Form, Row, Col, Badge } from 'react-bootstrap';
 import {
   Building2,
@@ -14,6 +15,7 @@ import {
   GripVertical,
   Target,
   UserCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
@@ -161,6 +163,30 @@ const styles = `
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 380px;
+  }
+
+  .facility-name-link {
+    color: #2563eb;
+    text-decoration: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: color 0.2s;
+  }
+
+  .facility-name-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+  }
+
+  .facility-name-link .link-icon {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .facility-name-link:hover .link-icon {
+    opacity: 1;
   }
 
   .facility-location {
@@ -875,9 +901,23 @@ const FacilityFormModal = ({ show, onHide, facility, dealId, onSave }) => {
   );
 };
 
-const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand, showRoleBadge = false }) => {
+const FacilityCard = ({ facility, dealId, onEdit, onDelete, expanded, onToggleExpand, showRoleBadge = false }) => {
+  const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
   const isCompetitor = facility.facility_role === 'competitor';
+
+  // Check if facility has a CCN for linking to facility profile
+  // Only use federal_provider_number - matched_facility_id is a DB ID, not a CCN
+  const facilityCcn = facility.federal_provider_number || null;
+  const hasProfileLink = !!facilityCcn;
+
+  // Handle click on facility name to navigate to facility profile
+  const handleFacilityNameClick = (e) => {
+    e.stopPropagation(); // Prevent expanding the card
+    if (hasProfileLink) {
+      navigate(`/facility-metrics/${facilityCcn}?from=deal&dealId=${dealId}`);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this facility?')) return;
@@ -904,7 +944,18 @@ const FacilityCard = ({ facility, onEdit, onDelete, expanded, onToggleExpand, sh
 
         <div className="facility-main-info">
           <h4 className="facility-name">
-            {facility.facility_name || 'Unnamed Facility'}
+            {hasProfileLink ? (
+              <span
+                className="facility-name-link"
+                onClick={handleFacilityNameClick}
+                title="View facility profile"
+              >
+                {facility.facility_name || 'Unnamed Facility'}
+                <ExternalLink size={12} className="link-icon" />
+              </span>
+            ) : (
+              facility.facility_name || 'Unnamed Facility'
+            )}
             {showRoleBadge && (
               <span className={`role-badge ${isCompetitor ? 'competitor' : 'subject'}`}>
                 {isCompetitor ? (
@@ -1196,6 +1247,7 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
                 <FacilityCard
                   key={facility.id}
                   facility={facility}
+                  dealId={dealId}
                   onEdit={handleEditFacility}
                   onDelete={fetchFacilities}
                   expanded={expandedFacilities[facility.id]}
@@ -1215,6 +1267,7 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
                     <FacilityCard
                       key={facility.id}
                       facility={facility}
+                      dealId={dealId}
                       onEdit={handleEditFacility}
                       onDelete={fetchFacilities}
                       expanded={expandedFacilities[facility.id]}

@@ -361,17 +361,17 @@ const Dashboard = () => {
 
   const renderColumn = (status, color, label) => (
     <div
-      className={`pipeline-column min-h-[200px] p-3 rounded-lg border border-gray-200 transition-all duration-300 ease-out ${dragOverStatus === status ? "drag-over" : "bg-gray-50"
+      className={`pipeline-column h-[180px] p-3 rounded-lg border border-gray-200 transition-all duration-300 ease-out ${dragOverStatus === status ? "drag-over" : "bg-gray-50"
         }`}
       data-status={status}
       onDragOver={(e) => handleDragOver(e, status)}
       onDragLeave={handleDragLeave}
       onDrop={(e) => handleDrop(e, status)}
     >
-      <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide border-b border-gray-200 pb-2">
+      <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide border-b border-gray-200 pb-2">
         {label.toUpperCase()} ({dashboardData[`${status}Deals`]?.length || 0})
       </h3>
-      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="space-y-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
         {dashboardData[`${status}Deals`]?.map((deal, index) => (
           <div
             key={deal.id}
@@ -379,7 +379,7 @@ const Dashboard = () => {
             onDragStart={(e) => handleDragStart(e, deal, status, index)}
             onDragEnter={(e) => handleDragEnter(e, status, index)}
             onDragEnd={handleDragEnd}
-            className={`deal-card bg-${color}-100 border border-${color}-200 text-${color}-800 p-3 rounded-lg text-sm font-medium relative transition-all duration-200 ease-out ${draggedDeal?.id === deal.id ? "dragging" : ""
+            className={`deal-card bg-${color}-100 border border-${color}-200 text-${color}-800 p-2 rounded-lg text-sm font-medium relative transition-all duration-200 ease-out ${draggedDeal?.id === deal.id ? "dragging" : ""
               }`}
             onClick={() => navigate(`/deals/deal-detail/${deal.id}`)}
           >
@@ -395,7 +395,7 @@ const Dashboard = () => {
         ))}
         {(!dashboardData[`${status}Deals`] ||
           dashboardData[`${status}Deals`].length === 0) && (
-            <div className="text-gray-400 text-sm text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+            <div className="text-gray-400 text-sm text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
               Drop deals here
             </div>
           )}
@@ -571,153 +571,12 @@ const Dashboard = () => {
   */}
       </div>
 
-      {/* Bottom Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* AI Assistant */}
-        <div className="bg-purple-600 rounded-lg p-6 text-white">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-purple-600 font-bold text-sm">AI</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-white">AI Assistant</h3>
-              <p className="text-white text-sm opacity-90">
-                Quick analysis and insights
-              </p>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <input
-              type="text"
-              placeholder="Ask me anything about your deals..."
-              className="w-full px-4 py-3 rounded-lg bg-white text-gray-800 placeholder-gray-500 border-0 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-white text-gray-800 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-              Analyze
-            </button>
-            <button className="px-3 py-2 bg-white text-gray-800 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-              Templates
-            </button>
-            <button className="px-3 py-2 bg-white text-gray-800 rounded text-sm font-medium hover:bg-gray-100 transition-colors">
-              Insights
-            </button>
-          </div>
-        </div>
-
-        {/* Market Benchmarks */}
-        {/* <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">
-            Market Benchmarks
-          </h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Avg. Occupancy</p>
-              <p className="text-2xl font-bold text-green-600">
-                {formatNumber(dashboardData.average_current_occupancy)}%
-              </p>
-              <p className="text-xs text-gray-500">Industry avg</p>
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Avg. Revenue/Bed</p>
-              <p className="text-2xl font-bold text-blue-600">
-                ${formatNumber(dashboardData.average_revenue_per_bed)}K
-              </p>
-              <p className="text-xs text-gray-500">Industry avg</p>
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Risk Score</p>
-              <p className="text-2xl font-bold text-red-600">0</p>
-              <p className="text-xs text-gray-500">Out of 10</p>
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Avg. Close Time</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {dashboardData.average_deal_close_date_difference}d
-              </p>
-              <p className="text-xs text-gray-500">Market avg</p>
-            </div>
-          </div>
-        </div> */}
-
-        {/* Today's Tasks & Quick Stats */}
-        <div className="space-y-6">
-          {/* Today's Tasks */}
-          {/* <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Today's Tasks
-            </h3>
-            <div className="space-y-3">
-              <div className="text-gray-400 text-sm">No tasks for today</div>
-            </div>
-          </div> */}
-
-          {/* Quick Stats */}
-          {/* <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Quick Stats
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Beds:</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {dashboardData?.total_beds?.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Portfolio Value:</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  ${formatNumber(dashboardData?.total_revenue)}M
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Active Markets:</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  N/A
-                </span>
-              </div>
-            </div>
-          </div> */}
-        </div>
-      </div>
-
       {/* Google Maps Section */}
       <div className="mb-8">
-        {/* Map with Sample Locations */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Property Locations</h3>
-                <p className="text-gray-600 text-sm">Interactive map showing all deal locations</p>
-              </div>
-            </div>
-
-            {/* Map Info */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">
-                {dealsWithFacilities.length} deals
-              </span>
-            </div>
-          </div>
-
-
-
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
           <DealLocationsMap
             deals={dealsWithFacilities}
-            height="500px"
+            height="600px"
             showInfoWindows={true}
             filterOptions={filterOptions}
             onFiltersChange={handleFiltersChange}

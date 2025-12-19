@@ -9,3 +9,4 @@ export { default as DrillDownModal } from './DrillDownModal';
 export { default as DeficiencyDrillDown } from './DeficiencyDrillDown';
 export { default as PenaltyDrillDown } from './PenaltyDrillDown';
 export { default as OwnershipDrillDown } from './OwnershipDrillDown';
+export { default as SurveyHistory } from './SurveyHistory';

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Loader, MapPin, Building2, Star, Users, AlertCircle, X } from 'lucide-react';
+import { Search, Loader, MapPin, Building2, Star, Users, AlertCircle, X, ExternalLink } from 'lucide-react';
 import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { facilityNLSearch, getFacilityDeficiencies, getOwnershipProfile } from '../../api/ownershipService';
 import { useGoogleMaps } from '../../context/GoogleMapsContext';
@@ -372,6 +372,17 @@ function FacilitySearch() {
               <span className="badge warning">Special Focus</span>
             )}
           </div>
+
+          {/* View Profile Button */}
+          {facility.federal_provider_number && (
+            <button
+              className="view-profile-button"
+              onClick={() => navigate(`/facility-metrics/${facility.federal_provider_number}?from=search`)}
+            >
+              <ExternalLink size={14} />
+              View Profile
+            </button>
+          )}
         </div>
 
         {facility.phone && (

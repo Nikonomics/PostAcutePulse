@@ -13,13 +13,20 @@ const TeamTimeline = ({ onSubmit }) => {
     isSubmitting,
     isExtracting,
     extractionProgress,
+    extractionData,
     path,
   } = useWizard();
 
   // For AI path, require extraction to complete before allowing deal creation
   const isAIPath = path === 'ai';
   const extractionComplete = !isExtracting && extractionProgress >= 100;
-  const canSubmit = !isSubmitting && (!isAIPath || extractionComplete);
+
+  // Check for validation errors from extraction
+  const validation = extractionData?._validation;
+  const hasValidationErrors = validation?.errors?.length > 0 || validation?.allErrors?.length > 0;
+
+  // Cannot submit if submitting, extraction incomplete (for AI path), or has validation errors
+  const canSubmit = !isSubmitting && (!isAIPath || extractionComplete) && !hasValidationErrors;
 
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -320,6 +327,10 @@ const TeamTimeline = ({ onSubmit }) => {
           onClick={handleSubmit}
           disabled={!canSubmit}
           style={!canSubmit ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+          title={hasValidationErrors
+            ? "Please fix extraction errors before creating the deal (see alerts on Deal Basics step)"
+            : ""
+          }
         >
           {isSubmitting ? (
             <>
@@ -330,6 +341,11 @@ const TeamTimeline = ({ onSubmit }) => {
             <>
               <Loader size={16} className="extraction-progress-spinner" />
               Waiting for analysis...
+            </>
+          ) : hasValidationErrors ? (
+            <>
+              <X size={16} />
+              Fix Errors First
             </>
           ) : (
             <>

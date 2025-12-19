@@ -19,7 +19,7 @@ const SEVERITY_INFO = {
   'L': { level: 12, label: 'Immediate jeopardy, widespread', color: '#991b1b' },
 };
 
-const DeficiencyDrillDown = ({ isOpen, onClose, ccn, facilityName }) => {
+const DeficiencyDrillDown = ({ isOpen, onClose, ccn, facilityName, surveyDate = null }) => {
   const [deficiencies, setDeficiencies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -28,7 +28,7 @@ const DeficiencyDrillDown = ({ isOpen, onClose, ccn, facilityName }) => {
     if (isOpen && ccn) {
       loadDeficiencies();
     }
-  }, [isOpen, ccn]);
+  }, [isOpen, ccn, surveyDate]);
 
   const loadDeficiencies = async () => {
     setLoading(true);
@@ -36,7 +36,13 @@ const DeficiencyDrillDown = ({ isOpen, onClose, ccn, facilityName }) => {
     try {
       const response = await getFacilityDeficiencies(ccn);
       if (response.success) {
-        setDeficiencies(response.deficiencies);
+        let defs = response.deficiencies;
+        // Filter to specific survey date if provided
+        if (surveyDate) {
+          const targetDate = new Date(surveyDate).toDateString();
+          defs = defs.filter(d => new Date(d.survey_date).toDateString() === targetDate);
+        }
+        setDeficiencies(defs);
       } else {
         setError('Failed to load deficiencies');
       }
@@ -57,11 +63,25 @@ const DeficiencyDrillDown = ({ isOpen, onClose, ccn, facilityName }) => {
     return acc;
   }, {});
 
+  // Format title based on whether filtering by survey date
+  const getTitle = () => {
+    const name = facilityName || 'Facility';
+    if (surveyDate) {
+      const dateStr = new Date(surveyDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      return `Survey Deficiencies - ${dateStr}`;
+    }
+    return `Deficiencies - ${name}`;
+  };
+
   return (
     <DrillDownModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Deficiencies - ${facilityName || 'Facility'}`}
+      title={getTitle()}
       icon={AlertTriangle}
     >
       {loading ? (

@@ -1,0 +1,439 @@
+/* Ownership Tab Styles */
+
+.ownership-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+/* Loading State */
+.ownership-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  color: #6b7280;
+}
+
+.ownership-loading .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.ownership-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.ownership-error h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ownership-error p {
+  margin: 0;
+  font-size: 0.875rem;
+  max-width: 400px;
+}
+
+.retry-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.retry-button:hover {
+  background: #2563eb;
+}
+
+/* Empty State */
+.ownership-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.ownership-empty h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ownership-empty p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Summary Card */
+.ownership-summary-card {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ownership-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ownership-summary-header svg {
+  color: #6b7280;
+}
+
+.ownership-summary-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.ownership-count {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.ownership-chain-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.chain-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.chain-link {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: #eff6ff;
+  color: #2563eb;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chain-link:hover {
+  background: #dbeafe;
+  text-decoration: underline;
+}
+
+/* Ownership Groups */
+.ownership-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ownership-group-card {
+  background: white;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ownership-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #f9fafb;
+  border-left: 4px solid #6b7280;
+}
+
+.group-name {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.group-count {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+/* Ownership List */
+.ownership-list {
+  padding: 0.5rem 0;
+}
+
+.ownership-item {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.ownership-item:last-child {
+  border-bottom: none;
+}
+
+.ownership-item.clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ownership-item.clickable:hover {
+  background: #f9fafb;
+}
+
+.owner-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.owner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #f3f4f6;
+  border-radius: 0.5rem;
+  color: #6b7280;
+}
+
+.owner-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.owner-name {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ownership-item.clickable .owner-name {
+  color: #2563eb;
+}
+
+.ownership-item.clickable:hover .owner-name {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.owner-type {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.125rem;
+}
+
+.owner-arrow {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.ownership-item.clickable:hover .owner-arrow {
+  color: #3b82f6;
+}
+
+.owner-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  margin-left: 2.75rem;
+}
+
+.owner-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.owner-detail svg {
+  color: #9ca3af;
+}
+
+/* Related Facilities Section */
+.related-facilities-section {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.related-facilities-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #6b7280;
+}
+
+.related-facilities-header h4 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.related-facilities-hint {
+  margin: 0.75rem 0 0 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.inline-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.inline-link:hover {
+  color: #1d4ed8;
+}
+
+/* Placeholder Tab (reuse existing) */
+.ownership-tab .placeholder-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.ownership-tab .placeholder-tab h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ownership-tab .placeholder-tab p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+  max-width: 320px;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .ownership-tab {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .ownership-summary-card {
+    padding: 1rem;
+  }
+
+  .ownership-chain-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .chain-link {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ownership-group-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .ownership-item {
+    padding: 0.75rem 1rem;
+  }
+
+  .owner-details {
+    margin-left: 0;
+    margin-top: 0.5rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .related-facilities-section {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .ownership-tab {
+    padding: 0.75rem;
+  }
+
+  .ownership-summary-header h3 {
+    font-size: 0.9375rem;
+  }
+
+  .owner-name {
+    font-size: 0.875rem;
+  }
+
+  .group-name {
+    font-size: 0.8125rem;
+  }
+
+  .ownership-loading,
+  .ownership-error,
+  .ownership-empty {
+    padding: 3rem 1rem;
+  }
+}

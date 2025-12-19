@@ -24,6 +24,12 @@ module.exports = function (sequelize, DataTypes) {
       type: DataTypes.STRING(255),
       allowNull: true
     },
+    // CMS facility link - CCN from cms_snf_providers
+    federal_provider_number: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: 'CMS Certification Number (CCN) linking to cms_snf_providers'
+    },
     // Location
     street_address: {
       type: DataTypes.STRING(255),

@@ -1006,11 +1006,11 @@ async function runParallelExtractions(combinedDocumentText, contextSection = '',
   console.log('Starting parallel extractions (two-phase approach)...');
   const startTime = Date.now();
 
-  // If context provided (period analysis or portfolio facility context), prepend it to ALL prompts
+  // If context provided (period analysis or portfolio facility context), prepend it to financial prompts
   // This guides Claude to use the correct periods and/or extract for the correct facility
-  const facilityPromptWithContext = contextSection
-    ? `${contextSection}\n\n${FACILITY_PROMPT}`
-    : FACILITY_PROMPT;
+  // NOTE: FACILITY_PROMPT should NOT have period context - facility extraction should find ALL facilities
+  // mentioned in the document, regardless of time period. Period constraints only apply to financial data.
+  const facilityPromptWithContext = FACILITY_PROMPT;  // No period constraint for facility extraction
 
   const financialsPromptWithContext = contextSection
     ? `${contextSection}\n\n${FINANCIALS_PROMPT}`
@@ -1033,7 +1033,15 @@ async function runParallelExtractions(combinedDocumentText, contextSection = '',
     : OVERVIEW_PROMPT;
 
   if (contextSection) {
-    console.log('[ParallelExtractor] Context section added to ALL extraction prompts');
+    console.log('[ParallelExtractor] Context section added to financial extraction prompts (NOT facility)');
+    // Log period constraint details for verification
+    const periodMatch = contextSection.match(/AUTHORIZED EXTRACTION PERIOD:\s*(\d{4}-\d{2}-\d{2})\s*to\s*(\d{4}-\d{2}-\d{2})/);
+    if (periodMatch) {
+      console.log(`[ParallelExtractor] ✓ PERIOD CONSTRAINT ENFORCED: ${periodMatch[1]} to ${periodMatch[2]}`);
+      console.log('[ParallelExtractor] Period applies to: financials, expenses, census, rates, overview');
+      console.log('[ParallelExtractor] Period does NOT apply to: facility (extracts all facilities regardless of period)');
+    }
+    console.log(`[ParallelExtractor] Context section length: ${contextSection.length} chars`);
   }
 
   // Initialize organized results object

@@ -167,3 +167,29 @@ export const getFacilityPercentiles = async (ccn, options = {}) => {
   const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/percentiles`, params);
   return response.data;
 };
+
+/**
+ * Get VBP rankings for a facility at national, state, market, and chain levels
+ * @param {string} ccn - CMS Certification Number
+ * @param {Object} options - Optional filters
+ * @param {number} options.year - Specific fiscal year (defaults to most recent)
+ * @returns {Promise<Object>} VBP rankings data
+ */
+export const getFacilityVbpRankings = async (ccn, options = {}) => {
+  const params = {};
+  if (options.year) params.year = options.year;
+
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/vbp-rankings`, params);
+  return response.data;
+};
+
+/**
+ * Get comprehensive VBP data for a facility
+ * Includes current year details, 6-year history, rankings, and dollar impact
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Full VBP data with current, history, rankings, estimated_impact
+ */
+export const getFacilityVBP = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/vbp`);
+  return response.data;
+};
