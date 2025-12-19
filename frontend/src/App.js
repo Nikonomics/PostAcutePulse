@@ -29,7 +29,10 @@ import OwnershipResearch from "./pages/OwnershipResearch";
 import OwnershipProfile from "./pages/OwnershipProfile";
 // FacilityProfile import removed - now redirects to FacilityMetrics
 import FacilityMetrics from "./pages/FacilityMetrics";
+import SurveyAnalytics from "./pages/SurveyAnalytics";
 import SavedItems from "./pages/SavedItems";
+import DataDictionaryTab from "./components/DataDictionaryTab/DataDictionaryTab";
+import MAIntelligence from "./pages/MAIntelligence";
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
 //   const { isLoggedIn } = useAuth();
@@ -284,6 +287,33 @@ function App() {
           element={
             <ProtectedRoute>
               <FacilityMetrics />
+            </ProtectedRoute>
+          }
+        />
+        {/* Survey Analytics route */}
+        <Route
+          path="/survey-analytics"
+          element={
+            <ProtectedRoute>
+              <SurveyAnalytics />
+            </ProtectedRoute>
+          }
+        />
+        {/* M&A Intelligence route */}
+        <Route
+          path="/ma-intelligence"
+          element={
+            <ProtectedRoute>
+              <MAIntelligence />
+            </ProtectedRoute>
+          }
+        />
+        {/* Data Dictionary route */}
+        <Route
+          path="/data-dictionary"
+          element={
+            <ProtectedRoute>
+              <DataDictionaryTab />
             </ProtectedRoute>
           }
         />

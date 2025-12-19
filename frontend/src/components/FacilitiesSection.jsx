@@ -986,8 +986,8 @@ const FacilityCard = ({ facility, dealId, onEdit, onDelete, expanded, onToggleEx
             <div className="facility-metric-value">{formatCurrency(facility.annual_revenue)}</div>
           </div>
           <div className="facility-metric">
-            <div className="facility-metric-label">EBITDA</div>
-            <div className="facility-metric-value">{formatCurrency(facility.ebitda)}</div>
+            <div className="facility-metric-label">NOI</div>
+            <div className="facility-metric-value">{formatCurrency(facility.noi)}</div>
           </div>
         </div>
 
@@ -1166,7 +1166,7 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     totalBeds: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.bed_count) || 0), 0),
     totalPrice: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.purchase_price) || 0), 0),
     totalRevenue: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.annual_revenue) || 0), 0),
-    totalEbitda: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.ebitda) || 0), 0),
+    totalNoi: subjectFacilities.reduce((sum, f) => sum + (parseFloat(f.noi) || 0), 0),
   };
 
   return (
@@ -1209,8 +1209,8 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
               <div className="portfolio-metric-label">Total Revenue</div>
             </div>
             <div className="portfolio-metric">
-              <div className="portfolio-metric-value">{formatCurrency(portfolioSummary.totalEbitda)}</div>
-              <div className="portfolio-metric-label">Total EBITDA</div>
+              <div className="portfolio-metric-value">{formatCurrency(portfolioSummary.totalNoi)}</div>
+              <div className="portfolio-metric-label">Total NOI</div>
             </div>
           </div>
         )}

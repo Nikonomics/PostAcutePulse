@@ -13,6 +13,9 @@ import {
   Building2,
   Bookmark,
   Activity,
+  ClipboardList,
+  BookOpen,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -25,7 +28,10 @@ const Sidebar = ({ isOpen }) => {
     { path: '/deals', icon: Handshake, label: 'Deals' },
     { path: '/market-analysis', icon: MapPin, label: 'Market Analysis' },
     { path: '/ownership-research', icon: Building2, label: 'Ownership Research' },
+    { path: '/ma-intelligence', icon: ArrowLeftRight, label: 'M&A Intelligence' },
     { path: '/facility-metrics', icon: Activity, label: 'Facility Metrics' },
+    { path: '/survey-analytics', icon: ClipboardList, label: 'Survey Analytics' },
+    { path: '/data-dictionary', icon: BookOpen, label: 'Data Dictionary' },
     { path: '/saved-items', icon: Bookmark, label: 'My Saved Items' },
     { path: '/user-management', icon: User, label: 'User Management' },
     { path: '/ai-deals', icon: Bot, label: 'AI Assistant' },
@@ -36,9 +42,9 @@ const Sidebar = ({ isOpen }) => {
   if (user?.role === 'admin') {
     menuItems = allMenuItems;
   } else {
-    // Only show dashboard, deals, market analysis, ownership research, facility metrics, saved items, ai tabs for non-admins
+    // Only show dashboard, deals, market analysis, ownership research, ma-intelligence, facility metrics, survey analytics, data dictionary, saved items, ai tabs for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/facility-metrics', '/saved-items', '/ai-deals'].includes(item.path)
+      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/ma-intelligence', '/facility-metrics', '/survey-analytics', '/data-dictionary', '/saved-items', '/ai-deals'].includes(item.path)
     );
   }
 

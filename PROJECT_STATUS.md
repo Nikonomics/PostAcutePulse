@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 - **2025-12-18** - Add production database reference to main README
@@ -43,30 +44,30 @@
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     61 files
-Frontend:    154 files
-Routes:      4 files
-Services:    9 files
-Components:  117 files
-Migrations:  8 files
+Backend:     46 files
+Frontend:    163 files
+Routes:      5 files
+Services:    7 files
+Components:  129 files
+Migrations:  6 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
 backend/bellwether_validation.js
-backend/docs/DATA_ROADMAP.md
+backend/controller/SurveyIntelligenceController.js
 backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-deals-position-column.js
-backend/models/cascadia_facility.js
+backend/routes/ma-analytics.js
+backend/routes/surveyIntelligence.js
 backend/run-ccn-migration.js
 backend/scripts/README.md
 backend/scripts/add-search-indexes.js
-backend/scripts/analyze-cms-historical.js
 backend/scripts/calculate-vbp-rankings.js
 backend/scripts/check_data_coverage.js
 ```

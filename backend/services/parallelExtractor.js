@@ -14,7 +14,7 @@ const anthropic = new Anthropic({
 // Model configuration
 const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 16384; // Large enough for 12+ months of detailed financial data
-const MAX_TOKENS_OVERVIEW = 64000; // Desired max for overview (detailed markdown + 1000-char summary)
+const MAX_TOKENS_OVERVIEW = 16384; // Reduced from 64k - overview is just a summary, doesn't need huge output
 const CONTEXT_LIMIT = 200000; // Claude's context window limit
 const TOKEN_BUFFER = 5000; // Safety buffer for system prompt overhead
 
@@ -788,8 +788,9 @@ async function runFocusedExtraction(documentText, systemPrompt, extractionType, 
   const startTime = Date.now();
 
   try {
-    // Estimate input tokens (rough estimate: 1 token ≈ 4 characters)
-    const estimatedInputTokens = Math.ceil((documentText?.length || 0) / 4);
+    // Estimate input tokens (conservative: 1 token ≈ 1.5-2 characters for complex docs)
+    // Using 1.6 chars/token to be safe with PDFs that have tables and special chars
+    const estimatedInputTokens = Math.ceil((documentText?.length || 0) / 1.6);
 
     // Calculate available tokens for output, ensuring we don't exceed context limit
     const availableForOutput = CONTEXT_LIMIT - estimatedInputTokens - TOKEN_BUFFER;

@@ -319,7 +319,11 @@ const CategoryScorecard = ({ scores, marketData, facilityType, laborData }) => {
   const projected85_2030 = Number(demographics?.projections?.age85Plus2030 || demographics?.projected85Plus2030 || 0);
 
   // Computed metrics
-  const totalBeds = Number(supplyData?.beds?.total || supplyData?.totalBeds || supplyData?.beds || 0);
+  // For SNF: use beds.total, totalBeds, or beds
+  // For ALF: use totalCapacity (ALF uses capacity, not beds)
+  const totalBeds = facilityType === 'ALF'
+    ? Number(supplyData?.totalCapacity || 0)
+    : Number(supplyData?.beds?.total || supplyData?.totalBeds || supplyData?.beds || 0);
   const facilityCount = Number(supplyData?.facilityCount || supplyData?.facilities || 0);
   const avgOccupancy = Number(supplyData?.avgOccupancy || 0);
   const avgRating = Number(supplyData?.avgRating || 0);
@@ -464,11 +468,11 @@ const CategoryScorecard = ({ scores, marketData, facilityType, laborData }) => {
             value={facilityCount}
           />
           <MetricRow
-            label="Total Beds"
+            label={facilityType === 'ALF' ? 'Total Capacity' : 'Total Beds'}
             value={totalBeds.toLocaleString()}
           />
           <MetricRow
-            label="Beds per 1K 65+"
+            label={facilityType === 'ALF' ? 'Capacity per 1K 65+' : 'Beds per 1K 65+'}
             value={bedsPerThousand65.toFixed(1)}
             percentile={
               bedsPerThousand65 < 15 ? 'Favorable (low supply)' :
@@ -476,7 +480,7 @@ const CategoryScorecard = ({ scores, marketData, facilityType, laborData }) => {
             }
           />
           <MetricRow
-            label="Beds per 1K 85+"
+            label={facilityType === 'ALF' ? 'Capacity per 1K 85+' : 'Beds per 1K 85+'}
             value={bedsPerThousand85.toFixed(1)}
           />
           {facilityType === 'SNF' && avgOccupancy > 0 && (

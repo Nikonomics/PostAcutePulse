@@ -1255,7 +1255,7 @@ const DealDetailPage = () => {
                       value={selectedView}
                       onChange={(e) => setSelectedView(e.target.value)}
                     >
-                      <option value="deal-overview">Deal Overview</option>
+                      <option value="deal-overview">Portfolio Overview</option>
                       {deal.deal_facility
                         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
                         .map((facility) => (

@@ -1,0 +1,3903 @@
+{
+  "sources": [
+    {
+      "id": "cms_provider_info",
+      "name": "CMS Provider Information",
+      "description": "General information on currently active nursing homes, including certified beds, star ratings, staffing data, and Five-Star Rating System inputs.",
+      "facilityType": "SNF",
+      "category": "Facility & Operational",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Overview",
+        "Market Dynamics"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/4pq5-n9py",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_ProviderInfo_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "2018-present",
+      "geographicScope": "National",
+      "granularity": "Facility-level",
+      "knownLimitations": [
+        "Does not include non-Medicare-certified SNFs"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Telephone Number",
+          "cmsColumnHeader": "Telephone Number",
+          "description": "Provider Phone Number",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider SSA County Code",
+          "cmsColumnHeader": "Provider SSA County Code",
+          "description": "SSA county code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "County/Parish",
+          "cmsColumnHeader": "County/Parish",
+          "description": "Provider County/Parish Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Urban",
+          "cmsColumnHeader": "Urban",
+          "description": "Urban/Rural flag: Y=Urban; N=Rural. Urban is defined by a non-missing CBSA (core-based statistical area) code or a MSA (metropolitan statistical area) code > 0.",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Ownership Type",
+          "cmsColumnHeader": "Ownership Type",
+          "description": "Nature of organization that operates a provider of services",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Certified Beds",
+          "cmsColumnHeader": "Number of Certified Beds",
+          "description": "Number of Federally Certified Beds",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Average Number of Residents per Day",
+          "cmsColumnHeader": "Average Number of Residents per Day",
+          "description": "Average number of residents based on MDS daily census",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Average Number of Residents per Day Footnote",
+          "cmsColumnHeader": "Average Number of Residents per Day Footnote",
+          "description": "Footnote for Resident Census value (see footnote table for definitions of footnote codes)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Type",
+          "cmsColumnHeader": "Provider Type",
+          "description": "Category which is most indicative of provider",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Resides in Hospital",
+          "cmsColumnHeader": "Provider Resides in Hospital",
+          "description": "Facility Resides in Hospital Indicator",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Legal Business Name",
+          "cmsColumnHeader": "Legal Business Name",
+          "description": "Legal Business Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Date First Approved to Provide Medicare and Medicaid services",
+          "cmsColumnHeader": "Date First Approved to Provide Medicare and Medicaid services",
+          "description": "Date First Approved to Provide Medicare/Medicaid Services",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Chain Name",
+          "cmsColumnHeader": "Chain Name",
+          "description": "Unique name identifying a group of nursing homes that share at least one individual or organizational owner, officer, or entity with operational/managerial control",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Chain ID",
+          "cmsColumnHeader": "Chain ID",
+          "description": "Unique numeric identifier assigned to each chain",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Facilities in Chain",
+          "cmsColumnHeader": "Number of Facilities in Chain",
+          "description": "Number of facilities in the chain. Missing if the provider is not part of a chain.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Chain Average Overall 5-star Rating",
+          "cmsColumnHeader": "Chain Average Overall 5-star Rating",
+          "description": "Average overall 5-star rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Chain Average Health Inspection Rating",
+          "cmsColumnHeader": "Chain Average Health Inspection Rating",
+          "description": "Average health inspection rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Chain Average Staffing Rating",
+          "cmsColumnHeader": "Chain Average Staffing Rating",
+          "description": "Average staffing rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Chain Average QM Rating",
+          "cmsColumnHeader": "Chain Average QM Rating",
+          "description": "Average quality measure (QM) rating across all facilities in the chain. Missing if the provider is not part of a chain.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Continuing Care Retirement Community",
+          "cmsColumnHeader": "Continuing Care Retirement Community",
+          "description": "Continuing Care Retirement Community Indicator",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Special Focus Status",
+          "cmsColumnHeader": "Special Focus Status",
+          "description": "Special Focus Status (SFF, SFF Candidate or null if provider not SFF or Candidate)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Abuse Icon",
+          "cmsColumnHeader": "Abuse Icon",
+          "description": "Cited for abuse or neglect at harm level or above on survey cycle 1 (Scope/severity G or greater) or cited for abuse or neglect at potential harm level (Scope/Severity D or above) on both survey cycles 1 and 2.",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Most Recent Health Inspection More Than 2 Years Ago",
+          "cmsColumnHeader": "Most Recent Health Inspection More Than 2 Years Ago",
+          "description": "Most recent survey occurred more than 2 years ago indicator",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Changed Ownership in Last 12 Months",
+          "cmsColumnHeader": "Provider Changed Ownership in Last 12 Months",
+          "description": "Facility Changed Ownership in Last 12 Months Indicator",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "With a Resident and Family Council",
+          "cmsColumnHeader": "With a Resident and Family Council",
+          "description": "With a Resident and Family Council (Resident, Family, Both, None)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Automatic Sprinkler Systems in All Required Areas",
+          "cmsColumnHeader": "Automatic Sprinkler Systems in All Required Areas",
+          "description": "Automatic Sprinkler Systems in All Required Areas (Yes, Partial, No, Data Not Available)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Overall Rating",
+          "cmsColumnHeader": "Overall Rating",
+          "description": "Overall Rating (1-5)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Overall Rating Footnote",
+          "cmsColumnHeader": "Overall Rating Footnote",
+          "description": "Overall Rating Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Health Inspection Rating",
+          "cmsColumnHeader": "Health Inspection Rating",
+          "description": "Health Inspection Rating (1-5)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Health Inspection Rating Footnote",
+          "cmsColumnHeader": "Health Inspection Rating Footnote",
+          "description": "Health Inspection Rating Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "QM Rating",
+          "cmsColumnHeader": "QM Rating",
+          "description": "Quality Measure (QM) Rating (1-5)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "QM Rating Footnote",
+          "cmsColumnHeader": "QM Rating Footnote",
+          "description": "QM Rating Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Long-Stay QM Rating",
+          "cmsColumnHeader": "Long-Stay QM Rating",
+          "description": "Long-stay QM Rating (1-5)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Long-Stay QM Rating Footnote",
+          "cmsColumnHeader": "Long-Stay QM Rating Footnote",
+          "description": "Long-Stay QM Rating Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Short-Stay QM Rating",
+          "cmsColumnHeader": "Short-Stay QM Rating",
+          "description": "Short-Stay QM Rating (1-5)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Short-Stay QM Rating Footnote",
+          "cmsColumnHeader": "Short-Stay QM Rating Footnote",
+          "description": "Short-Stay QM Rating Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Staffing Rating",
+          "cmsColumnHeader": "Staffing Rating",
+          "description": "Staffing Rating (1-5)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Staffing Rating Footnote",
+          "cmsColumnHeader": "Staffing Rating Footnote",
+          "description": "Staffing Rating Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Staffing Footnote",
+          "cmsColumnHeader": "Reported Staffing Footnote",
+          "description": "Reported Staffing Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Physical Therapist Staffing Footnote",
+          "cmsColumnHeader": "Physical Therapist Staffing Footnote",
+          "description": "Physical Therapy Staffing Footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Nurse Aide Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported Nurse Aide Staffing Hours per Resident per Day",
+          "description": "Reported Nurse Aide Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported LPN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported LPN Staffing Hours per Resident per Day",
+          "description": "Reported LPN Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported RN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported RN Staffing Hours per Resident per Day",
+          "description": "Reported RN Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Licensed Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported Licensed Staffing Hours per Resident per Day",
+          "description": "Reported Licensed Staffing - Hours per Resident per Day (RN + LPN)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported Total Nurse Staffing Hours per Resident per Day",
+          "description": "Reported Total Nurse Staffing - Hours per Resident per Day (Aide+LPN+RN)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total number of nurse staff hours per resident per day on the weekend",
+          "cmsColumnHeader": "Total number of nurse staff hours per resident per day on the weekend",
+          "description": "Total number of nurse staff hours on the weekend - Hours per resident per day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Registered Nurse hours per resident per day on the weekend",
+          "cmsColumnHeader": "Registered Nurse hours per resident per day on the weekend",
+          "description": "Registered Nurse hours on the weekend - Hours per resident per day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+          "cmsColumnHeader": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+          "description": "Reported Physical Therapy Staffing - Hours per Resident Per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total nursing staff turnover",
+          "cmsColumnHeader": "Total nursing staff turnover",
+          "description": "Total nursing staff turnover",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total nursing staff turnover footnote",
+          "cmsColumnHeader": "Total nursing staff turnover footnote",
+          "description": "Total nursing staff turnover footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Registered Nurse turnover",
+          "cmsColumnHeader": "Registered Nurse turnover",
+          "description": "Registered Nurse turnover",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Registered Nurse turnover footnote",
+          "cmsColumnHeader": "Registered Nurse turnover footnote",
+          "description": "Registered Nurse turnover footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of administrators who have left the nursing home",
+          "cmsColumnHeader": "Number of administrators who have left the nursing home",
+          "description": "Number of administrators who have left the nursing home",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Administrator turnover footnote",
+          "cmsColumnHeader": "Administrator turnover footnote",
+          "description": "Administrator turnover footnote",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Nursing Case-Mix Index",
+          "cmsColumnHeader": "Nursing Case-Mix Index",
+          "description": "Weighted Average Nursing Case-Mix Index",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Nursing Case-Mix Index Ratio",
+          "cmsColumnHeader": "Nursing Case-Mix Index Ratio",
+          "description": "Weighted Average Nursing Case-Mix Index divided by National Weighted Average Nursing Case-Mix Index",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix Nurse Aide Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix Nurse Aide Staffing Hours per Resident per Day",
+          "description": "Case-Mix Nurse Aide Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix LPN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix LPN Staffing Hours per Resident per Day",
+          "description": "Case-Mix LPN Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix RN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix RN Staffing Hours per Resident per Day",
+          "description": "Case-Mix RN Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+          "description": "Case-Mix Total Nurse Staffing - Hours per Resident per Day (Aide+LPN+RN)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+          "description": "Case-Mix Weekend Total Nurse Staffing – Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Adjusted Nurse Aide Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Adjusted Nurse Aide Staffing Hours per Resident per Day",
+          "description": "Adjusted Nurse Aide Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Adjusted LPN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Adjusted LPN Staffing Hours per Resident per Day",
+          "description": "Adjusted LPN Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Adjusted RN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Adjusted RN Staffing Hours per Resident per Day",
+          "description": "Adjusted RN Staffing - Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Adjusted Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Adjusted Total Nurse Staffing Hours per Resident per Day",
+          "description": "Adjusted Total Nurse Staffing - Hours per Resident per Day (Aide+LPN+RN)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Adjusted Weekend Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Adjusted Weekend Total Nurse Staffing Hours per Resident per Day",
+          "description": "Adjusted Weekend Total Nurse Staffing – Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Standard Survey Health Date",
+          "cmsColumnHeader": "Rating cycle 1 Standard Survey Health Date",
+          "description": "Date of Rating cycle 1 Standard Health Survey Date, which is the most recent health inspection. See CMS 5-Star Technical Users' Guide for description of Rating cycles and Health Inspection Scoring",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Total Number of Health Deficiencies",
+          "cmsColumnHeader": "Rating cycle 1 Total Number of Health Deficiencies",
+          "description": "Total Number of Health Deficiencies in Rating cycle 1, which includes the most recent standard survey, as well as complaint and infection control surveys from the most recent 12 months.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Number of Standard Health Deficiencies",
+          "cmsColumnHeader": "Rating cycle 1 Number of Standard Health Deficiencies",
+          "description": "Number of Health Deficiencies from the Standard Survey During Rating cycle 1",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Number of Complaint Health Deficiencies",
+          "cmsColumnHeader": "Rating cycle 1 Number of Complaint Health Deficiencies",
+          "description": "Number of Health Deficiencies from Complaint Surveys during Rating cycle 1 for complaints",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Health Deficiency Score",
+          "cmsColumnHeader": "Rating cycle 1 Health Deficiency Score",
+          "description": "Rating cycle 1 - Health Deficiency Score",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Number of Health Revisits",
+          "cmsColumnHeader": "Rating cycle 1 Number of Health Revisits",
+          "description": "Number of Health Survey Repeat-Revisits for Rating cycle 1",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Health Revisit Score",
+          "cmsColumnHeader": "Rating cycle 1 Health Revisit Score",
+          "description": "Points Associated with Health Survey Repeat Revisits for Rating cycle 1",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 1 Total Health Score",
+          "cmsColumnHeader": "Rating cycle 1 Total Health Score",
+          "description": "Rating cycle 1 - Total Health Inspection Score",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2 Standard Health Survey Date",
+          "cmsColumnHeader": "Rating cycle 2 Standard Health Survey Date",
+          "description": "Date of Rating cycle 2 Standard Health Survey Date",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2/3 Total Number of Health Deficiencies",
+          "cmsColumnHeader": "Rating cycle 2/3 Total Number of Health Deficiencies",
+          "description": "Total Number of Health Deficiencies in Rating cycle 2/3. This includes the second most recent standard survey, as well as complaint and infection control surveys from 13-36 months ago. See CMS 5-Star Technical Users' Guide for more details.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2 Number of Standard Health Deficiencies",
+          "cmsColumnHeader": "Rating cycle 2 Number of Standard Health Deficiencies",
+          "description": "Number of Health Deficiencies from the Standard Survey during Rating cycle 2",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2/3 Number of Complaint Health Deficiencies",
+          "cmsColumnHeader": "Rating cycle 2/3 Number of Complaint Health Deficiencies",
+          "description": "Number of Health Deficiencies from Complaint Surveys from 13-36 months ago.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2/3 Health Deficiency Score",
+          "cmsColumnHeader": "Rating cycle 2/3 Health Deficiency Score",
+          "description": "Rating cycle 2/3 - Health Deficiency Score",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2/3 Number of Health Revisits",
+          "cmsColumnHeader": "Rating cycle 2/3 Number of Health Revisits",
+          "description": "Number of Health Survey Repeat-Revisits for Rating cycle 2/3",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2/3 Health Revisit Score",
+          "cmsColumnHeader": "Rating cycle 2/3 Health Revisit Score",
+          "description": "Points Associated with Health Survey Repeat Revisits for Rating cycle 2/3",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Rating cycle 2/3 Total Health Score",
+          "cmsColumnHeader": "Rating cycle 2/3 Total Health Score",
+          "description": "Rating cycle 2/3 - Total Health Inspection Score",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Weighted Health Survey Score",
+          "cmsColumnHeader": "Total Weighted Health Survey Score",
+          "description": "Total Weighted Health Survey Score - See CMS 5-Star Technical Users' Guide for detailed explanation",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Facility Reported Incidents",
+          "cmsColumnHeader": "Number of Facility Reported Incidents",
+          "description": "Number of times in the past 3 years that a facility-reported issue resulted in a citation",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Substantiated Complaints",
+          "cmsColumnHeader": "Number of Substantiated Complaints",
+          "description": "Number of Complaints in the past 3 years that resulted in a citation",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of citations from infection control inspections",
+          "cmsColumnHeader": "Number of citations from infection control inspections",
+          "description": "Number of citations from infection control inspections in the past 3 years",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Fines",
+          "cmsColumnHeader": "Number of Fines",
+          "description": "Number of Fines",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Amount of Fines in Dollars",
+          "cmsColumnHeader": "Total Amount of Fines in Dollars",
+          "description": "Total Amount of Fines in Dollars",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Payment Denials",
+          "cmsColumnHeader": "Number of Payment Denials",
+          "description": "Number of Payment Denials",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Number of Penalties",
+          "cmsColumnHeader": "Total Number of Penalties",
+          "description": "Total Number of Penalties",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Latitude",
+          "cmsColumnHeader": "Latitude",
+          "description": "Latitude of facility address",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Longitude",
+          "cmsColumnHeader": "Longitude",
+          "description": "Longitude of facility address",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Geocoding Footnote",
+          "cmsColumnHeader": "Geocoding Footnote",
+          "description": "Footnote for geocoding facility address",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_health_deficiencies",
+      "name": "CMS Health Deficiencies",
+      "description": "Health citations from standard and complaint inspections in the last three survey cycles.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Risk Analysis"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/r5ix-sfxw",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_HealthCitations_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "Last 3 inspection cycles",
+      "geographicScope": "National",
+      "granularity": "Citation-level",
+      "knownLimitations": [
+        "Includes citations under IDR/IIDR dispute"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Survey Date",
+          "cmsColumnHeader": "Survey Date",
+          "description": "Date of Health Inspection Survey",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Survey Type",
+          "cmsColumnHeader": "Survey Type",
+          "description": "Type of survey: Health or Fire Safety",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Prefix",
+          "cmsColumnHeader": "Deficiency Prefix",
+          "description": "The alphabetic character that is assigned to a series of data tags that apply to a provider (F)",
+          "dataType": "Text (1)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Category",
+          "cmsColumnHeader": "Deficiency Category",
+          "description": "Category of Health Deficiency",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Tag Number",
+          "cmsColumnHeader": "Deficiency Tag Number",
+          "description": "Deficiency Tag Number",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Description",
+          "cmsColumnHeader": "Deficiency Description",
+          "description": "Text definition of deficiency",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Scope Severity Code",
+          "cmsColumnHeader": "Scope Severity Code",
+          "description": "Indicates the level of harm to the resident(s) involved and the scope of the problem within the nursing home",
+          "dataType": "Text (1)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Corrected",
+          "cmsColumnHeader": "Deficiency Corrected",
+          "description": "Indicates whether the deficiency has been corrected, a plan of correction has been devised, or the deficiency has yet to be corrected",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Correction Date",
+          "cmsColumnHeader": "Correction Date",
+          "description": "Date the deficiency was corrected",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Inspection Cycle",
+          "cmsColumnHeader": "Inspection Cycle",
+          "description": "The inspection cycle of deficiency for display on Nursing Home Compare, where 1 is the most recent cycle. Standard inspection cycles are counted sequentially into the past, complaint inspection cycles are counted annually into the past. If a deficiency is found on a co-occurring standard and complaint inspection, it is assigned to the standard cycle. Please refer to the 5-star Technical Users Guide for further information.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Standard Deficiency",
+          "cmsColumnHeader": "Standard Deficiency",
+          "description": "Indicates that the deficiency was found on a standard inspection",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Complaint Deficiency",
+          "cmsColumnHeader": "Complaint Deficiency",
+          "description": "Indicates that the deficiency was found on a complaint inspection",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Infection Control Inspection Deficiency",
+          "cmsColumnHeader": "Infection Control Inspection Deficiency",
+          "description": "Indicates that the deficiency was found on an infection control inspection",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Citation under IDR",
+          "cmsColumnHeader": "Citation under IDR",
+          "description": "Indicates that the deficiency is under Informal Dispute Resolution (IDR)",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Citation under IIDR",
+          "cmsColumnHeader": "Citation under IIDR",
+          "description": "Indicates that the deficiency is under Independent Informal Dispute Resolution (IIDR)",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_fire_safety",
+      "name": "CMS Fire Safety Deficiencies",
+      "description": "Fire safety and life safety code citations from inspections in the last three survey cycles.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Risk Analysis"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/ifjz-ge4w",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_FireSafetyCitations_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "Last 3 inspection cycles",
+      "geographicScope": "National",
+      "granularity": "Citation-level",
+      "knownLimitations": [
+        "K-tags and E-tags have different version dates"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Survey Date",
+          "cmsColumnHeader": "Survey Date",
+          "description": "Survey Date",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Survey Type",
+          "cmsColumnHeader": "Survey Type",
+          "description": "Type of survey: Health or Fire Safety",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Prefix",
+          "cmsColumnHeader": "Deficiency Prefix",
+          "description": "The alphabetic character that is assigned to a series of data tags that apply to a provider (K or E)",
+          "dataType": "Text (1)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Category",
+          "cmsColumnHeader": "Deficiency Category",
+          "description": "Category of Fire Safety Deficiency",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Tag Number",
+          "cmsColumnHeader": "Deficiency Tag Number",
+          "description": "Deficiency Tag Number",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Tag Version",
+          "cmsColumnHeader": "Tag Version",
+          "description": "Indicates whether tag was cited before (old) or on/after (new) 7/5/2016; for a small number of life safety deficiencies (K tags), the same deficiency tag number has a different description in the two versions",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Description",
+          "cmsColumnHeader": "Deficiency Description",
+          "description": "Text definition of deficiency",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Scope Severity Code",
+          "cmsColumnHeader": "Scope Severity Code",
+          "description": "Indicates the level of harm to the resident(s) involved and the scope of the problem within the nursing home (B-L)",
+          "dataType": "Text (1)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Corrected",
+          "cmsColumnHeader": "Deficiency Corrected",
+          "description": "Indicates whether the deficiency has been corrected, a plan of correction has been devised, or the deficiency has yet to be corrected",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Correction Date",
+          "cmsColumnHeader": "Correction Date",
+          "description": "Date the deficiency was corrected",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Inspection Cycle",
+          "cmsColumnHeader": "Inspection Cycle",
+          "description": "The inspection cycle of deficiency, where 1 is the most recent cycle. Standard inspection cycles are counted sequentially into the past, complaint inspection cycles are counted annually into the past. If a deficiency is found on a co-occurring standard and complaint inspection, it is assigned to the standard cycle. Life Safety Deficiencies are not used in calculating the Health Inspection Rating",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Standard Deficiency",
+          "cmsColumnHeader": "Standard Deficiency",
+          "description": "Indicates that the deficiency was found on a standard inspection",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Complaint Deficiency",
+          "cmsColumnHeader": "Complaint Deficiency",
+          "description": "Indicates that the deficiency was found on a complaint inspection",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Infection Control Inspection Deficiency",
+          "cmsColumnHeader": "Infection Control Inspection Deficiency",
+          "description": "Indicates that the deficiency was found on an infection control inspection",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Citation under IDR",
+          "cmsColumnHeader": "Citation under IDR",
+          "description": "Indicates that the deficiency is under Informal Dispute Resolution (IDR)",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Citation under IIDR",
+          "cmsColumnHeader": "Citation under IIDR",
+          "description": "Indicates that the deficiency is under Independent Informal Dispute Resolution (IIDR)",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_survey_summary",
+      "name": "CMS Survey Summary",
+      "description": "Summary counts of health and fire safety deficiencies by category for each inspection cycle.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Overview"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/tbry-pc2d",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_InspectionsSummary_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "Last 3 inspection cycles",
+      "geographicScope": "National",
+      "granularity": "Facility-cycle level",
+      "knownLimitations": [],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Inspection Cycle",
+          "cmsColumnHeader": "Inspection Cycle",
+          "description": "The inspection cycle of deficiency for display on Nursing Home Compare, where 1 is the most recent cycle. Values can be 1, 2 or 3",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Health Survey Date",
+          "cmsColumnHeader": "Health Survey Date",
+          "description": "Health Survey Date",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Fire Safety Survey Date",
+          "cmsColumnHeader": "Fire Safety Survey Date",
+          "description": "Fire Safety Survey Date",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Number of Health Deficiencies",
+          "cmsColumnHeader": "Total Number of Health Deficiencies",
+          "description": "Total Number of Health Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Number of Fire Safety Deficiencies",
+          "cmsColumnHeader": "Total Number of Fire Safety Deficiencies",
+          "description": "Total Number of Fire Safety Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Freedom from Abuse, Neglect, and Exploitation Deficiencies",
+          "cmsColumnHeader": "Count of Freedom from Abuse, Neglect, and Exploitation Deficiencies",
+          "description": "Count of Freedom from Abuse, Neglect, and Exploitation Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Quality of Life and Care Deficiencies",
+          "cmsColumnHeader": "Count of Quality of Life and Care Deficiencies",
+          "description": "Count of Quality of Life and Care Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Resident Assessment and Care Planning Deficiencies",
+          "cmsColumnHeader": "Count of Resident Assessment and Care Planning Deficiencies",
+          "description": "Count of Resident Assessment and Care Planning Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Nursing and Physician Services Deficiencies",
+          "cmsColumnHeader": "Count of Nursing and Physician Services Deficiencies",
+          "description": "Count of Nursing and Physician Services Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Resident Rights Deficiencies",
+          "cmsColumnHeader": "Count of Resident Rights Deficiencies",
+          "description": "Count of Resident Rights Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Nutrition and Dietary Deficiencies",
+          "cmsColumnHeader": "Count of Nutrition and Dietary Deficiencies",
+          "description": "Count of Nutrition and Dietary Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Pharmacy Service Deficiencies",
+          "cmsColumnHeader": "Count of Pharmacy Service Deficiencies",
+          "description": "Count of Pharmacy Service Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Environmental Deficiencies",
+          "cmsColumnHeader": "Count of Environmental Deficiencies",
+          "description": "Count of Environmental Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Administration Deficiencies",
+          "cmsColumnHeader": "Count of Administration Deficiencies",
+          "description": "Count of Administration Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Infection Control Deficiencies",
+          "cmsColumnHeader": "Count of Infection Control Deficiencies",
+          "description": "Count of Infection Control Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Emergency Preparedness Deficiencies",
+          "cmsColumnHeader": "Count of Emergency Preparedness Deficiencies",
+          "description": "Count of Emergency Preparedness Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Automatic Sprinkler Systems Deficiencies",
+          "cmsColumnHeader": "Count of Automatic Sprinkler Systems Deficiencies",
+          "description": "Count of Automatic Sprinkler Systems Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Construction Deficiencies",
+          "cmsColumnHeader": "Count of Construction Deficiencies",
+          "description": "Count of Construction Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Services Deficiencies",
+          "cmsColumnHeader": "Count of Services Deficiencies",
+          "description": "Count of Services Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Corridor Walls and Doors Deficiencies",
+          "cmsColumnHeader": "Count of Corridor Walls and Doors Deficiencies",
+          "description": "Count of Corridor Walls and Doors Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Egress Deficiencies",
+          "cmsColumnHeader": "Count of Egress Deficiencies",
+          "description": "Count of Egress Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Electrical Deficiencies",
+          "cmsColumnHeader": "Count of Electrical Deficiencies",
+          "description": "Count of Electrical Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Emergency Plans and Fire Drills Deficiencies",
+          "cmsColumnHeader": "Count of Emergency Plans and Fire Drills Deficiencies",
+          "description": "Count of Emergency Plans and Fire Drills Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Fire Alarm Systems Deficiencies",
+          "cmsColumnHeader": "Count of Fire Alarm Systems Deficiencies",
+          "description": "Count of Fire Alarm Systems Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Smoke Deficiencies",
+          "cmsColumnHeader": "Count of Smoke Deficiencies",
+          "description": "Count of Smoke Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Interior Deficiencies",
+          "cmsColumnHeader": "Count of Interior Deficiencies",
+          "description": "Count of Interior Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Gas, Vacuum, and Electrical Systems",
+          "cmsColumnHeader": "Count of Gas, Vacuum, and Electrical Systems",
+          "description": "Count of Gas, Vacuum, and Electrical Systems",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Hazardous Area Deficiencies",
+          "cmsColumnHeader": "Count of Hazardous Area Deficiencies",
+          "description": "Count of Hazardous Area Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Illumination and Emergency Power Deficiencies",
+          "cmsColumnHeader": "Count of Illumination and Emergency Power Deficiencies",
+          "description": "Count of Illumination and Emergency Power Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Laboratories Deficiencies",
+          "cmsColumnHeader": "Count of Laboratories Deficiencies",
+          "description": "Count of Laboratories Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Medical Gases and Anesthetizing Areas Deficiencies",
+          "cmsColumnHeader": "Count of Medical Gases and Anesthetizing Areas Deficiencies",
+          "description": "Count of Medical Gases and Anesthetizing Areas Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Smoking Regulations Deficiencies",
+          "cmsColumnHeader": "Count of Smoking Regulations Deficiencies",
+          "description": "Count of Smoking Regulations Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Count of Miscellaneous Deficiencies",
+          "cmsColumnHeader": "Count of Miscellaneous Deficiencies",
+          "description": "Count of Miscellaneous Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_mds_quality",
+      "name": "CMS MDS Quality Measures",
+      "description": "MDS-based quality measures including quarterly scores for long-stay and short-stay residents.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Quality Analysis"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/djen-97ju",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_QualityMsr_MDS_MonYYYY.csv",
+      "updateFrequency": "Quarterly",
+      "lastUpdated": null,
+      "dataLag": "~3 months",
+      "historicalRange": "4 quarters rolling",
+      "geographicScope": "National",
+      "granularity": "Facility-measure level",
+      "knownLimitations": [
+        "Some measures suppressed for small sample sizes"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Code",
+          "cmsColumnHeader": "Measure Code",
+          "description": "Numeric code assigned to each quality measure (###)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Description",
+          "cmsColumnHeader": "Measure Description",
+          "description": "Measure Description",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Resident type",
+          "cmsColumnHeader": "Resident type",
+          "description": "Identifies the measure as pertaining to either short-stay or long-stay stay residents",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Q1 Measure Score",
+          "cmsColumnHeader": "Q1 Measure Score",
+          "description": "The value for the quality measure for quarter one",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote for Q1 Measure Score",
+          "cmsColumnHeader": "Footnote for Q1 Measure Score",
+          "description": "Footnote for the quality measure for quarter one",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Q2 Measure Score",
+          "cmsColumnHeader": "Q2 Measure Score",
+          "description": "The value for the quality measure for quarter two",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote for Q2 Measure Score",
+          "cmsColumnHeader": "Footnote for Q2 Measure Score",
+          "description": "Footnote for the quality measure for quarter two",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Q3 Measure Score",
+          "cmsColumnHeader": "Q3 Measure Score",
+          "description": "The value for the quality measure for quarter three",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote for Q3 Measure Score",
+          "cmsColumnHeader": "Footnote for Q3 Measure Score",
+          "description": "Footnote for the quality measure for quarter three",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Q4 Measure Score",
+          "cmsColumnHeader": "Q4 Measure Score",
+          "description": "The value for the quality measure for quarter four",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote for Q4 Measure Score",
+          "cmsColumnHeader": "Footnote for Q4 Measure Score",
+          "description": "Footnote for the quality measure for quarter four",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Four Quarter Average Score",
+          "cmsColumnHeader": "Four Quarter Average Score",
+          "description": "The value for the four quarter average",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote for Four Quarter Average Score",
+          "cmsColumnHeader": "Footnote for Four Quarter Average Score",
+          "description": "Footnote for four quarter average score",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Used in Quality Measure Five Star Rating",
+          "cmsColumnHeader": "Used in Quality Measure Five Star Rating",
+          "description": "Identifies whether the quality measure is used in the calculation of the quality measure rating in the Five-Star Quality Rating System",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Period",
+          "cmsColumnHeader": "Measure Period",
+          "description": "Indicates the 4 Quarter range covered by the measures (format yyyyQq-yyyyQq)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_claims_quality",
+      "name": "CMS Claims-Based Quality Measures",
+      "description": "Quality measures derived from Medicare claims data including rehospitalization and ED visits.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Quality Analysis"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/xcdc-v8bm",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_QualityMsr_Claims_MonYYYY.csv",
+      "updateFrequency": "Quarterly",
+      "lastUpdated": null,
+      "dataLag": "~6 months",
+      "historicalRange": "Rolling measurement period",
+      "geographicScope": "National",
+      "granularity": "Facility-measure level",
+      "knownLimitations": [
+        "Based on fee-for-service Medicare claims only"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Code",
+          "cmsColumnHeader": "Measure Code",
+          "description": "Numeric code assigned to each quality measure (###)",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Description",
+          "cmsColumnHeader": "Measure Description",
+          "description": "Measure Description",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Resident type",
+          "cmsColumnHeader": "Resident type",
+          "description": "Identifies the measure as pertaining to either short-stay or long-stay stay residents",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Adjusted Score",
+          "cmsColumnHeader": "Adjusted Score",
+          "description": "The risk-adjusted value for the quality measure",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Observed Score",
+          "cmsColumnHeader": "Observed Score",
+          "description": "The observed value for the quality measure",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Expected Score",
+          "cmsColumnHeader": "Expected Score",
+          "description": "The expected value for the quality measure",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote for the Measure Score",
+          "cmsColumnHeader": "Footnote for the Measure Score",
+          "description": "Footnote for the quality measure",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Used in Quality Measure Five Star Rating",
+          "cmsColumnHeader": "Used in Quality Measure Five Star Rating",
+          "description": "Identifies whether the quality measure is used in the calculation of the quality measure rating in the Five-Star Quality Rating System",
+          "dataType": "Y/N",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Period",
+          "cmsColumnHeader": "Measure Period",
+          "description": "Identifies the time period covered by the measure (format yyyymmdd – yyyymmdd)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_state_averages",
+      "name": "CMS State & National Averages",
+      "description": "State and national averages for star ratings, staffing, quality measures, and penalties.",
+      "facilityType": "SNF",
+      "category": "Market & Demographics",
+      "usedInTabs": [
+        "Market Dynamics",
+        "Benchmarking"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/xcdc-v8bm",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_StateAverages_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "Current period",
+      "geographicScope": "State and National",
+      "granularity": "State/Nation level",
+      "knownLimitations": [],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "State or Nation",
+          "cmsColumnHeader": "State or Nation",
+          "description": "State or Nation – two-character postal abbreviation for state or 'NATION'",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Overall Rating",
+          "cmsColumnHeader": "Overall Rating",
+          "description": "Overall Rating",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Health Inspection Rating",
+          "cmsColumnHeader": "Health Inspection Rating",
+          "description": "Health Inspection Rating",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "QM Rating",
+          "cmsColumnHeader": "QM Rating",
+          "description": "QM Rating",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Staffing Rating",
+          "cmsColumnHeader": "Staffing Rating",
+          "description": "Staffing Rating",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Cycle 1 Total Number of Health Deficiencies",
+          "cmsColumnHeader": "Cycle 1 Total Number of Health Deficiencies",
+          "description": "Cycle 1 Number of Health Deficiencies. This includes the most recent standard survey as well as complaint and infection control surveys from the most recent 12 months.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Cycle 1 Total Number of Fire Safety Deficiencies",
+          "cmsColumnHeader": "Cycle 1 Total Number of Fire Safety Deficiencies",
+          "description": "Cycle 1 Number of Fire Safety and Emergency Preparedness Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Cycle 2 Total Number of Health Deficiencies",
+          "cmsColumnHeader": "Cycle 2 Total Number of Health Deficiencies",
+          "description": "Cycle 2 Number of Health Deficiencies. This includes the second most recent standard survey as well as complaint and infection control surveys from 13-24 months ago.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Cycle 2 Total Number of Fire Safety Deficiencies",
+          "cmsColumnHeader": "Cycle 2 Total Number of Fire Safety Deficiencies",
+          "description": "Cycle 2 Number of Fire Safety and Emergency Preparedness Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Cycle 3 Total Number of Health Deficiencies",
+          "cmsColumnHeader": "Cycle 3 Total Number of Health Deficiencies",
+          "description": "Cycle 3 Number of Health Deficiencies. This includes the third most recent standard survey as well as complaint and infection control surveys from 25-36 months ago. Note that cycle 3 standard surveys are not used for the health inspection rating.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Cycle 3 Total Number of Fire Safety Deficiencies",
+          "cmsColumnHeader": "Cycle 3 Total Number of Fire Safety Deficiencies",
+          "description": "Cycle 3 Number of Fire Safety and Emergency Preparedness Deficiencies",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Average Number of Residents per Day",
+          "cmsColumnHeader": "Average Number of Residents per Day",
+          "description": "Average of daily census derived from MDS",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Nurse Aide Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported Nurse Aide Staffing Hours per Resident per Day",
+          "description": "Reported Nurse Aide Staffing – Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported LPN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported LPN Staffing Hours per Resident per Day",
+          "description": "Reported LPN Staffing – Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported RN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported RN Staffing Hours per Resident per Day",
+          "description": "Reported RN Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Licensed Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported Licensed Staffing Hours per Resident per Day",
+          "description": "Reported Licensed Staffing – Hours per Resident per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Reported Total Nurse Staffing Hours per Resident per Day",
+          "description": "Reported Total Nurse Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total number of nurse staff hours per resident per day on the weekend",
+          "cmsColumnHeader": "Total number of nurse staff hours per resident per day on the weekend",
+          "description": "Total number of nurse staff hours on the weekend Hours per resident per day – US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Registered Nurse hours per resident per day on the weekend",
+          "cmsColumnHeader": "Registered Nurse hours per resident per day on the weekend",
+          "description": "Registered Nurse hours on the weekend – Hours per resident per day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+          "cmsColumnHeader": "Reported Physical Therapist Staffing Hours per Resident Per Day",
+          "description": "Reported Physical Therapy Staffing – Hours per Resident Per Day",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total nursing staff turnover",
+          "cmsColumnHeader": "Total nursing staff turnover",
+          "description": "Total nursing staff turnover",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Registered Nurse turnover",
+          "cmsColumnHeader": "Registered Nurse turnover",
+          "description": "Registered Nurse turnover",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of administrators who have left the nursing home",
+          "cmsColumnHeader": "Number of administrators who have left the nursing home",
+          "description": "Number of administrators who have left the nursing home",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Nursing Case-Mix Index",
+          "cmsColumnHeader": "Nursing Case-Mix Index",
+          "description": "Weighted Average Nursing Case-Mix Index – US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix RN Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix RN Staffing Hours per Resident per Day",
+          "description": "Case-Mix RN Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix Total Nurse Staffing Hours per Resident per Day",
+          "description": "Case-Mix Total Nurse Staffing Hours per Resident per Day- US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+          "cmsColumnHeader": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day",
+          "description": "Case-Mix Weekend Total Nurse Staffing Hours per Resident per Day – US value calculated quarterly and used in calculation of adjusted staffing",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of Fines",
+          "cmsColumnHeader": "Number of Fines",
+          "description": "Number of Fines; state and US averages include 0s for providers with no fines",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Fine Amount in Dollars",
+          "cmsColumnHeader": "Fine Amount in Dollars",
+          "description": "Fine Amount in Dollars; state and US averages include 0s for providers with no fines",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents whose need for help with daily activities has increased",
+          "cmsColumnHeader": "Percentage of long stay residents whose need for help with daily activities has increased",
+          "description": "Percentage of long stay residents whose need for help with daily activities has increased",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents who lose too much weight",
+          "cmsColumnHeader": "Percentage of long stay residents who lose too much weight",
+          "description": "Percentage of long stay residents who lose too much weight",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents with a catheter inserted and left in their bladder",
+          "cmsColumnHeader": "Percentage of long stay residents with a catheter inserted and left in their bladder",
+          "description": "Percentage of long stay residents with a catheter inserted and left in their bladder",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents with a urinary tract infection",
+          "cmsColumnHeader": "Percentage of long stay residents with a urinary tract infection",
+          "description": "Percentage of long stay residents with a urinary tract infection",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents who have depressive symptoms",
+          "cmsColumnHeader": "Percentage of long stay residents who have depressive symptoms",
+          "description": "Percentage of long stay residents who have depressive symptoms",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents who were physically restrained",
+          "cmsColumnHeader": "Percentage of long stay residents who were physically restrained",
+          "description": "Percentage of long stay residents who were physically restrained",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents experiencing one or more falls with major injury",
+          "cmsColumnHeader": "Percentage of long stay residents experiencing one or more falls with major injury",
+          "description": "Percentage of long stay residents experiencing one or more falls with major injury",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents assessed and appropriately given the pneumococcal vaccine",
+          "cmsColumnHeader": "Percentage of long stay residents assessed and appropriately given the pneumococcal vaccine",
+          "description": "Percentage of long stay residents assessed and appropriately given the pneumococcal vaccine",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents who received an antipsychotic medication",
+          "cmsColumnHeader": "Percentage of long stay residents who received an antipsychotic medication",
+          "description": "Percentage of long stay residents who received an antipsychotic medication",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of short stay residents assessed and appropriately given the pneumococcal vaccine",
+          "cmsColumnHeader": "Percentage of short stay residents assessed and appropriately given the pneumococcal vaccine",
+          "description": "Percentage of short stay residents assessed and appropriately given the pneumococcal vaccine",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of short stay residents who newly received an antipsychotic medication",
+          "cmsColumnHeader": "Percentage of short stay residents who newly received an antipsychotic medication",
+          "description": "Percentage of short stay residents who newly received an antipsychotic medication",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents whose ability to walk independently worsened",
+          "cmsColumnHeader": "Percentage of long stay residents whose ability to walk independently worsened",
+          "description": "Percentage of long stay residents whose ability to walk independently worsened",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents who received an antianxiety or hypnotic medication",
+          "cmsColumnHeader": "Percentage of long stay residents who received an antianxiety or hypnotic medication",
+          "description": "Percentage of long stay residents who received an antianxiety or hypnotic medication",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents assessed and appropriately given the seasonal influenza vaccine",
+          "cmsColumnHeader": "Percentage of long stay residents assessed and appropriately given the seasonal influenza vaccine",
+          "description": "Percentage of long stay residents assessed and appropriately given the seasonal influenza vaccine",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of short stay residents who were assessed and appropriately given the seasonal influenza vaccine",
+          "cmsColumnHeader": "Percentage of short stay residents who were assessed and appropriately given the seasonal influenza vaccine",
+          "description": "Percentage of short stay residents who were assessed and appropriately given the seasonal influenza vaccine",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents with pressure ulcers",
+          "cmsColumnHeader": "Percentage of long stay residents with pressure ulcers",
+          "description": "Percentage of long stay residents with pressure ulcers",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of long stay residents with new or worsened bowel or bladder incontinence",
+          "cmsColumnHeader": "Percentage of long stay residents with new or worsened bowel or bladder incontinence",
+          "description": "Percentage of long stay residents with new or worsened bowel or bladder incontinence",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of short stay residents who were rehospitalized after a nursing home admission",
+          "cmsColumnHeader": "Percentage of short stay residents who were rehospitalized after a nursing home admission",
+          "description": "Percentage of short stay residents who were rehospitalized after a nursing home admission",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Percentage of short stay residents who had an outpatient emergency department visit",
+          "cmsColumnHeader": "Percentage of short stay residents who had an outpatient emergency department visit",
+          "description": "Percentage of short stay residents who had an outpatient emergency department visit",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of hospitalizations per 1000 long-stay resident days",
+          "cmsColumnHeader": "Number of hospitalizations per 1000 long-stay resident days",
+          "description": "Number of hospitalizations per 1000 long-stay resident days",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Number of outpatient emergency department visits per 1000 long-stay resident days",
+          "cmsColumnHeader": "Number of outpatient emergency department visits per 1000 long-stay resident days",
+          "description": "Number of outpatient emergency department visits per 1000 long-stay resident days",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_ownership",
+      "name": "CMS Ownership Data",
+      "description": "Ownership and management information including individual and organizational owners with 5%+ interest.",
+      "facilityType": "SNF",
+      "category": "Facility & Operational",
+      "usedInTabs": [
+        "Overview",
+        "Ownership Analysis"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/y2hd-n93e",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_Ownership_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "Current ownership",
+      "geographicScope": "National",
+      "granularity": "Owner-facility level",
+      "knownLimitations": [
+        "Only includes owners with 5%+ interest",
+        "Self-reported data"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Role played by Owner or Manager in Facility",
+          "cmsColumnHeader": "Role played by Owner or Manager in Facility",
+          "description": "Role description; possible values are: 5% or greater direct ownership interest; 5% or greater indirect ownership interest; 5% OR GREATER MORTGAGE INTEREST; 5% OR GREATER SECURITY INTEREST; CONTRACTED MANAGING EMPLOYEE; W-2 MANAGING EMPLOYEE; CORPORATE DIRECTOR; CORPORATE OFFICER; OPERATIONAL/MANAGERIAL CONTROL; GENERAL PARTNERSHIP INTEREST; LIMITED PARTNERSHIP INTEREST",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Owner Type",
+          "cmsColumnHeader": "Owner Type",
+          "description": "Indicates if owner is an individual or organization (Individual or Organization)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Owner Name",
+          "cmsColumnHeader": "Owner Name",
+          "description": "Name of Owner",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Ownership Percentage",
+          "cmsColumnHeader": "Ownership Percentage",
+          "description": "Ownership percentage – value provided only for owners with role description of \"5% or greater direct ownership interest\" or \"5% or greater indirect ownership interest\"",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Association Date",
+          "cmsColumnHeader": "Association Date",
+          "description": "Date when given owner/manager became associated with provider in this role",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_penalties",
+      "name": "CMS Penalties",
+      "description": "Federal penalties including fines and payment denials imposed on nursing homes.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Risk Analysis"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/g6vv-u9sr",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "NH_Penalties_MonYYYY.csv",
+      "updateFrequency": "Monthly",
+      "lastUpdated": null,
+      "dataLag": "~2-4 weeks",
+      "historicalRange": "Last 3 years",
+      "geographicScope": "National",
+      "granularity": "Penalty-level",
+      "knownLimitations": [
+        "Does not include state-only penalties"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "CMS Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider Name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider Street Address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider City/Town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider State – postal abbreviation",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider Zip Code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Penalty Date",
+          "cmsColumnHeader": "Penalty Date",
+          "description": "Date of inspection that triggered the penalty",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Penalty Type",
+          "cmsColumnHeader": "Penalty Type",
+          "description": "Penalty type: Fine or Payment Denial",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Fine Amount",
+          "cmsColumnHeader": "Fine Amount",
+          "description": "Fine amount in whole dollars",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Payment Denial Start Date",
+          "cmsColumnHeader": "Payment Denial Start Date",
+          "description": "Date on which Medicare/Medicaid payment for new admissions was suspended",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Payment Denial Length in Days",
+          "cmsColumnHeader": "Payment Denial Length in Days",
+          "description": "Number of days for which Medicare/Medicaid payment was suspended",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Location",
+          "cmsColumnHeader": "Location",
+          "description": "Location of facility (provider address, city, state, zip)",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Processing Date",
+          "cmsColumnHeader": "Processing Date",
+          "description": "Date the data was retrieved",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_snf_qrp",
+      "name": "CMS SNF Quality Reporting Program (Provider)",
+      "description": "SNF QRP provider-level quality measures required under the IMPACT Act, including readmissions, discharge to community, and functional outcomes.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Quality Analysis",
+        "Value-Based Purchasing"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/ryvq-mtab",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "SNF_QRP_Provider_MonYYYY.csv",
+      "updateFrequency": "Quarterly",
+      "lastUpdated": null,
+      "dataLag": "~3-6 months",
+      "historicalRange": "Current reporting period",
+      "geographicScope": "National",
+      "granularity": "Facility-measure level",
+      "knownLimitations": [
+        "Some measures have minimum case thresholds"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "The CMS certification number (CCN) is used to identify the facility listed.",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Name of the facility.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Address Line 1",
+          "cmsColumnHeader": "Address Line 1",
+          "description": "The first line of the address of the facility.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Address Line 2",
+          "cmsColumnHeader": "Address Line 2",
+          "description": "The second line of the address of the facility. Note: This variable is only included in the Skilled Nursing Facility Quality Reporting Program – Swing Bed data.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "The name of the city/town where the facility is located.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "The two-character postal code used to identify the state where the facility is located.",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "The five-digit postal ZIP code where the facility is located.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "County/Parish",
+          "cmsColumnHeader": "County/Parish",
+          "description": "The name of the county/parish where the facility is located.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Telephone Number",
+          "cmsColumnHeader": "Telephone Number",
+          "description": "The ten-digit telephone number of the facility. The format is (xxx) yyy-zzzz.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "CMS Region",
+          "cmsColumnHeader": "CMS Region",
+          "description": "The CMS region where the facility is located. 1=Boston, 2=New York, 3=Philadelphia, 4=Atlanta, 5=Chicago, 6=Dallas, 7=Kansas City, 8=Denver, 9=San Francisco, 10=Seattle.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Code",
+          "cmsColumnHeader": "Measure Code",
+          "description": "The measure code consists of the CMS ID (prefix) and the variable name (suffix) for the corresponding measure score. Example = S_038_02_ADJ_RATE. Prefix: S_038_02, Suffix: ADJ_RATE.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Score",
+          "cmsColumnHeader": "Score",
+          "description": "The measure score for the corresponding measure code.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote",
+          "cmsColumnHeader": "Footnote",
+          "description": "Indicates the relevant footnote(s). If there is more than one relevant footnote, the values are separated by commas (e.g., 9,13).",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Start Date",
+          "cmsColumnHeader": "Start Date",
+          "description": "The start date of the reporting period for the corresponding measure code and score.",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "End Date",
+          "cmsColumnHeader": "End Date",
+          "description": "The end date of the reporting period for the corresponding measure code and score.",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Date Range",
+          "cmsColumnHeader": "Measure Date Range",
+          "description": "The start date through the end date of the reporting period(s) for the corresponding measure code and score. Note: Only reporting periods that are 'split' are populated and represented by the use of a semicolon between the split periods.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "LOCATION1",
+          "cmsColumnHeader": "LOCATION1",
+          "description": "The full facility address. Note: This variable is only included in the Skilled Nursing Facility Quality Reporting Program - Provider Data.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_OBS_READM",
+          "cmsColumnHeader": "S_004_01_PPR_PD_OBS_READM",
+          "description": "Number of potentially preventable readmissions following discharge",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_VOLUME",
+          "cmsColumnHeader": "S_004_01_PPR_PD_VOLUME",
+          "description": "Number of eligible stays",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_OBS",
+          "cmsColumnHeader": "S_004_01_PPR_PD_OBS",
+          "description": "Unadjusted potentially preventable readmission rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_RSRR",
+          "cmsColumnHeader": "S_004_01_PPR_PD_RSRR",
+          "description": "Risk-standardized potentially preventable readmission rate (RSRR)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_RSRR_2_5",
+          "cmsColumnHeader": "S_004_01_PPR_PD_RSRR_2_5",
+          "description": "Lower limit of the 95% confidence interval on the RSRR",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_RSRR_97_5",
+          "cmsColumnHeader": "S_004_01_PPR_PD_RSRR_97_5",
+          "description": "Upper limit of the 95% confidence interval on the RSRR",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_COMP_PERF",
+          "cmsColumnHeader": "S_004_01_PPR_PD_COMP_PERF",
+          "description": "Comparative performance category",
+          "dataType": "Text",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_NUMBER",
+          "cmsColumnHeader": "S_005_02_DTC_NUMBER",
+          "description": "Observed number of discharges to community (DTC)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_VOLUME",
+          "cmsColumnHeader": "S_005_02_DTC_VOLUME",
+          "description": "Number of eligible stays for DTC measure",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_OBS_RATE",
+          "cmsColumnHeader": "S_005_02_DTC_OBS_RATE",
+          "description": "Observed discharge to community rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_RS_RATE",
+          "cmsColumnHeader": "S_005_02_DTC_RS_RATE",
+          "description": "Risk-standardized discharge to community rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_RS_RATE_2_5",
+          "cmsColumnHeader": "S_005_02_DTC_RS_RATE_2_5",
+          "description": "Lower limit of the 95% confidence interval on the risk-standardized discharge to community rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_RS_RATE_97_5",
+          "cmsColumnHeader": "S_005_02_DTC_RS_RATE_97_5",
+          "description": "Upper limit of the 95% confidence interval on the risk-standardized discharge to community rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_COMP_PERF",
+          "cmsColumnHeader": "S_005_02_DTC_COMP_PERF",
+          "description": "Comparative performance category",
+          "dataType": "Text",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_006_01_MSPB_NUMB",
+          "cmsColumnHeader": "S_006_01_MSPB_NUMB",
+          "description": "Number of eligible episodes",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_006_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_006_01_MSPB_SCORE",
+          "cmsColumnHeader": "S_006_01_MSPB_SCORE",
+          "description": "MSPB score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_006_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_007_02_NUMERATOR",
+          "cmsColumnHeader": "S_007_02_NUMERATOR",
+          "description": "Numerator - Drug Regimen Review Conducted with Follow-Up for Identified Issues",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_007_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_007_02_DENOMINATOR",
+          "cmsColumnHeader": "S_007_02_DENOMINATOR",
+          "description": "Denominator - Drug Regimen Review Conducted with Follow-Up for Identified Issues",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_007_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_007_02_OBS_RATE",
+          "cmsColumnHeader": "S_007_02_OBS_RATE",
+          "description": "Facility rate - Drug Regimen Review Conducted with Follow-Up for Identified Issues",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_007_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_013_02_NUMERATOR",
+          "cmsColumnHeader": "S_013_02_NUMERATOR",
+          "description": "Numerator - Falls with major injury",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_013_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_013_02_DENOMINATOR",
+          "cmsColumnHeader": "S_013_02_DENOMINATOR",
+          "description": "Denominator - Falls with major injury",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_013_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_013_02_OBS_RATE",
+          "cmsColumnHeader": "S_013_02_OBS_RATE",
+          "description": "Facility rate - Falls with major injury",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_013_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_024_06_NUMERATOR",
+          "cmsColumnHeader": "S_024_06_NUMERATOR",
+          "description": "Numerator - Discharge Self-Care Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_024_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_024_06_DENOMINATOR",
+          "cmsColumnHeader": "S_024_06_DENOMINATOR",
+          "description": "Denominator - Discharge Self-Care Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_024_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_024_06_OBS_RATE",
+          "cmsColumnHeader": "S_024_06_OBS_RATE",
+          "description": "Facility rate - Discharge Self-Care Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_024_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_025_06_NUMERATOR",
+          "cmsColumnHeader": "S_025_06_NUMERATOR",
+          "description": "Numerator - Discharge Mobility Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_025_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_025_06_DENOMINATOR",
+          "cmsColumnHeader": "S_025_06_DENOMINATOR",
+          "description": "Denominator - Discharge Mobility Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_025_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_025_06_OBS_RATE",
+          "cmsColumnHeader": "S_025_06_OBS_RATE",
+          "description": "Facility rate - Discharge Mobility Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_025_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_038_02_NUMERATOR",
+          "cmsColumnHeader": "S_038_02_NUMERATOR",
+          "description": "Numerator - Pressure ulcers/pressure injuries new or worsened",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_038_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_038_02_DENOMINATOR",
+          "cmsColumnHeader": "S_038_02_DENOMINATOR",
+          "description": "Denominator - Pressure ulcers/pressure injuries new or worsened",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_038_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_038_02_OBS_RATE",
+          "cmsColumnHeader": "S_038_02_OBS_RATE",
+          "description": "Facility observed rate - Pressure ulcers/pressure injuries new or worsened",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_038_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_038_02_ADJ_RATE",
+          "cmsColumnHeader": "S_038_02_ADJ_RATE",
+          "description": "Facility adjusted rate - Pressure ulcers/pressure injuries new or worsened",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_038_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_NUMBER",
+          "cmsColumnHeader": "S_039_01_HAI_NUMBER",
+          "description": "Observed number of healthcare-Associated Infections",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_VOLUME",
+          "cmsColumnHeader": "S_039_01_HAI_VOLUME",
+          "description": "Number of eligible stays",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_OBS_RATE",
+          "cmsColumnHeader": "S_039_01_HAI_OBS_RATE",
+          "description": "Observed healthcare-associated infection rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_RS_RATE",
+          "cmsColumnHeader": "S_039_01_HAI_RS_RATE",
+          "description": "Risk-standardized healthcare-associated infection rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_RS_RATE_2_5",
+          "cmsColumnHeader": "S_039_01_HAI_RS_RATE_2_5",
+          "description": "Lower 95% confidence limit of the risk-standardized healthcare-associated infection rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_RS_RATE_97_5",
+          "cmsColumnHeader": "S_039_01_HAI_RS_RATE_97_5",
+          "description": "Upper 95% confidence limit of the risk-standardized healthcare-associated infection rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_COMP_PERF",
+          "cmsColumnHeader": "S_039_01_HAI_COMP_PERF",
+          "description": "Comparative performance category",
+          "dataType": "Text",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_040_02_NUMERATOR",
+          "cmsColumnHeader": "S_040_02_NUMERATOR",
+          "description": "Number of health care workers vaccinated (COVID-19)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_040_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_040_02_DENOMINATOR",
+          "cmsColumnHeader": "S_040_02_DENOMINATOR",
+          "description": "Number of health care workers (COVID-19)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_040_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_040_02_OBS_RATE",
+          "cmsColumnHeader": "S_040_02_OBS_RATE",
+          "description": "Rate of COVID-19 vaccination",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_040_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_041_01_NUMERATOR",
+          "cmsColumnHeader": "S_041_01_NUMERATOR",
+          "description": "Number of health care workers vaccinated (flu)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_041_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_041_01_DENOMINATOR",
+          "cmsColumnHeader": "S_041_01_DENOMINATOR",
+          "description": "Number of health care workers (flu)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_041_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_041_01_OBS_RATE",
+          "cmsColumnHeader": "S_041_01_OBS_RATE",
+          "description": "Rate of flu vaccination",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_041_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_042_02_NUMERATOR",
+          "cmsColumnHeader": "S_042_02_NUMERATOR",
+          "description": "Numerator - Discharge Function Score (self-care and mobility combined)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_042_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_042_02_DENOMINATOR",
+          "cmsColumnHeader": "S_042_02_DENOMINATOR",
+          "description": "Denominator - Discharge Function Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_042_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_042_02_OBS_RATE",
+          "cmsColumnHeader": "S_042_02_OBS_RATE",
+          "description": "Facility Rate - Discharge Function Score",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_042_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_043_02_NUMERATOR",
+          "cmsColumnHeader": "S_043_02_NUMERATOR",
+          "description": "Numerator - Transfer of Health Information to Provider",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_043_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_043_02_DENOMINATOR",
+          "cmsColumnHeader": "S_043_02_DENOMINATOR",
+          "description": "Denominator - Transfer of Health Information to Provider",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_043_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_043_02_OBS_RATE",
+          "cmsColumnHeader": "S_043_02_OBS_RATE",
+          "description": "Facility Rate - Transfer of Health Information to Provider",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_043_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_044_02_NUMERATOR",
+          "cmsColumnHeader": "S_044_02_NUMERATOR",
+          "description": "Numerator - Transfer of Health Information to Patient",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_044_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_044_02_DENOMINATOR",
+          "cmsColumnHeader": "S_044_02_DENOMINATOR",
+          "description": "Denominator - Transfer of Health Information to Patient",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_044_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_044_02_OBS_RATE",
+          "cmsColumnHeader": "S_044_02_OBS_RATE",
+          "description": "Facility Rate - Transfer of Health Information to Patient",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_044_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_045_01_NUMERATOR",
+          "cmsColumnHeader": "S_045_01_NUMERATOR",
+          "description": "Numerator - SNF residents up to date with COVID-19 vaccines",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_045_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_045_01_DENOMINATOR",
+          "cmsColumnHeader": "S_045_01_DENOMINATOR",
+          "description": "Denominator - SNF residents up to date with COVID-19 vaccines",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_045_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_045_01_OBS_RATE",
+          "cmsColumnHeader": "S_045_01_OBS_RATE",
+          "description": "Facility Rate - SNF residents up to date with COVID-19 vaccines",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_045_01",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_snf_qrp_national",
+      "name": "CMS SNF Quality Reporting Program (National)",
+      "description": "National benchmark data for SNF QRP measures including national averages and performance distributions.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Benchmarking",
+        "Value-Based Purchasing"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/ryvq-mtab",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "SNF_QRP_National_MonYYYY.csv",
+      "updateFrequency": "Quarterly",
+      "lastUpdated": null,
+      "dataLag": "~3-6 months",
+      "historicalRange": "Current reporting period",
+      "geographicScope": "National",
+      "granularity": "National aggregate",
+      "knownLimitations": [],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "The CMS certification number (CCN) is used to identify the facility listed. However, since this is the national data set, the CCN is listed as 'Nation.'",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Code",
+          "cmsColumnHeader": "Measure Code",
+          "description": "The measure code consists of the CMS ID (prefix) and the variable name (suffix) for the corresponding measure score. Example = S_038_02_NATL_OBS_RATE. Prefix: S_038_02, Suffix: NATL_OBS_RATE. See Table 20 for a complete listing of national data measure codes.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Score",
+          "cmsColumnHeader": "Score",
+          "description": "The measure score for the corresponding measure code.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote",
+          "cmsColumnHeader": "Footnote",
+          "description": "Indicates the relevant footnote. Currently, there are no footnotes related to the national data.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Start Date",
+          "cmsColumnHeader": "Start Date",
+          "description": "The start date of the reporting period for the corresponding measure code and score.",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "End Date",
+          "cmsColumnHeader": "End Date",
+          "description": "The end date of the reporting period for the corresponding measure code and score.",
+          "dataType": "Date",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Measure Date Range",
+          "cmsColumnHeader": "Measure Date Range",
+          "description": "The start date through the end date of the reporting period(s) for the corresponding measure code and score. Note: Only reporting periods that are 'split' are populated and represented by the use of a semicolon between the split periods (e.g., 04/01/2019-12/31/2019; 07/01/2020-09/30/2021).",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_NAT_UNADJUST_AVG",
+          "cmsColumnHeader": "S_004_01_PPR_PD_NAT_UNADJUST_AVG",
+          "description": "National unadjusted average potentially preventable readmission rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_N_BETTER_NAT",
+          "cmsColumnHeader": "S_004_01_PPR_PD_N_BETTER_NAT",
+          "description": "Number of SNFs in the nation that performed better than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_N_NO_DIFF_NAT",
+          "cmsColumnHeader": "S_004_01_PPR_PD_N_NO_DIFF_NAT",
+          "description": "Number of SNFs in the nation that performed no different than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_N_WORSE_NAT",
+          "cmsColumnHeader": "S_004_01_PPR_PD_N_WORSE_NAT",
+          "description": "Number of SNFs in the nation that performed worse than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_004_01_PPR_PD_N_TOO_SMALL",
+          "cmsColumnHeader": "S_004_01_PPR_PD_N_TOO_SMALL",
+          "description": "Number of SNFs too small to report",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_004_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_NAT_OBS_RATE",
+          "cmsColumnHeader": "S_005_02_DTC_NAT_OBS_RATE",
+          "description": "National observed discharge to community rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_N_BETTER_NAT",
+          "cmsColumnHeader": "S_005_02_DTC_N_BETTER_NAT",
+          "description": "Number of SNFs in the nation that performed better than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_N_NO_DIFF_NAT",
+          "cmsColumnHeader": "S_005_02_DTC_N_NO_DIFF_NAT",
+          "description": "Number of SNFs in the nation that performed no different than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_N_WORSE_NAT",
+          "cmsColumnHeader": "S_005_02_DTC_N_WORSE_NAT",
+          "description": "Number of SNFs in the nation that performed worse than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_005_02_DTC_N_TOO_SMALL",
+          "cmsColumnHeader": "S_005_02_DTC_N_TOO_SMALL",
+          "description": "Number of SNFs too small to report",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_005_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_006_01_MSPB_SCORE_NATL",
+          "cmsColumnHeader": "S_006_01_MSPB_SCORE_NATL",
+          "description": "MSPB score (national)",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_006_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_007_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_007_02_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents whose medications were reviewed and who received follow-up care when medication issues were identified",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_007_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_013_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_013_02_NATL_OBS_RATE",
+          "description": "National rate - Percentage of SNF residents who experience one or more falls with major injury during their SNF stay",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_013_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_024_06_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_024_06_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents who are at or above an expected ability to care for themselves at discharge",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_024_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_025_06_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_025_06_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents who are at or above an expected ability to move around at discharge",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_025_06",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_038_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_038_02_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents with pressure ulcers/pressure injuries that are new or worsened",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_038_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_NAT_OBS_RATE",
+          "cmsColumnHeader": "S_039_01_HAI_NAT_OBS_RATE",
+          "description": "National observed healthcare-associated infection rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_N_BETTER_NAT",
+          "cmsColumnHeader": "S_039_01_HAI_N_BETTER_NAT",
+          "description": "Number of SNFs in the nation that performed better than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_N_NO_DIFF_NAT",
+          "cmsColumnHeader": "S_039_01_HAI_N_NO_DIFF_NAT",
+          "description": "Number of SNFs in the nation that performed no different than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_N_WORSE_NAT",
+          "cmsColumnHeader": "S_039_01_HAI_N_WORSE_NAT",
+          "description": "Number of SNFs in the nation that performed worse than the national rate",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_039_01_HAI_N_TOO_SMALL",
+          "cmsColumnHeader": "S_039_01_HAI_N_TOO_SMALL",
+          "description": "Number of SNFs too small to report",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_039_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_040_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_040_02_NATL_OBS_RATE",
+          "description": "National rate of COVID-19 vaccination - Percentage of SNF healthcare personnel who are up to date with their COVID-19 vaccines",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_040_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_041_01_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_041_01_NATL_OBS_RATE",
+          "description": "National rate of flu vaccination - Percentage of healthcare personnel who got a flu shot for the current season",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_041_01",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_042_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_042_02_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents who are at or above an expected ability to care for themselves and move around at discharge",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_042_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_043_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_043_02_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents where the SNF provided a current medication list to the next healthcare setting",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_043_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_044_02_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_044_02_NATL_OBS_RATE",
+          "description": "National rate - Percentage of residents where the SNF provided a current medication list to the resident, family, and/or caregiver at final discharge",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_044_02",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "S_045_01_NATL_OBS_RATE",
+          "cmsColumnHeader": "S_045_01_NATL_OBS_RATE",
+          "description": "National rate - Percentage of SNF residents who are up to date with their COVID-19 vaccines",
+          "dataType": "Numeric",
+          "cmsMeasureCode": "S_045_01",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_snf_vbp",
+      "name": "CMS SNF Value-Based Purchasing (Facility)",
+      "description": "SNF VBP program facility-level performance scores, rankings, and incentive payment multipliers.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Value-Based Purchasing",
+        "Pro Forma"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/jh4p-r8ce",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "SNF_VBP_Facility_YYYY.csv",
+      "updateFrequency": "Annual (October)",
+      "lastUpdated": null,
+      "dataLag": "~1 year",
+      "historicalRange": "FY 2019 baseline, current performance year",
+      "geographicScope": "National",
+      "granularity": "Facility-level",
+      "knownLimitations": [
+        "Based on 30-day all-cause readmission measure only"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "SNF VBP Program Ranking",
+          "cmsColumnHeader": "SNF VBP Program Ranking",
+          "description": "A skilled nursing facility's (SNF's) national rank among eligible, included SNFs in the SNF VBP Program. Calculated by sorting and ranking all eligible, included SNFs' performance scores. Lower ranks reflect better performance. Any SNFs with equal performance scores each receive the best (that is, lowest) rank within the tie.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- SNF VBP Program Ranking",
+          "cmsColumnHeader": "Footnote -- SNF VBP Program Ranking",
+          "description": "Footnote for the SNF VBP Program Ranking",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "CMS Certification Number (CCN)",
+          "cmsColumnHeader": "CMS Certification Number (CCN)",
+          "description": "Centers for Medicare & Medicaid Services (CMS) Certification Number (CCN)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Name",
+          "cmsColumnHeader": "Provider Name",
+          "description": "Provider name",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Provider Address",
+          "cmsColumnHeader": "Provider Address",
+          "description": "Provider address",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "City/Town",
+          "cmsColumnHeader": "City/Town",
+          "description": "Provider city/town",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "State",
+          "cmsColumnHeader": "State",
+          "description": "Provider state (2-digit postal code abbreviation)",
+          "dataType": "Text (2)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "ZIP Code",
+          "cmsColumnHeader": "ZIP Code",
+          "description": "Provider ZIP code",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+          "cmsColumnHeader": "Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+          "description": "A SNF's rate of unplanned readmissions during the baseline period (FY 2019), adjusted for stay-level risk factors such as clinical characteristics and comorbidities, as calculated by the SNF 30-Day All-Cause Readmission Measure (SNFRM).",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+          "cmsColumnHeader": "Footnote -- Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+          "description": "Footnote for the Baseline Period: FY 2019 Risk-Standardized Readmission Rate",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+          "cmsColumnHeader": "Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+          "description": "A SNF's rate of unplanned readmissions during the performance period (FY 2023), adjusted for stay-level risk factors such as clinical characteristics and comorbidities, as calculated by the SNFRM.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+          "cmsColumnHeader": "Footnote -- Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+          "description": "Footnote for the Performance Period: FY 2023 Risk-Standardized Readmission Rate",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Achievement Score",
+          "cmsColumnHeader": "Achievement Score",
+          "description": "A calculation of how well a SNF performed during the performance period (FY 2023) compared with national SNF performance during the baseline period (FY 2019). Scores range from 0 to 100, with higher scores indicating better performance.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- Achievement Score",
+          "cmsColumnHeader": "Footnote -- Achievement Score",
+          "description": "Footnote for the Achievement Score",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Improvement Score",
+          "cmsColumnHeader": "Improvement Score",
+          "description": "A calculation of how much a SNF has improved from the baseline period (FY 2019) to the performance period (FY 2023). Scores range from 0 to 90, with higher scores indicating better performance.",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- Improvement Score",
+          "cmsColumnHeader": "Footnote -- Improvement Score",
+          "description": "Footnote for the Improvement Score",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Performance Score",
+          "cmsColumnHeader": "Performance Score",
+          "description": "The higher of a SNF's achievement score and improvement score. Scores range from 0 to 100, with higher scores indicating better performance. CMS uses this score to calculate incentive payment multipliers for the SNF VBP Program.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- Performance Score",
+          "cmsColumnHeader": "Footnote -- Performance Score",
+          "description": "Footnote for the Performance Score",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Incentive Payment Multiplier",
+          "cmsColumnHeader": "Incentive Payment Multiplier",
+          "description": "A multiplier assigned to a SNF based on its performance in the SNF VBP Program. When payments are made to a SNF's Medicare fee-for-service (FFS) Part A claims in FY 2025, CMS multiplies the SNF's adjusted federal per diem rate by this multiplier.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote -- Incentive Payment Multiplier",
+          "cmsColumnHeader": "Footnote -- Incentive Payment Multiplier",
+          "description": "Footnote for the Incentive Payment Multiplier",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_snf_vbp_aggregate",
+      "name": "CMS SNF Value-Based Purchasing (Aggregate)",
+      "description": "National aggregate performance data for the SNF VBP program including thresholds, benchmarks, and payment distributions.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Benchmarking",
+        "Value-Based Purchasing"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/dataset/jh4p-r8ce",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "SNF_VBP_Aggregate_YYYY.csv",
+      "updateFrequency": "Annual (October)",
+      "lastUpdated": null,
+      "dataLag": "~1 year",
+      "historicalRange": "Current fiscal year",
+      "geographicScope": "National",
+      "granularity": "National aggregate",
+      "knownLimitations": [],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "Baseline Period: FY 2019 National Average Readmission Rate",
+          "cmsColumnHeader": "Baseline Period: FY 2019 National Average Readmission Rate",
+          "description": "The SNF VBP Program's unadjusted national average rate of unplanned readmissions in the baseline period (FY 2019).",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Performance Period: FY 2023 National Average Readmission Rate",
+          "cmsColumnHeader": "Performance Period: FY 2023 National Average Readmission Rate",
+          "description": "The SNF VBP Program's unadjusted national average rate of unplanned readmissions in the performance period (FY 2023).",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "FY 2025 Achievement Threshold",
+          "cmsColumnHeader": "FY 2025 Achievement Threshold",
+          "description": "The 25th percentile of all SNFs' performance on the SNF 30-Day All-Cause Readmission Measure (SNFRM) during the baseline period (FY 2019). This value was previously published in the FY 2023 SNF Prospective Payment System (PPS) final rule (87 FR 47502).",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "FY 2025 Benchmark",
+          "cmsColumnHeader": "FY 2025 Benchmark",
+          "description": "The mean of the top decile of all SNFs' performance on the SNFRM during the baseline period (FY 2019). This value was previously published in the FY 2023 SNF PPS final rule (87 FR 47502).",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Range of Performance Scores",
+          "cmsColumnHeader": "Range of Performance Scores",
+          "description": "The range of SNF VBP Program performance scores for the FY 2025 SNF VBP Program year.",
+          "dataType": "Numeric range",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Number of SNFs Receiving Value-Based Incentive Payments",
+          "cmsColumnHeader": "Total Number of SNFs Receiving Value-Based Incentive Payments",
+          "description": "The total number of SNFs receiving SNF VBP Program value-based incentive payments in FY 2025.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Range of Incentive Payment Multipliers",
+          "cmsColumnHeader": "Range of Incentive Payment Multipliers",
+          "description": "The range of SNF VBP Program incentive payment multipliers for the FY 2025 SNF VBP Program year.",
+          "dataType": "Numeric range",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Range of Value-Based Incentive Payments ($)",
+          "cmsColumnHeader": "Range of Value-Based Incentive Payments ($)",
+          "description": "The range of SNF VBP Program value-based incentive payments paid to SNFs in FY 2025.",
+          "dataType": "Dollar range",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Total Amount of Value-Based Incentive Payments ($)",
+          "cmsColumnHeader": "Total Amount of Value-Based Incentive Payments ($)",
+          "description": "The total amount of SNF VBP Program value-based incentive payments paid to SNFs in FY 2025.",
+          "dataType": "Dollars",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_citation_codes",
+      "name": "CMS Citation Code Reference",
+      "description": "Reference table of deficiency tag codes (F-tags, K-tags, E-tags) with descriptions and categories.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Reference"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "Reference data",
+      "updateFrequency": "As needed",
+      "lastUpdated": null,
+      "dataLag": "N/A",
+      "historicalRange": "Current codes",
+      "geographicScope": "National",
+      "granularity": "Code-level",
+      "knownLimitations": [],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "Deficiency Prefix",
+          "cmsColumnHeader": "Deficiency Prefix",
+          "description": "Deficiency Prefix (F, K, E)",
+          "dataType": "Text (1)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Tag Number",
+          "cmsColumnHeader": "Deficiency Tag Number",
+          "description": "Deficiency Tag Number",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Prefix and Number",
+          "cmsColumnHeader": "Deficiency Prefix and Number",
+          "description": "Deficiency Prefix and Number (e.g., F-0880)",
+          "dataType": "Text (6)",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Description",
+          "cmsColumnHeader": "Deficiency Description",
+          "description": "Deficiency Description",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Deficiency Category",
+          "cmsColumnHeader": "Deficiency Category",
+          "description": "Category Description for Care Compare website",
+          "dataType": "Text",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "cms_footnotes",
+      "name": "CMS Footnote Reference",
+      "description": "Reference table of footnote codes used across CMS nursing home datasets.",
+      "facilityType": "SNF",
+      "category": "Quality & Compliance",
+      "usedInTabs": [
+        "Reference"
+      ],
+      "sourceUrl": "https://data.cms.gov/provider-data/",
+      "sourceAgency": "Centers for Medicare & Medicaid Services",
+      "fileName": "Reference data",
+      "updateFrequency": "As needed",
+      "lastUpdated": null,
+      "dataLag": "N/A",
+      "historicalRange": "Current codes",
+      "geographicScope": "National",
+      "granularity": "Code-level",
+      "knownLimitations": [],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": false,
+      "fields": [
+        {
+          "fieldName": "Footnote Code 1",
+          "cmsColumnHeader": "1",
+          "description": "Newly certified nursing home with less than 12-15 months of data available or the nursing opened less than 6 months ago, and there were no data to submit or claims for this measure.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 2",
+          "cmsColumnHeader": "2",
+          "description": "Not enough data available to calculate a star rating.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 6",
+          "cmsColumnHeader": "6",
+          "description": "This facility submitted data that did not meet the criteria required to calculate a staffing measure.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 7",
+          "cmsColumnHeader": "7",
+          "description": "CMS determined that the percentage was not accurate, or data suppressed by CMS for one or more quarters.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 9",
+          "cmsColumnHeader": "9",
+          "description": "The number of residents or resident stays is too small to report. Call the facility to discuss this quality measure.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 10",
+          "cmsColumnHeader": "10",
+          "description": "The data for this measure is missing or was not submitted. Call the facility to discuss this quality measure.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 13",
+          "cmsColumnHeader": "13",
+          "description": "Results are based on a shorter time period than required.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 14",
+          "cmsColumnHeader": "14",
+          "description": "This nursing home is not required to submit data for the Skilled Nursing Facility Quality Reporting Program.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 18",
+          "cmsColumnHeader": "18",
+          "description": "This facility is not rated due to a history of serious quality issues and is included in the special focus facility program.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 20",
+          "cmsColumnHeader": "20",
+          "description": "The accuracy of the data for this rating could not be validated by CMS.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 21",
+          "cmsColumnHeader": "21",
+          "description": "The accuracy of the data for this measure could not be validated by CMS.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 22",
+          "cmsColumnHeader": "22",
+          "description": "The street address for this facility could not be matched to latitude/longitude coordinates. Therefore, the latitude/longitude coordinates are based on the facility's zip code.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 23",
+          "cmsColumnHeader": "23",
+          "description": "This facility did not submit staffing data.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 24",
+          "cmsColumnHeader": "24",
+          "description": "This facility reported a high number of days without a registered nurse onsite.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 25",
+          "cmsColumnHeader": "25",
+          "description": "The accuracy of the staffing data for this measure could not be validated by CMS.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 26",
+          "cmsColumnHeader": "26",
+          "description": "This facility did not submit staffing data or submitted staffing data that is considered to be invalid for the purpose of calculating turnover. This measure will receive the minimum points for calculating the overall staffing score and rating.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 27",
+          "cmsColumnHeader": "27",
+          "description": "This facility submitted staffing data that did not meet the criteria required to calculate a turnover measure. This measure will be excluded from the staffing rating and the staffing score will be rescaled.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        },
+        {
+          "fieldName": "Footnote Code 28",
+          "cmsColumnHeader": "28",
+          "description": "This is an annual measure. Data for individual quarters is not available.",
+          "dataType": "Numeric",
+          "usedBySNFalyze": false
+        }
+      ]
+    },
+    {
+      "id": "state_alf_licensing",
+      "name": "State ALF Licensing Agencies",
+      "description": "Facility listings, capacity, and ownership information from state licensing agencies. Data format and availability varies by state.",
+      "facilityType": "ALF",
+      "category": "Facility & Operational",
+      "usedInTabs": [
+        "Facility Metrics",
+        "Market Dynamics"
+      ],
+      "sourceUrl": null,
+      "sourceAgency": "Various State Agencies",
+      "fileName": "Varies by state",
+      "updateFrequency": "Varies",
+      "lastUpdated": null,
+      "dataLag": "Varies by state",
+      "historicalRange": "Varies",
+      "geographicScope": "National (50 states + DC)",
+      "granularity": "Facility-level",
+      "knownLimitations": [
+        "Data format varies significantly by state",
+        "Some states required FOIA requests for data access",
+        "Update schedules inconsistent across states"
+      ],
+      "isFullyDocumented": false,
+      "usedBySNFalyze": true,
+      "fields": []
+    },
+    {
+      "id": "census_bureau",
+      "name": "US Census Bureau",
+      "description": "Demographics, population estimates, and projections for market analysis including 65+ and 85+ populations.",
+      "facilityType": "Both",
+      "category": "Market & Demographics",
+      "usedInTabs": [
+        "Market Dynamics"
+      ],
+      "sourceUrl": "https://www.census.gov/programs-surveys/acs",
+      "sourceAgency": "US Census Bureau",
+      "fileName": "Various ACS tables",
+      "updateFrequency": "Annually",
+      "lastUpdated": null,
+      "dataLag": "~1-2 years",
+      "historicalRange": "2015-present",
+      "geographicScope": "National",
+      "granularity": "County-level",
+      "knownLimitations": [
+        "Population projections are estimates with uncertainty",
+        "Data lags real-world by 1-2 years"
+      ],
+      "isFullyDocumented": false,
+      "usedBySNFalyze": true,
+      "fields": []
+    },
+    {
+      "id": "bls_oews",
+      "name": "BLS Occupational Employment & Wage Statistics",
+      "description": "Wage data for healthcare workers including RNs, LPNs, CNAs, physical therapists, and administrative staff.",
+      "facilityType": "Both",
+      "category": "Staffing & Workforce",
+      "usedInTabs": [
+        "Market Dynamics"
+      ],
+      "sourceUrl": "https://www.bls.gov/oes/",
+      "sourceAgency": "Bureau of Labor Statistics",
+      "fileName": "OEWS data files by state",
+      "updateFrequency": "Annually",
+      "lastUpdated": null,
+      "dataLag": "~6-12 months",
+      "historicalRange": "Historical available",
+      "geographicScope": "National",
+      "granularity": "State-level",
+      "knownLimitations": [
+        "Industry-specific wages (NAICS 623110) may have small sample sizes in some states"
+      ],
+      "isFullyDocumented": false,
+      "usedBySNFalyze": true,
+      "fields": []
+    },
+    {
+      "id": "ai_extracted",
+      "name": "AI-Extracted Deal Data",
+      "description": "Financial and operational data extracted from uploaded deal documents (CIMs, P&Ls, census reports, rate schedules) using Claude AI.",
+      "facilityType": "Both",
+      "category": "AI-Extracted Deal Data",
+      "usedInTabs": [
+        "Overview",
+        "Calculator",
+        "Pro Forma",
+        "Census & Revenue"
+      ],
+      "sourceUrl": null,
+      "sourceAgency": "SNFalyze AI Extraction",
+      "fileName": "User-uploaded documents",
+      "updateFrequency": "Per Upload",
+      "lastUpdated": null,
+      "dataLag": "Real-time",
+      "historicalRange": "N/A",
+      "geographicScope": "Per deal",
+      "granularity": "Facility-level",
+      "knownLimitations": [
+        "Quality depends on source document quality",
+        "Confidence scores indicate extraction certainty",
+        "Some fields may require manual verification"
+      ],
+      "isFullyDocumented": true,
+      "usedBySNFalyze": true,
+      "fields": []
+    },
+    {
+      "id": "cascadia_benchmarks",
+      "name": "Cascadia Benchmarks",
+      "description": "Internal operational benchmarks and targets used for Pro Forma analysis and deal evaluation.",
+      "facilityType": "Both",
+      "category": "Financial & Payer Mix",
+      "usedInTabs": [
+        "Pro Forma",
+        "Calculator"
+      ],
+      "sourceUrl": null,
+      "sourceAgency": "Cascadia Healthcare (Internal)",
+      "fileName": "N/A - Internal",
+      "updateFrequency": "As updated",
+      "lastUpdated": null,
+      "dataLag": "N/A",
+      "historicalRange": "N/A",
+      "geographicScope": "N/A",
+      "granularity": "N/A",
+      "knownLimitations": [
+        "Internal targets - not public benchmarks"
+      ],
+      "isFullyDocumented": false,
+      "usedBySNFalyze": true,
+      "fields": []
+    }
+  ],
+  "categories": [
+    "Facility & Operational",
+    "Financial & Payer Mix",
+    "Quality & Compliance",
+    "Staffing & Workforce",
+    "Market & Demographics",
+    "Regulatory Environment",
+    "AI-Extracted Deal Data"
+  ],
+  "tabs": [
+    "Overview",
+    "Facility Metrics",
+    "Market Dynamics",
+    "Calculator",
+    "Pro Forma",
+    "Value-Based Purchasing",
+    "Census & Revenue",
+    "Quality Analysis",
+    "Risk Analysis",
+    "Ownership Analysis",
+    "Benchmarking",
+    "Reference"
+  ]
+}

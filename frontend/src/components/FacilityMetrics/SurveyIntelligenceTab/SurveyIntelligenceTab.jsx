@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Row, Col, Card, ProgressBar, OverlayTrigger, Tooltip, Table } from 'react-bootstrap';
 import {
@@ -15,99 +15,27 @@ import {
   Shield,
   ChevronRight,
   CheckCircle2,
+  Network,
+  Radio,
+  Users,
+  Loader,
 } from 'lucide-react';
 import TabEmpty from '../shared/TabEmpty';
+import TabSkeleton from '../shared/TabSkeleton';
+import mockDataFile from './mockData/facilityIntelligence.json';
 import './SurveyIntelligenceTab.css';
 
-// Mock data - will be replaced with API call
-const getMockSurveyData = (facilityId) => ({
-  facilityId: facilityId || '555123',
-  lastSurveyDate: '2024-03-15',
-  daysSinceSurvey: 287,
-  riskLevel: 'ELEVATED',
-  probability7Days: 0.34,
-  probability14Days: 0.52,
-  probability30Days: 0.67,
-  prepItemsCount: 4,
-  surveyWindow: {
-    windowOpens: '2025-03-01',
-    federalMaximum: '2025-06-15',
-    stateAverageInterval: 337,
-    percentThroughWindow: 65,
-  },
-  bellwetherSignal: {
-    active: true,
-    facilityName: 'Santa Anita Convalescent Hospital',
-    facilityCCN: '555234',
-    surveyDate: '2024-12-10',
-    daysSince: 9,
-    typicalFollowRange: { min: 8, max: 12 },
-  },
-  nearbyActivity: {
-    summary: '3 facilities within 10 miles surveyed in last 14 days. F0880 (Infection Control) cited at all 3.',
-    facilities: [
-      {
-        name: 'Santa Anita Convalescent Hospital',
-        ccn: '555234',
-        distance: 3.2,
-        surveyDate: '2024-12-10',
-        daysAgo: 9,
-        deficiencyCount: 4,
-        topFTag: 'F0880',
-        topFTagDescription: 'Infection Control',
-      },
-      {
-        name: 'Valley Care Skilled Nursing',
-        ccn: '555345',
-        distance: 5.1,
-        surveyDate: '2024-12-08',
-        daysAgo: 11,
-        deficiencyCount: 7,
-        topFTag: 'F0689',
-        topFTagDescription: 'Free of Accident Hazards',
-      },
-      {
-        name: 'Sunrise Healthcare Center',
-        ccn: '555456',
-        distance: 7.8,
-        surveyDate: '2024-11-28',
-        daysAgo: 21,
-        deficiencyCount: 3,
-        topFTag: 'F0812',
-        topFTagDescription: 'Food Safety',
-      },
-    ],
-  },
-  prepPriorities: [
-    {
-      priority: 'CRITICAL',
-      fTag: 'F0880',
-      fTagName: 'Infection Control',
-      reason: 'Cited 2x in last 3 years + trending up 18% regionally',
-      facilityCitationCount: 2,
-      regionalTrend: 'UP',
-      regionalTrendPct: 18,
-    },
-    {
-      priority: 'HIGH',
-      fTag: 'F0689',
-      fTagName: 'Free of Accident Hazards',
-      reason: 'Trending up in Los Angeles County (+23% this quarter)',
-      facilityCitationCount: 0,
-      regionalTrend: 'UP',
-      regionalTrendPct: 23,
-    },
-    {
-      priority: 'MODERATE',
-      fTag: 'F0758',
-      fTagName: 'Free from Medication Errors',
-      reason: 'California state enforcement focus area',
-      facilityCitationCount: 1,
-      regionalTrend: 'STABLE',
-      stateFocus: true,
-    },
-  ],
-});
+/**
+ * Simulates fetching survey intelligence data
+ * In production, this would be an API call
+ */
+const fetchSurveyIntelligence = (facilityId) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(mockDataFile.surveyIntelligence);
+    }, 800);
+  });
+};
 
 /**
  * Get color variant based on days since survey
@@ -168,6 +96,50 @@ const formatMonthYear = (dateString) => {
 };
 
 /**
+ * Loading Skeleton for Survey Intelligence Tab
+ */
+const SurveyIntelligenceSkeleton = () => (
+  <div className="survey-intelligence-tab">
+    {/* Summary Cards Skeleton */}
+    <Row className="g-3 mb-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Col key={i} xs={12} sm={6} lg={3}>
+          <Card className="survey-summary-card skeleton-card">
+            <Card.Body>
+              <div className="skeleton-line skeleton-title" />
+              <div className="skeleton-line skeleton-value" />
+              <div className="skeleton-line skeleton-subtitle" />
+            </Card.Body>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+
+    {/* Survey Window Skeleton */}
+    <Card className="survey-window-card mb-4 skeleton-card">
+      <Card.Body>
+        <div className="skeleton-line skeleton-header" />
+        <div className="skeleton-timeline">
+          <div className="skeleton-line skeleton-bar" />
+        </div>
+      </Card.Body>
+    </Card>
+
+    {/* Nearby Activity Skeleton */}
+    <Card className="nearby-activity-card mb-4 skeleton-card">
+      <Card.Body>
+        <div className="skeleton-line skeleton-header" />
+        <div className="skeleton-table-rows">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="skeleton-line skeleton-row" />
+          ))}
+        </div>
+      </Card.Body>
+    </Card>
+  </div>
+);
+
+/**
  * Summary Card Component - matches ProFormaTab styling
  */
 const SummaryCard = ({
@@ -211,12 +183,34 @@ const RiskBadge = ({ level }) => {
  * Survey Window Timeline Component
  * Shows visual progress through the survey window
  */
-const SurveyWindowSection = ({ surveyWindow }) => {
+const SurveyWindowSection = ({ surveyWindow, lastSurveyDate }) => {
+  // Empty state if no survey history
+  if (!lastSurveyDate) {
+    return (
+      <Card className="survey-window-card mb-4">
+        <Card.Body>
+          <div className="survey-window-header">
+            <h5 className="mb-0">
+              <Calendar size={18} className="me-2" />
+              Survey Window
+            </h5>
+          </div>
+          <div className="section-empty-state">
+            <Calendar size={32} strokeWidth={1.5} />
+            <p>No survey history available for this facility.</p>
+            <span className="empty-state-hint">
+              Survey window calculations require at least one prior survey.
+            </span>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
+
   if (!surveyWindow) return null;
 
   const { windowOpens, federalMaximum, stateAverageInterval, percentThroughWindow } = surveyWindow;
 
-  // Determine color based on position in window
   const getProgressColor = (percent) => {
     if (percent < 50) return 'success';
     if (percent < 80) return 'warning';
@@ -236,7 +230,6 @@ const SurveyWindowSection = ({ surveyWindow }) => {
           </span>
         </div>
 
-        {/* Timeline Progress Bar */}
         <div className="survey-timeline">
           <div className="timeline-labels">
             <div className="timeline-label timeline-label-start">
@@ -255,7 +248,6 @@ const SurveyWindowSection = ({ surveyWindow }) => {
                 className={`timeline-progress timeline-progress-${getProgressColor(percentThroughWindow)}`}
                 style={{ width: `${Math.min(percentThroughWindow, 100)}%` }}
               />
-              {/* Current position marker */}
               <div
                 className="timeline-marker"
                 style={{ left: `${Math.min(percentThroughWindow, 100)}%` }}
@@ -269,7 +261,6 @@ const SurveyWindowSection = ({ surveyWindow }) => {
             </div>
           </div>
 
-          {/* Key milestones */}
           <div className="timeline-milestones">
             <div className="milestone milestone-start">
               <div className="milestone-dot" />
@@ -289,8 +280,6 @@ const SurveyWindowSection = ({ surveyWindow }) => {
  * Shows when a bellwether facility has been surveyed recently
  */
 const BellwetherAlert = ({ bellwether }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
-
   if (!bellwether || !bellwether.active) return null;
 
   const { facilityName, facilityCCN, daysSince, typicalFollowRange } = bellwether;
@@ -345,19 +334,48 @@ const BellwetherAlert = ({ bellwether }) => {
 const NearbySurveyActivity = ({ nearbyActivity, facilityState }) => {
   const [dayFilter, setDayFilter] = useState(30);
 
-  if (!nearbyActivity) return null;
+  const DAY_FILTERS = [30, 60, 90];
+
+  // Empty state if no nearby activity data
+  if (!nearbyActivity || !nearbyActivity.facilities || nearbyActivity.facilities.length === 0) {
+    return (
+      <Card className="nearby-activity-card mb-4">
+        <Card.Body>
+          <div className="nearby-activity-header">
+            <h5 className="mb-0">
+              <MapPin size={18} className="me-2" />
+              Nearby Survey Activity
+            </h5>
+            <div className="day-filter-toggle">
+              {DAY_FILTERS.map((days) => (
+                <button
+                  key={days}
+                  className={`day-filter-btn ${dayFilter === days ? 'active' : ''}`}
+                  onClick={() => setDayFilter(days)}
+                >
+                  {days} days
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="section-empty-state">
+            <MapPin size={32} strokeWidth={1.5} />
+            <p>No surveys recorded within 25 miles in the last 90 days.</p>
+            <span className="empty-state-hint">
+              Survey activity will appear here when facilities nearby are surveyed.
+            </span>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
 
   const { summary, facilities } = nearbyActivity;
-
-  // Filter facilities based on selected day range
   const filteredFacilities = facilities.filter((f) => f.daysAgo <= dayFilter);
-
-  const DAY_FILTERS = [30, 60, 90];
 
   return (
     <Card className="nearby-activity-card mb-4">
       <Card.Body>
-        {/* Header with filter toggle */}
         <div className="nearby-activity-header">
           <h5 className="mb-0">
             <MapPin size={18} className="me-2" />
@@ -376,7 +394,6 @@ const NearbySurveyActivity = ({ nearbyActivity, facilityState }) => {
           </div>
         </div>
 
-        {/* Insight Box */}
         {summary && (
           <div className="nearby-insight-box">
             <Info size={16} className="insight-icon" />
@@ -384,7 +401,6 @@ const NearbySurveyActivity = ({ nearbyActivity, facilityState }) => {
           </div>
         )}
 
-        {/* Facilities Table */}
         {filteredFacilities.length > 0 ? (
           <div className="nearby-table-wrapper">
             <Table className="nearby-activity-table" hover>
@@ -444,13 +460,15 @@ const NearbySurveyActivity = ({ nearbyActivity, facilityState }) => {
           </div>
         )}
 
-        {/* Action Links */}
         <div className="nearby-activity-actions">
-          <button className="view-map-btn" onClick={() => alert('Map view coming soon!')}>
+          <button className="view-map-btn" onClick={() => {}}>
             <Map size={16} />
             View on Map
           </button>
-          <Link to="/survey-analytics" className="state-trends-link">
+          <Link
+            to={`/survey-analytics?state=${facilityState || ''}`}
+            className="state-trends-link"
+          >
             See {facilityState || 'State'} Trends
             <ArrowRight size={16} />
           </Link>
@@ -478,12 +496,32 @@ const getPriorityConfig = (priority) => {
  * Shows what the facility should focus on preparing for
  */
 const PrepPrioritiesSection = ({ prepPriorities }) => {
-  if (!prepPriorities || prepPriorities.length === 0) return null;
+  // Empty state if no priorities
+  if (!prepPriorities || prepPriorities.length === 0) {
+    return (
+      <Card className="prep-priorities-card mb-4">
+        <Card.Body>
+          <div className="prep-priorities-header">
+            <h5 className="mb-0">
+              <Shield size={18} className="me-2" />
+              My Prep Priorities
+            </h5>
+          </div>
+          <div className="section-empty-state">
+            <CheckCircle2 size={32} strokeWidth={1.5} className="text-success" />
+            <p>No prep priorities identified.</p>
+            <span className="empty-state-hint">
+              Your facility is in good standing. Continue maintaining current compliance standards.
+            </span>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
 
   return (
     <Card className="prep-priorities-card mb-4">
       <Card.Body>
-        {/* Header */}
         <div className="prep-priorities-header">
           <h5 className="mb-0">
             <Shield size={18} className="me-2" />
@@ -494,7 +532,6 @@ const PrepPrioritiesSection = ({ prepPriorities }) => {
           </span>
         </div>
 
-        {/* Priority List */}
         <div className="priority-list">
           {prepPriorities.map((item, index) => {
             const priorityConfig = getPriorityConfig(item.priority);
@@ -514,7 +551,6 @@ const PrepPrioritiesSection = ({ prepPriorities }) => {
                   </div>
                   <p className="priority-reason">{item.reason}</p>
 
-                  {/* Citation indicator */}
                   {item.facilityCitationCount > 0 && (
                     <div className="priority-citation-badge">
                       <AlertTriangle size={12} />
@@ -531,12 +567,8 @@ const PrepPrioritiesSection = ({ prepPriorities }) => {
           })}
         </div>
 
-        {/* View Full Checklist Button */}
         <div className="prep-priorities-footer">
-          <button
-            className="view-checklist-btn"
-            onClick={() => alert('Full checklist coming soon!')}
-          >
+          <button className="view-checklist-btn" onClick={() => {}}>
             <CheckCircle2 size={16} />
             View Full Checklist
           </button>
@@ -547,9 +579,157 @@ const PrepPrioritiesSection = ({ prepPriorities }) => {
 };
 
 /**
+ * Bellwether Network Section Component
+ * Shows facilities that predict this facility's survey timing
+ */
+const BellwetherNetworkSection = ({ bellwetherNetwork }) => {
+  const networkTooltip = (
+    <Tooltip id="network-tooltip" className="bellwether-network-tooltip">
+      <strong>What's a Bellwether Network?</strong>
+      <p className="mb-0 mt-1">
+        Bellwether facilities are surveyed before you in a predictable pattern.
+        When they're surveyed, you typically follow within a certain number of days.
+        Tracking these patterns helps you anticipate when your survey may occur.
+      </p>
+    </Tooltip>
+  );
+
+  const hasBellwethers = bellwetherNetwork?.bellwethers?.length > 0;
+  const hasFollowers = bellwetherNetwork?.followers?.length > 0;
+  const hasNetwork = hasBellwethers || hasFollowers;
+
+  return (
+    <Card className="bellwether-network-card mb-4">
+      <Card.Body>
+        <div className="bellwether-network-header">
+          <h5 className="mb-0">
+            <Network size={18} className="me-2" />
+            My Bellwether Network
+          </h5>
+          <OverlayTrigger
+            placement="top"
+            overlay={networkTooltip}
+            trigger={['hover', 'focus']}
+          >
+            <button className="network-help-btn" aria-label="What's a bellwether network?">
+              <HelpCircle size={16} />
+              <span>What's this?</span>
+            </button>
+          </OverlayTrigger>
+        </div>
+
+        {hasNetwork ? (
+          <div className="bellwether-network-grid">
+            <div className="network-column bellwethers-column">
+              <div className="network-column-header">
+                <Radio size={16} className="column-icon" />
+                <span>Facilities that predict your survey</span>
+              </div>
+              {hasBellwethers ? (
+                <div className="network-list">
+                  {bellwetherNetwork.bellwethers.map((facility) => (
+                    <div key={facility.ccn} className="network-facility-item">
+                      <div className="facility-main">
+                        <Link
+                          to={`/facility-metrics/${facility.ccn}`}
+                          className="network-facility-link"
+                        >
+                          {facility.name}
+                        </Link>
+                        <span className="lead-time">
+                          leads by {facility.avgLeadDays} days avg
+                          <span className="lead-range">
+                            ({facility.rangeMin}-{facility.rangeMax} days)
+                          </span>
+                        </span>
+                      </div>
+                      <div className="facility-status">
+                        {facility.signalActive ? (
+                          <span className="signal-badge signal-active">
+                            <span className="signal-dot"></span>
+                            ACTIVE SIGNAL
+                          </span>
+                        ) : (
+                          <span className="signal-badge signal-inactive">
+                            <span className="signal-dot"></span>
+                            No signal
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="network-empty-text">No bellwether patterns identified yet.</p>
+              )}
+            </div>
+
+            <div className="network-column followers-column">
+              <div className="network-column-header">
+                <Users size={16} className="column-icon" />
+                <span>Facilities that follow you</span>
+              </div>
+              {hasFollowers ? (
+                <div className="network-list">
+                  {bellwetherNetwork.followers.map((facility) => (
+                    <div key={facility.ccn} className="network-facility-item">
+                      <div className="facility-main">
+                        <Link
+                          to={`/facility-metrics/${facility.ccn}`}
+                          className="network-facility-link"
+                        >
+                          {facility.name}
+                        </Link>
+                        <span className="follow-time">
+                          follows by {facility.avgFollowDays} days avg
+                          <span className="follow-range">
+                            ({facility.rangeMin}-{facility.rangeMax} days)
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="network-empty-text">No follower patterns identified yet.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="network-no-data">
+            <Network size={32} strokeWidth={1.5} />
+            <p>No bellwether patterns identified yet.</p>
+            <span className="network-no-data-hint">
+              Patterns are detected after multiple survey cycles.
+            </span>
+          </div>
+        )}
+      </Card.Body>
+    </Card>
+  );
+};
+
+/**
  * SurveyIntelligenceTab - Shows survey timing predictions and risk for a facility
  */
 const SurveyIntelligenceTab = ({ facility }) => {
+  const [surveyData, setSurveyData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (facility) {
+      setIsLoading(true);
+      fetchSurveyIntelligence(facility.ccn || facility.federal_provider_number)
+        .then((data) => {
+          setSurveyData(data);
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [facility]);
+
   // Show empty state if no facility selected
   if (!facility) {
     return (
@@ -561,8 +741,21 @@ const SurveyIntelligenceTab = ({ facility }) => {
     );
   }
 
-  // Get survey data (mock for now)
-  const surveyData = getMockSurveyData(facility.ccn || facility.federal_provider_number);
+  // Show loading state
+  if (isLoading) {
+    return <SurveyIntelligenceSkeleton />;
+  }
+
+  // Handle case where data failed to load
+  if (!surveyData) {
+    return (
+      <TabEmpty
+        icon={<AlertTriangle size={48} strokeWidth={1.5} />}
+        title="Unable to Load Data"
+        message="Survey intelligence data could not be loaded. Please try again later."
+      />
+    );
+  }
 
   const daysSinceColor = getDaysSinceColor(surveyData.daysSinceSurvey);
   const prepItemsColor = getPrepItemsColor(surveyData.prepItemsCount);
@@ -570,9 +763,8 @@ const SurveyIntelligenceTab = ({ facility }) => {
 
   return (
     <div className="survey-intelligence-tab">
-      {/* Summary Cards Row */}
+      {/* 1. Summary Cards Row */}
       <Row className="g-3 mb-4">
-        {/* Card 1: Days Since Survey */}
         <Col xs={12} sm={6} lg={3}>
           <SummaryCard
             title="Days Since Survey"
@@ -583,7 +775,6 @@ const SurveyIntelligenceTab = ({ facility }) => {
           />
         </Col>
 
-        {/* Card 2: Risk Level */}
         <Col xs={12} sm={6} lg={3}>
           <SummaryCard
             title="Risk Level"
@@ -594,7 +785,6 @@ const SurveyIntelligenceTab = ({ facility }) => {
           />
         </Col>
 
-        {/* Card 3: 30-Day Probability */}
         <Col xs={12} sm={6} lg={3}>
           <SummaryCard
             title="30-Day Probability"
@@ -611,7 +801,6 @@ const SurveyIntelligenceTab = ({ facility }) => {
           </SummaryCard>
         </Col>
 
-        {/* Card 4: Prep Items */}
         <Col xs={12} sm={6} lg={3}>
           <SummaryCard
             title="Prep Items"
@@ -623,20 +812,26 @@ const SurveyIntelligenceTab = ({ facility }) => {
         </Col>
       </Row>
 
-      {/* Bellwether Alert - shows if signal is active */}
+      {/* 2. Bellwether Alert - conditional, only shows if active */}
       <BellwetherAlert bellwether={surveyData.bellwetherSignal} />
 
-      {/* Survey Window Timeline */}
-      <SurveyWindowSection surveyWindow={surveyData.surveyWindow} />
+      {/* 3. Survey Window Timeline */}
+      <SurveyWindowSection
+        surveyWindow={surveyData.surveyWindow}
+        lastSurveyDate={surveyData.lastSurveyDate}
+      />
 
-      {/* Nearby Survey Activity */}
+      {/* 4. Nearby Survey Activity */}
       <NearbySurveyActivity
         nearbyActivity={surveyData.nearbyActivity}
         facilityState={facility.state}
       />
 
-      {/* Prep Priorities */}
+      {/* 5. Prep Priorities */}
       <PrepPrioritiesSection prepPriorities={surveyData.prepPriorities} />
+
+      {/* 6. Bellwether Network */}
+      <BellwetherNetworkSection bellwetherNetwork={surveyData.bellwetherNetwork} />
     </div>
   );
 };

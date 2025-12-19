@@ -1,0 +1,109 @@
+/* Data Dictionary Tab - Base Styles */
+
+.data-dictionary-tab {
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.data-dictionary-header {
+  margin-bottom: 1.5rem;
+}
+
+.data-dictionary-header h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.stats-summary {
+  margin: 0;
+  color: #6c757d;
+  font-size: 0.95rem;
+}
+
+/* Sources List */
+.sources-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fields Table */
+.fields-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.fields-table th {
+  text-align: left;
+  padding: 0.75rem;
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  color: #495057;
+}
+
+.fields-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: top;
+}
+
+.fields-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .data-dictionary-tab {
+    padding: 1rem;
+  }
+
+  .data-dictionary-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .stats-summary {
+    font-size: 0.85rem;
+  }
+
+  .fields-table {
+    font-size: 0.8rem;
+  }
+
+  .fields-table th,
+  .fields-table td {
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .fields-table {
+    font-size: 0.75rem;
+  }
+
+  .fields-table th,
+  .fields-table td {
+    padding: 0.375rem;
+  }
+
+  .fields-table th:nth-child(3),
+  .fields-table td:nth-child(3) {
+    /* Hide description column on very small screens */
+    display: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .data-dictionary-tab > div:first-of-type + div {
+    /* Hide toolbar when printing */
+    display: none;
+  }
+
+  .source-card {
+    break-inside: avoid;
+  }
+}

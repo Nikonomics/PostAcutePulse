@@ -959,3 +959,250 @@
   color: #6b7280;
   margin: 0.25rem 0 0 0;
 }
+
+/* ===========================================
+   Acquisition History Section
+   =========================================== */
+
+.acquisition-history-card {
+  margin-top: 1.5rem;
+}
+
+.acquisition-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: #6b7280;
+}
+
+.acquisition-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.acquisition-empty .empty-state-icon {
+  color: #9ca3af;
+  margin-bottom: 0.75rem;
+}
+
+.acquisition-empty p {
+  color: #6b7280;
+  margin: 0 0 0.25rem 0;
+  font-size: 0.875rem;
+}
+
+.acquisition-empty .empty-state-hint {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+/* Summary Cards */
+.acquisition-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+}
+
+.acquisition-summary-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.acquisition-summary-card.acquired {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #86efac;
+}
+
+.acquisition-summary-card.acquired .acquisition-summary-icon {
+  background: #22c55e;
+  color: white;
+}
+
+.acquisition-summary-card.divested {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border-color: #fed7aa;
+}
+
+.acquisition-summary-card.divested .acquisition-summary-icon {
+  background: #f97316;
+  color: white;
+}
+
+.acquisition-summary-card.net.positive {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #93c5fd;
+}
+
+.acquisition-summary-card.net.positive .acquisition-summary-icon {
+  background: #3b82f6;
+  color: white;
+}
+
+.acquisition-summary-card.net.negative {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fca5a5;
+}
+
+.acquisition-summary-card.net.negative .acquisition-summary-icon {
+  background: #ef4444;
+  color: white;
+}
+
+.acquisition-summary-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.acquisition-summary-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.acquisition-summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.acquisition-summary-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  margin-top: 0.125rem;
+}
+
+.acquisition-summary-beds {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+/* Chart Section */
+.acquisition-chart-section {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.acquisition-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 1rem 0;
+}
+
+.acquisition-chart-container {
+  height: 220px;
+}
+
+/* Transactions Table */
+.acquisition-transactions-section {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.acquisition-transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.813rem;
+}
+
+.acquisition-transactions-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  font-weight: 600;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.acquisition-transactions-table td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.acquisition-transactions-table tr.row-acquired {
+  background: rgba(34, 197, 94, 0.04);
+}
+
+.acquisition-transactions-table tr.row-acquired:hover {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.acquisition-transactions-table tr.row-divested {
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.acquisition-transactions-table tr.row-divested:hover {
+  background: rgba(249, 115, 22, 0.08);
+}
+
+.facility-link,
+.counterparty-link {
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.facility-link:hover,
+.counterparty-link:hover {
+  text-decoration: underline;
+}
+
+.no-counterparty {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.transaction-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.transaction-type-badge.acquired {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.transaction-type-badge.divested {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .acquisition-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .acquisition-transactions-table {
+    font-size: 0.75rem;
+  }
+
+  .acquisition-transactions-table th,
+  .acquisition-transactions-table td {
+    padding: 0.5rem;
+  }
+}

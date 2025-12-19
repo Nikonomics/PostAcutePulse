@@ -4,7 +4,8 @@ import {
   Building2, MapPin, Star, Users, AlertCircle, DollarSign,
   Loader, ArrowLeft, Edit2, Save, X, Plus, Trash2, Mail,
   Phone, Globe, Linkedin, MessageSquare, Clock, ChevronRight,
-  Send, User, Bookmark, BookmarkCheck, Map
+  Send, User, Bookmark, BookmarkCheck, Map, TrendingUp, TrendingDown,
+  ArrowRightLeft, ExternalLink
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
@@ -21,6 +22,10 @@ import {
   deleteOwnershipComment,
   getOwnershipActivity
 } from '../api/ownershipService';
+import { getOwnerHistory } from '../api/maAnalyticsService';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
 import {
   saveOwnershipGroup,
   checkSavedItems,
@@ -74,6 +79,10 @@ function OwnershipProfile() {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showMap, setShowMap] = useState(true);
 
+  // Acquisition history state
+  const [acquisitionHistory, setAcquisitionHistory] = useState(null);
+  const [acquisitionLoading, setAcquisitionLoading] = useState(false);
+
   // Use shared Google Maps context
   const { isLoaded: mapLoaded } = useGoogleMaps();
 
@@ -122,9 +131,32 @@ function OwnershipProfile() {
     }
   }, [profile?.id]);
 
+  // Load acquisition history
+  const loadAcquisitionHistory = useCallback(async () => {
+    if (!profile?.parent_organization) return;
+    try {
+      setAcquisitionLoading(true);
+      const data = await getOwnerHistory({ ownerName: profile.parent_organization });
+      if (data.success) {
+        setAcquisitionHistory(data);
+      }
+    } catch (err) {
+      console.error('Failed to load acquisition history:', err);
+    } finally {
+      setAcquisitionLoading(false);
+    }
+  }, [profile?.parent_organization]);
+
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  // Load acquisition history when profile loads
+  useEffect(() => {
+    if (profile?.parent_organization) {
+      loadAcquisitionHistory();
+    }
+  }, [profile?.parent_organization, loadAcquisitionHistory]);
 
   useEffect(() => {
     if (activeTab === 'activity') {
@@ -792,6 +824,152 @@ function OwnershipProfile() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Acquisition History Section */}
+            <div className="ownership-card acquisition-history-card">
+              <div className="ownership-card-header">
+                <h3 className="ownership-card-title">
+                  <ArrowRightLeft size={18} /> Acquisition History
+                </h3>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => navigate(`/ma-intelligence?tab=explorer&operator=${encodeURIComponent(profile.parent_organization)}`)}
+                >
+                  View All Transactions <ExternalLink size={12} />
+                </button>
+              </div>
+
+              {acquisitionLoading ? (
+                <div className="acquisition-loading">
+                  <Loader size={24} className="loading-spinner" />
+                  <span>Loading acquisition history...</span>
+                </div>
+              ) : !acquisitionHistory || (acquisitionHistory.summary?.totalAcquired === 0 && acquisitionHistory.summary?.totalDivested === 0) ? (
+                <div className="acquisition-empty">
+                  <ArrowRightLeft size={32} className="empty-state-icon" />
+                  <p>No acquisition or divestiture activity found</p>
+                  <span className="empty-state-hint">Transaction data is available from 2020 onwards</span>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Cards */}
+                  <div className="acquisition-summary-grid">
+                    <div className="acquisition-summary-card acquired">
+                      <div className="acquisition-summary-icon">
+                        <TrendingUp size={20} />
+                      </div>
+                      <div className="acquisition-summary-content">
+                        <span className="acquisition-summary-value">{acquisitionHistory.summary.totalAcquired}</span>
+                        <span className="acquisition-summary-label">Facilities Acquired</span>
+                        <span className="acquisition-summary-beds">
+                          {(acquisitionHistory.summary.bedsAcquired || 0).toLocaleString()} beds
+                        </span>
+                      </div>
+                    </div>
+                    <div className="acquisition-summary-card divested">
+                      <div className="acquisition-summary-icon">
+                        <TrendingDown size={20} />
+                      </div>
+                      <div className="acquisition-summary-content">
+                        <span className="acquisition-summary-value">{acquisitionHistory.summary.totalDivested}</span>
+                        <span className="acquisition-summary-label">Facilities Divested</span>
+                        <span className="acquisition-summary-beds">
+                          {(acquisitionHistory.summary.bedsDivested || 0).toLocaleString()} beds
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`acquisition-summary-card net ${acquisitionHistory.summary.netChange >= 0 ? 'positive' : 'negative'}`}>
+                      <div className="acquisition-summary-icon">
+                        {acquisitionHistory.summary.netChange >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                      </div>
+                      <div className="acquisition-summary-content">
+                        <span className="acquisition-summary-value">
+                          {acquisitionHistory.summary.netChange > 0 ? '+' : ''}{acquisitionHistory.summary.netChange}
+                        </span>
+                        <span className="acquisition-summary-label">Net Change</span>
+                        <span className="acquisition-summary-beds">
+                          {acquisitionHistory.summary.netChange >= 0 ? 'Growing' : 'Shrinking'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Year-by-Year Chart */}
+                  {acquisitionHistory.byYear && acquisitionHistory.byYear.length > 0 && (
+                    <div className="acquisition-chart-section">
+                      <h4 className="acquisition-section-title">Activity by Year</h4>
+                      <div className="acquisition-chart-container">
+                        <ResponsiveContainer width="100%" height={220}>
+                          <BarChart data={acquisitionHistory.byYear} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                            <Tooltip
+                              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                              formatter={(value, name) => [value, name === 'acquired' ? 'Acquired' : 'Divested']}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                            <Bar dataKey="acquired" name="Acquired" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="divested" name="Divested" fill="#f97316" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Transactions Table */}
+                  {acquisitionHistory.recentTransactions && acquisitionHistory.recentTransactions.length > 0 && (
+                    <div className="acquisition-transactions-section">
+                      <h4 className="acquisition-section-title">Recent Transactions</h4>
+                      <table className="acquisition-transactions-table">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Facility</th>
+                            <th>Location</th>
+                            <th>Type</th>
+                            <th>Counterparty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {acquisitionHistory.recentTransactions.slice(0, 10).map((txn, idx) => (
+                            <tr key={idx} className={txn.type === 'acquired' ? 'row-acquired' : 'row-divested'}>
+                              <td>{new Date(txn.date).toLocaleDateString()}</td>
+                              <td>
+                                <span
+                                  className="facility-link"
+                                  onClick={() => navigate(`/facility-metrics/${txn.ccn}?from=ownership`)}
+                                >
+                                  {txn.facilityName}
+                                </span>
+                              </td>
+                              <td>{txn.city}, {txn.state}</td>
+                              <td>
+                                <span className={`transaction-type-badge ${txn.type}`}>
+                                  {txn.type === 'acquired' ? 'Acquired' : 'Divested'}
+                                </span>
+                              </td>
+                              <td>
+                                {txn.counterparty ? (
+                                  <span
+                                    className="counterparty-link"
+                                    onClick={() => navigate(`/ownership?search=${encodeURIComponent(txn.counterparty)}`)}
+                                  >
+                                    {txn.counterparty}
+                                  </span>
+                                ) : (
+                                  <span className="no-counterparty">Unknown</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </>
         )}

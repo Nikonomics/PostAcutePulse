@@ -64,7 +64,7 @@ const TAB_CONFIGS = [
   { id: 'market', title: 'Market Dynamics', icon: MapPin },
   { id: 'calculator', title: 'Calculator', icon: Calculator },
   { id: 'proforma', title: 'Pro Forma', icon: Target },
-  { id: 'documents', title: 'Documents', icon: FolderOpen },
+  { id: 'documents', title: 'Docs', icon: FolderOpen },
 ];
 
 // Styles
@@ -151,8 +151,9 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   const [activeTab, setActiveTab] = useState('overview');
   const [showComparison] = useState(initialShowComparison);
 
-  // Dynamic tab config - changes title based on facility vs deal view
+  // Dynamic tab config - changes title based on view type
   const tabConfigs = useMemo(() => TAB_CONFIGS.map(tab => {
+    // For facility view, show "Facility Overview" instead of "Deal Overview"
     if (tab.id === 'deal_overview' && isFacilityView) {
       return { ...tab, title: 'Facility Overview' };
     }
@@ -471,58 +472,207 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
   // Render Financials Tab
   const renderFinancialsTab = () => {
     const fin = extractionData.financial_information_t12;
+    const cimFacilities = (extractionData.cim_extraction as any)?.cim_facilities || [];
+
+    // Helper to create FieldCell-compatible object from a value
+    const toField = (value: number | null) => ({
+      value,
+      confidence: value ? 'high' as const : 'not_found' as const
+    });
+
+    // Check if we have CIM facility data to aggregate (same logic as Deal Overview)
+    const hasCIMData = cimFacilities.length > 0 && cimFacilities.some((f: any) =>
+      f.financials?.total_revenue || f.financials?.noi || f.ttm_revenue || f.annual_revenue
+    );
+
+    // Aggregate financials from CIM facilities (matches Deal Overview logic lines 865-903)
+    let aggregatedFinancials: any = null;
+    if (hasCIMData) {
+      const totalRevenue = cimFacilities.reduce((sum: number, f: any) => {
+        const rev = f.ttm_revenue || f.annual_revenue || f.revenue ||
+                    f.ttm_financials?.total_revenue || f.ttm_financials?.revenue ||
+                    f.financials?.total_revenue || f.financials?.revenue || 0;
+        return sum + (typeof rev === 'number' ? rev : 0);
+      }, 0);
+
+      const totalExpenses = cimFacilities.reduce((sum: number, f: any) => {
+        const exp = f.total_expenses || f.ttm_expenses ||
+                    f.ttm_financials?.total_expenses ||
+                    f.financials?.total_expenses || 0;
+        return sum + (typeof exp === 'number' ? exp : 0);
+      }, 0);
+
+      const totalNOI = cimFacilities.reduce((sum: number, f: any) => {
+        const noi = f.noi || f.net_operating_income || f.NOI ||
+                    f.ttm_financials?.noi || f.ttm_financials?.net_operating_income ||
+                    f.financials?.noi || f.financials?.net_operating_income || 0;
+        return sum + (typeof noi === 'number' ? noi : 0);
+      }, 0);
+
+      const totalEBITDAR = cimFacilities.reduce((sum: number, f: any) => {
+        const ebitdar = f.ebitdar || f.EBITDAR ||
+                        f.ttm_financials?.ebitdar ||
+                        f.financials?.ebitdar || 0;
+        return sum + (typeof ebitdar === 'number' ? ebitdar : 0);
+      }, 0);
+
+      const totalEBITDARM = cimFacilities.reduce((sum: number, f: any) => {
+        const ebitdarm = f.ebitdarm || f.EBITDARM ||
+                         f.ttm_financials?.ebitdarm ||
+                         f.financials?.ebitdarm || 0;
+        return sum + (typeof ebitdarm === 'number' ? ebitdarm : 0);
+      }, 0);
+
+      // Aggregate revenue by payer
+      const medicaidRevenue = cimFacilities.reduce((sum: number, f: any) => {
+        const val = f.financials?.revenue_breakdown?.medicaid_revenue || 0;
+        return sum + (typeof val === 'number' ? val : 0);
+      }, 0);
+
+      const medicareRevenue = cimFacilities.reduce((sum: number, f: any) => {
+        const val = f.financials?.revenue_breakdown?.medicare_revenue || 0;
+        return sum + (typeof val === 'number' ? val : 0);
+      }, 0);
+
+      const privatePayRevenue = cimFacilities.reduce((sum: number, f: any) => {
+        const val = f.financials?.revenue_breakdown?.private_pay_revenue || 0;
+        return sum + (typeof val === 'number' ? val : 0);
+      }, 0);
+
+      const otherRevenue = cimFacilities.reduce((sum: number, f: any) => {
+        const val = f.financials?.revenue_breakdown?.other_revenue ||
+                    f.financials?.revenue_breakdown?.upl_income || 0;
+        return sum + (typeof val === 'number' ? val : 0);
+      }, 0);
+
+      // Aggregate expense details
+      const propertyTaxes = cimFacilities.reduce((sum: number, f: any) => {
+        const val = f.financials?.expense_breakdown?.property_tax || 0;
+        return sum + (typeof val === 'number' ? val : 0);
+      }, 0);
+
+      const propertyInsurance = cimFacilities.reduce((sum: number, f: any) => {
+        const val = f.financials?.expense_breakdown?.insurance || 0;
+        return sum + (typeof val === 'number' ? val : 0);
+      }, 0);
+
+      // Get period from first facility
+      const period = cimFacilities[0]?.financials?.reporting_period || 'TTM from CIM';
+
+      aggregatedFinancials = {
+        period,
+        total_revenue: totalRevenue,
+        total_expenses: totalExpenses,
+        net_income: totalNOI, // Using NOI as net income proxy
+        noi: totalNOI,
+        ebitdar: totalEBITDAR || totalEBITDARM, // Use EBITDARM if EBITDAR not available
+        ebitdarm: totalEBITDARM,
+        medicaid_revenue: medicaidRevenue,
+        medicare_revenue: medicareRevenue,
+        private_pay_revenue: privatePayRevenue,
+        other_revenue: otherRevenue,
+        property_taxes: propertyTaxes,
+        property_insurance: propertyInsurance,
+        facility_count: cimFacilities.length
+      };
+    }
+
+    // Use aggregated CIM data if available, otherwise fall back to financial_information_t12
+    const useAggregated = aggregatedFinancials && aggregatedFinancials.total_revenue > 0;
 
     return (
       <div>
         {/* T12 Financial Information */}
         <h3 style={sectionHeaderStyle}>Trailing 12-Month Financial Performance</h3>
-        <div style={periodBadgeStyle}>
-          Period: {formatPeriod(fin.period.start, fin.period.end)}
-        </div>
 
-        <div style={gridStyle}>
-          <FieldCell label="Total Revenue" field={fin.total_revenue} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Total Expenses" field={fin.total_expenses} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Net Income" field={fin.net_income} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        </div>
+        {useAggregated ? (
+          <>
+            <div style={periodBadgeStyle}>
+              Period: {aggregatedFinancials.period} • Consolidated from {aggregatedFinancials.facility_count} facilities
+            </div>
 
-        {/* Revenue by Payer */}
-        <h4 style={subsectionHeaderStyle}>Revenue by Payer Source</h4>
-        <div style={gridStyle}>
-          <FieldCell label="Medicaid Revenue" field={fin.revenue_by_payer?.medicaid_revenue || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Medicare Revenue" field={fin.revenue_by_payer?.medicare_revenue || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Private Pay Revenue" field={fin.revenue_by_payer?.private_pay_revenue || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Other Revenue" field={fin.revenue_by_payer?.other_revenue || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        </div>
+            <div style={gridStyle}>
+              <FieldCell label="Total Revenue" field={toField(aggregatedFinancials.total_revenue)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Total Expenses" field={toField(aggregatedFinancials.total_expenses)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="NOI" field={toField(aggregatedFinancials.noi)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
 
-        {/* Revenue by Type */}
-        <h4 style={subsectionHeaderStyle}>Revenue by Type</h4>
-        <div style={gridStyle}>
-          <FieldCell label="Room & Board" field={fin.revenue_breakdown.room_and_board} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Care Level Revenue" field={fin.revenue_breakdown.care_level_revenue} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Ancillary Revenue" field={fin.revenue_breakdown.ancillary_revenue} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Other Income" field={fin.revenue_breakdown.other_income} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        </div>
+            {/* Revenue by Payer */}
+            <h4 style={subsectionHeaderStyle}>Revenue by Payer Source</h4>
+            <div style={gridStyle}>
+              <FieldCell label="Medicaid Revenue" field={toField(aggregatedFinancials.medicaid_revenue)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Medicare Revenue" field={toField(aggregatedFinancials.medicare_revenue)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Private Pay Revenue" field={toField(aggregatedFinancials.private_pay_revenue)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Other Revenue" field={toField(aggregatedFinancials.other_revenue)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
 
-        {/* Expense Details */}
-        <h4 style={subsectionHeaderStyle}>Expense Details</h4>
-        <div style={gridStyle}>
-          <FieldCell label="Operating Expenses" field={fin.operating_expenses || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Property Taxes" field={fin.property_taxes || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Property Insurance" field={fin.property_insurance || { value: null, confidence: 'not_found' }} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Rent/Lease Expense" field={fin.rent_lease_expense} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Depreciation" field={fin.depreciation} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="Interest Expense" field={fin.interest_expense} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        </div>
+            {/* Expense Details */}
+            <h4 style={subsectionHeaderStyle}>Expense Details</h4>
+            <div style={gridStyle}>
+              <FieldCell label="Operating Expenses" field={toField(aggregatedFinancials.total_expenses)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Property Taxes" field={toField(aggregatedFinancials.property_taxes)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Property Insurance" field={toField(aggregatedFinancials.property_insurance)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
 
-        {/* Earnings Metrics */}
-        <h4 style={subsectionHeaderStyle}>Earnings Metrics</h4>
-        <div style={gridStyle}>
-          <FieldCell label="EBITDAR" field={fin.ebitdar} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="EBITDA" field={fin.ebitda} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-          <FieldCell label="EBIT" field={fin.ebit} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
-        </div>
+            {/* Earnings Metrics */}
+            <h4 style={subsectionHeaderStyle}>Earnings Metrics</h4>
+            <div style={gridStyle}>
+              <FieldCell label="EBITDAR" field={toField(aggregatedFinancials.ebitdar)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="EBITDARM" field={toField(aggregatedFinancials.ebitdarm)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="NOI" field={toField(aggregatedFinancials.noi)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Fallback to financial_information_t12 for non-CIM deals */}
+            <div style={periodBadgeStyle}>
+              Period: {formatPeriod(fin?.period?.start, fin?.period?.end)}
+            </div>
 
+            <div style={gridStyle}>
+              <FieldCell label="Total Revenue" field={fin?.total_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Total Expenses" field={fin?.total_expenses || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Net Income" field={fin?.net_income || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
+
+            {/* Revenue by Payer */}
+            <h4 style={subsectionHeaderStyle}>Revenue by Payer Source</h4>
+            <div style={gridStyle}>
+              <FieldCell label="Medicaid Revenue" field={fin?.revenue_by_payer?.medicaid_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Medicare Revenue" field={fin?.revenue_by_payer?.medicare_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Private Pay Revenue" field={fin?.revenue_by_payer?.private_pay_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Other Revenue" field={fin?.revenue_by_payer?.other_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
+
+            {/* Revenue by Type */}
+            <h4 style={subsectionHeaderStyle}>Revenue by Type</h4>
+            <div style={gridStyle}>
+              <FieldCell label="Room & Board" field={fin?.revenue_breakdown?.room_and_board || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Care Level Revenue" field={fin?.revenue_breakdown?.care_level_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Ancillary Revenue" field={fin?.revenue_breakdown?.ancillary_revenue || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Other Income" field={fin?.revenue_breakdown?.other_income || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
+
+            {/* Expense Details */}
+            <h4 style={subsectionHeaderStyle}>Expense Details</h4>
+            <div style={gridStyle}>
+              <FieldCell label="Operating Expenses" field={fin?.operating_expenses || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Property Taxes" field={fin?.property_taxes || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Property Insurance" field={fin?.property_insurance || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Rent/Lease Expense" field={fin?.rent_lease_expense || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Depreciation" field={fin?.depreciation || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="Interest Expense" field={fin?.interest_expense || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
+
+            {/* Earnings Metrics */}
+            <h4 style={subsectionHeaderStyle}>Earnings Metrics</h4>
+            <div style={gridStyle}>
+              <FieldCell label="EBITDAR" field={fin?.ebitdar || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="EBITDA" field={fin?.ebitda || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+              <FieldCell label="EBIT" field={fin?.ebit || toField(null)} format="currency" showComparison={showComparison} onSourceClick={handleSourceClick} />
+            </div>
+          </>
+        )}
       </div>
     );
   };

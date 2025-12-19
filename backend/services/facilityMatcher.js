@@ -74,15 +74,19 @@ async function detectFacilitiesFromText(documentText, facilityTypes = ['SNF', 'A
   console.log('[FacilityMatcher] Detecting facilities from document text...');
   console.log('[FacilityMatcher] Facility types to detect:', facilityTypes);
   console.log('[FacilityMatcher] Document text length:', documentText?.length || 0);
+  console.log('[FacilityMatcher] Text will be truncated:', documentText?.length > 350000 ? `YES (from ${documentText.length} to 350000 chars)` : 'NO');
 
   if (!documentText || documentText.length < 100) {
     console.log('[FacilityMatcher] Document text too short for facility detection');
     return [];
   }
 
-  // Truncate if too long (keep first 100k chars for detection)
-  const truncatedText = documentText.length > 100000
-    ? documentText.substring(0, 100000) + '\n...[truncated]...'
+  // Truncate if too long (keep first 350k chars for detection)
+  // 350k chars (~90 pages) ensures we capture facility comparison tables even in large CIMs
+  // Claude's context window can handle this, and facility detection needs comprehensive coverage
+  const MAX_FACILITY_DETECTION_CHARS = 350000;
+  const truncatedText = documentText.length > MAX_FACILITY_DETECTION_CHARS
+    ? documentText.substring(0, MAX_FACILITY_DETECTION_CHARS) + '\n...[truncated]...'
     : documentText;
 
   const facilityTypeDesc = facilityTypes.includes('SNF') && facilityTypes.includes('ALF')
@@ -94,6 +98,25 @@ async function detectFacilitiesFromText(documentText, facilityTypes = ['SNF', 'A
   const prompt = `Extract ONLY the facilities that are THE SUBJECT OF THIS DEAL/ACQUISITION. Return ONLY valid JSON, no other text.
 
 Document type: ${facilityTypeDesc}
+
+🚨 MULTI-FACILITY PORTFOLIO DETECTION - READ FIRST:
+This may be a PORTFOLIO deal with MULTIPLE facilities.
+
+STEP 1: COUNT THE FACILITIES
+- Look for "2-Pack", "3-Pack", "Two Facilities", "Portfolio of X"
+- If the title says "2-Pack", you MUST return EXACTLY 2 facilities
+- If the title says "3-Pack", you MUST return EXACTLY 3 facilities
+
+STEP 2: FIND ALL FACILITY NAMES
+- Check the executive summary (usually pages 1-5) for facility list
+- Check facility comparison tables (usually pages 5-10) with side-by-side columns
+- Each column header in a comparison table is typically a facility name
+- Look for "Facility 1:", "Facility 2:" or "Property A:", "Property B:" patterns
+
+STEP 3: EXTRACT EACH FACILITY SEPARATELY
+- Return one JSON object per facility in the array
+- Do NOT combine facilities into one entry
+- Do NOT skip any facility mentioned as part of the deal
 
 CRITICAL INSTRUCTIONS - READ CAREFULLY:
 1. Extract ONLY facilities being ACQUIRED/SOLD in this deal
@@ -134,9 +157,20 @@ WHAT TO EXTRACT for each DEAL facility:
 - facility_type: "SNF" or "ALF"
 - confidence: 0.0 to 1.0 (higher if clearly a deal facility, lower if uncertain)
 - source_hint: Where you found it
+- is_portfolio: true if this is part of a multi-facility portfolio deal
+- portfolio_name: Name of the portfolio (e.g., "Wyoming Skilled Nursing 2-Pack")
 
 RESPOND WITH ONLY THIS JSON FORMAT (no explanation, no markdown):
-[{"name":"Facility One Name","city":"City","state":"XX","beds":100,"facility_type":"SNF","confidence":0.9,"source_hint":"found in property description"}]
+[{"name":"Facility One Name","city":"City","state":"XX","beds":100,"facility_type":"SNF","confidence":0.9,"source_hint":"found in property description","is_portfolio":false,"portfolio_name":null}]
+
+FOR PORTFOLIO DEALS with multiple facilities, return ALL facilities:
+[{"name":"Big Horn Rehabilitation & Care Center","city":"Sheridan","state":"WY","beds":128,"facility_type":"SNF","confidence":0.95,"source_hint":"facility comparison table page 6","is_portfolio":true,"portfolio_name":"Wyoming Skilled Nursing 2-Pack"},{"name":"Polaris Rehabilitation & Care Center","city":"Cheyenne","state":"WY","beds":105,"facility_type":"SNF","confidence":0.95,"source_hint":"facility comparison table page 6","is_portfolio":true,"portfolio_name":"Wyoming Skilled Nursing 2-Pack"}]
+
+⚠️ BEFORE RESPONDING - VERIFY:
+- If document title mentions "2-Pack" or "Two", did you return 2 facilities?
+- If document title mentions "3-Pack" or "Three", did you return 3 facilities?
+- Did you check the comparison table for column headers with facility names?
+- Are all facilities from the executive summary included?
 
 If you cannot identify ANY facilities that are clearly part of the deal, return an empty array: []
 
@@ -179,7 +213,9 @@ ${truncatedText}`;
         beds: parseInt(f.beds) || null,
         facility_type: (f.facility_type || 'SNF').toUpperCase(),
         confidence: parseFloat(f.confidence) || 0.5,
-        source_hint: f.source_hint || null
+        source_hint: f.source_hint || null,
+        is_portfolio: f.is_portfolio === true,
+        portfolio_name: f.portfolio_name?.trim() || null
       }));
 
     console.log('[FacilityMatcher] Detected', validatedFacilities.length, 'facilities');

@@ -1,0 +1,139 @@
+{
+  "facility": {
+    "facilityId": "555123",
+    "name": "Arcadia Care Center",
+    "ccn": "555123",
+    "state": "CA",
+    "city": "Arcadia"
+  },
+  "surveyIntelligence": {
+    "lastSurveyDate": "2024-03-15",
+    "daysSinceSurvey": 287,
+    "riskLevel": "ELEVATED",
+    "probability7Days": 0.34,
+    "probability14Days": 0.52,
+    "probability30Days": 0.67,
+    "prepItemsCount": 4,
+    "surveyWindow": {
+      "windowOpens": "2025-03-01",
+      "federalMaximum": "2025-06-15",
+      "stateAverageInterval": 337,
+      "percentThroughWindow": 65
+    },
+    "bellwetherSignal": {
+      "active": true,
+      "facilityName": "Santa Anita Convalescent Hospital",
+      "facilityCCN": "555234",
+      "surveyDate": "2024-12-10",
+      "daysSince": 9,
+      "typicalFollowRange": {
+        "min": 8,
+        "max": 12
+      }
+    },
+    "nearbyActivity": {
+      "summary": "3 facilities within 10 miles surveyed in last 14 days. F0880 (Infection Control) cited at all 3.",
+      "facilities": [
+        {
+          "name": "Santa Anita Convalescent Hospital",
+          "ccn": "555234",
+          "distance": 3.2,
+          "surveyDate": "2024-12-10",
+          "daysAgo": 9,
+          "deficiencyCount": 4,
+          "topFTag": "F0880",
+          "topFTagDescription": "Infection Control"
+        },
+        {
+          "name": "Valley Care Skilled Nursing",
+          "ccn": "555345",
+          "distance": 5.1,
+          "surveyDate": "2024-12-08",
+          "daysAgo": 11,
+          "deficiencyCount": 7,
+          "topFTag": "F0689",
+          "topFTagDescription": "Free of Accident Hazards"
+        },
+        {
+          "name": "Sunrise Healthcare Center",
+          "ccn": "555456",
+          "distance": 7.8,
+          "surveyDate": "2024-11-28",
+          "daysAgo": 21,
+          "deficiencyCount": 3,
+          "topFTag": "F0812",
+          "topFTagDescription": "Food Safety"
+        }
+      ]
+    },
+    "prepPriorities": [
+      {
+        "priority": "CRITICAL",
+        "fTag": "F0880",
+        "fTagName": "Infection Control",
+        "reason": "Cited 2x in last 3 years + trending up 18% regionally",
+        "facilityCitationCount": 2,
+        "regionalTrend": "UP",
+        "regionalTrendPct": 18
+      },
+      {
+        "priority": "HIGH",
+        "fTag": "F0689",
+        "fTagName": "Free of Accident Hazards",
+        "reason": "Trending up in Los Angeles County (+23% this quarter)",
+        "facilityCitationCount": 0,
+        "regionalTrend": "UP",
+        "regionalTrendPct": 23
+      },
+      {
+        "priority": "MODERATE",
+        "fTag": "F0758",
+        "fTagName": "Free from Medication Errors",
+        "reason": "California state enforcement focus area",
+        "facilityCitationCount": 1,
+        "regionalTrend": "STABLE",
+        "stateFocus": true
+      }
+    ],
+    "bellwetherNetwork": {
+      "bellwethers": [
+        {
+          "name": "Santa Anita Convalescent Hospital",
+          "ccn": "555234",
+          "avgLeadDays": 8,
+          "rangeMin": 5,
+          "rangeMax": 12,
+          "signalActive": true,
+          "lastSurveyDate": "2024-12-10",
+          "daysSinceSignal": 9
+        },
+        {
+          "name": "Rio Hondo Subacute and Nursing",
+          "ccn": "555567",
+          "avgLeadDays": 11,
+          "rangeMin": 8,
+          "rangeMax": 15,
+          "signalActive": false,
+          "lastSurveyDate": "2024-08-15",
+          "daysSinceSignal": 126
+        }
+      ],
+      "followers": [
+        {
+          "name": "Sunrise Care Center",
+          "ccn": "555678",
+          "avgFollowDays": 6,
+          "rangeMin": 4,
+          "rangeMax": 9
+        },
+        {
+          "name": "Valley View Skilled Nursing",
+          "ccn": "555789",
+          "avgFollowDays": 9,
+          "rangeMin": 6,
+          "rangeMax": 14
+        }
+      ]
+    }
+  }
+}

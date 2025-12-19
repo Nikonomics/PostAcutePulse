@@ -959,6 +959,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -973,11 +974,13 @@ backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/index.js
+backend/routes/ma-analytics.js
 backend/routes/market.js
 backend/routes/markets.js
 backend/routes/ownership.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
+backend/routes/surveyIntelligence.js
 backend/routes/taxonomy.js
 backend/routes/user.js
 backend/routes/users.js
@@ -1013,6 +1016,7 @@ backend/services/ratioCalculator.js
 backend/controller/AuthenticationController.js
 backend/controller/DealController.js
 backend/controller/stateController.js
+backend/controller/SurveyIntelligenceController.js
 ```
 
 ### Frontend Pages
@@ -1033,6 +1037,7 @@ frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx
+frontend/src/pages/MAIntelligence.jsx
 frontend/src/pages/MarketAnalysis.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
@@ -1043,6 +1048,7 @@ frontend/src/pages/renderStep3.jsx
 frontend/src/pages/renderStep4.jsx
 frontend/src/pages/SavedItems.jsx
 frontend/src/pages/Signup.jsx
+frontend/src/pages/SurveyAnalytics.jsx
 frontend/src/pages/UploadDeal.jsx
 frontend/src/pages/UserManagement.jsx
 No pages found
@@ -1054,6 +1060,7 @@ common
 DataDictionaryTab
 DealExtractionViewer
 FacilityMetrics
+MAIntelligence
 MarketAnalysis
 MarketDynamicsTab
 MarketScorecard

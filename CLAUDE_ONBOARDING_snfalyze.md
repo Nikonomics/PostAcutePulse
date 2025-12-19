@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-19 09:34:10
+> Last updated: 2025-12-19 15:40:05
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1283,6 +1283,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1297,11 +1298,13 @@ backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/index.js
+backend/routes/ma-analytics.js
 backend/routes/market.js
 backend/routes/markets.js
 backend/routes/ownership.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
+backend/routes/surveyIntelligence.js
 backend/routes/taxonomy.js
 backend/routes/user.js
 backend/routes/users.js
@@ -1337,6 +1340,7 @@ backend/services/ratioCalculator.js
 backend/controller/AuthenticationController.js
 backend/controller/DealController.js
 backend/controller/stateController.js
+backend/controller/SurveyIntelligenceController.js
 ```
 
 ### Frontend Pages
@@ -1357,6 +1361,7 @@ frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx
+frontend/src/pages/MAIntelligence.jsx
 frontend/src/pages/MarketAnalysis.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
@@ -1367,6 +1372,7 @@ frontend/src/pages/renderStep3.jsx
 frontend/src/pages/renderStep4.jsx
 frontend/src/pages/SavedItems.jsx
 frontend/src/pages/Signup.jsx
+frontend/src/pages/SurveyAnalytics.jsx
 frontend/src/pages/UploadDeal.jsx
 frontend/src/pages/UserManagement.jsx
 No pages found
@@ -1378,6 +1384,7 @@ common
 DataDictionaryTab
 DealExtractionViewer
 FacilityMetrics
+MAIntelligence
 MarketAnalysis
 MarketDynamicsTab
 MarketScorecard
@@ -1459,6 +1466,7 @@ backend/migrations/add-cms-staffing-columns.js
 
 ### Last 7 Days
 
+- **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 - **2025-12-18** - Add production database reference to main README
@@ -1490,30 +1498,30 @@ backend/migrations/add-cms-staffing-columns.js
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     61 files
-Frontend:    154 files
-Routes:      4 files
-Services:    9 files
-Components:  117 files
-Migrations:  8 files
+Backend:     46 files
+Frontend:    163 files
+Routes:      5 files
+Services:    7 files
+Components:  129 files
+Migrations:  6 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
 backend/bellwether_validation.js
-backend/docs/DATA_ROADMAP.md
+backend/controller/SurveyIntelligenceController.js
 backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-deals-position-column.js
-backend/models/cascadia_facility.js
+backend/routes/ma-analytics.js
+backend/routes/surveyIntelligence.js
 backend/run-ccn-migration.js
 backend/scripts/README.md
 backend/scripts/add-search-indexes.js
-backend/scripts/analyze-cms-historical.js
 backend/scripts/calculate-vbp-rankings.js
 backend/scripts/check_data_coverage.js
 ```
@@ -4057,6 +4065,7 @@ Solve for IRR using Newton-Raphson method
     "@testing-library/user-event": "^13.2.1",
     "ajv": "^8.17.1",
     "axios": "^1.10.0",
+    "d3-scale": "^4.0.2",
     "date-fns": "^4.1.0",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
@@ -4070,6 +4079,7 @@ Solve for IRR using Newton-Raphson method
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.7.0",
     "react-scripts": "5.0.1",
+    "react-simple-maps": "^3.0.0",
     "react-toastify": "^11.0.5",
     "recharts": "^3.5.1",
     "remark-gfm": "^4.0.1",
@@ -4139,11 +4149,13 @@ backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/index.js
+backend/routes/ma-analytics.js
 backend/routes/market.js
 backend/routes/markets.js
 backend/routes/ownership.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
+backend/routes/surveyIntelligence.js
 backend/routes/taxonomy.js
 backend/routes/user.js
 backend/routes/users.js
@@ -4188,6 +4200,7 @@ frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx
+frontend/src/pages/MAIntelligence.jsx
 frontend/src/pages/MarketAnalysis.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
@@ -4198,6 +4211,7 @@ frontend/src/pages/renderStep3.jsx
 frontend/src/pages/renderStep4.jsx
 frontend/src/pages/SavedItems.jsx
 frontend/src/pages/Signup.jsx
+frontend/src/pages/SurveyAnalytics.jsx
 frontend/src/pages/UploadDeal.jsx
 frontend/src/pages/UserManagement.jsx
 ```

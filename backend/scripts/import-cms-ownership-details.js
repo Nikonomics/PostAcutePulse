@@ -18,9 +18,11 @@ import { parse } from 'csv-parse';
 import { createReadStream } from 'fs';
 
 const { Pool } = pg;
+const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
+const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform',
-  ssl: { rejectUnauthorized: false }
+  connectionString,
+  ssl: isLocalhost ? false : { rejectUnauthorized: false }
 });
 
 const HISTORICAL_DIR = process.env.HOME + '/Desktop/cms_historical_data';
@@ -46,6 +48,13 @@ function parseAssociationDate(raw) {
     return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
   }
   return null;
+}
+
+function parseOwnershipPercentage(raw) {
+  if (!raw) return null;
+  // Strip % sign and parse number (e.g., "100%", "5%", "81%")
+  const match = raw.match(/(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[1]) : null;
 }
 
 async function readCSV(filePath) {
@@ -143,6 +152,7 @@ async function importOwnershipFile(csvPath, extractId) {
 
     const associationDateRaw = dateCol ? row[dateCol] : null;
     const associationDate = parseAssociationDate(associationDateRaw);
+    const ownershipPct = pctCol ? parseOwnershipPercentage(row[pctCol]) : null;
 
     try {
       await pool.query(`
@@ -160,7 +170,7 @@ async function importOwnershipFile(csvPath, extractId) {
         roleCol ? row[roleCol] : null,
         typeCol ? row[typeCol] : null,
         ownerName,
-        pctCol ? row[pctCol] : null,
+        ownershipPct,
         associationDate,
         associationDateRaw
       ]);
@@ -280,16 +290,16 @@ async function detectOwnershipChanges() {
         curr.ccn,
         'OWNER_ADDED',
         $3::date,
-        $1,
-        $2,
-        curr.owner_name || ' (' || COALESCE(curr.ownership_percentage, 'unknown') || ')',
-        (SELECT state FROM facility_snapshots fs WHERE fs.ccn = curr.ccn AND fs.extract_id = $2 LIMIT 1)
+        $1::integer,
+        $2::integer,
+        curr.owner_name || ' (' || COALESCE(curr.ownership_percentage::text, 'unknown') || '%)',
+        (SELECT state FROM facility_snapshots fs WHERE fs.ccn = curr.ccn AND fs.extract_id = $2::integer LIMIT 1)
       FROM facility_ownership_details curr
       LEFT JOIN facility_ownership_details prev
         ON curr.ccn = prev.ccn
         AND curr.owner_name = prev.owner_name
-        AND prev.extract_id = $1
-      WHERE curr.extract_id = $2
+        AND prev.extract_id = $1::integer
+      WHERE curr.extract_id = $2::integer
         AND prev.ccn IS NULL
         AND curr.owner_role LIKE '%OWNERSHIP%'
       ON CONFLICT DO NOTHING
@@ -303,16 +313,16 @@ async function detectOwnershipChanges() {
         prev.ccn,
         'OWNER_REMOVED',
         $3::date,
-        $1,
-        $2,
-        prev.owner_name || ' (' || COALESCE(prev.ownership_percentage, 'unknown') || ')',
-        (SELECT state FROM facility_snapshots fs WHERE fs.ccn = prev.ccn AND fs.extract_id = $1 LIMIT 1)
+        $1::integer,
+        $2::integer,
+        prev.owner_name || ' (' || COALESCE(prev.ownership_percentage::text, 'unknown') || '%)',
+        (SELECT state FROM facility_snapshots fs WHERE fs.ccn = prev.ccn AND fs.extract_id = $1::integer LIMIT 1)
       FROM facility_ownership_details prev
       LEFT JOIN facility_ownership_details curr
         ON prev.ccn = curr.ccn
         AND prev.owner_name = curr.owner_name
-        AND curr.extract_id = $2
-      WHERE prev.extract_id = $1
+        AND curr.extract_id = $2::integer
+      WHERE prev.extract_id = $1::integer
         AND curr.ccn IS NULL
         AND prev.owner_role LIKE '%OWNERSHIP%'
       ON CONFLICT DO NOTHING

@@ -130,8 +130,10 @@ var marketRouter = require('./routes/market');
 var wagesRouter = require('./routes/wages');
 var marketsRouter = require('./routes/markets');
 var ownershipRouter = require('./routes/ownership');
+var maAnalyticsRouter = require('./routes/ma-analytics');
 var savedItemsRouter = require('./routes/savedItems');
 var userRouter = require('./routes/user');
+var surveyIntelligenceRouter = require('./routes/surveyIntelligence');
 
 app.use(fileUpload());
 
@@ -178,6 +180,12 @@ app.use('/api/markets', marketsRouter);
 
 // Ownership Research API routes
 app.use('/api/v1/ownership', ownershipRouter);
+
+// M&A Analytics API routes
+app.use('/api/ma-analytics', maAnalyticsRouter);
+
+// Survey Intelligence API routes
+app.use('/api/v1/survey-intelligence', surveyIntelligenceRouter);
 
 // Saved Items API routes (bookmarks for deals, facilities, markets)
 app.use('/api/v1/saved-items', savedItemsRouter);
