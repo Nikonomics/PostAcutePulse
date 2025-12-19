@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 - **2025-12-18** - Add production database reference to main README
 - **2025-12-18** - Add explanation of why two databases exist

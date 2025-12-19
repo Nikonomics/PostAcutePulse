@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-19 09:29:14
+> Last updated: 2025-12-19 09:34:10
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1281,6 +1281,8 @@ Investment Targets:
 ```
 
 
+
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1457,6 +1459,7 @@ backend/migrations/add-cms-staffing-columns.js
 
 ### Last 7 Days
 
+- **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 - **2025-12-18** - Add production database reference to main README
 - **2025-12-18** - Add explanation of why two databases exist
