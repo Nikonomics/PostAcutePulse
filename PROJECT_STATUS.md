@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-21** - Add ownership import utilities and deal creation documentation
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
@@ -41,16 +42,16 @@
 - **2025-12-15** - Fix deal edit navigation and add save button to deals
 - **2025-12-15** - Dashboard map filter fix, Market Dynamics county resolution, and various improvements
 - **2025-12-14** - Add facilities map to Ownership Profile page
-- **2025-12-14** - Add Ownership Database with editable profiles and save functionality
+
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     48 files
-Frontend:    132 files
-Routes:      4 files
-Services:    7 files
-Components:  107 files
+Backend:     59 files
+Frontend:    129 files
+Routes:      5 files
+Services:    9 files
+Components:  96 files
 Migrations:  7 files
 ```
 
@@ -65,13 +66,13 @@ backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-deals-position-column.js
+backend/models/facility_change_logs.js
+backend/models/user_change_logs.js
 backend/routes/ma-analytics.js
 backend/routes/surveyIntelligence.js
 backend/run-ccn-migration.js
 backend/scripts/README.md
 backend/scripts/add-search-indexes.js
-backend/scripts/calculate-vbp-rankings.js
-backend/scripts/check-deals.js
 ```
 
 ---

@@ -3,6 +3,10 @@
  *
  * Provides endpoints for searching, matching, and viewing facility profiles
  * from the CMS nursing home and ALF reference databases
+ *
+ * Database Strategy:
+ * - Market DB (MARKET_DATABASE_URL): For current facility data (snf_facilities, alf_facilities, cms_facility_deficiencies)
+ * - Main DB (DATABASE_URL): For time-series data (facility_snapshots, vbp_scores, health_citations, etc.)
  */
 
 const express = require('express');
@@ -12,6 +16,7 @@ const {
   searchFacilities,
   getFacilitiesNearby
 } = require('../services/facilityMatcher');
+const { getMarketPool } = require('../config/database');
 
 // ============================================================================
 // FACILITY SEARCH API (must come BEFORE parameterized routes)
@@ -31,82 +36,78 @@ router.get('/snf/search', async (req, res) => {
       minRating, maxRating, limit = 50, offset = 0
     } = req.query;
 
-    const { getSequelizeInstance } = require('../config/database');
-    const sequelize = getSequelizeInstance();
+    // Use Market DB for current facility data
+    const pool = getMarketPool();
 
-    try {
-      let whereClause = '1=1';
-      const replacements = {};
+    let whereClause = '1=1';
+    const params = [];
+    let paramIndex = 1;
 
-      if (name) {
-        // Use ILIKE for case-insensitive search on facility_name
-        whereClause += ` AND facility_name ILIKE :name`;
-        replacements.name = `%${name}%`;
-      }
-      if (state) {
-        whereClause += ` AND state = :state`;
-        replacements.state = state.toUpperCase();
-      }
-      if (city) {
-        whereClause += ` AND city ILIKE :city`;
-        replacements.city = `%${city}%`;
-      }
-      if (minBeds) {
-        whereClause += ` AND certified_beds >= :minBeds`;
-        replacements.minBeds = parseInt(minBeds);
-      }
-      if (maxBeds) {
-        whereClause += ` AND certified_beds <= :maxBeds`;
-        replacements.maxBeds = parseInt(maxBeds);
-      }
-      if (minRating) {
-        whereClause += ` AND overall_rating >= :minRating`;
-        replacements.minRating = parseInt(minRating);
-      }
-      if (maxRating) {
-        whereClause += ` AND overall_rating <= :maxRating`;
-        replacements.maxRating = parseInt(maxRating);
-      }
-
-      // Query snf_facilities directly - much faster than facility_snapshots CTE
-      const [facilities] = await sequelize.query(`
-        SELECT
-          federal_provider_number as ccn,
-          facility_name as provider_name,
-          address, city, state, zip_code,
-          overall_rating, health_inspection_rating,
-          quality_measure_rating as quality_rating, staffing_rating,
-          certified_beds, average_residents_per_day as residents_total,
-          latitude, longitude, ownership_type, chain_name
-        FROM snf_facilities
-        WHERE ${whereClause}
-        ORDER BY
-          CASE WHEN facility_name ILIKE :exactMatch THEN 0 ELSE 1 END,
-          facility_name
-        LIMIT :limit OFFSET :offset
-      `, {
-        replacements: {
-          ...replacements,
-          exactMatch: name ? `${name}%` : '%',
-          limit: parseInt(limit),
-          offset: parseInt(offset)
-        }
-      });
-
-      // Get total count (fast query on snf_facilities)
-      const [[{ total }]] = await sequelize.query(`
-        SELECT COUNT(*) as total FROM snf_facilities WHERE ${whereClause}
-      `, { replacements });
-
-      res.json({
-        success: true,
-        total: parseInt(total),
-        facilities
-      });
-
-    } finally {
-      await sequelize.close();
+    if (name) {
+      whereClause += ` AND facility_name ILIKE $${paramIndex}`;
+      params.push(`%${name}%`);
+      paramIndex++;
     }
+    if (state) {
+      whereClause += ` AND state = $${paramIndex}`;
+      params.push(state.toUpperCase());
+      paramIndex++;
+    }
+    if (city) {
+      whereClause += ` AND city ILIKE $${paramIndex}`;
+      params.push(`%${city}%`);
+      paramIndex++;
+    }
+    if (minBeds) {
+      whereClause += ` AND certified_beds >= $${paramIndex}`;
+      params.push(parseInt(minBeds));
+      paramIndex++;
+    }
+    if (maxBeds) {
+      whereClause += ` AND certified_beds <= $${paramIndex}`;
+      params.push(parseInt(maxBeds));
+      paramIndex++;
+    }
+    if (minRating) {
+      whereClause += ` AND overall_rating >= $${paramIndex}`;
+      params.push(parseInt(minRating));
+      paramIndex++;
+    }
+    if (maxRating) {
+      whereClause += ` AND overall_rating <= $${paramIndex}`;
+      params.push(parseInt(maxRating));
+      paramIndex++;
+    }
+
+    // Query snf_facilities from Market DB
+    const exactMatchParam = name ? `${name}%` : '%';
+    const facilitiesResult = await pool.query(`
+      SELECT
+        federal_provider_number as ccn,
+        facility_name as provider_name,
+        address, city, state, zip_code,
+        overall_rating, health_inspection_rating,
+        quality_measure_rating as quality_rating, staffing_rating,
+        certified_beds, average_residents_per_day as residents_total,
+        latitude, longitude, ownership_type, chain_name
+      FROM snf_facilities
+      WHERE ${whereClause}
+      ORDER BY
+        CASE WHEN facility_name ILIKE $${paramIndex} THEN 0 ELSE 1 END,
+        facility_name
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `, [...params, exactMatchParam, parseInt(limit), parseInt(offset)]);
+
+    // Get total count
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total FROM snf_facilities WHERE ${whereClause}
+    `, params);
+
+    res.json({
+      success: true,
+      total: parseInt(countResult.rows[0].total),
+      facilities: facilitiesResult.rows
+    });
 
   } catch (error) {
     console.error('Error searching facilities:', error);
@@ -492,33 +493,31 @@ router.get('/snf/:ccn/benchmarks', async (req, res) => {
 /**
  * GET /api/facilities/snf/:ccn/deficiencies
  * Get detailed deficiency records for a facility
+ * Uses Market DB for cms_facility_deficiencies
  */
 router.get('/snf/:ccn/deficiencies', async (req, res) => {
   try {
     const { ccn } = req.params;
-    const { getSequelizeInstance } = require('../config/database');
-    const sequelize = getSequelizeInstance();
 
-    try {
-      const [deficiencies] = await sequelize.query(`
-        SELECT
-          survey_date,
-          survey_type,
-          deficiency_tag,
-          scope_severity,
-          deficiency_text,
-          correction_date,
-          is_corrected
-        FROM cms_facility_deficiencies
-        WHERE federal_provider_number = :ccn
-        ORDER BY survey_date DESC
-        LIMIT 100
-      `, { replacements: { ccn } });
+    // Use Market DB for deficiency data
+    const pool = getMarketPool();
 
-      res.json({ success: true, deficiencies });
-    } finally {
-      await sequelize.close();
-    }
+    const result = await pool.query(`
+      SELECT
+        survey_date,
+        survey_type,
+        deficiency_tag,
+        scope_severity,
+        deficiency_text,
+        correction_date,
+        is_corrected
+      FROM cms_facility_deficiencies
+      WHERE federal_provider_number = $1
+      ORDER BY survey_date DESC
+      LIMIT 100
+    `, [ccn]);
+
+    res.json({ success: true, deficiencies: result.rows });
   } catch (error) {
     console.error('Error fetching deficiencies:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1182,33 +1181,30 @@ router.get('/snf/:ccn/percentiles', async (req, res) => {
 /**
  * GET /api/facilities/stats
  * Get database statistics
+ * Uses Market DB for alf_facilities
  */
 router.get('/stats', async (req, res) => {
   try {
-    const { getSequelizeInstance } = require('../config/database');
-    const sequelize = getSequelizeInstance();
+    // Use Market DB for ALF facility stats
+    const pool = getMarketPool();
 
-    try {
-      // Get total count
-      const [[{ total }]] = await sequelize.query('SELECT COUNT(*) as total FROM alf_facilities');
+    // Get total count
+    const totalResult = await pool.query('SELECT COUNT(*) as total FROM alf_facilities');
 
-      // Get facilities by state
-      const [byState] = await sequelize.query(`
-        SELECT state, COUNT(*) as count
-        FROM alf_facilities
-        WHERE state IS NOT NULL
-        GROUP BY state
-        ORDER BY count DESC
-      `);
+    // Get facilities by state
+    const byStateResult = await pool.query(`
+      SELECT state, COUNT(*) as count
+      FROM alf_facilities
+      WHERE state IS NOT NULL
+      GROUP BY state
+      ORDER BY count DESC
+    `);
 
-      res.json({
-        success: true,
-        total_facilities: parseInt(total),
-        facilities_by_state: byState
-      });
-    } finally {
-      await sequelize.close();
-    }
+    res.json({
+      success: true,
+      total_facilities: parseInt(totalResult.rows[0].total),
+      facilities_by_state: byStateResult.rows
+    });
 
   } catch (error) {
     console.error('Error getting stats:', error);

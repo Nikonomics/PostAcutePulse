@@ -44,6 +44,8 @@ const {
 } = require("../services/proformaService");
 const { detectChanges, formatChangeSummary } = require("../services/dealChangeTracker");
 const { isValidFlatFormat, sanitizeExtractionData } = require("../services/extractionValidator");
+const { createNotification } = require("../services/notificationService");
+const { detectChanges: detectFieldChanges, logFacilityChanges } = require("../services/changeLogService");
 const User = db.users;
 const Deal = db.deals;
 const DealTeamMembers = db.deal_team_members;
@@ -3098,13 +3100,14 @@ module.exports = {
 
         for (const user_id of validatedData.mentioned_user_ids) {
           if (user_id !== req.user.id) {
-            await UserNotification.create({
+            await createNotification({
               to_id: user_id,
               from_id: userDetails.id,
               notification_type: "comment",
               title: "You were mentioned in a comment",
               content: `${userDetails.first_name} ${userDetails.last_name} mentioned you in a comment on deal ${deal.deal_name}`,
               ref_id: dealComment.id,
+              ref_type: "deal"
             });
             allUserIds.add(user_id);
           }
@@ -3159,13 +3162,14 @@ module.exports = {
           validatedData.parent_id
         );
         if (parentComment && parentComment.user_id !== req.user.id) {
-          await UserNotification.create({
+          await createNotification({
             to_id: parentComment.user_id,
             from_id: userDetails.id,
             notification_type: "reply",
             title: "New reply on your comment",
             content: `${userDetails.first_name} ${userDetails.last_name} replied to your comment on deal #${validatedData.deal_id}`,
             ref_id: dealComment.id,
+            ref_type: "comment"
           });
         }
       }
@@ -4074,11 +4078,15 @@ module.exports = {
     try {
       const { facilityId } = req.params;
       const facilityData = req.body;
+      const userId = req.user?.id;
 
       const facility = await DealFacilities.findByPk(facilityId);
       if (!facility) {
         return helper.error(res, "Facility not found");
       }
+
+      // Capture old values for change logging
+      const oldData = facility.toJSON();
 
       // Update the facility
       await facility.update({
@@ -4128,6 +4136,27 @@ module.exports = {
         display_order: facilityData.display_order ?? facility.display_order,
         updated_at: new Date()
       });
+
+      // Log changes
+      if (userId) {
+        const trackableFields = [
+          'facility_name', 'facility_type', 'bed_count', 'street_address', 'city', 'state', 'zip_code',
+          'purchase_price', 'annual_revenue', 'ebitda', 'ebitdar', 'net_operating_income',
+          'current_occupancy', 'medicare_percentage', 'medicaid_percentage', 'private_pay_percentage'
+        ];
+        const newData = facility.toJSON();
+        const changes = detectFieldChanges(oldData, newData, trackableFields);
+        if (changes.length > 0) {
+          await logFacilityChanges(
+            facility.id,
+            facility.deal_id,
+            userId,
+            'field_update',
+            changes,
+            { facility_name: facility.facility_name }
+          );
+        }
+      }
 
       return helper.success(res, "Facility updated successfully", facility);
     } catch (err) {

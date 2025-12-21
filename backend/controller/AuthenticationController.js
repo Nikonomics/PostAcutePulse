@@ -15,6 +15,7 @@ const DealComments = db.deal_comments;
 const DealTeamMembers = db.deal_team_members;
 const DealExternalAdvisors = db.deal_external_advisors;
 const RecentActivity = db.recent_activities;
+const { detectChanges, logUserChanges } = require('../services/changeLogService');
 
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -610,6 +611,15 @@ module.exports = {
         return helper.error(res, "User not found");
       }
 
+      // Capture old values for change logging
+      const oldData = {
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone_number: user.phone_number,
+        department: user.department,
+        profile_url: user.profile_url
+      };
+
       // Update allowed fields only
       const updateData = {};
       if (first_name !== undefined) updateData.first_name = first_name;
@@ -620,6 +630,12 @@ module.exports = {
       updateData.updated_at = new Date();
 
       await user.update(updateData);
+
+      // Log changes
+      const changes = detectChanges(oldData, updateData, ['first_name', 'last_name', 'phone_number', 'department', 'profile_url']);
+      if (changes.length > 0) {
+        await logUserChanges(userId, userId, 'profile_updated', changes);
+      }
 
       const userResponse = {
         id: user.id,
@@ -672,6 +688,14 @@ module.exports = {
         password: hashedPassword,
         updated_at: new Date(),
       });
+
+      // Log password change (don't log actual password values)
+      await logUserChanges(userId, userId, 'password_changed', [{
+        field_name: 'password',
+        field_label: 'Password',
+        old_value: '********',
+        new_value: '********'
+      }]);
 
       return helper.success(res, "Password changed successfully");
     } catch (err) {

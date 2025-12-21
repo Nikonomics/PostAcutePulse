@@ -1,5 +1,6 @@
 import axios from "axios";
 import { generateAccessToken } from "./authService";
+import { posthog } from "../analytics";
 
 // Create an Axios instance
 const API = axios.create({
@@ -75,6 +76,17 @@ API.interceptors.response.use(
     const originalRequest = config;
 
     console.log("API Error:", response?.status, error.message);
+
+    // Track API errors in PostHog (excluding 401s which are handled separately)
+    if (response?.status !== 401) {
+      posthog.capture('api_error', {
+        url: config?.url,
+        method: config?.method,
+        status: response?.status,
+        message: error.message,
+        responseData: response?.data?.message || response?.data?.error
+      });
+    }
 
     if (response?.status === 401 && !originalRequest._retry) {
       console.log("401 Unauthorized detected, attempting token refresh...");

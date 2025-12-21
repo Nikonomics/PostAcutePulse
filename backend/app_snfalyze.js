@@ -234,5 +234,23 @@ global.io = new Server(socketConnection, {
   }
 });
 
+// Socket.IO connection handler for user-specific rooms
+global.io.on('connection', (socket) => {
+  console.log('[Socket.IO] Client connected:', socket.id);
+
+  // Join user-specific room when authenticated
+  socket.on('join', (userId) => {
+    if (userId) {
+      const room = `user_${userId}`;
+      socket.join(room);
+      console.log(`[Socket.IO] User ${userId} joined room: ${room}`);
+    }
+  });
+
+  // Leave room on disconnect
+  socket.on('disconnect', () => {
+    console.log('[Socket.IO] Client disconnected:', socket.id);
+  });
+});
 
 module.exports = app;

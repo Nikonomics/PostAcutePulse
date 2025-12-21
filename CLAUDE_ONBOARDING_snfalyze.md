@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-21 12:58:10
+> Last updated: 2025-12-21 13:45:43
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1286,6 +1286,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1318,6 +1319,7 @@ backend/routes/wages.js
 backend/services/aiExtractor.js
 backend/services/calculatorService.js
 backend/services/censusDataRefreshService.js
+backend/services/changeLogService.js
 backend/services/cimExtractor.js
 backend/services/cmsDataRefreshService.js
 backend/services/dealChangeTracker.js
@@ -1330,6 +1332,7 @@ backend/services/facilityMatcher.js
 backend/services/fileStorage.js
 backend/services/marketService.js
 backend/services/normalizationService.js
+backend/services/notificationService.js
 backend/services/parallelExtractor.js
 backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
@@ -1418,6 +1421,7 @@ deal_team_members
 deal_user_views
 deals
 extraction_history
+facility_change_logs
 index
 init-models
 master_deals
@@ -1427,6 +1431,7 @@ ownership_comments
 ownership_contacts
 recent_activity
 state
+user_change_logs
 user_notifications
 user_saved_items
 users
@@ -1468,6 +1473,7 @@ backend/migrations/add-cms-staffing-columns.js
 
 ### Last 7 Days
 
+- **2025-12-21** - Add ownership import utilities and deal creation documentation
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
@@ -1497,16 +1503,16 @@ backend/migrations/add-cms-staffing-columns.js
 - **2025-12-15** - Fix deal edit navigation and add save button to deals
 - **2025-12-15** - Dashboard map filter fix, Market Dynamics county resolution, and various improvements
 - **2025-12-14** - Add facilities map to Ownership Profile page
-- **2025-12-14** - Add Ownership Database with editable profiles and save functionality
+
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     48 files
-Frontend:    132 files
-Routes:      4 files
-Services:    7 files
-Components:  107 files
+Backend:     59 files
+Frontend:    129 files
+Routes:      5 files
+Services:    9 files
+Components:  96 files
 Migrations:  7 files
 ```
 
@@ -1521,13 +1527,13 @@ backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-deals-position-column.js
+backend/models/facility_change_logs.js
+backend/models/user_change_logs.js
 backend/routes/ma-analytics.js
 backend/routes/surveyIntelligence.js
 backend/run-ccn-migration.js
 backend/scripts/README.md
 backend/scripts/add-search-indexes.js
-backend/scripts/calculate-vbp-rankings.js
-backend/scripts/check-deals.js
 ```
 
 ---
@@ -4038,6 +4044,7 @@ Solve for IRR using Newton-Raphson method
     "pdf-to-img": "^5.0.0",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
+    "posthog-js": "^1.309.1",
     "randomstring": "^1.3.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",
@@ -4075,6 +4082,7 @@ Solve for IRR using Newton-Raphson method
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.525.0",
     "mammoth": "^1.11.0",
+    "posthog-js": "^1.309.1",
     "react": "^19.1.0",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.1.0",
@@ -4087,6 +4095,7 @@ Solve for IRR using Newton-Raphson method
     "react-toastify": "^11.0.5",
     "recharts": "^3.5.1",
     "remark-gfm": "^4.0.1",
+    "socket.io-client": "^4.8.1",
     "web-vitals": "^2.1.0",
     "xlsx": "^0.18.5",
     "yup": "^1.6.1"
@@ -4169,6 +4178,7 @@ Backend Services:
 backend/services/aiExtractor.js
 backend/services/calculatorService.js
 backend/services/censusDataRefreshService.js
+backend/services/changeLogService.js
 backend/services/cimExtractor.js
 backend/services/cmsDataRefreshService.js
 backend/services/dealChangeTracker.js
@@ -4181,6 +4191,7 @@ backend/services/facilityMatcher.js
 backend/services/fileStorage.js
 backend/services/marketService.js
 backend/services/normalizationService.js
+backend/services/notificationService.js
 backend/services/parallelExtractor.js
 backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js

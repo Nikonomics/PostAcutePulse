@@ -33,6 +33,7 @@ import { ComparisonView } from './ComparisonView';
 import AlertBanner from './AlertBanner';
 import { getFacilityProfile, getFacilityBenchmarks } from '../../api/facilityService';
 import { saveFacility, removeSavedItem, checkSavedItems } from '../../api/savedItemsService';
+import { analytics } from '../../analytics';
 import './FacilityMetrics.css';
 
 /**
@@ -247,6 +248,8 @@ const FacilityMetricsTab = () => {
               vbpScores: response.vbpScores || [],
               surveyDates: response.surveyDates || [],
             });
+            // Track facility view in analytics
+            analytics.facilityViewed(normalizedFacility.ccn, normalizedFacility.provider_name);
           }
         })
         .catch((error) => {
@@ -298,6 +301,8 @@ const FacilityMetricsTab = () => {
           vbpScores: response.vbpScores || [],
           surveyDates: response.surveyDates || [],
         });
+        // Track facility view in analytics
+        analytics.facilityViewed(normalizedFacility.ccn, normalizedFacility.provider_name);
       }
     } catch (error) {
       console.error('Error fetching facility details:', error);

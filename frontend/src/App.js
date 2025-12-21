@@ -15,6 +15,7 @@ import AIAssistant from "./pages/AIAssistant";
 import "./styles/global.css";
 import { useAuth } from "./context/UserContext";
 import { GoogleMapsProvider } from "./context/GoogleMapsContext";
+import { SocketProvider } from "./context/SocketContext";
 import EditDeal from "./pages/EditDeal/EditDeal";
 import DealDetail from "./pages/DealDetail";
 import ChatInterfaceAI from "./pages/ChatInterfaceAI";
@@ -33,6 +34,9 @@ import SurveyAnalytics from "./pages/SurveyAnalytics";
 import SavedItems from "./pages/SavedItems";
 import DataDictionaryTab from "./components/DataDictionaryTab/DataDictionaryTab";
 import MAIntelligence from "./pages/MAIntelligence";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { usePageTracking } from "./analytics";
+
 // Protected route wrapper component
 // const ProtectedRoute = ({ children }) => {
 //   const { isLoggedIn } = useAuth();
@@ -68,21 +72,28 @@ const FacilityRedirect = () => {
 function App() {
   const { isLoggedIn } = useAuth();
 
+  // Track page views for analytics
+  usePageTracking();
+
   // Render auth pages if user is not authenticated
   if (!isLoggedIn) {
     return (
-      <Routes>
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Login />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Login />} />
+        </Routes>
+      </ErrorBoundary>
     );
   }
 
   // Main app layout and routes for authenticated users
   return (
-    <GoogleMapsProvider>
-      <Layout>
+    <ErrorBoundary>
+    <SocketProvider>
+      <GoogleMapsProvider>
+        <Layout>
         <Routes>
         {/* Redirect root to dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -320,8 +331,10 @@ function App() {
         {/* Catch all route - redirect to dashboard */}
         {/* <Route path="*" element={<Navigate to="/dashboard" replace />} /> */}
       </Routes>
-      </Layout>
-    </GoogleMapsProvider>
+        </Layout>
+      </GoogleMapsProvider>
+    </SocketProvider>
+    </ErrorBoundary>
   );
 }
 

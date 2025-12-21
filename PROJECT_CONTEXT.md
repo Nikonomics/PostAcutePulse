@@ -962,6 +962,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -994,6 +995,7 @@ backend/routes/wages.js
 backend/services/aiExtractor.js
 backend/services/calculatorService.js
 backend/services/censusDataRefreshService.js
+backend/services/changeLogService.js
 backend/services/cimExtractor.js
 backend/services/cmsDataRefreshService.js
 backend/services/dealChangeTracker.js
@@ -1006,6 +1008,7 @@ backend/services/facilityMatcher.js
 backend/services/fileStorage.js
 backend/services/marketService.js
 backend/services/normalizationService.js
+backend/services/notificationService.js
 backend/services/parallelExtractor.js
 backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
@@ -1094,6 +1097,7 @@ deal_team_members
 deal_user_views
 deals
 extraction_history
+facility_change_logs
 index
 init-models
 master_deals
@@ -1103,6 +1107,7 @@ ownership_comments
 ownership_contacts
 recent_activity
 state
+user_change_logs
 user_notifications
 user_saved_items
 users

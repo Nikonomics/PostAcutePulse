@@ -5,6 +5,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { UserProvider } from './context/UserContext';
 import { ToastContainer } from 'react-toastify';
 import "react-toastify/dist/ReactToastify.css";
+import { initPostHog } from './analytics';
+
+// Initialize PostHog analytics before React renders
+initPostHog();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

@@ -16,6 +16,8 @@ var _ownership_contacts = require("./ownership_contacts")
 var _ownership_comments = require("./ownership_comments")
 var _ownership_comment_mentions = require("./ownership_comment_mentions")
 var _ownership_change_logs = require("./ownership_change_logs")
+var _user_change_logs = require("./user_change_logs")
+var _facility_change_logs = require("./facility_change_logs")
 
 function initModels(sequelize) {
   var users = _users(sequelize, DataTypes);
@@ -35,6 +37,8 @@ function initModels(sequelize) {
   var ownership_comments = _ownership_comments(sequelize, DataTypes)
   var ownership_comment_mentions = _ownership_comment_mentions(sequelize, DataTypes)
   var ownership_change_logs = _ownership_change_logs(sequelize, DataTypes)
+  var user_change_logs = _user_change_logs(sequelize, DataTypes)
+  var facility_change_logs = _facility_change_logs(sequelize, DataTypes)
 
   return {
     users,
@@ -53,7 +57,9 @@ function initModels(sequelize) {
     ownership_contacts,
     ownership_comments,
     ownership_comment_mentions,
-    ownership_change_logs
+    ownership_change_logs,
+    user_change_logs,
+    facility_change_logs
   };
 }
 module.exports = initModels;

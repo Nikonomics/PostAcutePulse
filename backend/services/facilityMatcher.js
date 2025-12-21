@@ -9,7 +9,7 @@
  * Also includes legacy matching functions for backward compatibility.
  */
 
-const { getSequelizeInstance } = require('../config/database');
+const { getMarketPool } = require('../config/database');
 const Anthropic = require('@anthropic-ai/sdk');
 
 // Initialize Anthropic client
@@ -244,29 +244,30 @@ async function matchFacilityToDatabase(facilityInfo, facilityType = 'SNF') {
   console.log('[FacilityMatcher] Matching facility to database:', facilityInfo);
   console.log('[FacilityMatcher] Facility type:', facilityType);
 
-  const sequelize = getSequelizeInstance();
+  // Use Market DB for facility data
+  const pool = getMarketPool();
   const table = facilityType.toUpperCase() === 'ALF' ? 'alf_facilities' : 'snf_facilities';
   const bedsColumn = facilityType.toUpperCase() === 'ALF' ? 'capacity' : 'total_beds';
 
   try {
     // Build query to get candidates
     let query = `SELECT * FROM ${table} WHERE 1=1`;
-    const replacements = [];
+    const params = [];
 
     // Filter by state if provided (significantly reduces search space)
     if (facilityInfo.state) {
-      query += ' AND state = ?';
-      replacements.push(normalizeState(facilityInfo.state));
+      query += ' AND state = $1';
+      params.push(normalizeState(facilityInfo.state));
     }
 
     // Limit search space
     query += ' LIMIT 5000';
 
-    const [candidates] = await sequelize.query(query, { replacements });
+    const result = await pool.query(query, params);
+    const candidates = result.rows;
     console.log('[FacilityMatcher] Found', candidates.length, 'candidates in', facilityInfo.state || 'all states');
 
     if (candidates.length === 0) {
-      await sequelize.close();
       return [];
     }
 
@@ -307,8 +308,6 @@ async function matchFacilityToDatabase(facilityInfo, facilityType = 'SNF') {
       };
     });
 
-    await sequelize.close();
-
     // Sort by weighted score and return top 3
     scoredMatches.sort((a, b) => b.weighted_score - a.weighted_score);
     const top3 = scoredMatches.slice(0, 3);
@@ -323,7 +322,6 @@ async function matchFacilityToDatabase(facilityInfo, facilityType = 'SNF') {
 
   } catch (error) {
     console.error('[FacilityMatcher] Error matching facility:', error);
-    try { await sequelize.close(); } catch (e) {}
     throw error;
   }
 }
@@ -339,29 +337,28 @@ async function matchFacilityToDatabase(facilityInfo, facilityType = 'SNF') {
 async function searchFacilityByName(searchTerm, facilityType = 'SNF', state = null) {
   console.log('[FacilityMatcher] Searching for:', searchTerm, 'type:', facilityType, 'state:', state);
 
-  const sequelize = getSequelizeInstance();
+  // Use Market DB for facility data
+  const pool = getMarketPool();
   const table = facilityType.toUpperCase() === 'ALF' ? 'alf_facilities' : 'snf_facilities';
 
   try {
-    let query = `SELECT * FROM ${table} WHERE facility_name ILIKE ?`;
-    const replacements = [`%${searchTerm}%`];
+    const params = [`%${searchTerm}%`];
+    let query = `SELECT * FROM ${table} WHERE facility_name ILIKE $1`;
 
     if (state) {
-      query += ' AND state = ?';
-      replacements.push(normalizeState(state));
+      query += ' AND state = $2';
+      params.push(normalizeState(state));
     }
 
     query += ' ORDER BY facility_name LIMIT 20';
 
-    const [results] = await sequelize.query(query, { replacements });
-    await sequelize.close();
+    const result = await pool.query(query, params);
 
-    console.log('[FacilityMatcher] Found', results.length, 'results');
-    return results;
+    console.log('[FacilityMatcher] Found', result.rows.length, 'results');
+    return result.rows;
 
   } catch (error) {
     console.error('[FacilityMatcher] Error searching:', error);
-    try { await sequelize.close(); } catch (e) {}
     throw error;
   }
 }
@@ -620,31 +617,35 @@ async function matchFacility(facilityName, city = null, state = null, minSimilar
 
 /**
  * Find multiple facility matches (legacy)
+ * Uses Market DB for alf_facilities
  */
 async function findFacilityMatches(facilityName, city = null, state = null, minSimilarity = 0.7, limit = 5) {
-  const sequelize = getSequelizeInstance();
+  const pool = getMarketPool();
 
   try {
     let query = 'SELECT * FROM alf_facilities WHERE 1=1';
-    const replacements = [];
+    const params = [];
+    let paramIndex = 1;
 
     if (state) {
       const stateCode = normalizeState(state);
-      query += ' AND state = ?';
-      replacements.push(stateCode);
+      query += ` AND state = $${paramIndex}`;
+      params.push(stateCode);
+      paramIndex++;
     }
 
     if (city) {
-      query += ' AND city = ?';
-      replacements.push(city);
+      query += ` AND city = $${paramIndex}`;
+      params.push(city);
+      paramIndex++;
     }
 
     query += ' LIMIT 1000';
 
-    const [facilities] = await sequelize.query(query, { replacements });
+    const result = await pool.query(query, params);
+    const facilities = result.rows;
 
     if (!facilities || facilities.length === 0) {
-      await sequelize.close();
       return [];
     }
 
@@ -664,66 +665,68 @@ async function findFacilityMatches(facilityName, city = null, state = null, minS
       }
     });
 
-    await sequelize.close();
-
     scoredMatches.sort((a, b) => b.match_score - a.match_score);
     return scoredMatches.slice(0, limit);
 
   } catch (err) {
-    await sequelize.close();
     throw new Error(`Query failed: ${err.message}`);
   }
 }
 
 /**
  * Search facilities by criteria (legacy)
+ * Uses Market DB for alf_facilities
  */
 async function searchFacilities(criteria) {
-  const sequelize = getSequelizeInstance();
+  const pool = getMarketPool();
 
   try {
     let query = 'SELECT * FROM alf_facilities WHERE 1=1';
-    const replacements = [];
+    const params = [];
+    let paramIndex = 1;
 
     if (criteria.name) {
-      query += ' AND facility_name LIKE ?';
-      replacements.push(`%${criteria.name}%`);
+      query += ` AND facility_name ILIKE $${paramIndex}`;
+      params.push(`%${criteria.name}%`);
+      paramIndex++;
     }
 
     if (criteria.city) {
-      query += ' AND city = ?';
-      replacements.push(criteria.city);
+      query += ` AND city = $${paramIndex}`;
+      params.push(criteria.city);
+      paramIndex++;
     }
 
     if (criteria.state) {
-      query += ' AND state = ?';
-      replacements.push(normalizeState(criteria.state));
+      query += ` AND state = $${paramIndex}`;
+      params.push(normalizeState(criteria.state));
+      paramIndex++;
     }
 
     if (criteria.zipCode) {
-      query += ' AND zip_code = ?';
-      replacements.push(criteria.zipCode);
+      query += ` AND zip_code = $${paramIndex}`;
+      params.push(criteria.zipCode);
+      paramIndex++;
     }
 
     if (criteria.minCapacity) {
-      query += ' AND capacity >= ?';
-      replacements.push(criteria.minCapacity);
+      query += ` AND capacity >= $${paramIndex}`;
+      params.push(criteria.minCapacity);
+      paramIndex++;
     }
 
     if (criteria.maxCapacity) {
-      query += ' AND capacity <= ?';
-      replacements.push(criteria.maxCapacity);
+      query += ` AND capacity <= $${paramIndex}`;
+      params.push(criteria.maxCapacity);
+      paramIndex++;
     }
 
     query += ' ORDER BY facility_name';
-    query += ` LIMIT ${criteria.limit || 50}`;
+    query += ` LIMIT ${parseInt(criteria.limit) || 50}`;
 
-    const [facilities] = await sequelize.query(query, { replacements });
-    await sequelize.close();
-
-    return facilities || [];
+    const result = await pool.query(query, params);
+    return result.rows || [];
   } catch (err) {
-    await sequelize.close();
     throw new Error(`Query failed: ${err.message}`);
   }
 }

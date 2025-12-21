@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, Check, CheckCheck, X, User, MessageSquare, FileText, AlertCircle } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { getNotifications, getNotificationCount, markNotificationsRead } from '../../api/authService';
+import { useSocket } from '../../context/SocketContext';
 
 const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -8,13 +10,58 @@ const NotificationCenter = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
+  const socket = useSocket();
 
-  // Fetch notification count on mount and periodically
+  // Fetch notification count on mount and set up socket listener
   useEffect(() => {
     fetchNotificationCount();
-    const interval = setInterval(fetchNotificationCount, 60000); // Every minute
+
+    // Fallback polling (less frequent when socket is connected)
+    const interval = setInterval(fetchNotificationCount, socket ? 300000 : 60000); // 5 min with socket, 1 min without
     return () => clearInterval(interval);
-  }, []);
+  }, [socket]);
+
+  // Listen for real-time notifications via Socket.IO
+  useEffect(() => {
+    if (socket) {
+      const handleNotification = (notification) => {
+        console.log('[NotificationCenter] Received real-time notification:', notification);
+
+        // Add to notifications list if dropdown is open
+        setNotifications(prev => [notification, ...prev]);
+
+        // Increment unread count
+        setUnreadCount(prev => prev + 1);
+
+        // Show toast notification
+        toast.info(
+          <div>
+            <strong>{notification.title}</strong>
+            <p className="text-sm">{notification.content}</p>
+          </div>,
+          {
+            position: 'top-right',
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+          }
+        );
+      };
+
+      const handleCountUpdate = (data) => {
+        setUnreadCount(data.unread_count);
+      };
+
+      socket.on('notification', handleNotification);
+      socket.on('notification_count', handleCountUpdate);
+
+      return () => {
+        socket.off('notification', handleNotification);
+        socket.off('notification_count', handleCountUpdate);
+      };
+    }
+  }, [socket]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

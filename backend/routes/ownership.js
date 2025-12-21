@@ -11,6 +11,7 @@ const { Pool } = require('pg');
 const Anthropic = require('@anthropic-ai/sdk');
 const requireAuthentication = require("../passport").authenticateUser;
 const db = require('../models');
+const { createNotification } = require('../services/notificationService');
 
 // Database connection configuration
 const getPool = () => {
@@ -1694,16 +1695,15 @@ router.post('/profiles/:id/comments', requireAuthentication, async (req, res) =>
           ON CONFLICT DO NOTHING
         `, [newComment.id, mentionedUserId]);
 
-        // Create notification for mentioned user
-        await db.user_notifications.create({
+        // Create notification for mentioned user (with real-time socket emit)
+        await createNotification({
           to_id: mentionedUserId,
           from_id: userId,
           notification_type: 'mention',
           title: 'You were mentioned in a comment',
           content: `${req.user.first_name} ${req.user.last_name} mentioned you in a comment on ${parentOrg}`,
           ref_type: 'ownership_profile',
-          ref_id: profileId,
-          is_read: false
+          ref_id: profileId
         });
       }
     }

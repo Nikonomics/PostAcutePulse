@@ -36,6 +36,7 @@ import {
   getDateRange,
 } from '../../api/maAnalyticsService';
 import USMapChart from './USMapChart';
+import { analytics } from '../../analytics';
 
 const DATE_RANGE_OPTIONS = [
   { value: '12m', label: 'Last 12 Months' },
@@ -475,15 +476,18 @@ const MarketOverviewTab = () => {
   // Filter handlers - set filter to update all data on this page
   const handleBuyerClick = (buyer) => {
     setActiveFilter({ type: 'operator', value: buyer.name, label: buyer.name });
+    analytics.maOperatorClicked(buyer.name, buyer.transactions);
   };
 
   const handleSellerClick = (seller) => {
     setActiveFilter({ type: 'operator', value: seller.name, label: seller.name });
+    analytics.maOperatorClicked(seller.name, seller.transactions);
   };
 
   const handleStateClick = (stateData) => {
     const stateName = STATE_NAMES[stateData.state] || stateData.state;
     setActiveFilter({ type: 'state', value: stateData.state, label: stateName });
+    analytics.maStateClicked(stateData.state, stateData.transactions);
   };
 
   // Clear filter and go back to full overview

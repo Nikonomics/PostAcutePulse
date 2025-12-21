@@ -69,6 +69,11 @@ const getInitialFacility = () => ({
   match_confirmed: false,
 });
 
+export const DEAL_TYPES = {
+  SINGLE: 'single',
+  PORTFOLIO: 'portfolio',
+};
+
 export const WizardProvider = ({ children }) => {
   // Current path and step
   const [path, setPath] = useState(null); // 'manual' or 'ai'
@@ -76,6 +81,9 @@ export const WizardProvider = ({ children }) => {
 
   // Deal data
   const [dealData, setDealData] = useState(getInitialDealData());
+
+  // Deal type (single facility vs portfolio) - for AI path
+  const [dealType, setDealType] = useState(null); // 'single' or 'portfolio'
 
   // AI extraction state
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -249,6 +257,7 @@ export const WizardProvider = ({ children }) => {
     setPath(null);
     setCurrentStep(WIZARD_STEPS.PATH_SELECT);
     setDealData(getInitialDealData());
+    setDealType(null);
     setUploadedFiles([]);
     setExtractionData(null);
     setExtractionProgress(0);
@@ -272,6 +281,10 @@ export const WizardProvider = ({ children }) => {
     // Deal data
     dealData,
     updateDealData,
+
+    // Deal type (single vs portfolio)
+    dealType,
+    setDealType,
 
     // Facility management
     addFacility,

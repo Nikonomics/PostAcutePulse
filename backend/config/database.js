@@ -12,6 +12,7 @@
 
 const path = require('path');
 const { Sequelize } = require('sequelize');
+const { Pool } = require('pg');
 
 /**
  * Get SQLite database path
@@ -96,9 +97,41 @@ const getSequelizeInstance = () => {
 // Legacy export for backwards compatibility with SQLite-only code
 const DB_PATH = getSQLitePath();
 
+/**
+ * Market Database Pool
+ *
+ * For market data tables (snf_facilities, alf_facilities, demographics, etc.)
+ * Uses MARKET_DATABASE_URL for the shared market database.
+ * Falls back to DATABASE_URL for unified local development.
+ */
+let marketPool = null;
+
+const getMarketPool = () => {
+  if (!marketPool) {
+    const connectionString = process.env.MARKET_DATABASE_URL ||
+                            process.env.DATABASE_URL ||
+                            'postgresql://localhost:5432/snf_platform';
+    const isProduction = connectionString.includes('render.com');
+
+    console.log('[Database Config] Market DB connection:',
+      process.env.MARKET_DATABASE_URL ? 'Using MARKET_DATABASE_URL' :
+      process.env.DATABASE_URL ? 'Using DATABASE_URL fallback' : 'Using local default');
+
+    marketPool = new Pool({
+      connectionString,
+      ssl: isProduction ? { rejectUnauthorized: false } : false,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000
+    });
+  }
+  return marketPool;
+};
+
 module.exports = {
   DB_PATH,
   getSQLitePath,
   getConnectionString,
-  getSequelizeInstance
+  getSequelizeInstance,
+  getMarketPool
 };
