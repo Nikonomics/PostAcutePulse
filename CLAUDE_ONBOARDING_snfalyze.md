@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-21 12:54:36
+> Last updated: 2025-12-21 12:58:10
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1285,6 +1285,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1467,6 +1468,7 @@ backend/migrations/add-cms-staffing-columns.js
 
 ### Last 7 Days
 
+- **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
@@ -1500,12 +1502,12 @@ backend/migrations/add-cms-staffing-columns.js
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     47 files
-Frontend:    155 files
-Routes:      5 files
+Backend:     48 files
+Frontend:    132 files
+Routes:      4 files
 Services:    7 files
-Components:  128 files
-Migrations:  6 files
+Components:  107 files
+Migrations:  7 files
 ```
 
 ### New Files Added (Last 20 Commits)

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
@@ -45,12 +46,12 @@
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     47 files
-Frontend:    155 files
-Routes:      5 files
+Backend:     48 files
+Frontend:    132 files
+Routes:      4 files
 Services:    7 files
-Components:  128 files
-Migrations:  6 files
+Components:  107 files
+Migrations:  7 files
 ```
 
 ### New Files Added (Last 20 Commits)
