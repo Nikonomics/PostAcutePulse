@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-21** - Add PostHog analytics and real-time notifications
 - **2025-12-21** - Add ownership import utilities and deal creation documentation
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
@@ -41,17 +42,16 @@
 - **2025-12-15** - Add debug logging for deal edit issue
 - **2025-12-15** - Fix deal edit navigation and add save button to deals
 - **2025-12-15** - Dashboard map filter fix, Market Dynamics county resolution, and various improvements
-- **2025-12-14** - Add facilities map to Ownership Profile page
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     59 files
-Frontend:    129 files
-Routes:      5 files
+Backend:     60 files
+Frontend:    128 files
+Routes:      6 files
 Services:    9 files
-Components:  96 files
+Components:  95 files
 Migrations:  7 files
 ```
 

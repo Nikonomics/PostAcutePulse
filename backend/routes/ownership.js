@@ -3,37 +3,25 @@
  *
  * Provides ownership intelligence endpoints for facility and chain research.
  * Uses Claude API for natural language facility search.
+ *
+ * Database Strategy:
+ * - Uses Market DB (MARKET_DATABASE_URL) for market data tables:
+ *   snf_facilities, ownership_profiles, cms_facility_deficiencies
+ * - Uses Main DB (DATABASE_URL) for app-specific data:
+ *   ownership_comments, ownership_contacts via Sequelize models
  */
 
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const Anthropic = require('@anthropic-ai/sdk');
 const requireAuthentication = require("../passport").authenticateUser;
 const db = require('../models');
 const { createNotification } = require('../services/notificationService');
+const { getMarketPool } = require('../config/database');
 
-// Database connection configuration
-const getPool = () => {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
-  const isProduction = connectionString.includes('render.com');
-
-  return new Pool({
-    connectionString,
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000
-  });
-};
-
-// Reusable pool instance
-let pool = null;
+// Use Market DB for ownership/facility queries
 const getPoolInstance = () => {
-  if (!pool) {
-    pool = getPool();
-  }
-  return pool;
+  return getMarketPool();
 };
 
 // Initialize Anthropic client

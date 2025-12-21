@@ -733,52 +733,46 @@ async function searchFacilities(criteria) {
 
 /**
  * Get facilities within a geographic radius (legacy)
+ * Uses Market DB for alf_facilities
  */
 async function getFacilitiesNearby(latitude, longitude, radiusMiles = 25, limit = 50) {
-  const sequelize = getSequelizeInstance();
+  const pool = getMarketPool();
 
   try {
+    // PostgreSQL version with subquery to avoid HAVING issue
     const query = `
-      SELECT *,
-        (
-          3959 * acos(
-            cos(radians(?)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians(?)) +
-            sin(radians(?)) * sin(radians(latitude))
-          )
-        ) AS distance_miles
-      FROM alf_facilities
-      WHERE latitude IS NOT NULL
-        AND longitude IS NOT NULL
-      HAVING (
-        3959 * acos(
-          cos(radians(?)) * cos(radians(latitude)) *
-          cos(radians(longitude) - radians(?)) +
-          sin(radians(?)) * sin(radians(latitude))
-        )
-      ) <= ?
+      SELECT * FROM (
+        SELECT *,
+          (
+            3959 * acos(
+              cos(radians($1)) * cos(radians(latitude)) *
+              cos(radians(longitude) - radians($2)) +
+              sin(radians($1)) * sin(radians(latitude))
+            )
+          ) AS distance_miles
+        FROM alf_facilities
+        WHERE latitude IS NOT NULL
+          AND longitude IS NOT NULL
+      ) subq
+      WHERE distance_miles <= $3
       ORDER BY distance_miles
-      LIMIT ?
+      LIMIT $4
     `;
 
-    const [facilities] = await sequelize.query(query, {
-      replacements: [latitude, longitude, latitude, latitude, longitude, latitude, radiusMiles, limit]
-    });
-
-    await sequelize.close();
-    return facilities || [];
+    const result = await pool.query(query, [latitude, longitude, radiusMiles, limit]);
+    return result.rows || [];
   } catch (err) {
     console.log('[Facility Nearby] Falling back to bounding box:', err.message);
-    await sequelize.close();
     return getFacilitiesInBoundingBox(latitude, longitude, radiusMiles, limit);
   }
 }
 
 /**
  * Fallback bounding box search (legacy)
+ * Uses Market DB for alf_facilities
  */
 async function getFacilitiesInBoundingBox(latitude, longitude, radiusMiles, limit) {
-  const sequelize = getSequelizeInstance();
+  const pool = getMarketPool();
 
   try {
     const latDegPerMile = 1 / 69.0;
@@ -792,33 +786,29 @@ async function getFacilitiesInBoundingBox(latitude, longitude, radiusMiles, limi
     const query = `
       SELECT *
       FROM alf_facilities
-      WHERE latitude BETWEEN ? AND ?
-        AND longitude BETWEEN ? AND ?
-      LIMIT ?
+      WHERE latitude BETWEEN $1 AND $2
+        AND longitude BETWEEN $3 AND $4
+      LIMIT $5
     `;
 
-    const [facilities] = await sequelize.query(query, {
-      replacements: [minLat, maxLat, minLon, maxLon, limit]
-    });
-
-    await sequelize.close();
-    return facilities || [];
+    const result = await pool.query(query, [minLat, maxLat, minLon, maxLon, limit]);
+    return result.rows || [];
   } catch (err) {
-    await sequelize.close();
     throw new Error(`Query failed: ${err.message}`);
   }
 }
 
 /**
  * Get database statistics for SNF and ALF facility tables
+ * Uses Market DB for facility stats
  * @returns {Object} Stats about both databases
  */
 async function getDatabaseStats() {
-  const sequelize = getSequelizeInstance();
+  const pool = getMarketPool();
 
   try {
     // Get SNF stats
-    const [snfStats] = await sequelize.query(`
+    const snfResult = await pool.query(`
       SELECT
         COUNT(*) as total_count,
         COUNT(DISTINCT state) as state_count,
@@ -828,7 +818,7 @@ async function getDatabaseStats() {
     `);
 
     // Get ALF stats
-    const [alfStats] = await sequelize.query(`
+    const alfResult = await pool.query(`
       SELECT
         COUNT(*) as total_count,
         COUNT(DISTINCT state) as state_count,
@@ -837,25 +827,22 @@ async function getDatabaseStats() {
       FROM alf_facilities
     `);
 
-    await sequelize.close();
-
     return {
       snf: {
-        count: parseInt(snfStats[0]?.total_count || 0),
-        state_coverage: parseInt(snfStats[0]?.state_count || 0),
+        count: parseInt(snfResult.rows[0]?.total_count || 0),
+        state_coverage: parseInt(snfResult.rows[0]?.state_count || 0),
         last_updated: '2024-Q4',
         source: 'CMS Provider Information'
       },
       alf: {
-        count: parseInt(alfStats[0]?.total_count || 0),
-        state_coverage: parseInt(alfStats[0]?.state_count || 0),
+        count: parseInt(alfResult.rows[0]?.total_count || 0),
+        state_coverage: parseInt(alfResult.rows[0]?.state_count || 0),
         last_updated: '2021',
         source: 'State Licensing Data'
       }
     };
   } catch (err) {
     console.error('[getDatabaseStats] Error:', err.message);
-    await sequelize.close();
     throw err;
   }
 }

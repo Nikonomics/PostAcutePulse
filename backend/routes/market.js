@@ -2,7 +2,7 @@
  * Market Dynamics API Routes
  *
  * Provides market intelligence endpoints for the Market Dynamics tab.
- * All endpoints return JSON data from the snf_news PostgreSQL database.
+ * All endpoints use the shared Market DB (MARKET_DATABASE_URL).
  */
 
 const express = require('express');
@@ -24,6 +24,7 @@ const {
   getVbpPerformance,
   getDataDefinitions
 } = require('../services/marketService');
+const { getMarketPool } = require('../config/database');
 
 /**
  * GET /api/market/demographics/:state/:county
@@ -541,12 +542,8 @@ router.get('/facilities/:providerId/deficiencies', async (req, res) => {
     const { providerId } = req.params;
     const { prefix = 'all', years = 3 } = req.query;
 
-    const { Pool } = require('pg');
-    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
-    const pool = new Pool({
-      connectionString,
-      ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
-    });
+    // Use Market DB for deficiency data
+    const pool = getMarketPool();
 
     let query = `
       SELECT
@@ -575,7 +572,6 @@ router.get('/facilities/:providerId/deficiencies', async (req, res) => {
     query += ` ORDER BY survey_date DESC, deficiency_tag ASC`;
 
     const result = await pool.query(query, params);
-    await pool.end();
 
     res.json({
       success: true,
@@ -599,17 +595,10 @@ router.get('/facilities/:providerId/deficiencies', async (req, res) => {
  */
 router.get('/health', async (req, res) => {
   try {
-    // Quick test query
-    const { Pool } = require('pg');
-    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
-    const pool = new Pool({
-      connectionString,
-      ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
-      connectionTimeoutMillis: 5000
-    });
+    // Use Market DB for health check
+    const pool = getMarketPool();
 
     const result = await pool.query('SELECT COUNT(*) as count FROM snf_facilities');
-    await pool.end();
 
     res.json({
       success: true,
@@ -731,13 +720,8 @@ router.get('/refresh-history', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
-    const { Pool } = require('pg');
-    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
-    const pool = new Pool({
-      connectionString,
-      ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
-      connectionTimeoutMillis: 5000
-    });
+    // Use Market DB for refresh log
+    const pool = getMarketPool();
 
     const result = await pool.query(`
       SELECT
@@ -757,8 +741,6 @@ router.get('/refresh-history', async (req, res) => {
       ORDER BY started_at DESC
       LIMIT $1
     `, [parseInt(limit)]);
-
-    await pool.end();
 
     res.json({
       success: true,
