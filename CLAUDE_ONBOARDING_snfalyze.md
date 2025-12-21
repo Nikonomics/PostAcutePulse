@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-19 15:40:05
+> Last updated: 2025-12-21 12:54:36
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1284,6 +1284,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1454,7 +1455,7 @@ backend/migrations/add-cms-staffing-columns.js
 ```markdown
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 19, 2025
+**Last Updated:** December 21, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -1466,6 +1467,7 @@ backend/migrations/add-cms-staffing-columns.js
 
 ### Last 7 Days
 
+- **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
@@ -1498,11 +1500,11 @@ backend/migrations/add-cms-staffing-columns.js
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     46 files
-Frontend:    163 files
+Backend:     47 files
+Frontend:    155 files
 Routes:      5 files
 Services:    7 files
-Components:  129 files
+Components:  128 files
 Migrations:  6 files
 ```
 
@@ -1523,7 +1525,7 @@ backend/run-ccn-migration.js
 backend/scripts/README.md
 backend/scripts/add-search-indexes.js
 backend/scripts/calculate-vbp-rankings.js
-backend/scripts/check_data_coverage.js
+backend/scripts/check-deals.js
 ```
 
 ---

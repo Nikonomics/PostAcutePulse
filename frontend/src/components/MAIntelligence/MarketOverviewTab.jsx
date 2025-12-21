@@ -573,20 +573,53 @@ const MarketOverviewTab = () => {
         )}
         <div className="date-range-dropdown" ref={dropdownRef}>
           <button
-            className="dropdown-trigger"
-            onClick={() => setDropdownOpen(!dropdownOpen)}
+            type="button"
+            className={`dropdown-trigger ${dropdownOpen ? 'open' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('[DEBUG] Dropdown clicked, current state:', dropdownOpen, '-> new state:', !dropdownOpen);
+              setDropdownOpen(!dropdownOpen);
+            }}
+            style={dropdownOpen ? { borderColor: '#3b82f6', background: '#eff6ff' } : {}}
           >
             <Calendar size={16} />
             <span>{DATE_RANGE_OPTIONS.find(o => o.value === dateRange)?.label}</span>
             <ChevronDown size={16} className={dropdownOpen ? 'rotated' : ''} />
           </button>
           {dropdownOpen && (
-            <div className="dropdown-menu">
+            <div
+              className="dropdown-menu"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                right: 0,
+                zIndex: 9999,
+                minWidth: '180px',
+                background: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                padding: '4px'
+              }}
+            >
               {DATE_RANGE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
+                  type="button"
                   className={`dropdown-item ${dateRange === option.value ? 'active' : ''}`}
                   onClick={() => handleDateRangeChange(option.value)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 14px',
+                    textAlign: 'left',
+                    fontSize: '14px',
+                    color: '#374151',
+                    background: dateRange === option.value ? '#eff6ff' : 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
                 >
                   {option.label}
                 </button>

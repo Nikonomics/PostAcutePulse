@@ -1,6 +1,6 @@
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 19, 2025
+**Last Updated:** December 21, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
@@ -44,11 +45,11 @@
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     46 files
-Frontend:    163 files
+Backend:     47 files
+Frontend:    155 files
 Routes:      5 files
 Services:    7 files
-Components:  129 files
+Components:  128 files
 Migrations:  6 files
 ```
 
@@ -69,7 +70,7 @@ backend/run-ccn-migration.js
 backend/scripts/README.md
 backend/scripts/add-search-indexes.js
 backend/scripts/calculate-vbp-rankings.js
-backend/scripts/check_data_coverage.js
+backend/scripts/check-deals.js
 ```
 
 ---
