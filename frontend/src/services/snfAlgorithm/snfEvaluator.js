@@ -29,15 +29,48 @@ const STATE_REIMBURSEMENT_RATES = {
  */
 export class FinancialNormalizer {
   static normalizeFinancials(facility) {
+    const totalBeds = this.getTotalBeds(facility);
+    const t12mRevenue = facility.t12m_revenue || 0;
+    const t12mEBITDA = this.calculateEBITDA(facility);
+    const t12mEBITDAR = this.calculateEBITDAR(facility);
+    const t12mOccupancy = this.calculateOccupancyRate(facility);
+    const purchasePrice = facility.purchase_price || 0;
+
     const normalized = {
       ...facility,
-      // Calculate key metrics
-      t12mEBITDA: this.calculateEBITDA(facility),
-      t12mEBITDAR: this.calculateEBITDAR(facility),
+      // Normalize to camelCase for consistency
+      facilityId: facility.id,
+      facilityName: facility.facility_name,
+      facilityType: facility.facility_type,
+      totalBeds,
+      purchasePrice,
+      // Revenue and financial metrics
+      t12mRevenue,
+      t12mEBITDA,
+      t12mEBITDAR,
       t12mEBIT: this.calculateEBIT(facility),
-      pricePerBed: this.calculatePricePerBed(facility),
-      occupancyRate: this.calculateOccupancyRate(facility),
-      revenuePerBed: this.calculateRevenuePerBed(facility),
+      t12mOccupancy,
+      // Calculated metrics
+      pricePerBed: totalBeds > 0 ? purchasePrice / totalBeds : 0,
+      occupancyRate: t12mOccupancy,
+      revenuePerBed: totalBeds > 0 ? t12mRevenue / totalBeds : 0,
+      // Performance comparison
+      performance: {
+        ebitdaVsTarget: t12mRevenue > 0 ? (t12mEBITDA / t12mRevenue) / CASCADIA_BENCHMARKS.targetEBITDA : 0,
+        ebitdarVsTarget: t12mRevenue > 0 ? (t12mEBITDAR / t12mRevenue) / CASCADIA_BENCHMARKS.targetEBITDAR : 0,
+        occupancyVsTarget: t12mOccupancy / 0.85,
+        pricePerBedVsMarket: 1.0 // Placeholder - would compare to market
+      },
+      // Data quality flags
+      hasActualData: !!(facility.t12m_ebitda && facility.t12m_ebitda !== 0),
+      dataQuality: {
+        ebitdaEstimated: !facility.t12m_ebitda || facility.t12m_ebitda === 0,
+        ebitdarEstimated: !facility.t12m_ebitdar || facility.t12m_ebitdar === 0,
+        occupancyEstimated: !facility.t12m_occupancy || facility.t12m_occupancy === 0,
+        revenueEstimated: !facility.t12m_revenue || facility.t12m_revenue === 0
+      },
+      // Risk factors
+      riskFactors: this.identifyRiskFactors(facility, t12mRevenue, t12mEBITDA, t12mOccupancy),
       // Proforma calculations
       proformaMetrics: this.calculateProformaMetrics(facility)
     };
@@ -45,9 +78,48 @@ export class FinancialNormalizer {
     return normalized;
   }
 
+  static identifyRiskFactors(facility, revenue, ebitda, occupancy) {
+    const risks = [];
+
+    // Negative EBITDA
+    if (ebitda < 0) {
+      risks.push({
+        type: 'financial',
+        severity: 'high',
+        description: `Negative EBITDA ($${ebitda.toLocaleString()}) - facility is operating at a loss`
+      });
+    }
+
+    // Low EBITDA margin
+    if (revenue > 0 && ebitda > 0 && (ebitda / revenue) < CASCADIA_BENCHMARKS.targetEBITDA) {
+      risks.push({
+        type: 'financial',
+        severity: 'medium',
+        description: `EBITDA margin (${((ebitda / revenue) * 100).toFixed(1)}%) below target (${CASCADIA_BENCHMARKS.targetEBITDA * 100}%)`
+      });
+    }
+
+    // Low occupancy
+    if (occupancy < 0.75) {
+      risks.push({
+        type: 'operational',
+        severity: 'high',
+        description: `Low occupancy (${(occupancy * 100).toFixed(1)}%) - significant upside potential but operational risk`
+      });
+    } else if (occupancy < 0.85) {
+      risks.push({
+        type: 'operational',
+        severity: 'medium',
+        description: `Occupancy (${(occupancy * 100).toFixed(1)}%) below target (85%)`
+      });
+    }
+
+    return risks;
+  }
+
   static calculateEBITDA(facility) {
-    // If EBITDA is 0 or missing, estimate from revenue (assuming 9% target)
-    if (facility.t12m_ebitda && facility.t12m_ebitda > 0) {
+    // Use actual EBITDA if available (even if negative)
+    if (facility.t12m_ebitda !== null && facility.t12m_ebitda !== undefined) {
       return facility.t12m_ebitda;
     }
     // Estimate EBITDA as 9% of revenue if not provided
@@ -55,8 +127,8 @@ export class FinancialNormalizer {
   }
 
   static calculateEBITDAR(facility) {
-    // If EBITDAR is 0 or missing, estimate from revenue (assuming 23% target)
-    if (facility.t12m_ebitdar && facility.t12m_ebitdar > 0) {
+    // Use actual EBITDAR if available
+    if (facility.t12m_ebitdar !== null && facility.t12m_ebitdar !== undefined && facility.t12m_ebitdar !== 0) {
       return facility.t12m_ebitdar;
     }
     // Estimate EBITDAR as 23% of revenue if not provided
@@ -65,32 +137,22 @@ export class FinancialNormalizer {
 
   static calculateEBIT(facility) {
     // If EBIT is 0 or missing, estimate from EBITDA minus rent
-    if (facility.t12m_ebit && facility.t12m_ebit > 0) {
+    if (facility.t12m_ebit && facility.t12m_ebit !== 0) {
       return facility.t12m_ebit;
     }
     // Estimate EBIT as EBITDA minus rent expense
     const ebitda = this.calculateEBITDA(facility);
     const rent = facility.current_rent_lease_expense || 0;
-    return Math.max(0, ebitda - rent);
-  }
-
-  static calculatePricePerBed(facility) {
-    const totalBeds = this.getTotalBeds(facility);
-    return totalBeds > 0 ? (facility.purchase_price || 0) / totalBeds : 0;
+    return ebitda - rent;
   }
 
   static calculateOccupancyRate(facility) {
-    // If occupancy is 0 or missing, use a default assumption for analysis
+    // Use actual occupancy if available
     if (facility.t12m_occupancy && facility.t12m_occupancy > 0) {
       return facility.t12m_occupancy;
     }
     // Default to 75% occupancy for analysis if not provided
     return 0.75;
-  }
-
-  static calculateRevenuePerBed(facility) {
-    const totalBeds = this.getTotalBeds(facility);
-    return totalBeds > 0 ? (facility.t12m_revenue || 0) / totalBeds : 0;
   }
 
   static getTotalBeds(facility) {
@@ -150,70 +212,36 @@ export class DealValuator {
     return evaluation;
   }
 
-  static evaluateFacility(facility, deal) {
-    const totalBeds = FinancialNormalizer.getTotalBeds(facility);
-    const pricePerBed = FinancialNormalizer.calculatePricePerBed(facility);
-    const ebitda = FinancialNormalizer.calculateEBITDA(facility);
-    const ebitdar = FinancialNormalizer.calculateEBITDAR(facility);
-    const occupancy = FinancialNormalizer.calculateOccupancyRate(facility);
-    
-    // Track if data is estimated vs actual
-    const dataQuality = {
-      ebitdaEstimated: !facility.t12m_ebitda || facility.t12m_ebitda === 0,
-      ebitdarEstimated: !facility.t12m_ebitdar || facility.t12m_ebitdar === 0,
-      occupancyEstimated: !facility.t12m_occupancy || facility.t12m_occupancy === 0,
-      revenueEstimated: !facility.t12m_revenue || facility.t12m_revenue === 0
-    };
-
-    // Calculate valuation metrics
-    const capRate = this.calculateCapRate(facility, deal);
-    const ebitdaMultiple = this.calculateEBITDAMultiple(ebitda, facility.purchase_price);
-    
-    // Performance vs benchmarks
-    const performance = {
-      ebitdaVsTarget: ebitda / (facility.t12m_revenue * CASCADIA_BENCHMARKS.targetEBITDA),
-      ebitdarVsTarget: ebitdar / (facility.t12m_revenue * CASCADIA_BENCHMARKS.targetEBITDAR),
-      occupancyVsTarget: occupancy / 0.85, // 85% target occupancy
-      pricePerBedVsMarket: this.comparePricePerBedToMarket(pricePerBed, facility.state)
-    };
+  static evaluateFacility(normalizedFacility, deal) {
+    // normalizedFacility already has all the normalized values from FinancialNormalizer
+    // Just add valuation metrics that require deal-level context
+    const capRate = this.calculateCapRate(normalizedFacility, deal);
+    const ebitdaMultiple = this.calculateEBITDAMultiple(normalizedFacility.t12mEBITDA, normalizedFacility.purchasePrice);
 
     return {
-      facilityId: facility.id,
-      facilityName: facility.facility_name,
-      facilityType: facility.facility_type,
-      location: `${facility.city}, ${facility.state}`,
-      totalBeds,
-      pricePerBed,
-      purchasePrice: facility.purchase_price || 0,
-      t12mRevenue: facility.t12m_revenue || 0,
-      t12mEBITDA: ebitda,
-      t12mEBITDAR: ebitdar,
-      t12mOccupancy: occupancy,
+      ...normalizedFacility,
+      location: `${normalizedFacility.city || ''}, ${normalizedFacility.state || ''}`.trim().replace(/^,\s*/, ''),
       capRate,
-      ebitdaMultiple,
-      performance,
-      proformaMetrics: FinancialNormalizer.calculateProformaMetrics(facility),
-      riskFactors: this.identifyRiskFactors(facility, performance),
-      dataQuality,
-      hasActualData: !dataQuality.ebitdaEstimated && !dataQuality.ebitdarEstimated && !dataQuality.occupancyEstimated
+      ebitdaMultiple
     };
   }
 
   static calculateCapRate(facility, deal) {
-    const ebitda = FinancialNormalizer.calculateEBITDA(facility);
-    const purchasePrice = facility.purchase_price || 0;
-    
-    if (purchasePrice > 0 && ebitda > 0) {
+    // Use normalized values if available, otherwise calculate
+    const ebitda = facility.t12mEBITDA !== undefined ? facility.t12mEBITDA : (facility.t12m_ebitda || 0);
+    const purchasePrice = facility.purchasePrice !== undefined ? facility.purchasePrice : (facility.purchase_price || 0);
+
+    if (purchasePrice > 0 && ebitda !== 0) {
       return ebitda / purchasePrice;
     }
-    
+
     // Default cap rate with risk adjustments
     let capRate = CASCADIA_BENCHMARKS.defaultCapRate;
-    
+
     // Adjust for state risk
     const stateRisk = this.getStateRiskAdjustment(facility.state);
     capRate += stateRisk;
-    
+
     return capRate;
   }
 
@@ -248,66 +276,28 @@ export class DealValuator {
     return riskAdjustments[state] || 0.01;
   }
 
-  static identifyRiskFactors(facility, performance) {
-    const risks = [];
-    
-    if (performance.ebitdaVsTarget < 0.8) {
-      risks.push({
-        type: 'financial',
-        severity: 'high',
-        description: 'EBITDA significantly below target (9%)'
-      });
-    }
-    
-    if (performance.ebitdarVsTarget < 0.8) {
-      risks.push({
-        type: 'financial',
-        severity: 'high',
-        description: 'EBITDAR significantly below target (23%)'
-      });
-    }
-    
-    if (performance.occupancyVsTarget < 0.8) {
-      risks.push({
-        type: 'operational',
-        severity: 'medium',
-        description: 'Occupancy below target (85%)'
-      });
-    }
-    
-    if (performance.pricePerBedVsMarket > 1.2) {
-      risks.push({
-        type: 'valuation',
-        severity: 'medium',
-        description: 'Price per bed above market rate'
-      });
-    }
-    
-    return risks;
-  }
-
   static calculateOverallMetrics(facilities) {
-    const totalBeds = facilities.reduce((sum, f) => sum + f.totalBeds, 0);
-    const totalPurchasePrice = facilities.reduce((sum, f) => sum + f.purchasePrice, 0);
-    const totalRevenue = facilities.reduce((sum, f) => sum + f.t12mRevenue, 0);
-    const totalEBITDA = facilities.reduce((sum, f) => sum + f.t12mEBITDA, 0);
-    const totalEBITDAR = facilities.reduce((sum, f) => sum + f.t12mEBITDAR, 0);
-    
+    const totalBeds = facilities.reduce((sum, f) => sum + (f.totalBeds || 0), 0);
+    const totalPurchasePrice = facilities.reduce((sum, f) => sum + (f.purchasePrice || 0), 0);
+    const totalRevenue = facilities.reduce((sum, f) => sum + (f.t12mRevenue || 0), 0);
+    const totalEBITDA = facilities.reduce((sum, f) => sum + (f.t12mEBITDA || 0), 0);
+    const totalEBITDAR = facilities.reduce((sum, f) => sum + (f.t12mEBITDAR || 0), 0);
+
     return {
       totalBeds,
       totalPurchasePrice,
       totalRevenue,
       totalEBITDA,
       totalEBITDAR,
-      weightedAverageCapRate: totalPurchasePrice > 0 ? totalEBITDA / totalPurchasePrice : 0,
-      weightedAverageOccupancy: totalBeds > 0 ? 
-        facilities.reduce((sum, f) => sum + (f.t12mOccupancy * f.totalBeds), 0) / totalBeds : 0,
+      weightedAverageCapRate: totalPurchasePrice > 0 && totalEBITDA !== 0 ? totalEBITDA / totalPurchasePrice : null,
+      weightedAverageOccupancy: totalBeds > 0 ?
+        facilities.reduce((sum, f) => sum + ((f.t12mOccupancy || 0) * (f.totalBeds || 0)), 0) / totalBeds : 0,
       averagePricePerBed: totalBeds > 0 ? totalPurchasePrice / totalBeds : 0
     };
   }
 
   static assessRisk(facilities, deal) {
-    const allRisks = facilities.flatMap(f => f.riskFactors);
+    const allRisks = facilities.flatMap(f => f.riskFactors || []);
     const riskCounts = allRisks.reduce((acc, risk) => {
       acc[risk.severity] = (acc[risk.severity] || 0) + 1;
       return acc;
@@ -449,9 +439,21 @@ export class SNFDealEvaluator {
       }
     }
 
+    // For portfolio deals, actual metrics may be in portfolio_data or deal_overview
+    let portfolioData = extractionData.portfolio_data || {};
+    let dealOverview = extractionData.deal_overview || {};
+    let ttmFinancials = dealOverview.ttm_financials || {};
+
     // Parse no_of_beds - could be string, JSON string, array, or use bed_count fallback
     let parsedBeds = [];
-    const bedSource = deal.no_of_beds || deal.bed_count || extractionData.bed_count;
+    // Check facility_snapshot in deal_overview for beds (portfolio deals)
+    const facilitySnapshot = dealOverview.facility_snapshot || {};
+    const bedSource = deal.no_of_beds
+      || deal.bed_count
+      || extractionData.bed_count
+      || facilitySnapshot.licensed_beds
+      || facilitySnapshot.total_beds
+      || portfolioData.total_beds;
     if (bedSource) {
       if (Array.isArray(bedSource)) {
         parsedBeds = bedSource;
@@ -468,11 +470,23 @@ export class SNFDealEvaluator {
       }
     }
 
-    // Get revenue from multiple possible sources
-    const revenue = deal.annual_revenue || extractionData.annual_revenue || extractionData.t12m_revenue || 0;
+    // Get revenue from multiple possible sources (including nested portfolio/deal_overview structures)
+    const revenue = deal.annual_revenue
+      || extractionData.annual_revenue
+      || extractionData.t12m_revenue
+      || ttmFinancials.total_revenue
+      || ttmFinancials.revenue
+      || portfolioData.total_revenue
+      || 0;
 
     // Get EBITDA from multiple possible sources
-    const ebitda = deal.ebitda || extractionData.ebitda || extractionData.t12m_ebitda || 0;
+    const ebitda = deal.ebitda
+      || extractionData.ebitda
+      || extractionData.t12m_ebitda
+      || ttmFinancials.ebitda
+      || ttmFinancials.net_income
+      || portfolioData.total_ebitda
+      || 0;
 
     // Get EBITDAR from multiple possible sources
     const ebitdar = deal.ebitdar || extractionData.ebitdar || (ebitda ? ebitda * 1.15 : null);
@@ -526,8 +540,20 @@ export class SNFDealEvaluator {
       let facilities = [];
 
       if (deal.deal_facility && Array.isArray(deal.deal_facility) && deal.deal_facility.length > 0) {
-        // Multi-facility deal - use deal_facility array
-        facilities = deal.deal_facility;
+        // Multi-facility deal - convert main deal since it has extraction_data
+        // The deal_facility records may be empty placeholders
+        const mainFacility = this.convertDealToFacility(deal);
+
+        // Check if deal_facility has actual data or just placeholders
+        const firstFacility = deal.deal_facility[0];
+        const hasActualFacilityData = firstFacility.annual_revenue || firstFacility.ebitda || firstFacility.t12m_revenue;
+
+        if (hasActualFacilityData) {
+          facilities = deal.deal_facility;
+        } else {
+          // deal_facility is empty placeholders, use main deal data
+          facilities = [mainFacility];
+        }
       } else {
         // Single facility deal - convert flat deal to facility format
         facilities = [this.convertDealToFacility(deal)];

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Make summary cards ultra-compact single-row design
 - **2025-12-22** - Redesign summary cards and remove unused mock data
 - **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
 - **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
@@ -41,28 +42,24 @@
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
-- **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     23 files
-Frontend:    32 files
-Routes:      7 files
+Backend:     18 files
+Frontend:    28 files
+Routes:      6 files
 Services:    4 files
-Components:  14 files
-Migrations:  2 files
+Components:  12 files
+Migrations:  1 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
 TECHNICAL_DEBT.md
-backend/migrations/add-market-comments-tables.js
 backend/migrations/add-user-invitations-table.js
-backend/models/market_comment_mentions.js
-backend/models/market_comments.js
 backend/models/user_invitations.js
 backend/routes/survey.js
 docs/cms/NH_DataCollectionIntervals_Nov2025.csv
@@ -72,7 +69,10 @@ frontend/src/components/AppHelpPanel/AppHelpPanel.css
 frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
 frontend/src/components/AppHelpPanel/index.js
 frontend/src/components/InviteUserModal.jsx
-frontend/src/components/MarketCommentsSection/MarketCommentsSection.css
+frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
+frontend/src/context/PageContext.js
+frontend/src/pages/AcceptInvite.jsx
+frontend/src/services/appHelpChatService.js
 ```
 
 ---

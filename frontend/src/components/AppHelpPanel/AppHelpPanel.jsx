@@ -313,11 +313,6 @@ const AppHelpPanel = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="help-panel-footer">
-          <HelpCircle size={10} />
-          SNFalyze Help Center
-        </div>
       </div>
     </div>
   );
