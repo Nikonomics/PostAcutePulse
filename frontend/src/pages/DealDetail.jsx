@@ -45,8 +45,9 @@ import { toast } from "react-toastify";
 import { formatDistanceToNow } from "date-fns";
 import { DealExtractionViewer } from "../components/DealExtractionViewer";
 import { unflattenExtractedData } from "../components/DealExtractionViewer/utils";
-import { BarChart2, Building2 } from "lucide-react";
+import { BarChart2, Building2, Brain } from "lucide-react";
 import FacilitiesSection from "../components/FacilitiesSection";
+import SNFalyzePanel from "../components/SNFalyzePanel";
 import { ExcelPreview, WordPreview } from "../components/DocumentPreviewers";
 import MentionInput from "../components/common/MentionInput";
 import ActivityHistory from "../components/ActivityHistory";
@@ -690,6 +691,9 @@ const DealDetailPage = () => {
   const [previewDocument, setPreviewDocument] = useState(null);
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
 
+  // SNFalyze AI panel state
+  const [snfalyzePanelOpen, setSnfalyzePanelOpen] = useState(false);
+
   // fetch recent activity data:
   const [teamActivity, setTeamActivity] = useState([]);
   const navigate = useNavigate();
@@ -1130,11 +1134,101 @@ const DealDetailPage = () => {
       return deal.extraction_data;
     }
 
-    // For facility-specific view, find the facility data
+    // For facility-specific view, find the facility data and its matching CIM data
     const selectedFacility = deal.deal_facility?.find(f => f.id === parseInt(selectedView));
     if (selectedFacility) {
-      // Return facility's extraction data if available, or fall back to facility record data
-      return selectedFacility.extraction_data || selectedFacility;
+      // Find the matching CIM facility from deal extraction data
+      const cimFacilities = deal.extraction_data?.cim_extraction?.cim_facilities || [];
+
+      // Helper to normalize facility names for matching
+      const normalizeName = (name) => {
+        if (!name) return '';
+        return name
+          .toLowerCase()
+          .trim()
+          .replace(/&/g, 'and')
+          .replace(/\s+/g, ' ')
+          .replace(/[^\w\s]/g, '');
+      };
+
+      const normalizedFacilityName = normalizeName(selectedFacility.facility_name);
+      const matchedCimFacility = cimFacilities.find((cf) => {
+        const normalizedCimName = normalizeName(cf.facility_name);
+        return normalizedCimName === normalizedFacilityName ||
+               normalizedCimName.includes(normalizedFacilityName) ||
+               normalizedFacilityName.includes(normalizedCimName);
+      });
+
+      // Build extraction data structure with ONLY this facility's CIM data
+      // This ensures Deal Overview and Financials tabs show facility-specific data
+      const facilityExtractionData = selectedFacility.extraction_data || {};
+
+      // If we found a matching CIM facility, structure the data so the viewer uses it
+      if (matchedCimFacility) {
+        return {
+          ...facilityExtractionData,
+          // Include deal_overview from facility extraction or deal-level
+          deal_overview: {
+            ...(facilityExtractionData.deal_overview || deal.extraction_data?.deal_overview || {}),
+            // Override with facility-specific snapshot
+            facility_snapshot: {
+              facility_name: matchedCimFacility.facility_name || selectedFacility.facility_name,
+              city: matchedCimFacility.city || selectedFacility.city,
+              state: matchedCimFacility.state || selectedFacility.state,
+              licensed_beds: matchedCimFacility.licensed_beds || selectedFacility.bed_count,
+              current_occupancy_pct: matchedCimFacility.census_and_occupancy?.current_occupancy_pct ||
+                                     matchedCimFacility.current_occupancy ||
+                                     selectedFacility.current_occupancy,
+            },
+            // Facility-specific TTM financials from CIM
+            ttm_financials: {
+              total_revenue: matchedCimFacility.financials?.total_revenue || matchedCimFacility.ttm_revenue,
+              noi: matchedCimFacility.financials?.noi || matchedCimFacility.noi,
+              net_income: matchedCimFacility.financials?.noi || matchedCimFacility.noi,
+              total_expenses: matchedCimFacility.financials?.total_expenses,
+              ebitdar: matchedCimFacility.financials?.ebitdar || matchedCimFacility.ebitdar,
+              ebitdarm: matchedCimFacility.financials?.ebitdarm || matchedCimFacility.ebitdarm,
+            },
+            // Facility-specific payer mix
+            payer_mix: matchedCimFacility.payer_mix || {},
+            // Facility-specific trends (if available)
+            operating_trends: matchedCimFacility.operating_trends || facilityExtractionData.deal_overview?.operating_trends || {},
+          },
+          // CIM extraction with ONLY this facility (so aggregation = this facility's values)
+          cim_extraction: {
+            ...(deal.extraction_data?.cim_extraction || {}),
+            cim_facilities: [matchedCimFacility], // Single facility array
+          },
+          // Also include financial_information_t12 from CIM for Financials tab fallback
+          financial_information_t12: {
+            period: matchedCimFacility.financials?.reporting_period || 'TTM',
+            total_revenue: matchedCimFacility.financials?.total_revenue || matchedCimFacility.ttm_revenue,
+            total_expenses: matchedCimFacility.financials?.total_expenses,
+            net_income: matchedCimFacility.financials?.noi || matchedCimFacility.noi,
+            noi: matchedCimFacility.financials?.noi || matchedCimFacility.noi,
+            ebitdar: matchedCimFacility.financials?.ebitdar,
+            ebitdarm: matchedCimFacility.financials?.ebitdarm,
+            // Revenue breakdown
+            medicaid_revenue: matchedCimFacility.financials?.revenue_breakdown?.medicaid_revenue,
+            medicare_revenue: matchedCimFacility.financials?.revenue_breakdown?.medicare_revenue,
+            private_pay_revenue: matchedCimFacility.financials?.revenue_breakdown?.private_pay_revenue,
+            other_revenue: matchedCimFacility.financials?.revenue_breakdown?.other_revenue,
+          },
+          has_cim: true,
+          _facility_view: true,
+          _facility_id: selectedFacility.id,
+          _facility_name: selectedFacility.facility_name,
+        };
+      }
+
+      // No CIM match found - return facility extraction data with deal_overview fallback
+      return {
+        ...facilityExtractionData,
+        deal_overview: facilityExtractionData.deal_overview || deal.extraction_data?.deal_overview,
+        _facility_view: true,
+        _facility_id: selectedFacility.id,
+        _facility_name: selectedFacility.facility_name,
+      };
     }
 
     // Fallback to deal extraction_data
@@ -1364,6 +1458,7 @@ const DealDetailPage = () => {
               <FacilitiesSection
                 dealId={deal.id}
                 facilities={facilitiesWithCIMData}
+                extractionData={deal.extraction_data}
               />
 
               {/* Note: Legacy per-facility cards removed - all facility info now in FacilitiesSection above */}
@@ -2148,6 +2243,28 @@ const DealDetailPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating SNFalyze AI Button */}
+      {deal && (
+        <>
+          <button
+            className="floating-snfalyze-btn"
+            onClick={() => setSnfalyzePanelOpen(true)}
+            title="SNFalyze AI Analysis"
+          >
+            <Brain size={24} />
+            <span>AI Analysis</span>
+          </button>
+
+          {/* SNFalyze Panel */}
+          <SNFalyzePanel
+            isOpen={snfalyzePanelOpen}
+            onClose={() => setSnfalyzePanelOpen(false)}
+            dealId={deal.id}
+            deal={deal}
+          />
+        </>
       )}
     </>
   );

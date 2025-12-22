@@ -432,47 +432,90 @@ export class SNFDealEvaluator {
   /**
    * Convert flat deal structure to facility format for algorithm
    * The deal data is stored flat on the deal object, not in a deal_facility array
+   * Also handles extraction_data which may contain more detailed financials
    */
   static convertDealToFacility(deal) {
-    // Parse no_of_beds - could be string, JSON string, or array
-    let parsedBeds = [];
-    if (deal.no_of_beds) {
-      if (Array.isArray(deal.no_of_beds)) {
-        parsedBeds = deal.no_of_beds;
-      } else if (typeof deal.no_of_beds === 'string') {
+    // Parse extraction_data if it's a string
+    let extractionData = {};
+    if (deal.extraction_data) {
+      if (typeof deal.extraction_data === 'string') {
         try {
-          const parsed = JSON.parse(deal.no_of_beds);
-          parsedBeds = Array.isArray(parsed) ? parsed : [{ count: parseInt(deal.no_of_beds) || 0, type: 'Total' }];
+          extractionData = JSON.parse(deal.extraction_data);
+        } catch {
+          extractionData = {};
+        }
+      } else {
+        extractionData = deal.extraction_data;
+      }
+    }
+
+    // Parse no_of_beds - could be string, JSON string, array, or use bed_count fallback
+    let parsedBeds = [];
+    const bedSource = deal.no_of_beds || deal.bed_count || extractionData.bed_count;
+    if (bedSource) {
+      if (Array.isArray(bedSource)) {
+        parsedBeds = bedSource;
+      } else if (typeof bedSource === 'string') {
+        try {
+          const parsed = JSON.parse(bedSource);
+          parsedBeds = Array.isArray(parsed) ? parsed : [{ count: parseInt(bedSource) || 0, type: 'Total' }];
         } catch {
           // If not JSON, treat as total bed count
-          parsedBeds = [{ count: parseInt(deal.no_of_beds) || 0, type: 'Total' }];
+          parsedBeds = [{ count: parseInt(bedSource) || 0, type: 'Total' }];
         }
+      } else if (typeof bedSource === 'number') {
+        parsedBeds = [{ count: bedSource, type: 'Total' }];
+      }
+    }
+
+    // Get revenue from multiple possible sources
+    const revenue = deal.annual_revenue || extractionData.annual_revenue || extractionData.t12m_revenue || 0;
+
+    // Get EBITDA from multiple possible sources
+    const ebitda = deal.ebitda || extractionData.ebitda || extractionData.t12m_ebitda || 0;
+
+    // Get EBITDAR from multiple possible sources
+    const ebitdar = deal.ebitdar || extractionData.ebitdar || (ebitda ? ebitda * 1.15 : null);
+
+    // Get occupancy - try multiple sources
+    let occupancy = null;
+    if (deal.current_occupancy && deal.current_occupancy > 0) {
+      occupancy = deal.current_occupancy / 100; // Convert from % to decimal
+    } else if (extractionData.occupancy_pct && extractionData.occupancy_pct > 0) {
+      occupancy = extractionData.occupancy_pct / 100;
+    } else if (extractionData.average_daily_census && parsedBeds.length > 0) {
+      // Calculate occupancy from ADC and bed count
+      const totalBeds = parsedBeds.reduce((sum, b) => sum + (b.count || 0), 0);
+      if (totalBeds > 0) {
+        occupancy = extractionData.average_daily_census / totalBeds;
       }
     }
 
     return {
       id: deal.id,
-      facility_name: deal.facility_name || deal.deal_name,
-      facility_type: deal.facility_type || deal.deal_type,
-      city: deal.city,
-      state: deal.state,
-      street_address: deal.street_address,
-      zip_code: deal.zip_code,
+      facility_name: extractionData.facility_name || deal.facility_name || deal.deal_name,
+      facility_type: extractionData.facility_type || deal.facility_type || deal.deal_type,
+      city: extractionData.city || deal.city,
+      state: extractionData.state || deal.state,
+      street_address: extractionData.street_address || deal.street_address,
+      zip_code: extractionData.zip_code || deal.zip_code,
       no_of_beds: parsedBeds,
-      purchase_price: deal.purchase_price,
-      price_per_bed: deal.price_per_bed,
+      purchase_price: deal.purchase_price || extractionData.purchase_price || 0,
+      price_per_bed: deal.price_per_bed || extractionData.price_per_bed,
       // Map deal fields to facility fields expected by algorithm
-      t12m_revenue: deal.annual_revenue,
-      t12m_ebitda: deal.ebitda,
-      t12m_ebitdar: deal.ebitda ? deal.ebitda * 1.15 : null, // Estimate EBITDAR if not available
-      t12m_occupancy: deal.current_occupancy ? deal.current_occupancy / 100 : null, // Convert from % to decimal
-      current_rent_lease_expense: 0, // Not available in flat structure
-      // Additional fields
-      average_daily_rate: deal.average_daily_rate,
-      medicare_percentage: deal.medicare_percentage,
-      private_pay_percentage: deal.private_pay_percentage,
+      t12m_revenue: revenue,
+      t12m_ebitda: ebitda,
+      t12m_ebitdar: ebitdar,
+      t12m_occupancy: occupancy,
+      current_rent_lease_expense: extractionData.rent_lease_expense || 0,
+      // Additional fields from extraction_data
+      average_daily_rate: deal.average_daily_rate || extractionData.average_daily_rate,
+      medicare_percentage: deal.medicare_percentage || extractionData.medicaid_pct, // Note: medicaid_pct in extraction
+      private_pay_percentage: deal.private_pay_percentage || extractionData.private_pay_pct,
       ebitda_margin: deal.ebitda_margin,
-      net_operating_income: deal.net_operating_income,
+      net_operating_income: deal.net_operating_income || extractionData.net_income,
+      // Store extraction data for reference
+      _extractionData: extractionData,
     };
   }
 

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix survey.js column name: provider_name → facility_name
 - **2025-12-22** - Fix SQL errors in facilities endpoints
 - **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
@@ -41,18 +42,17 @@
 - **2025-12-18** - Add explanation of why two databases exist
 - **2025-12-18** - Add database scripts documentation
 - **2025-12-18** - Add market database sync script
-- **2025-12-18** - Trigger redeploy for database schema refresh
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     41 files
-Frontend:    51 files
+Backend:     39 files
+Frontend:    53 files
 Routes:      7 files
-Services:    5 files
+Services:    7 files
 Components:  22 files
-Migrations:  4 files
+Migrations:  3 files
 ```
 
 ### New Files Added (Last 20 Commits)

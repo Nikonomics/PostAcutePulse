@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TrendingUp,
@@ -43,6 +44,7 @@ const DATE_RANGE_OPTIONS = [
   { value: '24m', label: 'Last 24 Months' },
   { value: 'ytd', label: 'Year to Date' },
   { value: 'all', label: 'All Time' },
+  { value: 'custom', label: 'Custom Range...' },
 ];
 
 // State abbreviation to full name mapping
@@ -318,20 +320,30 @@ const MarketOverviewTab = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const dropdownRef = useRef(null);
+  const dropdownMenuRef = useRef(null);
 
   // Date range state
   const initialRange = searchParams.get('range') || '12m';
   const [dateRange, setDateRange] = useState(initialRange);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 100, left: 100 });
+  const triggerRef = useRef(null);
+
+  // Custom date range state
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   // Filter state - can be null, { type: 'state', value: 'FL', label: 'Florida' },
   // or { type: 'operator', value: 'ENSIGN', label: 'Ensign Group' }
   const [activeFilter, setActiveFilter] = useState(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (but not when clicking the portaled menu)
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      const clickedTrigger = dropdownRef.current && dropdownRef.current.contains(event.target);
+      const clickedMenu = dropdownMenuRef.current && dropdownMenuRef.current.contains(event.target);
+      if (!clickedTrigger && !clickedMenu) {
         setDropdownOpen(false);
       }
     };
@@ -365,7 +377,23 @@ const MarketOverviewTab = () => {
 
   // Fetch all data
   const fetchData = useCallback(async () => {
-    const { startDate, endDate } = getDateRange(dateRange);
+    let startDate, endDate;
+
+    // Handle custom date range
+    if (dateRange === 'custom') {
+      startDate = searchParams.get('startDate') || customStartDate;
+      endDate = searchParams.get('endDate') || customEndDate;
+      if (!startDate || !endDate) {
+        console.log('[DEBUG] Custom range selected but no dates set yet');
+        return;
+      }
+    } else {
+      const dates = getDateRange(dateRange);
+      startDate = dates.startDate;
+      endDate = dates.endDate;
+    }
+
+    console.log('[DEBUG] fetchData called with dateRange:', dateRange, '-> dates:', startDate, 'to', endDate);
 
     // Build params including active filter
     const params = { startDate, endDate };
@@ -445,7 +473,7 @@ const MarketOverviewTab = () => {
     } finally {
       setLoadingVolume(false);
     }
-  }, [dateRange, activeFilter]);
+  }, [dateRange, activeFilter, customStartDate, customEndDate, searchParams]);
 
   useEffect(() => {
     fetchData();
@@ -453,11 +481,42 @@ const MarketOverviewTab = () => {
 
   // Handle date range change
   const handleDateRangeChange = (value) => {
+    console.log('[DEBUG] Date range changing from', dateRange, 'to', value);
+
+    if (value === 'custom') {
+      // Show custom date picker instead of changing immediately
+      setShowCustomPicker(true);
+      setDropdownOpen(false);
+      return;
+    }
+
+    const { startDate, endDate } = getDateRange(value);
+    console.log('[DEBUG] New date range:', startDate, 'to', endDate);
     setDateRange(value);
+    setShowCustomPicker(false);
     setDropdownOpen(false);
     // Update URL
     const newParams = new URLSearchParams(searchParams);
     newParams.set('range', value);
+    newParams.delete('startDate');
+    newParams.delete('endDate');
+    setSearchParams(newParams, { replace: true });
+  };
+
+  // Handle custom date range apply
+  const handleCustomDateApply = () => {
+    if (!customStartDate || !customEndDate) {
+      alert('Please select both start and end dates');
+      return;
+    }
+    console.log('[DEBUG] Applying custom date range:', customStartDate, 'to', customEndDate);
+    setDateRange('custom');
+    setShowCustomPicker(false);
+    // Update URL with custom dates
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('range', 'custom');
+    newParams.set('startDate', customStartDate);
+    newParams.set('endDate', customEndDate);
     setSearchParams(newParams, { replace: true });
   };
 
@@ -577,40 +636,51 @@ const MarketOverviewTab = () => {
         )}
         <div className="date-range-dropdown" ref={dropdownRef}>
           <button
+            ref={triggerRef}
             type="button"
             className={`dropdown-trigger ${dropdownOpen ? 'open' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              console.log('[DEBUG] Dropdown clicked, current state:', dropdownOpen, '-> new state:', !dropdownOpen);
+              if (!dropdownOpen && triggerRef.current) {
+                const rect = triggerRef.current.getBoundingClientRect();
+                const pos = {
+                  top: rect.bottom + 4,
+                  left: rect.left
+                };
+                setDropdownPosition(pos);
+              }
               setDropdownOpen(!dropdownOpen);
             }}
             style={dropdownOpen ? { borderColor: '#3b82f6', background: '#eff6ff' } : {}}
           >
             <Calendar size={16} />
-            <span>{DATE_RANGE_OPTIONS.find(o => o.value === dateRange)?.label}</span>
+            <span>
+              {dateRange === 'custom'
+                ? `${customStartDate || searchParams.get('startDate')} to ${customEndDate || searchParams.get('endDate')}`
+                : DATE_RANGE_OPTIONS.find(o => o.value === dateRange)?.label}
+            </span>
             <ChevronDown size={16} className={dropdownOpen ? 'rotated' : ''} />
           </button>
-          {dropdownOpen && (
+          {dropdownOpen && ReactDOM.createPortal(
             <div
-              className="dropdown-menu"
+              ref={dropdownMenuRef}
               style={{
-                position: 'absolute',
-                top: 'calc(100% + 4px)',
-                right: 0,
-                zIndex: 9999,
+                position: 'fixed',
+                top: `${dropdownPosition.top}px`,
+                left: `${dropdownPosition.left}px`,
+                zIndex: 99999,
                 minWidth: '180px',
                 background: 'white',
                 border: '1px solid #e2e8f0',
                 borderRadius: '8px',
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                padding: '4px'
+                boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                padding: '4px',
               }}
             >
               {DATE_RANGE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  className={`dropdown-item ${dateRange === option.value ? 'active' : ''}`}
                   onClick={() => handleDateRangeChange(option.value)}
                   style={{
                     display: 'block',
@@ -618,20 +688,124 @@ const MarketOverviewTab = () => {
                     padding: '10px 14px',
                     textAlign: 'left',
                     fontSize: '14px',
-                    color: '#374151',
+                    color: dateRange === option.value ? '#3b82f6' : '#374151',
                     background: dateRange === option.value ? '#eff6ff' : 'transparent',
                     border: 'none',
                     borderRadius: '6px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontWeight: dateRange === option.value ? '500' : 'normal'
                   }}
                 >
                   {option.label}
                 </button>
               ))}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>
+
+      {/* Custom Date Range Picker */}
+      {showCustomPicker && ReactDOM.createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100000,
+          }}
+          onClick={() => setShowCustomPicker(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: '320px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#1e293b' }}>
+              Select Date Range
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#64748b', marginBottom: '4px' }}>
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#64748b', marginBottom: '4px' }}>
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowCustomPicker(false)}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  background: 'white',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCustomDateApply}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  background: '#3b82f6',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: 'white',
+                  cursor: 'pointer',
+                }}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Summary Cards - Full Width */}
       <div className="summary-cards-grid">

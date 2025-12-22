@@ -183,7 +183,33 @@ function formatBeds(beds) {
 export function buildDealContext(deal, calculatorMetrics, dealEvaluation) {
   if (!deal) return '';
 
+  // Parse extraction_data if it's a string
+  let ext = {};
+  if (deal.extraction_data) {
+    if (typeof deal.extraction_data === 'string') {
+      try {
+        ext = JSON.parse(deal.extraction_data);
+      } catch {
+        ext = {};
+      }
+    } else {
+      ext = deal.extraction_data;
+    }
+  }
+
   const val = (v) => (v !== null && v !== undefined) ? String(v) : 'N/A';
+
+  // Helper to get value from deal or extraction_data
+  const get = (dealField, extField) => deal[dealField] || ext[extField || dealField];
+
+  // Calculate occupancy from ADC if needed
+  const bedCount = deal.bed_count || ext.bed_count;
+  let occupancy = deal.current_occupancy;
+  if (!occupancy && ext.average_daily_census && bedCount) {
+    occupancy = ((ext.average_daily_census / bedCount) * 100).toFixed(1);
+  } else if (ext.occupancy_pct) {
+    occupancy = ext.occupancy_pct;
+  }
 
   let context = `DEAL INFORMATION
 ================
@@ -196,32 +222,42 @@ Target Close Date: ${deal.target_close_date || 'N/A'}
 
 FACILITY INFORMATION
 ====================
-Facility Name: ${deal.facility_name || 'N/A'}
-Facility Type: ${deal.facility_type || 'N/A'}
-Location: ${deal.city || 'N/A'}, ${deal.state || 'N/A'} ${deal.zip_code || ''}
-Address: ${deal.street_address || 'N/A'}
-Number of Beds: ${formatBeds(deal.bed_count)}
+Facility Name: ${ext.facility_name || deal.facility_name || 'N/A'}
+Facility Type: ${ext.facility_type || deal.facility_type || 'N/A'}
+Location: ${ext.city || deal.city || 'N/A'}, ${ext.state || deal.state || 'N/A'} ${ext.zip_code || deal.zip_code || ''}
+Address: ${ext.street_address || deal.street_address || 'N/A'}
+Number of Beds: ${formatBeds(bedCount)}
 
 FINANCIAL METRICS
 =================
 Purchase Price: ${deal.purchase_price ? `$${deal.purchase_price.toLocaleString()}` : 'N/A'}
 Price Per Bed: ${deal.price_per_bed ? `$${deal.price_per_bed.toLocaleString()}` : 'N/A'}
-Annual Revenue: ${deal.annual_revenue ? `$${deal.annual_revenue.toLocaleString()}` : 'N/A'}
-Revenue Multiple: ${deal.revenue_multiple ? `${deal.revenue_multiple}x` : 'N/A'}
-EBITDA: ${deal.ebitda ? `$${deal.ebitda.toLocaleString()}` : 'N/A'}
-EBITDA Multiple: ${deal.ebitda_multiple ? `${deal.ebitda_multiple}x` : 'N/A'}
+Annual Revenue: ${(deal.annual_revenue || ext.annual_revenue) ? `$${(deal.annual_revenue || ext.annual_revenue).toLocaleString()}` : 'N/A'}
+Total Expenses: ${ext.total_expenses ? `$${ext.total_expenses.toLocaleString()}` : 'N/A'}
+Net Income: ${ext.net_income ? `$${ext.net_income.toLocaleString()}` : 'N/A'}
+EBITDA: ${(deal.ebitda || ext.ebitda) ? `$${(deal.ebitda || ext.ebitda).toLocaleString()}` : 'N/A'}
 EBITDA Margin: ${deal.ebitda_margin ? `${deal.ebitda_margin}%` : 'N/A'}
+Revenue Multiple: ${deal.revenue_multiple ? `${deal.revenue_multiple}x` : 'N/A'}
+EBITDA Multiple: ${deal.ebitda_multiple ? `${deal.ebitda_multiple}x` : 'N/A'}
 Net Operating Income: ${deal.net_operating_income ? `$${deal.net_operating_income.toLocaleString()}` : 'N/A'}
 
 OPERATIONAL METRICS
 ===================
-Current Occupancy: ${deal.current_occupancy ? `${deal.current_occupancy}%` : 'N/A'}
+Current Occupancy: ${occupancy ? `${occupancy}%` : 'N/A'}
+Average Daily Census: ${ext.average_daily_census ? ext.average_daily_census.toFixed(1) : 'N/A'}
 Average Daily Rate: ${deal.average_daily_rate ? `$${deal.average_daily_rate.toLocaleString()}` : 'N/A'}
 
 PAYER MIX
 =========
+Medicaid: ${ext.medicaid_pct ? `${ext.medicaid_pct}%` : (deal.medicaid_percentage ? `${deal.medicaid_percentage}%` : 'N/A')}
 Medicare: ${deal.medicare_percentage ? `${deal.medicare_percentage}%` : 'N/A'}
-Private Pay: ${deal.private_pay_percentage ? `${deal.private_pay_percentage}%` : 'N/A'}
+Private Pay: ${ext.private_pay_pct ? `${ext.private_pay_pct}%` : (deal.private_pay_percentage ? `${deal.private_pay_percentage}%` : 'N/A')}
+
+REVENUE BREAKDOWN
+=================
+Medicaid Revenue: ${ext.medicaid_revenue ? `$${ext.medicaid_revenue.toLocaleString()}` : 'N/A'}
+Medicare Revenue: ${ext.medicare_revenue ? `$${ext.medicare_revenue.toLocaleString()}` : 'N/A'}
+Private Pay Revenue: ${ext.private_pay_revenue ? `$${ext.private_pay_revenue.toLocaleString()}` : 'N/A'}
 
 INVESTMENT TARGETS
 ==================

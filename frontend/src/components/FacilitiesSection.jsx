@@ -429,9 +429,11 @@ const formatCurrency = (value) => {
   if (!value && value !== 0) return 'N/A';
   const num = parseFloat(value);
   if (isNaN(num)) return 'N/A';
-  if (num >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-  if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
-  return `$${num.toLocaleString()}`;
+  const absNum = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (absNum >= 1000000) return `${sign}$${(absNum / 1000000).toFixed(2)}M`;
+  if (absNum >= 1000) return `${sign}$${(absNum / 1000).toFixed(0)}K`;
+  return `${sign}$${absNum.toLocaleString()}`;
 };
 
 const formatNumber = (value) => {
@@ -1098,9 +1100,70 @@ const FacilityCard = ({ facility, dealId, onEdit, onDelete, expanded, onToggleEx
   );
 };
 
-const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
-  // Normalize initial facilities to map field names
-  const normalizedInitial = (initialFacilities || []).map(normalizeFacilityData);
+const FacilitiesSection = ({ dealId, facilities: initialFacilities = [], extractionData = null }) => {
+  // For single facility deals without CIM, use ttm_financials as fallback
+  // This ensures Facilities Section shows same data as Deal Overview tab
+  const applyTtmFallback = (facilitiesList) => {
+    // Only apply for single facility deals
+    if (facilitiesList.length !== 1) return facilitiesList;
+
+    // Parse extractionData if it's a string
+    let parsedExtractionData = extractionData;
+    if (typeof extractionData === 'string') {
+      try {
+        parsedExtractionData = JSON.parse(extractionData);
+      } catch (e) {
+        console.error('[FacilitiesSection] Failed to parse extractionData', e);
+        return facilitiesList;
+      }
+    }
+
+    console.log('[FacilitiesSection] applyTtmFallback called:', {
+      facilityCount: facilitiesList.length,
+      hasExtractionData: !!parsedExtractionData,
+      hasDealOverview: !!parsedExtractionData?.deal_overview,
+      hasTtmFinancials: !!parsedExtractionData?.deal_overview?.ttm_financials,
+    });
+
+    const ttmFinancials = parsedExtractionData?.deal_overview?.ttm_financials;
+    if (!ttmFinancials) return facilitiesList;
+
+    // Check if the facility has missing financial data
+    const facility = facilitiesList[0];
+    const hasMissingFinancials = !facility.annual_revenue && !facility.noi;
+
+    console.log('[FacilitiesSection] Facility financial check:', {
+      facilityName: facility.facility_name,
+      annual_revenue: facility.annual_revenue,
+      noi: facility.noi,
+      hasMissingFinancials,
+      ttmRevenue: ttmFinancials.revenue,
+      ttmNetIncome: ttmFinancials.net_income,
+    });
+
+    if (hasMissingFinancials) {
+      console.log('[FacilitiesSection] Applying ttm_financials fallback for single facility deal');
+      const fallbackFacility = {
+        ...facility,
+        // Use ttm_financials as source for financial data
+        annual_revenue: ttmFinancials.revenue || ttmFinancials.total_revenue,
+        noi: ttmFinancials.net_income || ttmFinancials.noi,
+        // Also populate other fields if available
+        occupancy_rate: facility.occupancy_rate || facility.current_occupancy || ttmFinancials.occupancy_pct,
+        _ttm_fallback_applied: true,
+      };
+      console.log('[FacilitiesSection] Fallback result:', {
+        annual_revenue: fallbackFacility.annual_revenue,
+        noi: fallbackFacility.noi,
+      });
+      return [fallbackFacility];
+    }
+
+    return facilitiesList;
+  };
+
+  // Normalize initial facilities to map field names, then apply TTM fallback
+  const normalizedInitial = applyTtmFallback((initialFacilities || []).map(normalizeFacilityData));
   const [facilities, setFacilities] = useState(normalizedInitial);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -1111,8 +1174,8 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     setLoading(true);
     try {
       const response = await getDealFacilities(dealId);
-      // Normalize fetched facilities to map field names
-      const normalizedFacilities = (response.body || []).map(normalizeFacilityData);
+      // Normalize fetched facilities to map field names, then apply TTM fallback
+      const normalizedFacilities = applyTtmFallback((response.body || []).map(normalizeFacilityData));
       setFacilities(normalizedFacilities);
     } catch (error) {
       console.error('Error fetching facilities:', error);
@@ -1128,12 +1191,14 @@ const FacilitiesSection = ({ dealId, facilities: initialFacilities = [] }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
 
-  // Re-normalize if initialFacilities changes
+  // Re-normalize if initialFacilities changes, applying TTM fallback
   useEffect(() => {
     if (initialFacilities && initialFacilities.length > 0) {
-      setFacilities(initialFacilities.map(normalizeFacilityData));
+      const normalized = applyTtmFallback(initialFacilities.map(normalizeFacilityData));
+      console.log('[FacilitiesSection] useEffect updating facilities with fallback:', normalized);
+      setFacilities(normalized);
     }
-  }, [initialFacilities]);
+  }, [initialFacilities, extractionData]);
 
   const handleAddFacility = () => {
     setEditingFacility(null);
