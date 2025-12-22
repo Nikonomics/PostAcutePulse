@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add update-user endpoint for admin user management
 - **2025-12-22** - Add user invitation system with role-based access control
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
 - **2025-12-22** - Start VBP metrics sections collapsed by default
@@ -41,7 +42,6 @@
 - **2025-12-17** - Improve facilities section UI and portfolio extraction flow
 - **2025-12-17** - Add remaining missing FacilityMetrics components
 - **2025-12-17** - Add missing ComparisonView component
-- **2025-12-17** - Add missing SkeletonCard component
 
 
 ### Areas Modified (Last 20 Commits)

@@ -17,11 +17,13 @@ const validationSchema = yup.object().shape({
     .required("Email is required"),
   phone_number: yup
     .string()
-    .matches(/^\+?[1-9]\d{1,14}$/, "Invalid phone number format"),
-  department: yup.string().required("Department is required"),
+    .nullable()
+    .transform((value) => (value === "" ? null : value))
+    .matches(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format", excludeEmptyString: true }),
+  department: yup.string().nullable(),
   role: yup.string().required("Role is required"),
-  status: yup.string().required("Status is required"),
-  permission: yup.string().required("Permissions are required"),
+  status: yup.string().nullable(),
+  permission: yup.string().nullable(),
   send_welcome_email: yup.boolean(),
   email_notifications: yup.boolean(),
 });
@@ -334,7 +336,7 @@ const EditUser = () => {
               {/* Department */}
               <div className="col-md-6 mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Department <span className="text-red-500">*</span>
+                  Department
                 </label>
                 <select
                   {...register("department")}

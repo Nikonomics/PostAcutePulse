@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 09:58:55
+> Last updated: 2025-12-22 10:09:17
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1486,6 +1486,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1681,6 +1682,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add update-user endpoint for admin user management
 - **2025-12-22** - Add user invitation system with role-based access control
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
 - **2025-12-22** - Start VBP metrics sections collapsed by default
@@ -1710,7 +1712,6 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-17** - Improve facilities section UI and portfolio extraction flow
 - **2025-12-17** - Add remaining missing FacilityMetrics components
 - **2025-12-17** - Add missing ComparisonView component
-- **2025-12-17** - Add missing SkeletonCard component
 
 
 ### Areas Modified (Last 20 Commits)
