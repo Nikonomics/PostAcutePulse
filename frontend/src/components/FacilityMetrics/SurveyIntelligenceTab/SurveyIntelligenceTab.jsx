@@ -22,19 +22,25 @@ import {
 } from 'lucide-react';
 import TabEmpty from '../shared/TabEmpty';
 import TabSkeleton from '../shared/TabSkeleton';
-import mockDataFile from './mockData/facilityIntelligence.json';
+import { getFacilityIntelligence } from '../../../api/surveyService';
 import './SurveyIntelligenceTab.css';
 
 /**
- * Simulates fetching survey intelligence data
- * In production, this would be an API call
+ * Fetches survey intelligence data from the real API
+ * Falls back to empty data on error
  */
-const fetchSurveyIntelligence = (facilityId) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockDataFile.surveyIntelligence);
-    }, 800);
-  });
+const fetchSurveyIntelligence = async (facilityId) => {
+  try {
+    const response = await getFacilityIntelligence(facilityId);
+    if (response.success) {
+      return response.data;
+    }
+    console.error('Failed to fetch survey intelligence:', response.error);
+    return null;
+  } catch (error) {
+    console.error('Error fetching survey intelligence:', error);
+    return null;
+  }
 };
 
 /**

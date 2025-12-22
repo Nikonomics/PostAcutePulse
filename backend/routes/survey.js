@@ -821,4 +821,268 @@ router.get('/nearby/:ccn', async (req, res) => {
   }
 });
 
+// ============================================================================
+// SURVEY INTELLIGENCE ENDPOINTS (for Facility Metrics tab)
+// ============================================================================
+
+/**
+ * GET /api/survey/facility-intelligence/:ccn
+ * Get comprehensive survey intelligence data for Facility Metrics tab
+ * Returns data in the format expected by SurveyIntelligenceTab.jsx
+ */
+router.get('/facility-intelligence/:ccn', async (req, res) => {
+  const { ccn } = req.params;
+  const pool = getMarketPool();
+
+  try {
+    // Get the most recent data date (data may be stale)
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    // Get facility basic info
+    const facilityResult = await pool.query(`
+      SELECT
+        f.federal_provider_number as ccn,
+        f.provider_name as name,
+        f.state,
+        f.city,
+        f.county,
+        f.latitude,
+        f.longitude
+      FROM snf_facilities f
+      WHERE f.federal_provider_number = $1
+    `, [ccn]);
+
+    if (facilityResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facility not found'
+      });
+    }
+
+    const facility = facilityResult.rows[0];
+
+    // Get last survey date and days since
+    const lastSurveyResult = await pool.query(`
+      SELECT
+        MAX(survey_date) as last_survey_date,
+        $2::date - MAX(survey_date) as days_since_survey
+      FROM cms_facility_deficiencies
+      WHERE federal_provider_number = $1
+    `, [ccn, maxDate]);
+
+    const lastSurveyDate = lastSurveyResult.rows[0]?.last_survey_date;
+    const daysSinceSurvey = parseInt(lastSurveyResult.rows[0]?.days_since_survey) || 0;
+
+    // Calculate risk level based on days since survey
+    let riskLevel = 'LOW';
+    if (daysSinceSurvey > 365) riskLevel = 'HIGH';
+    else if (daysSinceSurvey > 300) riskLevel = 'ELEVATED';
+    else if (daysSinceSurvey > 240) riskLevel = 'MODERATE';
+
+    // Calculate simple probability estimates based on days since survey
+    // Federal surveys typically occur every 9-15 months (274-456 days)
+    const probability7Days = Math.min(0.95, Math.max(0.05, (daysSinceSurvey - 240) / 200));
+    const probability14Days = Math.min(0.95, Math.max(0.10, (daysSinceSurvey - 220) / 180));
+    const probability30Days = Math.min(0.95, Math.max(0.15, (daysSinceSurvey - 200) / 160));
+
+    // Calculate survey window
+    const avgSurveyInterval = 365; // Average is about 1 year
+    const windowOpens = lastSurveyDate ? new Date(lastSurveyDate) : null;
+    if (windowOpens) {
+      windowOpens.setDate(windowOpens.getDate() + 274); // 9 months
+    }
+    const federalMaximum = lastSurveyDate ? new Date(lastSurveyDate) : null;
+    if (federalMaximum) {
+      federalMaximum.setDate(federalMaximum.getDate() + 456); // 15 months
+    }
+    const windowDuration = 456 - 274; // Days in window
+    const daysIntoWindow = Math.max(0, daysSinceSurvey - 274);
+    const percentThroughWindow = Math.min(100, Math.round((daysIntoWindow / windowDuration) * 100));
+
+    // Get facility's citation history and create prep priorities
+    const citationHistoryResult = await pool.query(`
+      SELECT
+        d.deficiency_tag,
+        cd.description as name,
+        cd.category,
+        COUNT(*) as count,
+        MAX(d.survey_date) as last_cited
+      FROM cms_facility_deficiencies d
+      LEFT JOIN citation_descriptions cd ON d.deficiency_tag = cd.deficiency_tag
+      WHERE d.federal_provider_number = $1
+        AND d.survey_date >= $2::date - INTERVAL '3 years'
+      GROUP BY d.deficiency_tag, cd.description, cd.category
+      ORDER BY count DESC
+      LIMIT 5
+    `, [ccn, maxDate]);
+
+    // Get state/regional F-tag trends for prep priorities
+    const regionalTrendsResult = await pool.query(`
+      WITH recent_period AS (
+        SELECT deficiency_tag, COUNT(*) as recent_count
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '90 days'
+        GROUP BY deficiency_tag
+      ),
+      prior_period AS (
+        SELECT deficiency_tag, COUNT(*) as prior_count
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '180 days'
+          AND d.survey_date < $2::date - INTERVAL '90 days'
+        GROUP BY deficiency_tag
+      )
+      SELECT
+        r.deficiency_tag,
+        CASE
+          WHEN COALESCE(p.prior_count, 0) = 0 THEN 0
+          ELSE ROUND(((r.recent_count - COALESCE(p.prior_count, 0))::numeric / p.prior_count * 100)::numeric, 0)
+        END as trend_pct,
+        CASE
+          WHEN COALESCE(p.prior_count, 0) = 0 THEN 'NEW'
+          WHEN r.recent_count > COALESCE(p.prior_count, 0) * 1.1 THEN 'UP'
+          WHEN r.recent_count < COALESCE(p.prior_count, 0) * 0.9 THEN 'DOWN'
+          ELSE 'STABLE'
+        END as trend
+      FROM recent_period r
+      LEFT JOIN prior_period p ON r.deficiency_tag = p.deficiency_tag
+    `, [facility.state, maxDate]);
+
+    const regionalTrends = regionalTrendsResult.rows.reduce((acc, r) => {
+      acc[r.deficiency_tag] = { trendPct: parseInt(r.trend_pct), trend: r.trend };
+      return acc;
+    }, {});
+
+    // Build prep priorities from facility citations + regional trends
+    const prepPriorities = citationHistoryResult.rows.map((r, i) => {
+      const regional = regionalTrends[r.deficiency_tag] || { trendPct: 0, trend: 'STABLE' };
+      let priority = 'MODERATE';
+      if (parseInt(r.count) >= 2 || regional.trend === 'UP') priority = 'HIGH';
+      if (parseInt(r.count) >= 3 || (regional.trend === 'UP' && regional.trendPct > 15)) priority = 'CRITICAL';
+
+      return {
+        priority,
+        fTag: `F${r.deficiency_tag}`,
+        fTagName: r.name || 'Unknown',
+        reason: parseInt(r.count) > 1
+          ? `Cited ${r.count}x in last 3 years` + (regional.trend === 'UP' ? ` + trending up ${regional.trendPct}% regionally` : '')
+          : regional.trend === 'UP'
+            ? `Trending up ${regional.trendPct}% in ${facility.state}`
+            : `Previously cited at this facility`,
+        facilityCitationCount: parseInt(r.count),
+        regionalTrend: regional.trend,
+        regionalTrendPct: regional.trendPct
+      };
+    });
+
+    // Get nearby activity (last 30 days, within 15 miles)
+    let nearbyActivity = { summary: null, facilities: [] };
+
+    if (facility.latitude && facility.longitude) {
+      const nearbyResult = await pool.query(`
+        WITH nearby_facilities AS (
+          SELECT
+            f.federal_provider_number,
+            f.provider_name,
+            f.city,
+            (3959 * acos(
+              LEAST(1.0, GREATEST(-1.0,
+                cos(radians($2)) * cos(radians(f.latitude)) *
+                cos(radians(f.longitude) - radians($3)) +
+                sin(radians($2)) * sin(radians(f.latitude))
+              ))
+            )) as distance_miles
+          FROM snf_facilities f
+          WHERE f.federal_provider_number != $1
+            AND f.latitude IS NOT NULL
+            AND f.longitude IS NOT NULL
+        ),
+        recent_surveys AS (
+          SELECT
+            federal_provider_number,
+            survey_date,
+            COUNT(*) as deficiency_count,
+            MODE() WITHIN GROUP (ORDER BY deficiency_tag) as top_ftag
+          FROM cms_facility_deficiencies
+          WHERE survey_date >= $4::date - INTERVAL '30 days'
+          GROUP BY federal_provider_number, survey_date
+        )
+        SELECT
+          nf.federal_provider_number as ccn,
+          nf.provider_name as name,
+          nf.city,
+          ROUND(nf.distance_miles::numeric, 1) as distance,
+          rs.survey_date,
+          $4::date - rs.survey_date as days_ago,
+          rs.deficiency_count,
+          rs.top_ftag,
+          cd.description as top_ftag_description
+        FROM nearby_facilities nf
+        JOIN recent_surveys rs ON nf.federal_provider_number = rs.federal_provider_number
+        LEFT JOIN citation_descriptions cd ON rs.top_ftag = cd.deficiency_tag
+        WHERE nf.distance_miles <= 15
+        ORDER BY rs.survey_date DESC
+        LIMIT 5
+      `, [ccn, facility.latitude, facility.longitude, maxDate]);
+
+      if (nearbyResult.rows.length > 0) {
+        const within14Days = nearbyResult.rows.filter(r => parseInt(r.days_ago) <= 14);
+        const commonFTags = [...new Set(nearbyResult.rows.filter(r => r.top_ftag).map(r => r.top_ftag_description))];
+
+        nearbyActivity = {
+          summary: within14Days.length > 0
+            ? `${within14Days.length} facilities within 15 miles surveyed in last 14 days.${commonFTags.length > 0 ? ` Common focus: ${commonFTags[0]}` : ''}`
+            : `${nearbyResult.rows.length} nearby facilities surveyed in last 30 days`,
+          facilities: nearbyResult.rows.map(r => ({
+            name: r.name,
+            ccn: r.ccn,
+            distance: parseFloat(r.distance),
+            surveyDate: r.survey_date,
+            daysAgo: parseInt(r.days_ago),
+            deficiencyCount: parseInt(r.deficiency_count),
+            topFTag: r.top_ftag ? `F${r.top_ftag}` : null,
+            topFTagDescription: r.top_ftag_description || 'Unknown'
+          }))
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        lastSurveyDate,
+        daysSinceSurvey,
+        riskLevel,
+        probability7Days: Math.round(probability7Days * 100) / 100,
+        probability14Days: Math.round(probability14Days * 100) / 100,
+        probability30Days: Math.round(probability30Days * 100) / 100,
+        prepItemsCount: prepPriorities.length,
+        dataAsOf: maxDate,
+        surveyWindow: {
+          windowOpens: windowOpens?.toISOString()?.split('T')[0] || null,
+          federalMaximum: federalMaximum?.toISOString()?.split('T')[0] || null,
+          stateAverageInterval: avgSurveyInterval,
+          percentThroughWindow
+        },
+        nearbyActivity,
+        prepPriorities,
+        // Bellwether network is complex ML - return placeholder for V1
+        bellwetherSignal: null,
+        bellwetherNetwork: { bellwethers: [], followers: [] }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Facility intelligence error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

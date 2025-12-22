@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
 - **2025-12-22** - Add App Help chatbot with floating widget UI
 - **2025-12-22** - Fix: Use persistent disk for file uploads on Render
@@ -41,17 +42,16 @@
 - **2025-12-18** - Add CMS data sync scripts and saved items improvements
 - **2025-12-17** - Fix deal detail tabs not showing when extraction_data is null
 - **2025-12-17** - Fix market analysis - remove non-existent long_stay_qm_rating columns
-- **2025-12-17** - Add position column migration for deals table
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     46 files
-Frontend:    97 files
+Frontend:    81 files
 Routes:      8 files
 Services:    6 files
-Components:  63 files
+Components:  47 files
 Migrations:  4 files
 ```
 

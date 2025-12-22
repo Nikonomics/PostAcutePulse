@@ -73,3 +73,14 @@ export const getRegionalHotSpots = async (stateCode, period = '90days') => {
   const response = await apiService.get(`${SURVEY_BASE}/regional-hotspots/${stateCode}`, { period });
   return response.data;
 };
+
+/**
+ * Get comprehensive facility intelligence data for Survey Intelligence tab
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Full survey intelligence data including risk level,
+ *                            survey window, nearby activity, prep priorities
+ */
+export const getFacilityIntelligence = async (ccn) => {
+  const response = await apiService.get(`${SURVEY_BASE}/facility-intelligence/${ccn}`);
+  return response.data;
+};
