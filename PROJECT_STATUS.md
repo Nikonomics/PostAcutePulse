@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add Survey Analytics tab to OwnershipProfile
 - **2025-12-22** - Add survey analytics state to OwnershipProfile
 - **2025-12-22** - Add company survey analytics and deal regulatory risk component
 - **2025-12-22** - Add RegulatoryRiskCard component to facility profile
@@ -41,17 +42,16 @@
 - **2025-12-22** - Migrate VBP endpoints to use Market DB
 - **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
 - **2025-12-22** - Add market comments feature (Phase 4)
-- **2025-12-22** - Add M&A v1 route and database architecture documentation
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     8 files
-Frontend:    34 files
+Frontend:    29 files
 Routes:      4 files
-Services:    3 files
-Components:  16 files
+Services:    2 files
+Components:  14 files
 Migrations:  0
 0 files
 ```
@@ -62,18 +62,14 @@ Migrations:  0
 backend/routes/facilityRisk.js
 backend/routes/survey.js
 docs/Deal_Metrics_Explainer.md
-docs/cms/NH_DataCollectionIntervals_Nov2025.csv
-docs/cms/NH_Data_Dictionary.pdf
 frontend/src/api/surveyService.js
-frontend/src/components/AppHelpPanel/AppHelpPanel.css
-frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
-frontend/src/components/AppHelpPanel/index.js
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.jsx
 frontend/src/components/DealRegulatoryRisk/index.js
 frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.css
 frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.jsx
 frontend/src/components/RegulatoryRiskCard/index.js
+frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
 ```
 
 ---
