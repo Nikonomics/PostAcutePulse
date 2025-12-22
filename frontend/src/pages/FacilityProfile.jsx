@@ -5,7 +5,7 @@ import {
   Loader, ArrowLeft, TrendingUp, TrendingDown, Activity,
   Shield, Flame, Calendar, Award, Bookmark, BookmarkCheck,
   ChevronRight, AlertTriangle, CheckCircle, Clock, Map,
-  BarChart2, PieChart
+  BarChart2, PieChart, MessageCircle
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -21,6 +21,7 @@ import {
 } from '../api/savedItemsService';
 import { useAuth } from '../context/UserContext';
 import { useGoogleMaps } from '../context/GoogleMapsContext';
+import FacilityCommentsSection from '../components/FacilityCommentsSection';
 import './FacilityProfile.css';
 
 function FacilityProfile() {
@@ -344,6 +345,12 @@ function FacilityProfile() {
             onClick={() => setActiveTab('competition')}
           >
             <Map size={16} /> Competition
+          </button>
+          <button
+            className={`facility-tab ${activeTab === 'comments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('comments')}
+          >
+            <MessageCircle size={16} /> Comments
           </button>
         </div>
       </div>
@@ -1494,6 +1501,16 @@ function FacilityProfile() {
               )}
             </div>
           </>
+        )}
+
+        {/* ============================================= */}
+        {/* COMMENTS TAB */}
+        {/* ============================================= */}
+        {activeTab === 'comments' && (
+          <FacilityCommentsSection
+            ccn={ccn}
+            facilityName={facility?.provider_name || facility?.facility_name || 'Unknown Facility'}
+          />
         )}
       </div>
     </div>

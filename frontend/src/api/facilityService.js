@@ -193,3 +193,43 @@ export const getFacilityVBP = async (ccn) => {
   const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/vbp`);
   return response.data;
 };
+
+// ============================================================================
+// FACILITY COMMENTS API
+// ============================================================================
+
+/**
+ * Get all comments for a facility
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Comments with replies and mentions
+ */
+export const getFacilityComments = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/comments`);
+  return response.data;
+};
+
+/**
+ * Add a comment to a facility
+ * @param {string} ccn - CMS Certification Number
+ * @param {Object} commentData - Comment data
+ * @param {string} commentData.comment - Comment text
+ * @param {number} commentData.parent_id - Parent comment ID for replies (optional)
+ * @param {number[]} commentData.mentioned_user_ids - IDs of mentioned users
+ * @param {string} commentData.facility_name - Facility name for notifications
+ * @returns {Promise<Object>} Created comment
+ */
+export const addFacilityComment = async (ccn, commentData) => {
+  const response = await apiService.post(`${FACILITIES_BASE}/snf/${ccn}/comments`, commentData);
+  return response.data;
+};
+
+/**
+ * Delete a facility comment
+ * @param {string} ccn - CMS Certification Number
+ * @param {number} commentId - Comment ID to delete
+ * @returns {Promise<Object>} Success response
+ */
+export const deleteFacilityComment = async (ccn, commentId) => {
+  const response = await apiService.delete(`${FACILITIES_BASE}/snf/${ccn}/comments/${commentId}`);
+  return response.data;
+};

@@ -3,6 +3,7 @@ import { Bell, Check, CheckCheck, X, User, MessageSquare, FileText, AlertCircle 
 import { toast } from 'react-toastify';
 import { getNotifications, getNotificationCount, markNotificationsRead } from '../../api/authService';
 import { useSocket } from '../../context/SocketContext';
+import './NotificationCenter.css';
 
 const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,7 +38,7 @@ const NotificationCenter = () => {
         toast.info(
           <div>
             <strong>{notification.title}</strong>
-            <p className="text-sm">{notification.content}</p>
+            <p style={{ fontSize: '12px', marginTop: '4px' }}>{notification.content}</p>
           </div>,
           {
             position: 'top-right',
@@ -134,14 +135,14 @@ const NotificationCenter = () => {
       case 'signup':
       case 'approval':
       case 'rejection':
-        return <User size={16} className="text-blue-500" />;
+        return <User size={16} className="icon-blue" />;
       case 'comment':
       case 'mention':
-        return <MessageSquare size={16} className="text-green-500" />;
+        return <MessageSquare size={16} className="icon-green" />;
       case 'deal_update':
-        return <FileText size={16} className="text-purple-500" />;
+        return <FileText size={16} className="icon-purple" />;
       default:
-        return <AlertCircle size={16} className="text-gray-500" />;
+        return <AlertCircle size={16} className="icon-gray" />;
     }
   };
 
@@ -161,16 +162,16 @@ const NotificationCenter = () => {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="notification-wrapper" ref={dropdownRef}>
       {/* Bell Button */}
       <button
         onClick={handleToggle}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        className="notification-bell"
         aria-label="Notifications"
       >
         <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full px-1">
+          <span className="notification-badge">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -178,15 +179,15 @@ const NotificationCenter = () => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[80vh] flex flex-col">
+        <div className="notification-dropdown">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
-            <div className="flex items-center gap-2">
+          <div className="notification-header">
+            <h3>Notifications</h3>
+            <div className="notification-header-actions">
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                  className="mark-all-read-btn"
                 >
                   <CheckCheck size={14} />
                   Mark all read
@@ -194,80 +195,71 @@ const NotificationCenter = () => {
               )}
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="close-dropdown-btn"
               >
-                <X size={16} className="text-gray-400" />
+                <X size={16} />
               </button>
             </div>
           </div>
 
           {/* Notifications List */}
-          <div className="overflow-y-auto flex-1">
+          <div className="notification-list">
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+              <div className="notification-loading">
+                <div className="notification-spinner"></div>
               </div>
             ) : notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-                <Bell size={32} className="mb-2 opacity-50" />
-                <p className="text-sm">No notifications yet</p>
+              <div className="notification-empty">
+                <Bell size={32} />
+                <p>No notifications yet</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <>
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      !notification.is_read ? 'bg-blue-50/50' : ''
-                    }`}
+                    className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
                     onClick={() => !notification.is_read && handleMarkAsRead(notification.id)}
                   >
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {notification.fromUser?.profile_url ? (
-                          <img
-                            src={notification.fromUser.profile_url}
-                            alt=""
-                            className="w-8 h-8 rounded-full"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                            {getNotificationIcon(notification.notification_type)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
-                          {notification.title}
-                        </p>
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {notification.content}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {formatTime(notification.createdAt)}
-                        </p>
-                      </div>
-                      {!notification.is_read && (
-                        <div className="flex-shrink-0">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        </div>
+                    <div className="notification-avatar">
+                      {notification.fromUser?.profile_url ? (
+                        <img
+                          src={notification.fromUser.profile_url}
+                          alt=""
+                        />
+                      ) : (
+                        getNotificationIcon(notification.notification_type)
                       )}
                     </div>
+                    <div className="notification-content">
+                      <p className="notification-title">
+                        {notification.title}
+                      </p>
+                      <p className="notification-body">
+                        {notification.content}
+                      </p>
+                      <span className="notification-time">
+                        {formatTime(notification.createdAt)}
+                      </span>
+                    </div>
+                    {!notification.is_read && (
+                      <div className="notification-unread-dot"></div>
+                    )}
                   </div>
                 ))}
-              </div>
+              </>
             )}
           </div>
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+            <div className="notification-footer">
               <button
                 onClick={() => {
                   setIsOpen(false);
                   // Navigate to notifications page if you have one
                 }}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium w-full text-center"
+                className="view-all-btn"
               >
                 View all notifications
               </button>

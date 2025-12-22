@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-21 13:56:28
+> Last updated: 2025-12-22 08:13:45
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1288,6 +1288,8 @@ Investment Targets:
 
 
 
+
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1386,9 +1388,11 @@ No pages found
 
 ### Frontend Components (Top Level)
 ```
+ActivityHistory
 common
 DataDictionaryTab
 DealExtractionViewer
+FacilityCommentsSection
 FacilityMetrics
 MAIntelligence
 MarketAnalysis
@@ -1423,6 +1427,8 @@ deal_user_views
 deals
 extraction_history
 facility_change_logs
+facility_comment_mentions
+facility_comments
 index
 init-models
 master_deals
@@ -1440,6 +1446,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/add-facility-comments-tables.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-create-vbp-rankings-table.js
@@ -1449,7 +1456,6 @@ backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/create-cms-data-definitions.js
 backend/migrations/create-snf-vbp-performance.js
 backend/migrations/create-cms-state-benchmarks.js
-backend/migrations/add-cms-staffing-columns.js
 ```
 
 ---
@@ -1462,7 +1468,7 @@ backend/migrations/add-cms-staffing-columns.js
 ```markdown
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 21, 2025
+**Last Updated:** December 22, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -1474,6 +1480,7 @@ backend/migrations/add-cms-staffing-columns.js
 
 ### Last 7 Days
 
+- **2025-12-21** - Migrate market data routes to use shared Market DB connection
 - **2025-12-21** - Add PostHog analytics and real-time notifications
 - **2025-12-21** - Add ownership import utilities and deal creation documentation
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
@@ -1503,18 +1510,16 @@ backend/migrations/add-cms-staffing-columns.js
 - **2025-12-15** - Improve Deal Overview page for portfolio deals
 - **2025-12-15** - Add debug logging for deal edit issue
 - **2025-12-15** - Fix deal edit navigation and add save button to deals
-- **2025-12-15** - Dashboard map filter fix, Market Dynamics county resolution, and various improvements
-
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     60 files
-Frontend:    128 files
+Backend:     63 files
+Frontend:    133 files
 Routes:      6 files
 Services:    9 files
-Components:  95 files
-Migrations:  7 files
+Components:  99 files
+Migrations:  8 files
 ```
 
 ### New Files Added (Last 20 Commits)
@@ -1528,13 +1533,13 @@ backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-deals-position-column.js
+backend/migrations/add-facility-comments-tables.js
 backend/models/facility_change_logs.js
+backend/models/facility_comment_mentions.js
+backend/models/facility_comments.js
 backend/models/user_change_logs.js
 backend/routes/ma-analytics.js
 backend/routes/surveyIntelligence.js
-backend/run-ccn-migration.js
-backend/scripts/README.md
-backend/scripts/add-search-indexes.js
 ```
 
 ---

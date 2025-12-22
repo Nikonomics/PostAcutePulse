@@ -964,6 +964,8 @@ Investment Targets:
 
 
 
+
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1062,9 +1064,11 @@ No pages found
 
 ### Frontend Components (Top Level)
 ```
+ActivityHistory
 common
 DataDictionaryTab
 DealExtractionViewer
+FacilityCommentsSection
 FacilityMetrics
 MAIntelligence
 MarketAnalysis
@@ -1099,6 +1103,8 @@ deal_user_views
 deals
 extraction_history
 facility_change_logs
+facility_comment_mentions
+facility_comments
 index
 init-models
 master_deals
@@ -1116,6 +1122,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/add-facility-comments-tables.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-create-vbp-rankings-table.js
@@ -1125,7 +1132,6 @@ backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/create-cms-data-definitions.js
 backend/migrations/create-snf-vbp-performance.js
 backend/migrations/create-cms-state-benchmarks.js
-backend/migrations/add-cms-staffing-columns.js
 ```
 
 ---

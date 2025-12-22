@@ -175,6 +175,14 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('Deals position column migration error:', err.message);
   }
+
+  try {
+    // Add facility comments tables
+    const { runMigration: runFacilityCommentsMigration } = require('../migrations/add-facility-comments-tables');
+    await runFacilityCommentsMigration(sequelize);
+  } catch (err) {
+    console.log('Facility comments tables migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist

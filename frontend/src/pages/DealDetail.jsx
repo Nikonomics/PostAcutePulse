@@ -49,6 +49,7 @@ import { BarChart2, Building2 } from "lucide-react";
 import FacilitiesSection from "../components/FacilitiesSection";
 import { ExcelPreview, WordPreview } from "../components/DocumentPreviewers";
 import MentionInput from "../components/common/MentionInput";
+import ActivityHistory from "../components/ActivityHistory";
 
 // CSS Styles
 const styles = `
@@ -1827,6 +1828,9 @@ const DealDetailPage = () => {
                   </div>
                 )}
               </div>
+
+              {/* Activity History Section */}
+              <ActivityHistory dealId={id} limit={15} />
 
               {/* Comments Section */}
               <div className="card" id="comments-section">
