@@ -1562,10 +1562,15 @@ router.get('/facility-intelligence/:ccn', async (req, res) => {
 /**
  * GET /api/survey/company/:parentOrg
  * Get aggregated survey analytics for all facilities owned by a company/chain
+ *
+ * Query params:
+ * - period: '30days' | '90days' | '12months' | 'all' (default: '12months')
  */
 router.get('/company/:parentOrg', async (req, res) => {
   const { parentOrg } = req.params;
+  const { period = '12months' } = req.query;
   const pool = getSurveyPool();
+  const days = periodToDays(period);
 
   try {
     // Get the most recent data date
@@ -1587,17 +1592,20 @@ router.get('/company/:parentOrg', async (req, res) => {
         data: {
           companyName: parentOrg,
           facilityCount: 0,
+          period,
           dataAsOf: maxDate,
           summary: null,
           topFTags: [],
           monthlyTrends: [],
           facilityBreakdown: [],
+          categoryBreakdown: [],
+          insights: [],
           yearOverYear: null
         }
       });
     }
 
-    // Summary metrics (last 12 months)
+    // Summary metrics for selected period
     const summaryResult = await pool.query(`
       SELECT
         COUNT(DISTINCT ccn || survey_date::text) as total_surveys,
@@ -1608,7 +1616,7 @@ router.get('/company/:parentOrg', async (req, res) => {
         COUNT(DISTINCT CASE WHEN scope_severity_code IN ('J', 'K', 'L') THEN ccn END) as facilities_with_ij
       FROM health_citations
       WHERE ccn = ANY($1)
-        AND survey_date >= $2::date - INTERVAL '12 months'
+        AND survey_date >= $2::date - INTERVAL '${days} days'
     `, [ccns, maxDate]);
 
     // Top F-tags across all facilities (last 12 months with trend)

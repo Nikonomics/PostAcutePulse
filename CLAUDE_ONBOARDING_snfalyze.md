@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 16:43:48
+> Last updated: 2025-12-22 16:44:15
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1511,6 +1511,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1711,6 +1712,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add Survey Analytics tab styles for OwnershipProfile
 - **2025-12-22** - Add Survey Analytics tab to OwnershipProfile
 - **2025-12-22** - Add survey analytics state to OwnershipProfile
 - **2025-12-22** - Add company survey analytics and deal regulatory risk component
@@ -1740,15 +1742,14 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-22** - Start VBP metrics sections collapsed by default
 - **2025-12-22** - Migrate VBP endpoints to use Market DB
 - **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
-- **2025-12-22** - Add market comments feature (Phase 4)
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     8 files
+Backend:     6 files
 Frontend:    29 files
-Routes:      4 files
+Routes:      3 files
 Services:    2 files
 Components:  14 files
 Migrations:  0

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add Survey Analytics tab styles for OwnershipProfile
 - **2025-12-22** - Add Survey Analytics tab to OwnershipProfile
 - **2025-12-22** - Add survey analytics state to OwnershipProfile
 - **2025-12-22** - Add company survey analytics and deal regulatory risk component
@@ -41,15 +42,14 @@
 - **2025-12-22** - Start VBP metrics sections collapsed by default
 - **2025-12-22** - Migrate VBP endpoints to use Market DB
 - **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
-- **2025-12-22** - Add market comments feature (Phase 4)
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     8 files
+Backend:     6 files
 Frontend:    29 files
-Routes:      4 files
+Routes:      3 files
 Services:    2 files
 Components:  14 files
 Migrations:  0
