@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Redesign comparison cards to compact two-row layout
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 - **2025-12-22** - Make summary cards ultra-compact single-row design
 - **2025-12-22** - Redesign summary cards and remove unused mock data
@@ -41,7 +42,6 @@
 - **2025-12-21** - Add ownership import utilities and deal creation documentation
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
-- **2025-12-19** - Update project documentation
 
 
 ### Areas Modified (Last 20 Commits)

@@ -62,7 +62,7 @@ import {
   FileQuestion,
 } from 'lucide-react';
 import './SurveyAnalytics.css';
-import { getNationalOverview, getStateData, getFTagTrends } from '../api/surveyService';
+import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots } from '../api/surveyService';
 
 // US States for dropdown
 const US_STATES = [
@@ -123,99 +123,8 @@ const TIME_PERIODS = [
   { value: '30days', label: 'Last 30 Days' },
   { value: '90days', label: 'Last 90 Days' },
   { value: '12months', label: 'Last 12 Months' },
+  { value: 'all', label: 'All Time' },
 ];
-
-// Mock data for Regional Hot Spots tab (TODO: Backend endpoint /api/survey/regional-hotspots/:stateCode not yet implemented)
-const getRegionalHotSpotsData = (stateCode, period) => {
-  const stateName = US_STATES.find(s => s.code === stateCode)?.name || stateCode;
-
-  const periodMultipliers = {
-    '30days': 0.33,
-    '90days': 1,
-    '12months': 4,
-  };
-  const multiplier = periodMultipliers[period] || 1;
-
-  // Generate county data based on state
-  const countyData = {
-    CA: [
-      { rank: 1, county: 'Los Angeles', surveys: Math.round(47 * multiplier), avgDefs: 6.2, ijCount: Math.round(3 * multiplier), topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { rank: 2, county: 'Orange', surveys: Math.round(23 * multiplier), avgDefs: 4.8, ijCount: Math.round(1 * multiplier), topFTag: 'F0689', topFTagName: 'Free of Accident Hazards' },
-      { rank: 3, county: 'San Diego', surveys: Math.round(19 * multiplier), avgDefs: 5.1, ijCount: 0, topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { rank: 4, county: 'Riverside', surveys: Math.round(17 * multiplier), avgDefs: 5.4, ijCount: Math.round(1 * multiplier), topFTag: 'F0812', topFTagName: 'Food Safety' },
-      { rank: 5, county: 'San Bernardino', surveys: Math.round(14 * multiplier), avgDefs: 5.8, ijCount: Math.round(2 * multiplier), topFTag: 'F0684', topFTagName: 'Quality of Care' },
-      { rank: 6, county: 'Santa Clara', surveys: Math.round(12 * multiplier), avgDefs: 4.5, ijCount: 0, topFTag: 'F0758', topFTagName: 'Free from Medication Errors' },
-      { rank: 7, county: 'Alameda', surveys: Math.round(11 * multiplier), avgDefs: 5.2, ijCount: Math.round(1 * multiplier), topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { rank: 8, county: 'Sacramento', surveys: Math.round(10 * multiplier), avgDefs: 4.9, ijCount: 0, topFTag: 'F0689', topFTagName: 'Free of Accident Hazards' },
-      { rank: 9, county: 'Contra Costa', surveys: Math.round(8 * multiplier), avgDefs: 5.0, ijCount: 0, topFTag: 'F0812', topFTagName: 'Food Safety' },
-      { rank: 10, county: 'Fresno', surveys: Math.round(7 * multiplier), avgDefs: 5.6, ijCount: Math.round(1 * multiplier), topFTag: 'F0684', topFTagName: 'Quality of Care' },
-    ],
-    TX: [
-      { rank: 1, county: 'Harris', surveys: Math.round(52 * multiplier), avgDefs: 5.8, ijCount: Math.round(4 * multiplier), topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { rank: 2, county: 'Dallas', surveys: Math.round(38 * multiplier), avgDefs: 5.2, ijCount: Math.round(2 * multiplier), topFTag: 'F0689', topFTagName: 'Free of Accident Hazards' },
-      { rank: 3, county: 'Tarrant', surveys: Math.round(24 * multiplier), avgDefs: 4.9, ijCount: Math.round(1 * multiplier), topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { rank: 4, county: 'Bexar', surveys: Math.round(21 * multiplier), avgDefs: 5.4, ijCount: Math.round(2 * multiplier), topFTag: 'F0812', topFTagName: 'Food Safety' },
-      { rank: 5, county: 'Travis', surveys: Math.round(15 * multiplier), avgDefs: 4.6, ijCount: 0, topFTag: 'F0684', topFTagName: 'Quality of Care' },
-    ],
-  };
-
-  // Default counties for other states
-  const defaultCounties = [
-    { rank: 1, county: 'County A', surveys: Math.round(25 * multiplier), avgDefs: 5.2, ijCount: Math.round(2 * multiplier), topFTag: 'F0880', topFTagName: 'Infection Control' },
-    { rank: 2, county: 'County B', surveys: Math.round(18 * multiplier), avgDefs: 4.8, ijCount: Math.round(1 * multiplier), topFTag: 'F0689', topFTagName: 'Free of Accident Hazards' },
-    { rank: 3, county: 'County C', surveys: Math.round(14 * multiplier), avgDefs: 5.0, ijCount: 0, topFTag: 'F0812', topFTagName: 'Food Safety' },
-    { rank: 4, county: 'County D', surveys: Math.round(11 * multiplier), avgDefs: 5.3, ijCount: Math.round(1 * multiplier), topFTag: 'F0684', topFTagName: 'Quality of Care' },
-    { rank: 5, county: 'County E', surveys: Math.round(8 * multiplier), avgDefs: 4.5, ijCount: 0, topFTag: 'F0758', topFTagName: 'Free from Medication Errors' },
-  ];
-
-  const counties = countyData[stateCode] || defaultCounties;
-
-  return {
-    state: stateCode,
-    stateName,
-    counties,
-    clusters: [
-      {
-        id: 1,
-        name: `East ${counties[0]?.county || 'Metro'} Cluster`,
-        county: counties[0]?.county || 'County A',
-        facilityCount: 4,
-        dateRange: 'Dec 8-12, 2024',
-        commonFTags: ['F0880', 'F0689'],
-        commonFTagNames: ['Infection Control', 'Free of Accident Hazards'],
-        note: 'Survey team appears to be working through this territory systematically',
-        isActive: true,
-      },
-      {
-        id: 2,
-        name: `${counties[1]?.county || 'County B'} North`,
-        county: counties[1]?.county || 'County B',
-        facilityCount: 3,
-        dateRange: 'Dec 1-5, 2024',
-        commonFTags: ['F0812', 'F0758'],
-        commonFTagNames: ['Food Safety', 'Free from Medication Errors'],
-        note: 'Complaint-driven surveys concentrated in this area',
-        isActive: false,
-      },
-    ],
-    recentSurveys: [
-      { facilityName: 'Santa Anita Convalescent', ccn: '555234', county: counties[0]?.county || 'County A', date: '2024-12-10', daysAgo: 9, defCount: 4, topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { facilityName: 'Valley Care SNF', ccn: '555345', county: counties[0]?.county || 'County A', date: '2024-12-08', daysAgo: 11, defCount: 7, topFTag: 'F0689', topFTagName: 'Free of Accident Hazards' },
-      { facilityName: 'Pacific Gardens', ccn: '555456', county: counties[1]?.county || 'County B', date: '2024-12-06', daysAgo: 13, defCount: 3, topFTag: 'F0812', topFTagName: 'Food Safety' },
-      { facilityName: 'Sunrise Healthcare Center', ccn: '555567', county: counties[2]?.county || 'County C', date: '2024-12-04', daysAgo: 15, defCount: 5, topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { facilityName: 'Golden State Nursing', ccn: '555678', county: counties[0]?.county || 'County A', date: '2024-12-02', daysAgo: 17, defCount: 2, topFTag: 'F0758', topFTagName: 'Free from Medication Errors' },
-      { facilityName: 'Coastal Care Facility', ccn: '555789', county: counties[1]?.county || 'County B', date: '2024-11-28', daysAgo: 21, defCount: 6, topFTag: 'F0684', topFTagName: 'Quality of Care' },
-      { facilityName: 'Mountain View SNF', ccn: '555890', county: counties[3]?.county || 'County D', date: '2024-11-25', daysAgo: 24, defCount: 4, topFTag: 'F0880', topFTagName: 'Infection Control' },
-      { facilityName: 'Riverside Health Center', ccn: '555901', county: counties[3]?.county || 'County D', date: '2024-11-22', daysAgo: 27, defCount: 8, topFTag: 'F0689', topFTagName: 'Free of Accident Hazards' },
-    ],
-    summary: {
-      totalSurveys: counties.reduce((sum, c) => sum + c.surveys, 0),
-      totalIJ: counties.reduce((sum, c) => sum + c.ijCount, 0),
-      avgDeficiencies: (counties.reduce((sum, c) => sum + c.avgDefs, 0) / counties.length).toFixed(1),
-      activeClusters: 1,
-    },
-  };
-};
 
 /**
  * Summary Card Component - Ultra Compact Design
@@ -445,7 +354,14 @@ const FTagTrendTable = ({ data }) => {
                     <td>
                       <span className="ftag-code-badge">{item.code}</span>
                     </td>
-                    <td className="description-cell">{item.name}</td>
+                    <td className="description-cell">
+                      <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip id={`ftag-name-${item.code}`}>{item.fullName || item.name}</Tooltip>}
+                      >
+                        <span>{item.name}</span>
+                      </OverlayTrigger>
+                    </td>
                     <td className="text-end count-cell">
                       {item.count.toLocaleString()}
                     </td>
@@ -774,7 +690,14 @@ const StateFTagPriorityTable = ({ data, stateName }) => {
                   <td>
                     <span className="ftag-code-badge">{item.code}</span>
                   </td>
-                  <td className="description-cell">{item.name}</td>
+                  <td className="description-cell">
+                    <OverlayTrigger
+                      placement="top"
+                      overlay={<Tooltip id={`state-ftag-${item.code}`}>{item.fullName || item.name}</Tooltip>}
+                    >
+                      <span>{item.name}</span>
+                    </OverlayTrigger>
+                  </td>
                   <td className="text-end count-cell">{item.stateCount.toLocaleString()}</td>
                   <td className="text-end">{item.statePct.toFixed(1)}%</td>
                   <td className="text-center">#{item.nationalRank}</td>
@@ -1310,19 +1233,29 @@ const RecentSurveyFeed = ({ surveys, stateName }) => {
 const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod }) => {
   const [hotSpotsData, setHotSpotsData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [level, setLevel] = useState('county'); // 'county' or 'cbsa'
 
   useEffect(() => {
-    if (selectedState && selectedState !== 'ALL') {
-      setIsLoading(true);
-      const timer = setTimeout(() => {
-        const regionalData = getRegionalHotSpotsData(selectedState, selectedPeriod);
-        setHotSpotsData(regionalData);
-        setIsLoading(false);
-      }, 400);
-
-      return () => clearTimeout(timer);
-    }
-  }, [selectedState, selectedPeriod]);
+    const fetchData = async () => {
+      if (selectedState && selectedState !== 'ALL') {
+        setIsLoading(true);
+        try {
+          const response = await getRegionalHotSpots(selectedState, selectedPeriod, level);
+          if (response.success) {
+            setHotSpotsData(response.data);
+          } else {
+            setHotSpotsData(null);
+          }
+        } catch (error) {
+          console.error('Error fetching regional hot spots:', error);
+          setHotSpotsData(null);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    fetchData();
+  }, [selectedState, selectedPeriod, level]);
 
   // Show prompt when no state selected
   if (selectedState === 'ALL') {
@@ -1361,7 +1294,11 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod }) => {
     );
   }
 
-  const { counties, clusters, recentSurveys, stateName, summary } = hotSpotsData;
+  const { hotSpots, stateTotal, dataAsOf } = hotSpotsData;
+  const stateName = US_STATES.find(s => s.code === selectedState)?.name || selectedState;
+
+  // Calculate summary stats from real data
+  const totalIJ = hotSpots.reduce((sum, h) => sum + h.ijCount, 0);
 
   return (
     <div className="tab-content-area regional-hot-spots">
@@ -1372,47 +1309,101 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod }) => {
             {stateName} Regional Activity
           </h4>
           <p className="regional-subtitle">
-            Survey hot spots and geographic patterns
+            Survey hot spots by {level === 'cbsa' ? 'CBSA' : 'county'}
+            {dataAsOf && (
+              <span className="data-freshness-badge" title="Most recent survey data">
+                Data as of {new Date(dataAsOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
           </p>
         </div>
-        <div className="regional-summary-stats">
-          <div className="summary-stat">
-            <span className="stat-value">{summary.totalSurveys}</span>
-            <span className="stat-label">Total Surveys</span>
+        <div className="regional-controls">
+          <div className="level-toggle" role="group" aria-label="Geographic level">
+            <button
+              className={`level-btn ${level === 'county' ? 'active' : ''}`}
+              onClick={() => setLevel('county')}
+            >
+              County
+            </button>
+            <button
+              className={`level-btn ${level === 'cbsa' ? 'active' : ''}`}
+              onClick={() => setLevel('cbsa')}
+            >
+              CBSA
+            </button>
           </div>
-          <div className="summary-stat">
-            <span className="stat-value">{summary.avgDeficiencies}</span>
-            <span className="stat-label">Avg Deficiencies</span>
-          </div>
-          <div className="summary-stat">
-            <span className="stat-value ij-highlight">{summary.totalIJ}</span>
-            <span className="stat-label">IJ Citations</span>
-          </div>
-          {summary.activeClusters > 0 && (
-            <div className="summary-stat">
-              <span className="stat-value cluster-highlight">{summary.activeClusters}</span>
-              <span className="stat-label">Active Cluster{summary.activeClusters > 1 ? 's' : ''}</span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Main Content Grid */}
-      <Row className="g-4">
-        {/* Left Column - County Table */}
-        <Col xs={12} lg={7}>
-          <CountyLeaderboardTable counties={counties} stateName={stateName} />
-        </Col>
+      <div className="regional-summary-stats">
+        <div className="summary-stat">
+          <span className="stat-value">{stateTotal?.surveys?.toLocaleString() || 0}</span>
+          <span className="stat-label">Total Surveys</span>
+        </div>
+        <div className="summary-stat">
+          <span className="stat-value">{stateTotal?.deficiencies?.toLocaleString() || 0}</span>
+          <span className="stat-label">Total Deficiencies</span>
+        </div>
+        <div className="summary-stat">
+          <span className="stat-value ij-highlight">{totalIJ.toLocaleString()}</span>
+          <span className="stat-label">IJ Citations</span>
+        </div>
+        <div className="summary-stat">
+          <span className="stat-value">{hotSpots.length}</span>
+          <span className="stat-label">{level === 'cbsa' ? 'CBSAs' : 'Counties'}</span>
+        </div>
+      </div>
 
-        {/* Right Column - Map Placeholder, Clusters, Feed */}
-        <Col xs={12} lg={5}>
-          <div className="regional-sidebar">
-            <MapPlaceholder stateName={stateName} />
-            <ActivityClusters clusters={clusters} stateName={stateName} />
-            <RecentSurveyFeed surveys={recentSurveys} stateName={stateName} />
+      {/* Hot Spots Table */}
+      <Card className="regional-hotspots-card mt-3">
+        <Card.Header className="hotspots-header">
+          <h6 className="hotspots-title">
+            Top {level === 'cbsa' ? 'CBSAs' : 'Counties'} by Survey Activity
+          </h6>
+        </Card.Header>
+        <Card.Body className="hotspots-body p-0">
+          <div className="table-responsive">
+            <table className="hotspots-table">
+              <thead>
+                <tr>
+                  <th className="rank-col">#</th>
+                  <th className="region-col">{level === 'cbsa' ? 'CBSA' : 'County'}</th>
+                  <th className="text-end">Surveys</th>
+                  <th className="text-end">Deficiencies</th>
+                  <th className="text-end">Facilities</th>
+                  <th className="text-end">Avg/Survey</th>
+                  <th className="text-end">IJ</th>
+                  <th className="text-end">% of State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hotSpots.map((spot, idx) => (
+                  <tr key={spot.code || spot.name} className={idx < 3 ? 'top-region' : ''}>
+                    <td className="rank-col">{idx + 1}</td>
+                    <td className="region-col">
+                      <span className="region-name">{spot.name}</span>
+                    </td>
+                    <td className="text-end">{spot.surveys.toLocaleString()}</td>
+                    <td className="text-end">{spot.deficiencies.toLocaleString()}</td>
+                    <td className="text-end">{spot.facilities}</td>
+                    <td className="text-end">{spot.avgDefsPerSurvey.toFixed(1)}</td>
+                    <td className="text-end">
+                      {spot.ijCount > 0 ? (
+                        <span className="ij-badge">{spot.ijCount}</span>
+                      ) : (
+                        <span className="no-ij">0</span>
+                      )}
+                    </td>
+                    <td className="text-end">
+                      <span className="pct-badge">{spot.pctOfState}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Col>
-      </Row>
+        </Card.Body>
+      </Card>
     </div>
   );
 };

@@ -11,6 +11,20 @@ const express = require('express');
 const router = express.Router();
 const { getMarketPool } = require('../config/database');
 
+/**
+ * Helper to convert period to days
+ * @param {string} period - '30days' | '90days' | '12months' | 'all'
+ * @returns {number} Number of days
+ */
+const periodToDays = (period) => {
+  switch (period) {
+    case '30days': return 30;
+    case '12months': return 365;
+    case 'all': return 36500; // ~100 years - effectively all data
+    default: return 90;
+  }
+};
+
 // ============================================================================
 // NATIONAL OVERVIEW ENDPOINTS
 // ============================================================================
@@ -20,7 +34,7 @@ const { getMarketPool } = require('../config/database');
  * Get national survey statistics and top F-tags
  *
  * Query params:
- * - period: '30days' | '90days' | '12months' (default: '90days')
+ * - period: '30days' | '90days' | '12months' | 'all' (default: '90days')
  */
 router.get('/national-overview', async (req, res) => {
   const { period = '90days' } = req.query;
@@ -32,7 +46,7 @@ router.get('/national-overview', async (req, res) => {
     const maxDate = maxDateResult.rows[0]?.max_date || new Date();
 
     // Calculate date range based on period, relative to max available data
-    const days = period === '30days' ? 30 : period === '12months' ? 365 : 90;
+    const days = periodToDays(period);
     const priorDays = days * 2; // For comparison period
 
     // Get top F-tags for current period (relative to max data date)
@@ -145,6 +159,7 @@ router.get('/national-overview', async (req, res) => {
           rank: parseInt(r.rank),
           code: `F${r.code}`,
           name: r.name.length > 50 ? r.name.substring(0, 50) + '...' : r.name,
+          fullName: r.name, // Full name for tooltips
           category: r.category,
           count: parseInt(r.count),
           priorCount: parseInt(r.prior_count),
@@ -179,7 +194,7 @@ router.get('/national-overview', async (req, res) => {
  * Get state-specific survey statistics and comparison to national
  *
  * Query params:
- * - period: '30days' | '90days' | '12months' (default: '90days')
+ * - period: '30days' | '90days' | '12months' | 'all' (default: '90days')
  */
 router.get('/state/:stateCode', async (req, res) => {
   const { stateCode } = req.params;
@@ -191,7 +206,7 @@ router.get('/state/:stateCode', async (req, res) => {
     const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
     const maxDate = maxDateResult.rows[0]?.max_date || new Date();
 
-    const days = period === '30days' ? 30 : period === '12months' ? 365 : 90;
+    const days = periodToDays(period);
 
     // Get state comparison stats (using maxDate instead of CURRENT_DATE)
     const comparisonResult = await pool.query(`
@@ -374,6 +389,7 @@ router.get('/state/:stateCode', async (req, res) => {
         state: stateCode,
         stateName: stateNames[stateCode] || stateCode,
         period,
+        dataAsOf: maxDate,
         comparison: {
           surveys: {
             state: parseInt(comparison.state_surveys) || 0,
@@ -397,6 +413,7 @@ router.get('/state/:stateCode', async (req, res) => {
           stateRank: parseInt(r.state_rank),
           code: `F${r.code}`,
           name: r.name.length > 40 ? r.name.substring(0, 40) + '...' : r.name,
+          fullName: r.name, // Full name for tooltips
           stateCount: parseInt(r.state_count),
           statePct: parseFloat(r.state_pct),
           nationalRank: parseInt(r.national_rank),
@@ -413,6 +430,179 @@ router.get('/state/:stateCode', async (req, res) => {
 
   } catch (error) {
     console.error('[Survey API] State deep dive error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// REGIONAL HOT SPOTS ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/regional-hotspots/:stateCode
+ * Get regional survey activity hot spots for a state
+ *
+ * Query params:
+ * - period: '30days' | '90days' | '12months' | 'all' (default: '90days')
+ * - level: 'county' | 'cbsa' (default: 'county')
+ */
+router.get('/regional-hotspots/:stateCode', async (req, res) => {
+  const { stateCode } = req.params;
+  const { period = '90days', level = 'county' } = req.query;
+  const pool = getMarketPool();
+
+  try {
+    // Get the most recent data date
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    const days = periodToDays(period);
+
+    if (level === 'cbsa') {
+      // CBSA-level aggregation
+      const hotSpotsResult = await pool.query(`
+        WITH cbsa_stats AS (
+          SELECT
+            f.cbsa_code,
+            c.cbsa_title as cbsa_name,
+            COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
+            COUNT(*) as deficiencies,
+            COUNT(DISTINCT f.federal_provider_number) as facilities,
+            ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT d.federal_provider_number || d.survey_date::text), 0), 1) as avg_defs_per_survey,
+            SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
+          FROM cms_facility_deficiencies d
+          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          LEFT JOIN cbsas c ON f.cbsa_code = c.cbsa_code
+          WHERE f.state = $1
+            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            AND f.cbsa_code IS NOT NULL
+          GROUP BY f.cbsa_code, c.cbsa_title
+        )
+        SELECT
+          cbsa_code,
+          COALESCE(cbsa_name, 'Unknown CBSA') as region_name,
+          surveys,
+          deficiencies,
+          facilities,
+          avg_defs_per_survey,
+          ij_count,
+          ROUND((ij_count::numeric / NULLIF(deficiencies, 0)) * 100, 1) as ij_pct
+        FROM cbsa_stats
+        ORDER BY deficiencies DESC
+        LIMIT 15
+      `, [stateCode, maxDate]);
+
+      // Get state total for comparison
+      const stateTotalResult = await pool.query(`
+        SELECT
+          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as total_surveys,
+          COUNT(*) as total_deficiencies
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '${days} days'
+      `, [stateCode, maxDate]);
+
+      const stateTotal = stateTotalResult.rows[0] || { total_surveys: 0, total_deficiencies: 0 };
+
+      res.json({
+        success: true,
+        data: {
+          state: stateCode,
+          period,
+          level: 'cbsa',
+          dataAsOf: maxDate,
+          stateTotal: {
+            surveys: parseInt(stateTotal.total_surveys) || 0,
+            deficiencies: parseInt(stateTotal.total_deficiencies) || 0
+          },
+          hotSpots: hotSpotsResult.rows.map(r => ({
+            code: r.cbsa_code,
+            name: r.region_name,
+            surveys: parseInt(r.surveys),
+            deficiencies: parseInt(r.deficiencies),
+            facilities: parseInt(r.facilities),
+            avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey) || 0,
+            ijCount: parseInt(r.ij_count),
+            ijPct: parseFloat(r.ij_pct) || 0,
+            pctOfState: Math.round((parseInt(r.deficiencies) / parseInt(stateTotal.total_deficiencies)) * 100) || 0
+          }))
+        }
+      });
+    } else {
+      // County-level aggregation (default)
+      const hotSpotsResult = await pool.query(`
+        WITH county_stats AS (
+          SELECT
+            f.county,
+            COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
+            COUNT(*) as deficiencies,
+            COUNT(DISTINCT f.federal_provider_number) as facilities,
+            ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT d.federal_provider_number || d.survey_date::text), 0), 1) as avg_defs_per_survey,
+            SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
+          FROM cms_facility_deficiencies d
+          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            AND f.county IS NOT NULL
+          GROUP BY f.county
+        )
+        SELECT
+          county as region_name,
+          surveys,
+          deficiencies,
+          facilities,
+          avg_defs_per_survey,
+          ij_count,
+          ROUND((ij_count::numeric / NULLIF(deficiencies, 0)) * 100, 1) as ij_pct
+        FROM county_stats
+        ORDER BY deficiencies DESC
+        LIMIT 20
+      `, [stateCode, maxDate]);
+
+      // Get state total for comparison
+      const stateTotalResult = await pool.query(`
+        SELECT
+          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as total_surveys,
+          COUNT(*) as total_deficiencies
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '${days} days'
+      `, [stateCode, maxDate]);
+
+      const stateTotal = stateTotalResult.rows[0] || { total_surveys: 0, total_deficiencies: 0 };
+
+      res.json({
+        success: true,
+        data: {
+          state: stateCode,
+          period,
+          level: 'county',
+          dataAsOf: maxDate,
+          stateTotal: {
+            surveys: parseInt(stateTotal.total_surveys) || 0,
+            deficiencies: parseInt(stateTotal.total_deficiencies) || 0
+          },
+          hotSpots: hotSpotsResult.rows.map(r => ({
+            name: r.region_name,
+            surveys: parseInt(r.surveys),
+            deficiencies: parseInt(r.deficiencies),
+            facilities: parseInt(r.facilities),
+            avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey) || 0,
+            ijCount: parseInt(r.ij_count),
+            ijPct: parseFloat(r.ij_pct) || 0,
+            pctOfState: Math.round((parseInt(r.deficiencies) / parseInt(stateTotal.total_deficiencies)) * 100) || 0
+          }))
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('[Survey API] Regional hot spots error:', error);
     res.status(500).json({
       success: false,
       error: error.message
