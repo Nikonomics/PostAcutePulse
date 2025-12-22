@@ -849,21 +849,42 @@ router.get('/regional-hotspots/:stateCode', async (req, res) => {
 // ============================================================================
 
 /**
+ * Convert period to months for trend analysis
+ * @param {string} period - '30days' | '90days' | '12months' | 'all'
+ * @returns {number} Number of months
+ */
+const periodToMonths = (period) => {
+  switch (period) {
+    case '30days': return 3;     // Show 3 months for context even with 30-day filter
+    case '90days': return 6;     // Show 6 months for 90-day view
+    case '12months': return 18;  // Show 18 months for yearly view
+    case 'all': return 60;       // 5 years
+    default: return 60;          // Default to 5 years
+  }
+};
+
+/**
  * GET /api/survey/ftag-trends
  * Get F-tag trend data over time
  *
  * Query params:
+ * - period: '30days' | '90days' | '12months' | 'all' (default: 'all')
  * - state: State code filter (optional, default: national)
  * - ftags: Comma-separated F-tag codes (optional)
  * - deficiencyType: 'all' | 'standard' | 'complaint' | 'infection' (default: 'all')
  */
 router.get('/ftag-trends', async (req, res) => {
-  const { state, ftags, deficiencyType = 'all' } = req.query;
+  const { state, ftags, deficiencyType = 'all', period = 'all' } = req.query;
   const pool = getSurveyPool();
   const typeFilter = buildDeficiencyTypeFilter(deficiencyType);
+  const months = periodToMonths(period);
 
   try {
-    // Get monthly counts for top F-tags over last 24 months
+    // Get the most recent data date (data may be stale)
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM health_citations');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    // Get monthly counts for top F-tags over the selected period
     let query = `
       SELECT
         TO_CHAR(d.survey_date, 'YYYY-MM') as month,
@@ -872,9 +893,9 @@ router.get('/ftag-trends', async (req, res) => {
         COUNT(*) as count
       FROM health_citations d
       ${state && state !== 'ALL' ? 'JOIN snf_facilities f ON d.ccn = f.federal_provider_number' : ''}
-      WHERE d.survey_date >= CURRENT_DATE - INTERVAL '24 months'
+      WHERE d.survey_date >= $${state && state !== 'ALL' ? 2 : 1}::date - INTERVAL '${months} months'
         ${state && state !== 'ALL' ? 'AND f.state = $1' : ''}
-        ${ftags ? `AND d.deficiency_tag IN (${ftags.split(',').map((_, i) => `$${state && state !== 'ALL' ? i + 2 : i + 1}`).join(',')})` : ''}
+        ${ftags ? `AND d.deficiency_tag IN (${ftags.split(',').map((_, i) => `$${state && state !== 'ALL' ? i + 3 : i + 2}`).join(',')})` : ''}
         ${typeFilter}
       GROUP BY TO_CHAR(d.survey_date, 'YYYY-MM'), TO_CHAR(d.survey_date, 'Mon YY'), d.deficiency_tag
       ORDER BY month, d.deficiency_tag
@@ -882,6 +903,7 @@ router.get('/ftag-trends', async (req, res) => {
 
     const params = [];
     if (state && state !== 'ALL') params.push(state);
+    params.push(maxDate);
     if (ftags) params.push(...ftags.split(',').map(t => t.replace('F', '')));
 
     const trendsResult = await pool.query(query, params);
@@ -889,17 +911,26 @@ router.get('/ftag-trends', async (req, res) => {
     // Get F-tag details for the tags we're showing
     const ftagCodesInData = [...new Set(trendsResult.rows.map(r => r.deficiency_tag))];
 
+    // Build params for ftagDetailsResult query
+    // If state is provided: [state, maxDate, ftagCodesInData] -> $1=state, $2=maxDate, $3=ftagCodesInData
+    // If no state: [maxDate, ftagCodesInData] -> $1=maxDate, $2=ftagCodesInData
+    const ftagDetailsParams = state && state !== 'ALL'
+      ? [state, maxDate, ftagCodesInData]
+      : [maxDate, ftagCodesInData];
+    const maxDateParam = state && state !== 'ALL' ? '$2' : '$1';
+    const ftagArrayParam = state && state !== 'ALL' ? '$3' : '$2';
+
     const ftagDetailsResult = await pool.query(`
       WITH ftag_stats AS (
         SELECT
           d.deficiency_tag,
           COUNT(*) as current_count,
-          COUNT(*) FILTER (WHERE d.survey_date >= CURRENT_DATE - INTERVAL '6 months') as recent_count,
-          COUNT(*) FILTER (WHERE d.survey_date >= CURRENT_DATE - INTERVAL '12 months'
-                           AND d.survey_date < CURRENT_DATE - INTERVAL '6 months') as prior_count
+          COUNT(*) FILTER (WHERE d.survey_date >= ${maxDateParam}::date - INTERVAL '6 months') as recent_count,
+          COUNT(*) FILTER (WHERE d.survey_date >= ${maxDateParam}::date - INTERVAL '12 months'
+                           AND d.survey_date < ${maxDateParam}::date - INTERVAL '6 months') as prior_count
         FROM health_citations d
         ${state && state !== 'ALL' ? 'JOIN snf_facilities f ON d.ccn = f.federal_provider_number' : ''}
-        WHERE d.survey_date >= CURRENT_DATE - INTERVAL '12 months'
+        WHERE d.survey_date >= ${maxDateParam}::date - INTERVAL '12 months'
           ${state && state !== 'ALL' ? 'AND f.state = $1' : ''}
           ${typeFilter}
         GROUP BY d.deficiency_tag
@@ -910,7 +941,7 @@ router.get('/ftag-trends', async (req, res) => {
           scope_severity_code,
           COUNT(*) as count
         FROM health_citations
-        WHERE survey_date >= CURRENT_DATE - INTERVAL '12 months'
+        WHERE survey_date >= ${maxDateParam}::date - INTERVAL '12 months'
           ${typeFilter}
         GROUP BY deficiency_tag, scope_severity_code
       )
@@ -933,9 +964,9 @@ router.get('/ftag-trends', async (req, res) => {
         END as trend
       FROM ftag_stats s
       LEFT JOIN citation_descriptions cd ON s.deficiency_tag = cd.deficiency_tag
-      WHERE s.deficiency_tag = ANY($${state && state !== 'ALL' ? 2 : 1}::text[])
+      WHERE s.deficiency_tag = ANY(${ftagArrayParam}::text[])
       ORDER BY s.current_count DESC
-    `, state && state !== 'ALL' ? [state, ftagCodesInData] : [ftagCodesInData]);
+    `, ftagDetailsParams);
 
     // Transform trend data into chart format
     const monthsSet = [...new Set(trendsResult.rows.map(r => r.month))].sort();
@@ -1001,6 +1032,9 @@ router.get('/ftag-trends', async (req, res) => {
       success: true,
       data: {
         state: state || 'ALL',
+        period,
+        months,
+        dataAsOf: maxDate,
         trendData,
         ftagDetails,
         availableFTags,
@@ -1514,6 +1548,247 @@ router.get('/facility-intelligence/:ccn', async (req, res) => {
 
   } catch (error) {
     console.error('[Survey API] Facility intelligence error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// COMPANY/CHAIN SURVEY ANALYTICS
+// ============================================================================
+
+/**
+ * GET /api/survey/company/:parentOrg
+ * Get aggregated survey analytics for all facilities owned by a company/chain
+ */
+router.get('/company/:parentOrg', async (req, res) => {
+  const { parentOrg } = req.params;
+  const pool = getSurveyPool();
+
+  try {
+    // Get the most recent data date
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM health_citations');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    // Get all facilities for this company
+    const facilitiesResult = await pool.query(`
+      SELECT federal_provider_number as ccn, facility_name, city, state
+      FROM snf_facilities
+      WHERE parent_organization = $1
+    `, [parentOrg]);
+
+    const ccns = facilitiesResult.rows.map(f => f.ccn);
+
+    if (ccns.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          companyName: parentOrg,
+          facilityCount: 0,
+          dataAsOf: maxDate,
+          summary: null,
+          topFTags: [],
+          monthlyTrends: [],
+          facilityBreakdown: [],
+          yearOverYear: null
+        }
+      });
+    }
+
+    // Summary metrics (last 12 months)
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT ccn || survey_date::text) as total_surveys,
+        COUNT(*) as total_deficiencies,
+        ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT ccn || survey_date::text), 0), 2) as avg_defs_per_survey,
+        ROUND((SUM(CASE WHEN scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
+               NULLIF(COUNT(*), 0) * 100)::numeric, 2) as ij_rate_pct,
+        COUNT(DISTINCT CASE WHEN scope_severity_code IN ('J', 'K', 'L') THEN ccn END) as facilities_with_ij
+      FROM health_citations
+      WHERE ccn = ANY($1)
+        AND survey_date >= $2::date - INTERVAL '12 months'
+    `, [ccns, maxDate]);
+
+    // Top F-tags across all facilities (last 12 months with trend)
+    const topFTagsResult = await pool.query(`
+      WITH current_period AS (
+        SELECT deficiency_tag, COUNT(*) as count
+        FROM health_citations
+        WHERE ccn = ANY($1)
+          AND survey_date >= $2::date - INTERVAL '6 months'
+        GROUP BY deficiency_tag
+      ),
+      prior_period AS (
+        SELECT deficiency_tag, COUNT(*) as count
+        FROM health_citations
+        WHERE ccn = ANY($1)
+          AND survey_date >= $2::date - INTERVAL '12 months'
+          AND survey_date < $2::date - INTERVAL '6 months'
+        GROUP BY deficiency_tag
+      )
+      SELECT
+        c.deficiency_tag as code,
+        COALESCE(cd.description, 'Unknown') as name,
+        COALESCE(cd.category, 'Unknown') as category,
+        c.count as current_count,
+        COALESCE(p.count, 0) as prior_count,
+        c.count + COALESCE(p.count, 0) as total_count,
+        CASE
+          WHEN COALESCE(p.count, 0) = 0 THEN 'NEW'
+          WHEN c.count > p.count * 1.1 THEN 'UP'
+          WHEN c.count < p.count * 0.9 THEN 'DOWN'
+          ELSE 'STABLE'
+        END as trend
+      FROM current_period c
+      LEFT JOIN prior_period p ON c.deficiency_tag = p.deficiency_tag
+      LEFT JOIN citation_descriptions cd ON c.deficiency_tag = cd.deficiency_tag
+      ORDER BY c.count + COALESCE(p.count, 0) DESC
+      LIMIT 10
+    `, [ccns, maxDate]);
+
+    // Monthly trends (last 24 months)
+    const monthlyTrendsResult = await pool.query(`
+      SELECT
+        TO_CHAR(survey_date, 'YYYY-MM') as month,
+        TO_CHAR(survey_date, 'Mon YY') as month_label,
+        COUNT(DISTINCT ccn || survey_date::text) as surveys,
+        COUNT(*) as deficiencies,
+        ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT ccn || survey_date::text), 0), 1) as avg_defs
+      FROM health_citations
+      WHERE ccn = ANY($1)
+        AND survey_date >= $2::date - INTERVAL '24 months'
+      GROUP BY TO_CHAR(survey_date, 'YYYY-MM'), TO_CHAR(survey_date, 'Mon YY')
+      ORDER BY month
+    `, [ccns, maxDate]);
+
+    // Facility breakdown - last survey for each facility
+    const facilityBreakdownResult = await pool.query(`
+      WITH last_surveys AS (
+        SELECT
+          ccn,
+          MAX(survey_date) as last_survey_date
+        FROM health_citations
+        WHERE ccn = ANY($1)
+        GROUP BY ccn
+      ),
+      survey_details AS (
+        SELECT
+          h.ccn,
+          ls.last_survey_date,
+          COUNT(*) as deficiency_count,
+          SUM(CASE WHEN h.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
+        FROM health_citations h
+        JOIN last_surveys ls ON h.ccn = ls.ccn AND h.survey_date = ls.last_survey_date
+        GROUP BY h.ccn, ls.last_survey_date
+      )
+      SELECT
+        f.federal_provider_number as ccn,
+        f.facility_name as name,
+        f.city,
+        f.state,
+        sd.last_survey_date,
+        $2::date - sd.last_survey_date as days_since,
+        COALESCE(sd.deficiency_count, 0) as deficiency_count,
+        COALESCE(sd.ij_count, 0) as ij_count
+      FROM snf_facilities f
+      LEFT JOIN survey_details sd ON f.federal_provider_number = sd.ccn
+      WHERE f.parent_organization = $3
+      ORDER BY sd.last_survey_date DESC NULLS LAST
+    `, [ccns, maxDate, parentOrg]);
+
+    // Year-over-year comparison
+    const yoyResult = await pool.query(`
+      WITH current_year AS (
+        SELECT
+          COUNT(DISTINCT ccn || survey_date::text) as surveys,
+          COUNT(*) as deficiencies
+        FROM health_citations
+        WHERE ccn = ANY($1)
+          AND survey_date >= $2::date - INTERVAL '12 months'
+      ),
+      prior_year AS (
+        SELECT
+          COUNT(DISTINCT ccn || survey_date::text) as surveys,
+          COUNT(*) as deficiencies
+        FROM health_citations
+        WHERE ccn = ANY($1)
+          AND survey_date >= $2::date - INTERVAL '24 months'
+          AND survey_date < $2::date - INTERVAL '12 months'
+      )
+      SELECT
+        c.surveys as current_surveys,
+        c.deficiencies as current_deficiencies,
+        ROUND(c.deficiencies::numeric / NULLIF(c.surveys, 0), 1) as current_avg,
+        p.surveys as prior_surveys,
+        p.deficiencies as prior_deficiencies,
+        ROUND(p.deficiencies::numeric / NULLIF(p.surveys, 0), 1) as prior_avg,
+        CASE
+          WHEN p.deficiencies = 0 THEN 0
+          ELSE ROUND(((c.deficiencies - p.deficiencies)::numeric / p.deficiencies * 100)::numeric, 1)
+        END as change_pct
+      FROM current_year c, prior_year p
+    `, [ccns, maxDate]);
+
+    const summary = summaryResult.rows[0] || {};
+    const yoy = yoyResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        companyName: parentOrg,
+        facilityCount: ccns.length,
+        dataAsOf: maxDate,
+        summary: {
+          totalSurveys: parseInt(summary.total_surveys) || 0,
+          totalDeficiencies: parseInt(summary.total_deficiencies) || 0,
+          avgDeficienciesPerSurvey: parseFloat(summary.avg_defs_per_survey) || 0,
+          ijRatePct: parseFloat(summary.ij_rate_pct) || 0,
+          facilitiesWithIJ: parseInt(summary.facilities_with_ij) || 0
+        },
+        topFTags: topFTagsResult.rows.map(r => ({
+          code: `F${r.code}`,
+          name: r.name,
+          category: r.category,
+          count: parseInt(r.total_count),
+          trend: r.trend
+        })),
+        monthlyTrends: monthlyTrendsResult.rows.map(r => ({
+          month: r.month,
+          monthLabel: r.month_label,
+          surveys: parseInt(r.surveys),
+          deficiencies: parseInt(r.deficiencies),
+          avgDefs: parseFloat(r.avg_defs)
+        })),
+        facilityBreakdown: facilityBreakdownResult.rows.map(r => ({
+          ccn: r.ccn,
+          name: r.name,
+          city: r.city,
+          state: r.state,
+          lastSurveyDate: r.last_survey_date,
+          daysSince: parseInt(r.days_since) || null,
+          deficiencyCount: parseInt(r.deficiency_count),
+          ijCount: parseInt(r.ij_count)
+        })),
+        yearOverYear: {
+          currentYear: {
+            surveys: parseInt(yoy.current_surveys) || 0,
+            deficiencies: parseInt(yoy.current_deficiencies) || 0,
+            avgDefs: parseFloat(yoy.current_avg) || 0
+          },
+          priorYear: {
+            surveys: parseInt(yoy.prior_surveys) || 0,
+            deficiencies: parseInt(yoy.prior_deficiencies) || 0,
+            avgDefs: parseFloat(yoy.prior_avg) || 0
+          },
+          changePct: parseFloat(yoy.change_pct) || 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Company survey analytics error:', error);
     res.status(500).json({
       success: false,
       error: error.message

@@ -47,13 +47,20 @@ const SEVERITY_COLORS = {
   D: { bg: '#d4edda', text: '#155724', label: 'Isolated' },
 };
 
-function RegulatoryRiskCard({ ccn }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+function RegulatoryRiskCard({ ccn, initialData = null }) {
+  const [data, setData] = useState(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
+    // If initialData is provided, use it and skip fetch
+    if (initialData) {
+      setData(initialData);
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       if (!ccn) return;
 
@@ -76,7 +83,7 @@ function RegulatoryRiskCard({ ccn }) {
     };
 
     fetchData();
-  }, [ccn]);
+  }, [ccn, initialData]);
 
   // Loading state
   if (loading) {

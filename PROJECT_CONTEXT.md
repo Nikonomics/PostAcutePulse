@@ -1183,6 +1183,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1289,6 +1290,7 @@ AppHelpPanel
 common
 DataDictionaryTab
 DealExtractionViewer
+DealRegulatoryRisk
 FacilityCommentsSection
 FacilityMetrics
 MAIntelligence

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add RegulatoryRiskCard component to facility profile
 - **2025-12-22** - Add facility regulatory risk assessment API endpoint
 - **2025-12-22** - Fix duplicate deal creation and add persistent logging
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
@@ -41,17 +42,16 @@
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
-- **2025-12-21** - Add PostHog analytics and real-time notifications
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     13 files
-Frontend:    30 files
-Routes:      6 files
+Backend:     11 files
+Frontend:    34 files
+Routes:      5 files
 Services:    4 files
-Components:  13 files
+Components:  16 files
 Migrations:  0
 0 files
 ```
@@ -68,12 +68,12 @@ frontend/src/api/surveyService.js
 frontend/src/components/AppHelpPanel/AppHelpPanel.css
 frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
 frontend/src/components/AppHelpPanel/index.js
+frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
+frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.jsx
+frontend/src/components/DealRegulatoryRisk/index.js
 frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.css
 frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.jsx
 frontend/src/components/RegulatoryRiskCard/index.js
-frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
-frontend/src/context/PageContext.js
-frontend/src/services/appHelpChatService.js
 ```
 
 ---

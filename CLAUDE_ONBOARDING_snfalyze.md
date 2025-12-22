@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 15:22:02
+> Last updated: 2025-12-22 16:37:05
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1507,6 +1507,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1613,6 +1614,7 @@ AppHelpPanel
 common
 DataDictionaryTab
 DealExtractionViewer
+DealRegulatoryRisk
 FacilityCommentsSection
 FacilityMetrics
 MAIntelligence
@@ -1706,6 +1708,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add RegulatoryRiskCard component to facility profile
 - **2025-12-22** - Add facility regulatory risk assessment API endpoint
 - **2025-12-22** - Fix duplicate deal creation and add persistent logging
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
@@ -1735,17 +1738,16 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
-- **2025-12-21** - Add PostHog analytics and real-time notifications
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     13 files
-Frontend:    30 files
-Routes:      6 files
+Backend:     11 files
+Frontend:    34 files
+Routes:      5 files
 Services:    4 files
-Components:  13 files
+Components:  16 files
 Migrations:  0
 0 files
 ```
@@ -1762,12 +1764,12 @@ frontend/src/api/surveyService.js
 frontend/src/components/AppHelpPanel/AppHelpPanel.css
 frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
 frontend/src/components/AppHelpPanel/index.js
+frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
+frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.jsx
+frontend/src/components/DealRegulatoryRisk/index.js
 frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.css
 frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.jsx
 frontend/src/components/RegulatoryRiskCard/index.js
-frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
-frontend/src/context/PageContext.js
-frontend/src/services/appHelpChatService.js
 ```
 
 ---

@@ -47,6 +47,7 @@ import { DealExtractionViewer } from "../components/DealExtractionViewer";
 import { unflattenExtractedData } from "../components/DealExtractionViewer/utils";
 import { BarChart2, Building2, Brain } from "lucide-react";
 import FacilitiesSection from "../components/FacilitiesSection";
+import DealRegulatoryRisk from "../components/DealRegulatoryRisk";
 import SNFalyzePanel from "../components/SNFalyzePanel";
 import { ExcelPreview, WordPreview } from "../components/DocumentPreviewers";
 import MentionInput from "../components/common/MentionInput";
@@ -1428,6 +1429,12 @@ const DealDetailPage = () => {
                 dealId={deal.id}
                 facilities={facilitiesWithCIMData}
                 extractionData={deal.extraction_data}
+              />
+
+              {/* Regulatory Risk Assessment - Shows risk for CMS-linked facilities */}
+              <DealRegulatoryRisk
+                facilities={facilitiesWithCIMData}
+                dealId={deal.id}
               />
 
               {/* Note: Legacy per-facility cards removed - all facility info now in FacilitiesSection above */}

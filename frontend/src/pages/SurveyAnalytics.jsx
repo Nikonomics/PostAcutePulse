@@ -1953,7 +1953,7 @@ const FTagTrendsTab = ({ data, selectedState, selectedPeriod, selectedDeficiency
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const response = await getFTagTrends(selectedPeriod, 10, selectedDeficiencyType);
+        const response = await getFTagTrends(selectedPeriod, 10, selectedDeficiencyType, selectedState);
         if (response.success) {
           setTrendsData(response.data);
         } else {

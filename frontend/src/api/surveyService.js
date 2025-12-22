@@ -52,10 +52,11 @@ export const getStateData = async (stateCode, period = '90days', deficiencyType 
  * @param {string} period - Time period
  * @param {number} topN - Number of top F-tags to return
  * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
+ * @param {string} state - State code filter (optional, 'ALL' for national)
  * @returns {Promise<Object>} F-tag trend data
  */
-export const getFTagTrends = async (period = '90days', topN = 10, deficiencyType = 'all') => {
-  const response = await apiService.get(`${SURVEY_BASE}/ftag-trends`, { period, topN, deficiencyType });
+export const getFTagTrends = async (period = '90days', topN = 10, deficiencyType = 'all', state = 'ALL') => {
+  const response = await apiService.get(`${SURVEY_BASE}/ftag-trends`, { period, topN, deficiencyType, state });
   return response.data;
 };
 
@@ -130,5 +131,15 @@ export const getStateFacilities = async (stateCode, period = '90days', deficienc
  */
 export const getDeficiencyDetails = async (tag) => {
   const response = await apiService.get(`${SURVEY_BASE}/deficiency/${tag}`);
+  return response.data;
+};
+
+/**
+ * Get aggregated survey analytics for a company/chain
+ * @param {string} parentOrg - Parent organization name
+ * @returns {Promise<Object>} Company survey analytics including summary, trends, facility breakdown
+ */
+export const getCompanySurveyAnalytics = async (parentOrg) => {
+  const response = await apiService.get(`${SURVEY_BASE}/company/${encodeURIComponent(parentOrg)}`);
   return response.data;
 };
