@@ -661,11 +661,10 @@ const getComparisonStatus = (status) => {
 };
 
 /**
- * State vs National Comparison Card
+ * State vs National Comparison Card - Compact Design
  */
-const ComparisonCard = ({ title, stateValue, nationalValue, delta, status, format = 'number', stateLabel }) => {
+const ComparisonCard = ({ title, stateValue, nationalValue, status, format = 'number', stateLabel }) => {
   const statusConfig = getComparisonStatus(status);
-  const StatusIcon = statusConfig.icon;
 
   const formatValue = (val) => {
     if (format === 'percent') {
@@ -677,42 +676,20 @@ const ComparisonCard = ({ title, stateValue, nationalValue, delta, status, forma
     return val.toLocaleString();
   };
 
-  const formatDelta = (val) => {
-    if (format === 'percent') {
-      return `${val > 0 ? '+' : ''}${(val * 100).toFixed(2)}%`;
-    }
-    if (format === 'decimal') {
-      return `${val > 0 ? '+' : ''}${val.toFixed(1)}`;
-    }
-    return `${val > 0 ? '+' : ''}${val.toLocaleString()}`;
-  };
-
   return (
-    <Card className="comparison-card">
-      <Card.Body>
-        <div className="comparison-header">
+    <Card className={`comparison-card comparison-card--${status ? status.toLowerCase() : 'at'}`}>
+      <Card.Body className="comparison-card-body">
+        <div className="comparison-row">
           <span className="comparison-title">{title}</span>
-          <span className={`comparison-status ${statusConfig.bgClass}`}>
-            <StatusIcon size={12} />
+          <span className={`comparison-status-badge ${statusConfig.bgClass}`}>
             {statusConfig.label}
           </span>
         </div>
-        <div className="comparison-values">
-          <div className="comparison-state">
-            <span className="value-label">{stateLabel || 'State'}</span>
-            <span className="value-number">{formatValue(stateValue)}</span>
-          </div>
-          <div className="comparison-vs">vs</div>
-          <div className="comparison-national">
-            <span className="value-label">National</span>
-            <span className="value-number">{formatValue(nationalValue)}</span>
-          </div>
+        <div className="comparison-values-row">
+          <span className="comparison-value">{formatValue(stateValue)}</span>
+          <span className="comparison-vs">vs</span>
+          <span className="comparison-value comparison-value--national">{formatValue(nationalValue)}</span>
         </div>
-        {delta !== undefined && (
-          <div className={`comparison-delta ${status === 'ABOVE' ? 'delta-above' : status === 'BELOW' ? 'delta-below' : 'delta-at'}`}>
-            {formatDelta(delta)} vs national average
-          </div>
-        )}
       </Card.Body>
     </Card>
   );
@@ -995,35 +972,30 @@ const StateDeepDiveTab = ({ data, selectedState, selectedPeriod }) => {
       </div>
 
       {/* Comparison Cards Row */}
-      <Row className="g-3 mb-4">
-        <Col xs={12} md={4}>
+      <Row className="g-2 mb-3">
+        <Col xs={4}>
           <ComparisonCard
-            title="Surveys This Period"
+            title="Surveys"
             stateValue={comparison.surveys.state}
             nationalValue={comparison.surveys.national}
-            stateLabel={selectedState}
             format="number"
           />
         </Col>
-        <Col xs={12} md={4}>
+        <Col xs={4}>
           <ComparisonCard
-            title="Avg Deficiencies"
+            title="Avg Defs"
             stateValue={comparison.avgDeficiencies.state}
             nationalValue={comparison.avgDeficiencies.national}
-            delta={comparison.avgDeficiencies.delta}
             status={comparison.avgDeficiencies.status}
-            stateLabel={selectedState}
             format="decimal"
           />
         </Col>
-        <Col xs={12} md={4}>
+        <Col xs={4}>
           <ComparisonCard
             title="IJ Rate"
             stateValue={comparison.ijRate.state}
             nationalValue={comparison.ijRate.national}
-            delta={comparison.ijRate.delta}
             status={comparison.ijRate.status}
-            stateLabel={selectedState}
             format="percent"
           />
         </Col>
@@ -2098,6 +2070,7 @@ const SurveyAnalytics = () => {
     return urlState && urlState !== 'ALL' ? 'state' : 'national';
   });
   const [summaryData, setSummaryData] = useState(null);
+  const [dataAsOf, setDataAsOf] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Get current state name for display
@@ -2141,7 +2114,8 @@ const SurveyAnalytics = () => {
           // Fetch national overview data
           const response = await getNationalOverview(selectedPeriod);
           if (response.success) {
-            const { summary, topFTags } = response.data;
+            const { summary, topFTags, dataAsOf: apiDataAsOf } = response.data;
+            setDataAsOf(apiDataAsOf);
             setSummaryData({
               surveyCount: parseInt(summary.survey_count) || 0,
               avgDeficiencies: parseFloat(summary.avg_deficiencies) || 0,
@@ -2157,7 +2131,8 @@ const SurveyAnalytics = () => {
           // Fetch state-specific data
           const response = await getStateData(selectedState, selectedPeriod);
           if (response.success) {
-            const { comparison, ftagPriorities } = response.data;
+            const { comparison, ftagPriorities, dataAsOf: apiDataAsOf } = response.data;
+            setDataAsOf(apiDataAsOf);
             setSummaryData({
               surveyCount: comparison?.surveys?.state || 0,
               avgDeficiencies: comparison?.avgDeficiencies?.state || 0,
@@ -2242,6 +2217,11 @@ const SurveyAnalytics = () => {
             </h1>
             <p className="page-subtitle">
               Analyzing <strong>{currentStateName.toLowerCase()}</strong> survey patterns over the <strong>{currentPeriodLabel.toLowerCase()}</strong>
+              {dataAsOf && (
+                <span className="data-freshness-badge" title="Most recent survey data in database">
+                  Data as of {new Date(dataAsOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
             </p>
           </div>
 

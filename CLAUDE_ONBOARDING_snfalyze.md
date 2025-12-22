@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 13:15:55
+> Last updated: 2025-12-22 13:34:28
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1502,6 +1502,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1699,6 +1700,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 - **2025-12-22** - Make summary cards ultra-compact single-row design
 - **2025-12-22** - Redesign summary cards and remove unused mock data
 - **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
@@ -1728,7 +1730,6 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 - **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 - **2025-12-19** - Update project documentation
-- **2025-12-19** - Add auto-update script for project documentation
 
 
 ### Areas Modified (Last 20 Commits)
@@ -1745,7 +1746,6 @@ Migrations:  1 files
 ### New Files Added (Last 20 Commits)
 
 ```
-TECHNICAL_DEBT.md
 backend/migrations/add-user-invitations-table.js
 backend/models/user_invitations.js
 backend/routes/survey.js
