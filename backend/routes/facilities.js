@@ -320,7 +320,7 @@ router.get('/snf/:ccn/competitors', async (req, res) => {
     const competitorsResult = await pool.query(`
       SELECT
         federal_provider_number as ccn,
-        provider_name as facility_name,
+        facility_name,
         city,
         state,
         overall_rating,
@@ -562,12 +562,7 @@ router.get('/snf/:ccn/ownership', async (req, res) => {
 
     // Get ownership details from Market DB - most recent extract only
     const result = await pool.query(`
-      WITH latest_extract AS (
-        SELECT MAX(extract_id) as max_extract_id
-        FROM facility_ownership_details
-        WHERE ccn = $1
-      )
-      SELECT DISTINCT
+      SELECT
         owner_role as role_type,
         owner_type,
         owner_name,
@@ -575,7 +570,7 @@ router.get('/snf/:ccn/ownership', async (req, res) => {
         association_date
       FROM facility_ownership_details
       WHERE ccn = $1
-        AND extract_id = (SELECT max_extract_id FROM latest_extract)
+        AND extract_id = (SELECT MAX(extract_id) FROM facility_ownership_details WHERE ccn = $1)
       ORDER BY
         CASE WHEN ownership_percentage IS NOT NULL THEN 0 ELSE 1 END,
         ownership_percentage DESC NULLS LAST,

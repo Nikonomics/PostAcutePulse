@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 12:09:03
+> Last updated: 2025-12-22 12:22:50
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1494,6 +1494,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1691,6 +1692,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
@@ -1720,17 +1722,16 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-18** - Add market database sync script
 - **2025-12-18** - Trigger redeploy for database schema refresh
 - **2025-12-18** - Add CMS data sync scripts and saved items improvements
-- **2025-12-17** - Fix deal detail tabs not showing when extraction_data is null
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     46 files
-Frontend:    81 files
-Routes:      8 files
-Services:    6 files
-Components:  47 files
+Backend:     42 files
+Frontend:    51 files
+Routes:      7 files
+Services:    5 files
+Components:  22 files
 Migrations:  4 files
 ```
 
@@ -1739,7 +1740,6 @@ Migrations:  4 files
 ```
 TECHNICAL_DEBT.md
 backend/DATABASE_ARCHITECTURE.md
-backend/controller/SurveyIntelligenceController.js
 backend/migrations/add-facility-comments-tables.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-user-invitations-table.js
@@ -1750,8 +1750,9 @@ backend/models/market_comment_mentions.js
 backend/models/market_comments.js
 backend/models/user_change_logs.js
 backend/models/user_invitations.js
-backend/routes/ma-analytics.js
 backend/routes/survey.js
+backend/scripts/check-deals.js
+backend/scripts/compare-alf.js
 ```
 
 ---
