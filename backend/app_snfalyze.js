@@ -134,6 +134,7 @@ var maAnalyticsRouter = require('./routes/ma-analytics');
 var savedItemsRouter = require('./routes/savedItems');
 var userRouter = require('./routes/user');
 var surveyIntelligenceRouter = require('./routes/surveyIntelligence');
+var surveyRouter = require('./routes/survey');
 
 app.use(fileUpload());
 
@@ -187,6 +188,10 @@ app.use('/api/v1/ma-analytics', maAnalyticsRouter);
 
 // Survey Intelligence API routes
 app.use('/api/v1/survey-intelligence', surveyIntelligenceRouter);
+
+// Survey Analytics API routes (uses Market DB with real data)
+app.use('/api/survey', surveyRouter);
+app.use('/api/v1/survey', surveyRouter);
 
 // Saved Items API routes (bookmarks for deals, facilities, markets)
 app.use('/api/v1/saved-items', savedItemsRouter);

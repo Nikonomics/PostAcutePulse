@@ -1,0 +1,824 @@
+/**
+ * Survey Analytics API Routes
+ *
+ * Provides endpoints for survey deficiency data, F-tag trends,
+ * and state/national comparisons.
+ *
+ * All data comes from Market DB (MARKET_DATABASE_URL)
+ */
+
+const express = require('express');
+const router = express.Router();
+const { getMarketPool } = require('../config/database');
+
+// ============================================================================
+// NATIONAL OVERVIEW ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/national-overview
+ * Get national survey statistics and top F-tags
+ *
+ * Query params:
+ * - period: '30days' | '90days' | '12months' (default: '90days')
+ */
+router.get('/national-overview', async (req, res) => {
+  const { period = '90days' } = req.query;
+  const pool = getMarketPool();
+
+  try {
+    // Get the most recent data date (data may be stale)
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    // Calculate date range based on period, relative to max available data
+    const days = period === '30days' ? 30 : period === '12months' ? 365 : 90;
+    const priorDays = days * 2; // For comparison period
+
+    // Get top F-tags for current period (relative to max data date)
+    const topFTagsResult = await pool.query(`
+      WITH current_period AS (
+        SELECT
+          d.deficiency_tag,
+          COUNT(*) as count
+        FROM cms_facility_deficiencies d
+        WHERE d.survey_date >= $1::date - INTERVAL '${days} days'
+        GROUP BY d.deficiency_tag
+      ),
+      prior_period AS (
+        SELECT
+          d.deficiency_tag,
+          COUNT(*) as count
+        FROM cms_facility_deficiencies d
+        WHERE d.survey_date >= $1::date - INTERVAL '${priorDays} days'
+          AND d.survey_date < $1::date - INTERVAL '${days} days'
+        GROUP BY d.deficiency_tag
+      )
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY c.count DESC) as rank,
+        c.deficiency_tag as code,
+        COALESCE(cd.category, 'Unknown') as category,
+        COALESCE(cd.description, 'No description available') as name,
+        c.count,
+        COALESCE(p.count, 0) as prior_count,
+        CASE
+          WHEN COALESCE(p.count, 0) = 0 THEN 0
+          ELSE ROUND(((c.count - p.count)::numeric / p.count * 100)::numeric, 1)
+        END as change_pct,
+        CASE
+          WHEN COALESCE(p.count, 0) = 0 THEN 'NEW'
+          WHEN c.count > p.count * 1.05 THEN 'UP'
+          WHEN c.count < p.count * 0.95 THEN 'DOWN'
+          ELSE 'STABLE'
+        END as trend
+      FROM current_period c
+      LEFT JOIN prior_period p ON c.deficiency_tag = p.deficiency_tag
+      LEFT JOIN citation_descriptions cd ON c.deficiency_tag = cd.deficiency_tag
+      ORDER BY c.count DESC
+      LIMIT 15
+    `, [maxDate]);
+
+    // Get monthly volume data (last 6 months relative to max data date)
+    const monthlyVolumeResult = await pool.query(`
+      SELECT
+        TO_CHAR(survey_date, 'YYYY-MM') as month,
+        TO_CHAR(survey_date, 'Mon') as month_label,
+        COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
+        ROUND(AVG(def_count)::numeric, 1) as avg_defs
+      FROM (
+        SELECT
+          federal_provider_number,
+          survey_date,
+          COUNT(*) as def_count
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $1::date - INTERVAL '6 months'
+        GROUP BY federal_provider_number, survey_date
+      ) survey_defs
+      GROUP BY TO_CHAR(survey_date, 'YYYY-MM'), TO_CHAR(survey_date, 'Mon')
+      ORDER BY month
+    `, [maxDate]);
+
+    // Get summary stats
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT federal_provider_number || survey_date::text) as survey_count,
+        ROUND(AVG(def_count)::numeric, 1) as avg_deficiencies,
+        ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
+               NULLIF(COUNT(*), 0) * 100)::numeric, 2) as ij_rate
+      FROM (
+        SELECT
+          federal_provider_number,
+          survey_date,
+          scope_severity,
+          COUNT(*) OVER (PARTITION BY federal_provider_number, survey_date) as def_count
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $1::date - INTERVAL '${days} days'
+      ) t
+    `, [maxDate]);
+
+    // Generate insights based on actual data
+    const topTag = topFTagsResult.rows[0];
+    const insights = [];
+
+    if (topTag) {
+      insights.push(`F${topTag.code} (${topTag.name.split(' ').slice(0, 3).join(' ')}...) is the most cited deficiency with ${topTag.count.toLocaleString()} citations`);
+    }
+
+    // Find biggest movers
+    const biggestUp = topFTagsResult.rows.find(r => r.trend === 'UP' && parseFloat(r.change_pct) > 10);
+    if (biggestUp) {
+      insights.push(`F${biggestUp.code} citations up ${biggestUp.change_pct}% vs prior period`);
+    }
+
+    const biggestDown = topFTagsResult.rows.find(r => r.trend === 'DOWN' && parseFloat(r.change_pct) < -10);
+    if (biggestDown) {
+      insights.push(`F${biggestDown.code} citations down ${Math.abs(biggestDown.change_pct)}% vs prior period`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        dataAsOf: maxDate,
+        summary: summaryResult.rows[0],
+        topFTags: topFTagsResult.rows.map(r => ({
+          rank: parseInt(r.rank),
+          code: `F${r.code}`,
+          name: r.name.length > 50 ? r.name.substring(0, 50) + '...' : r.name,
+          category: r.category,
+          count: parseInt(r.count),
+          priorCount: parseInt(r.prior_count),
+          changePct: parseFloat(r.change_pct),
+          trend: r.trend
+        })),
+        monthlyVolume: monthlyVolumeResult.rows.map(r => ({
+          month: r.month,
+          monthLabel: r.month_label,
+          surveys: parseInt(r.surveys),
+          avgDefs: parseFloat(r.avg_defs)
+        })),
+        insights
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] National overview error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// STATE DEEP DIVE ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/state/:stateCode
+ * Get state-specific survey statistics and comparison to national
+ *
+ * Query params:
+ * - period: '30days' | '90days' | '12months' (default: '90days')
+ */
+router.get('/state/:stateCode', async (req, res) => {
+  const { stateCode } = req.params;
+  const { period = '90days' } = req.query;
+  const pool = getMarketPool();
+
+  try {
+    // Get the most recent data date (data may be stale)
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    const days = period === '30days' ? 30 : period === '12months' ? 365 : 90;
+
+    // Get state comparison stats (using maxDate instead of CURRENT_DATE)
+    const comparisonResult = await pool.query(`
+      WITH state_stats AS (
+        SELECT
+          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
+          COUNT(*) as total_defs,
+          ROUND(AVG(def_count)::numeric, 1) as avg_defs,
+          ROUND((SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
+                 NULLIF(COUNT(*), 0) * 100)::numeric, 3) as ij_rate
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*) as def_count
+          FROM cms_facility_deficiencies d2
+          WHERE d2.federal_provider_number = d.federal_provider_number
+            AND d2.survey_date = d.survey_date
+        ) dc
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '${days} days'
+      ),
+      national_stats AS (
+        SELECT
+          COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
+          COUNT(*) as total_defs,
+          ROUND(AVG(def_count)::numeric, 1) as avg_defs,
+          ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
+                 NULLIF(COUNT(*), 0) * 100)::numeric, 3) as ij_rate
+        FROM cms_facility_deficiencies d
+        CROSS JOIN LATERAL (
+          SELECT COUNT(*) as def_count
+          FROM cms_facility_deficiencies d2
+          WHERE d2.federal_provider_number = d.federal_provider_number
+            AND d2.survey_date = d.survey_date
+        ) dc
+        WHERE d.survey_date >= $2::date - INTERVAL '${days} days'
+      )
+      SELECT
+        s.surveys as state_surveys,
+        n.surveys as national_surveys,
+        s.avg_defs as state_avg_defs,
+        n.avg_defs as national_avg_defs,
+        s.ij_rate as state_ij_rate,
+        n.ij_rate as national_ij_rate
+      FROM state_stats s, national_stats n
+    `, [stateCode, maxDate]);
+
+    // Get state F-tag priorities vs national ranking
+    const ftagPrioritiesResult = await pool.query(`
+      WITH state_ftags AS (
+        SELECT
+          d.deficiency_tag,
+          COUNT(*) as state_count,
+          ROUND((COUNT(*)::numeric / SUM(COUNT(*)) OVER () * 100)::numeric, 1) as state_pct
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '${days} days'
+        GROUP BY d.deficiency_tag
+      ),
+      national_ftags AS (
+        SELECT
+          deficiency_tag,
+          COUNT(*) as national_count,
+          ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as national_rank
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $2::date - INTERVAL '${days} days'
+        GROUP BY deficiency_tag
+      )
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY s.state_count DESC) as state_rank,
+        s.deficiency_tag as code,
+        COALESCE(cd.description, 'Unknown') as name,
+        s.state_count,
+        s.state_pct,
+        COALESCE(n.national_rank, 999) as national_rank,
+        (ROW_NUMBER() OVER (ORDER BY s.state_count DESC))::int - COALESCE(n.national_rank, 999)::int as delta
+      FROM state_ftags s
+      LEFT JOIN national_ftags n ON s.deficiency_tag = n.deficiency_tag
+      LEFT JOIN citation_descriptions cd ON s.deficiency_tag = cd.deficiency_tag
+      ORDER BY s.state_count DESC
+      LIMIT 10
+    `, [stateCode, maxDate]);
+
+    // Get day of week distribution
+    const dayOfWeekResult = await pool.query(`
+      WITH state_dow AS (
+        SELECT
+          EXTRACT(DOW FROM d.survey_date) as dow,
+          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE f.state = $1
+          AND d.survey_date >= $2::date - INTERVAL '${days} days'
+        GROUP BY EXTRACT(DOW FROM d.survey_date)
+      ),
+      national_dow AS (
+        SELECT
+          EXTRACT(DOW FROM survey_date) as dow,
+          COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $2::date - INTERVAL '${days} days'
+        GROUP BY EXTRACT(DOW FROM survey_date)
+      )
+      SELECT
+        CASE s.dow
+          WHEN 0 THEN 'Sunday'
+          WHEN 1 THEN 'Monday'
+          WHEN 2 THEN 'Tuesday'
+          WHEN 3 THEN 'Wednesday'
+          WHEN 4 THEN 'Thursday'
+          WHEN 5 THEN 'Friday'
+          WHEN 6 THEN 'Saturday'
+        END as day,
+        CASE s.dow
+          WHEN 0 THEN 'Sun'
+          WHEN 1 THEN 'Mon'
+          WHEN 2 THEN 'Tue'
+          WHEN 3 THEN 'Wed'
+          WHEN 4 THEN 'Thu'
+          WHEN 5 THEN 'Fri'
+          WHEN 6 THEN 'Sat'
+        END as short_day,
+        ROUND((s.surveys::numeric / SUM(s.surveys) OVER () * 100)::numeric, 0) as pct,
+        ROUND((n.surveys::numeric / SUM(n.surveys) OVER () * 100)::numeric, 0) as national_pct
+      FROM state_dow s
+      LEFT JOIN national_dow n ON s.dow = n.dow
+      ORDER BY s.dow
+    `, [stateCode, maxDate]);
+
+    const comparison = comparisonResult.rows[0] || {};
+
+    // Generate state-specific insights
+    const insights = [];
+    const topStateTag = ftagPrioritiesResult.rows[0];
+    if (topStateTag && topStateTag.national_rank) {
+      const diff = parseInt(topStateTag.state_rank) - parseInt(topStateTag.national_rank);
+      if (Math.abs(diff) >= 3) {
+        insights.push(`F${topStateTag.code} ranks #${topStateTag.state_rank} in ${stateCode} vs #${topStateTag.national_rank} nationally`);
+      }
+    }
+
+    if (comparison.state_avg_defs && comparison.national_avg_defs) {
+      const avgDiff = parseFloat(comparison.state_avg_defs) - parseFloat(comparison.national_avg_defs);
+      if (Math.abs(avgDiff) >= 0.5) {
+        insights.push(`${stateCode} averages ${comparison.state_avg_defs} deficiencies per survey (national: ${comparison.national_avg_defs})`);
+      }
+    }
+
+    // Calculate peak day from state distribution
+    const dayOfWeekData = dayOfWeekResult.rows.map(r => ({
+      day: r.day,
+      shortDay: r.short_day,
+      pct: parseInt(r.pct) || 0,
+      nationalPct: parseInt(r.national_pct) || 0
+    }));
+
+    // Find state peak day
+    const statePeak = dayOfWeekData.reduce((max, r) => r.pct > max.pct ? r : max, { pct: 0 });
+    // Find national peak day
+    const nationalPeak = dayOfWeekData.reduce((max, r) => r.nationalPct > max.nationalPct ? r : max, { nationalPct: 0 });
+
+    // State name lookup
+    const stateNames = {
+      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
+      'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
+      'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+      'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+      'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
+      'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
+      'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+      'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+      'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
+      'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
+    };
+
+    res.json({
+      success: true,
+      data: {
+        state: stateCode,
+        stateName: stateNames[stateCode] || stateCode,
+        period,
+        comparison: {
+          surveys: {
+            state: parseInt(comparison.state_surveys) || 0,
+            national: parseInt(comparison.national_surveys) || 0
+          },
+          avgDeficiencies: {
+            state: parseFloat(comparison.state_avg_defs) || 0,
+            national: parseFloat(comparison.national_avg_defs) || 0,
+            delta: parseFloat(comparison.state_avg_defs) - parseFloat(comparison.national_avg_defs) || 0,
+            status: parseFloat(comparison.state_avg_defs) > parseFloat(comparison.national_avg_defs) * 1.1 ? 'ABOVE' :
+                    parseFloat(comparison.state_avg_defs) < parseFloat(comparison.national_avg_defs) * 0.9 ? 'BELOW' : 'AT'
+          },
+          ijRate: {
+            state: parseFloat(comparison.state_ij_rate) || 0,
+            national: parseFloat(comparison.national_ij_rate) || 0,
+            delta: parseFloat(comparison.state_ij_rate) - parseFloat(comparison.national_ij_rate) || 0,
+            status: parseFloat(comparison.state_ij_rate) > parseFloat(comparison.national_ij_rate) * 1.2 ? 'ABOVE' : 'AT'
+          }
+        },
+        ftagPriorities: ftagPrioritiesResult.rows.map(r => ({
+          stateRank: parseInt(r.state_rank),
+          code: `F${r.code}`,
+          name: r.name.length > 40 ? r.name.substring(0, 40) + '...' : r.name,
+          stateCount: parseInt(r.state_count),
+          statePct: parseFloat(r.state_pct),
+          nationalRank: parseInt(r.national_rank),
+          delta: parseInt(r.delta)
+        })),
+        dayOfWeekDistribution: dayOfWeekData,
+        peakDay: statePeak.day || 'Unknown',
+        peakDayPct: statePeak.pct,
+        nationalPeakDay: nationalPeak.day || 'Unknown',
+        nationalPeakPct: nationalPeak.nationalPct,
+        insights
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] State deep dive error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// F-TAG TRENDS ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/ftag-trends
+ * Get F-tag trend data over time
+ *
+ * Query params:
+ * - state: State code filter (optional, default: national)
+ * - ftags: Comma-separated F-tag codes (optional)
+ */
+router.get('/ftag-trends', async (req, res) => {
+  const { state, ftags } = req.query;
+  const pool = getMarketPool();
+
+  try {
+    // Get monthly counts for top F-tags over last 24 months
+    let query = `
+      SELECT
+        TO_CHAR(d.survey_date, 'YYYY-MM') as month,
+        TO_CHAR(d.survey_date, 'Mon YY') as month_label,
+        d.deficiency_tag,
+        COUNT(*) as count
+      FROM cms_facility_deficiencies d
+      ${state && state !== 'ALL' ? 'JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number' : ''}
+      WHERE d.survey_date >= CURRENT_DATE - INTERVAL '24 months'
+        ${state && state !== 'ALL' ? 'AND f.state = $1' : ''}
+        ${ftags ? `AND d.deficiency_tag IN (${ftags.split(',').map((_, i) => `$${state && state !== 'ALL' ? i + 2 : i + 1}`).join(',')})` : ''}
+      GROUP BY TO_CHAR(d.survey_date, 'YYYY-MM'), TO_CHAR(d.survey_date, 'Mon YY'), d.deficiency_tag
+      ORDER BY month, d.deficiency_tag
+    `;
+
+    const params = [];
+    if (state && state !== 'ALL') params.push(state);
+    if (ftags) params.push(...ftags.split(',').map(t => t.replace('F', '')));
+
+    const trendsResult = await pool.query(query, params);
+
+    // Get F-tag details for the tags we're showing
+    const ftagCodesInData = [...new Set(trendsResult.rows.map(r => r.deficiency_tag))];
+
+    const ftagDetailsResult = await pool.query(`
+      WITH ftag_stats AS (
+        SELECT
+          d.deficiency_tag,
+          COUNT(*) as current_count,
+          COUNT(*) FILTER (WHERE d.survey_date >= CURRENT_DATE - INTERVAL '6 months') as recent_count,
+          COUNT(*) FILTER (WHERE d.survey_date >= CURRENT_DATE - INTERVAL '12 months'
+                           AND d.survey_date < CURRENT_DATE - INTERVAL '6 months') as prior_count
+        FROM cms_facility_deficiencies d
+        ${state && state !== 'ALL' ? 'JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number' : ''}
+        WHERE d.survey_date >= CURRENT_DATE - INTERVAL '12 months'
+          ${state && state !== 'ALL' ? 'AND f.state = $1' : ''}
+        GROUP BY d.deficiency_tag
+      ),
+      severity_dist AS (
+        SELECT
+          deficiency_tag,
+          scope_severity,
+          COUNT(*) as count
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= CURRENT_DATE - INTERVAL '12 months'
+        GROUP BY deficiency_tag, scope_severity
+      )
+      SELECT
+        s.deficiency_tag as code,
+        cd.description as name,
+        cd.category,
+        s.current_count,
+        s.recent_count,
+        s.prior_count,
+        CASE
+          WHEN s.prior_count = 0 THEN 0
+          ELSE ROUND(((s.recent_count - s.prior_count)::numeric / s.prior_count * 100)::numeric, 1)
+        END as change_pct,
+        CASE
+          WHEN s.prior_count = 0 THEN 'NEW'
+          WHEN s.recent_count > s.prior_count * 1.05 THEN 'UP'
+          WHEN s.recent_count < s.prior_count * 0.95 THEN 'DOWN'
+          ELSE 'STABLE'
+        END as trend
+      FROM ftag_stats s
+      LEFT JOIN citation_descriptions cd ON s.deficiency_tag = cd.deficiency_tag
+      WHERE s.deficiency_tag = ANY($${state && state !== 'ALL' ? 2 : 1}::text[])
+      ORDER BY s.current_count DESC
+    `, state && state !== 'ALL' ? [state, ftagCodesInData] : [ftagCodesInData]);
+
+    // Transform trend data into chart format
+    const monthsSet = [...new Set(trendsResult.rows.map(r => r.month))].sort();
+    const trendData = monthsSet.map(month => {
+      const monthData = { month, monthLabel: trendsResult.rows.find(r => r.month === month)?.month_label };
+      trendsResult.rows.filter(r => r.month === month).forEach(r => {
+        monthData[`F${r.deficiency_tag}`] = parseInt(r.count);
+      });
+      return monthData;
+    });
+
+    // Pre-defined colors for chart lines
+    const FTAG_COLORS = [
+      '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#8b5cf6',
+      '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+    ];
+
+    // Build ftagDetails object
+    const ftagDetails = ftagDetailsResult.rows.reduce((acc, r) => {
+      acc[`F${r.code}`] = {
+        code: `F${r.code}`,
+        name: r.name || 'Unknown',
+        category: r.category || 'Unknown',
+        currentCount: parseInt(r.current_count),
+        changePct: parseFloat(r.change_pct),
+        trend: r.trend
+      };
+      return acc;
+    }, {});
+
+    // Build availableFTags array for the chart selector
+    const availableFTags = ftagDetailsResult.rows.map((r, i) => ({
+      code: `F${r.code}`,
+      name: r.name || 'Unknown',
+      color: FTAG_COLORS[i % FTAG_COLORS.length]
+    }));
+
+    // Generate emerging patterns from trend data
+    const emergingPatterns = ftagDetailsResult.rows
+      .filter(r => r.trend === 'UP' && parseFloat(r.change_pct) > 10)
+      .slice(0, 3)
+      .map(r => ({
+        code: `F${r.code}`,
+        name: r.name || 'Unknown',
+        changePct: parseFloat(r.change_pct),
+        insight: `F${r.code} citations up ${Math.abs(parseFloat(r.change_pct)).toFixed(1)}% - increased regulatory focus`
+      }));
+
+    // Generate correlation insights
+    const correlationInsights = [];
+    if (ftagDetailsResult.rows.length >= 2) {
+      const top2 = ftagDetailsResult.rows.slice(0, 2);
+      correlationInsights.push({
+        ftags: [top2[0].code, top2[1].code].map(c => `F${c}`),
+        insight: `F${top2[0].code} and F${top2[1].code} are frequently cited together`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        state: state || 'ALL',
+        trendData,
+        ftagDetails,
+        availableFTags,
+        emergingPatterns,
+        correlationInsights
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] F-tag trends error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// FACILITY-LEVEL SURVEY ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/facility/:ccn
+ * Get survey intelligence data for a specific facility
+ */
+router.get('/facility/:ccn', async (req, res) => {
+  const { ccn } = req.params;
+  const pool = getMarketPool();
+
+  try {
+    // Get last survey date and days since
+    const lastSurveyResult = await pool.query(`
+      SELECT
+        MAX(survey_date) as last_survey_date,
+        CURRENT_DATE - MAX(survey_date) as days_since_survey
+      FROM cms_facility_deficiencies
+      WHERE federal_provider_number = $1
+    `, [ccn]);
+
+    // Get facility's citation history (last 3 years)
+    const citationHistoryResult = await pool.query(`
+      SELECT
+        d.deficiency_tag,
+        cd.description as name,
+        COUNT(*) as count,
+        MAX(d.survey_date) as last_cited,
+        ARRAY_AGG(DISTINCT d.scope_severity) as severities
+      FROM cms_facility_deficiencies d
+      LEFT JOIN citation_descriptions cd ON d.deficiency_tag = cd.deficiency_tag
+      WHERE d.federal_provider_number = $1
+        AND d.survey_date >= CURRENT_DATE - INTERVAL '3 years'
+      GROUP BY d.deficiency_tag, cd.description
+      ORDER BY count DESC
+      LIMIT 10
+    `, [ccn]);
+
+    // Get recent surveys at this facility
+    const recentSurveysResult = await pool.query(`
+      SELECT
+        survey_date,
+        COUNT(*) as deficiency_count,
+        COUNT(*) FILTER (WHERE scope_severity IN ('J', 'K', 'L')) as ij_count,
+        ARRAY_AGG(DISTINCT deficiency_tag ORDER BY deficiency_tag) as ftags
+      FROM cms_facility_deficiencies
+      WHERE federal_provider_number = $1
+      GROUP BY survey_date
+      ORDER BY survey_date DESC
+      LIMIT 5
+    `, [ccn]);
+
+    // Get facility state for regional context
+    const facilityResult = await pool.query(`
+      SELECT state, county, latitude, longitude
+      FROM snf_facilities
+      WHERE federal_provider_number = $1
+    `, [ccn]);
+
+    const lastSurvey = lastSurveyResult.rows[0];
+    const facility = facilityResult.rows[0];
+
+    // Calculate simple risk level based on days since survey
+    const daysSince = parseInt(lastSurvey?.days_since_survey) || 0;
+    let riskLevel = 'LOW';
+    if (daysSince > 365) riskLevel = 'HIGH';
+    else if (daysSince > 300) riskLevel = 'ELEVATED';
+    else if (daysSince > 240) riskLevel = 'MODERATE';
+
+    res.json({
+      success: true,
+      data: {
+        ccn,
+        lastSurveyDate: lastSurvey?.last_survey_date,
+        daysSinceSurvey: daysSince,
+        riskLevel,
+        state: facility?.state,
+        county: facility?.county,
+        citationHistory: citationHistoryResult.rows.map(r => ({
+          code: `F${r.deficiency_tag}`,
+          name: r.name || 'Unknown',
+          count: parseInt(r.count),
+          lastCited: r.last_cited,
+          severities: r.severities
+        })),
+        recentSurveys: recentSurveysResult.rows.map(r => ({
+          date: r.survey_date,
+          deficiencyCount: parseInt(r.deficiency_count),
+          ijCount: parseInt(r.ij_count),
+          ftags: r.ftags.map(t => `F${t}`)
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Facility survey error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/nearby/:ccn
+ * Get recent surveys at facilities near the specified facility
+ */
+router.get('/nearby/:ccn', async (req, res) => {
+  const { ccn } = req.params;
+  const { days = 90, radius = 25 } = req.query;
+  const pool = getMarketPool();
+
+  try {
+    // Get facility location
+    const facilityResult = await pool.query(`
+      SELECT latitude, longitude, state
+      FROM snf_facilities
+      WHERE federal_provider_number = $1
+    `, [ccn]);
+
+    if (facilityResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facility not found'
+      });
+    }
+
+    const { latitude, longitude, state } = facilityResult.rows[0];
+
+    if (!latitude || !longitude) {
+      return res.json({
+        success: true,
+        data: {
+          ccn,
+          facilities: [],
+          message: 'Facility location not available'
+        }
+      });
+    }
+
+    // Find nearby facilities with recent surveys using Haversine formula
+    const nearbyResult = await pool.query(`
+      WITH nearby_facilities AS (
+        SELECT
+          f.federal_provider_number,
+          f.provider_name,
+          f.city,
+          f.state,
+          (3959 * acos(
+            LEAST(1.0, GREATEST(-1.0,
+              cos(radians($2)) * cos(radians(f.latitude)) *
+              cos(radians(f.longitude) - radians($3)) +
+              sin(radians($2)) * sin(radians(f.latitude))
+            ))
+          )) as distance_miles
+        FROM snf_facilities f
+        WHERE f.federal_provider_number != $1
+          AND f.latitude IS NOT NULL
+          AND f.longitude IS NOT NULL
+          AND (3959 * acos(
+            LEAST(1.0, GREATEST(-1.0,
+              cos(radians($2)) * cos(radians(f.latitude)) *
+              cos(radians(f.longitude) - radians($3)) +
+              sin(radians($2)) * sin(radians(f.latitude))
+            ))
+          )) <= $4
+      ),
+      recent_surveys AS (
+        SELECT
+          federal_provider_number,
+          survey_date,
+          COUNT(*) as deficiency_count,
+          MODE() WITHIN GROUP (ORDER BY deficiency_tag) as top_ftag
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+        GROUP BY federal_provider_number, survey_date
+      )
+      SELECT
+        nf.federal_provider_number as ccn,
+        nf.provider_name as name,
+        nf.city,
+        nf.state,
+        ROUND(nf.distance_miles::numeric, 1) as distance,
+        rs.survey_date,
+        CURRENT_DATE - rs.survey_date as days_ago,
+        rs.deficiency_count,
+        rs.top_ftag,
+        cd.description as top_ftag_description
+      FROM nearby_facilities nf
+      JOIN recent_surveys rs ON nf.federal_provider_number = rs.federal_provider_number
+      LEFT JOIN citation_descriptions cd ON rs.top_ftag = cd.deficiency_tag
+      ORDER BY rs.survey_date DESC, nf.distance_miles
+      LIMIT 20
+    `, [ccn, latitude, longitude, parseInt(radius)]);
+
+    // Generate summary insight
+    let summary = null;
+    if (nearbyResult.rows.length > 0) {
+      const within14 = nearbyResult.rows.filter(r => parseInt(r.days_ago) <= 14).length;
+      if (within14 > 0) {
+        summary = `${within14} facilities within ${radius} miles surveyed in last 14 days`;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ccn,
+        facilityState: state,
+        summary,
+        facilities: nearbyResult.rows.map(r => ({
+          ccn: r.ccn,
+          name: r.name,
+          city: r.city,
+          state: r.state,
+          distance: parseFloat(r.distance),
+          surveyDate: r.survey_date,
+          daysAgo: parseInt(r.days_ago),
+          deficiencyCount: parseInt(r.deficiency_count),
+          topFTag: r.top_ftag ? `F${r.top_ftag}` : null,
+          topFTagDescription: r.top_ftag_description || 'Unknown'
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Nearby surveys error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+module.exports = router;

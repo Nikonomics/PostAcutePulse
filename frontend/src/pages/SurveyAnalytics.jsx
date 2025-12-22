@@ -62,6 +62,7 @@ import {
   FileQuestion,
 } from 'lucide-react';
 import './SurveyAnalytics.css';
+import { getNationalOverview, getStateData, getFTagTrends } from '../api/surveyService';
 
 // US States for dropdown
 const US_STATES = [
@@ -994,15 +995,24 @@ const NationalOverviewTab = ({ data, selectedState, selectedPeriod }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setIsLoading(true);
-    // Simulate API call
-    const timer = setTimeout(() => {
-      const nationalData = getNationalOverviewData(selectedPeriod);
-      setOverviewData(nationalData);
-      setIsLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getNationalOverview(selectedPeriod);
+        if (response.success) {
+          setOverviewData(response.data);
+        } else {
+          console.error('Failed to load national overview:', response.error);
+          setOverviewData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching national overview:', error);
+        setOverviewData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, [selectedPeriod]);
 
   if (isLoading) {
@@ -1335,15 +1345,24 @@ const StateDeepDiveTab = ({ data, selectedState, selectedPeriod }) => {
 
   useEffect(() => {
     if (selectedState && selectedState !== 'ALL') {
-      setIsLoading(true);
-      // Simulate API call
-      const timer = setTimeout(() => {
-        const deepDiveData = getStateDeepDiveData(selectedState, selectedPeriod);
-        setStateData(deepDiveData);
-        setIsLoading(false);
-      }, 400);
-
-      return () => clearTimeout(timer);
+      const fetchData = async () => {
+        setIsLoading(true);
+        try {
+          const response = await getStateData(selectedState, selectedPeriod);
+          if (response.success) {
+            setStateData(response.data);
+          } else {
+            console.error('Failed to load state data:', response.error);
+            setStateData(null);
+          }
+        } catch (error) {
+          console.error('Error fetching state data:', error);
+          setStateData(null);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchData();
     }
   }, [selectedState, selectedPeriod]);
 
@@ -2180,14 +2199,24 @@ const FTagTrendsTab = ({ data, selectedState, selectedPeriod }) => {
   const [focusedFTag, setFocusedFTag] = useState(null);
 
   useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      const ftagData = getFTagTrendsData(selectedState, selectedPeriod);
-      setTrendsData(ftagData);
-      setIsLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getFTagTrends(selectedPeriod, 10);
+        if (response.success) {
+          setTrendsData(response.data);
+        } else {
+          console.error('Failed to load F-Tag trends:', response.error);
+          setTrendsData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching F-Tag trends:', error);
+        setTrendsData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, [selectedState, selectedPeriod]);
 
   // Handle toggling F-Tags in the chart

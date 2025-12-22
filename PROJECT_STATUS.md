@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix ownership API database connections for dual-DB architecture
 - **2025-12-22** - Add App Help chatbot with floating widget UI
 - **2025-12-22** - Fix: Use persistent disk for file uploads on Render
 - **2025-12-22** - Make EditUser form fields optional except name, email, role
@@ -41,18 +42,17 @@
 - **2025-12-17** - Fix deal detail tabs not showing when extraction_data is null
 - **2025-12-17** - Fix market analysis - remove non-existent long_stay_qm_rating columns
 - **2025-12-17** - Add position column migration for deals table
-- **2025-12-17** - Fix Deals.jsx crash and add CMS production migration scripts
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     58 files
-Frontend:    137 files
-Routes:      7 files
-Services:    10 files
-Components:  97 files
-Migrations:  8 files
+Backend:     46 files
+Frontend:    97 files
+Routes:      8 files
+Services:    6 files
+Components:  63 files
+Migrations:  4 files
 ```
 
 ### New Files Added (Last 20 Commits)
@@ -60,12 +60,7 @@ Migrations:  8 files
 ```
 TECHNICAL_DEBT.md
 backend/DATABASE_ARCHITECTURE.md
-backend/bellwether_validation.js
 backend/controller/SurveyIntelligenceController.js
-backend/migrations/20241218-add-ccn-to-deal-facilities.js
-backend/migrations/20241218-add-cms-facility-to-saved-items.js
-backend/migrations/20241218-add-deal-match-status.js
-backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-facility-comments-tables.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-user-invitations-table.js
@@ -73,6 +68,11 @@ backend/models/facility_change_logs.js
 backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
 backend/models/market_comment_mentions.js
+backend/models/market_comments.js
+backend/models/user_change_logs.js
+backend/models/user_invitations.js
+backend/routes/ma-analytics.js
+backend/routes/survey.js
 ```
 
 ---
