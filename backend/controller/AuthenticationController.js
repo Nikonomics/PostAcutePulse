@@ -1239,6 +1239,69 @@ module.exports = {
   },
 
   /*
+  Update user (admin only)
+  Method: PUT
+  URL: /api/v1/auth/update-user
+  Body: { id, first_name, last_name, phone_number, department, role, status, permission, password }
+  */
+  updateUser: async (req, res) => {
+    try {
+      const { id, first_name, last_name, phone_number, department, role, status, permission, password } = req.body;
+      const adminId = req.user.id;
+
+      if (!id) {
+        return helper.error(res, "User ID is required");
+      }
+
+      const user = await User.findByPk(id);
+      if (!user) {
+        return helper.error(res, "User not found", 404);
+      }
+
+      // Build update object with only provided fields
+      const updateData = {};
+      if (first_name !== undefined) updateData.first_name = first_name;
+      if (last_name !== undefined) updateData.last_name = last_name;
+      if (phone_number !== undefined) updateData.phone_number = phone_number;
+      if (department !== undefined) updateData.department = department;
+      if (status !== undefined) updateData.status = status;
+      if (permission !== undefined) updateData.permission = permission;
+
+      // Validate and set role if provided
+      if (role !== undefined) {
+        if (!VALID_ROLES.includes(role)) {
+          return helper.error(res, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+        }
+        updateData.role = role;
+      }
+
+      // Hash password if provided
+      if (password && password.length >= 8) {
+        const saltRounds = 10;
+        updateData.password = await bcrypt.hash(password, saltRounds);
+      } else if (password && password.length > 0 && password.length < 8) {
+        return helper.error(res, "Password must be at least 8 characters");
+      }
+
+      updateData.updated_at = new Date();
+
+      await user.update(updateData);
+
+      return helper.success(res, "User updated successfully", {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        status: user.status
+      });
+    } catch (err) {
+      console.error('Update user error:', err);
+      return helper.error(res, err.message || "Failed to update user");
+    }
+  },
+
+  /*
   Update user role (admin only)
   Method: PUT
   URL: /api/v1/auth/user/:id/role

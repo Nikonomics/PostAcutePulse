@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add user invitation system with role-based access control
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
 - **2025-12-22** - Start VBP metrics sections collapsed by default
 - **2025-12-22** - Migrate VBP endpoints to use Market DB
@@ -41,14 +42,13 @@
 - **2025-12-17** - Add remaining missing FacilityMetrics components
 - **2025-12-17** - Add missing ComparisonView component
 - **2025-12-17** - Add missing SkeletonCard component
-- **2025-12-17** - Add Benchmarks and Reports tabs to Facility Metrics
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     57 files
-Frontend:    129 files
+Frontend:    130 files
 Routes:      6 files
 Services:    8 files
 Components:  93 files

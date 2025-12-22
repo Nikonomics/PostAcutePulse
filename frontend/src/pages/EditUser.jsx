@@ -306,7 +306,7 @@ const EditUser = () => {
                    <option value="admin">Admin</option>
                    <option value="deal_manager">Deal Manager</option>
                    <option value="analyst">Analyst</option>
-                   <option value="reviewer">Reviewer</option>
+                   <option value="viewer">Viewer</option>
                  </select>
                 {errors.role && (
                   <span className="error-message">{errors.role.message}</span>

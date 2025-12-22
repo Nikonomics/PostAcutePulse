@@ -45,4 +45,7 @@ router.post('/invite/:id/resend', requireAuthentication, requireAdmin, Authentic
 router.get('/roles', requireAuthentication, AuthenticationController.getRoles);
 router.put('/user/:id/role', requireAuthentication, requireAdmin, AuthenticationController.updateUserRole);
 
+// User management route (admin)
+router.put('/update-user', requireAuthentication, requireAdmin, AuthenticationController.updateUser);
+
 module.exports = router
