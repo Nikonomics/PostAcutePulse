@@ -549,6 +549,13 @@ function OwnershipProfile() {
           >
             Activity
           </button>
+          <button
+            className={`ownership-tab ${activeTab === 'surveys' ? 'active' : ''}`}
+            onClick={() => setActiveTab('surveys')}
+          >
+            <ClipboardList size={16} style={{ marginRight: '6px' }} />
+            Survey Analytics
+          </button>
         </div>
       </div>
 
@@ -1401,6 +1408,223 @@ function OwnershipProfile() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Survey Analytics Tab */}
+        {activeTab === 'surveys' && (
+          <div className="survey-analytics-section">
+            {surveyLoading ? (
+              <div className="loading-container">
+                <Loader className="spin" size={32} />
+                <p>Loading survey analytics...</p>
+              </div>
+            ) : surveyData ? (
+              <>
+                {/* Summary Metrics */}
+                <div className="survey-metrics-grid">
+                  <div className="survey-metric-card">
+                    <div className="survey-metric-icon blue">
+                      <ClipboardList size={20} />
+                    </div>
+                    <div className="survey-metric-content">
+                      <span className="survey-metric-value">{surveyData.summary?.totalSurveys || 0}</span>
+                      <span className="survey-metric-label">Surveys (12 mo)</span>
+                    </div>
+                  </div>
+                  <div className="survey-metric-card">
+                    <div className="survey-metric-icon orange">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div className="survey-metric-content">
+                      <span className="survey-metric-value">{surveyData.summary?.avgDeficienciesPerSurvey?.toFixed(1) || 0}</span>
+                      <span className="survey-metric-label">Avg Deficiencies</span>
+                    </div>
+                  </div>
+                  <div className="survey-metric-card">
+                    <div className={`survey-metric-icon ${surveyData.summary?.ijRatePct > 3 ? 'red' : 'green'}`}>
+                      <Activity size={20} />
+                    </div>
+                    <div className="survey-metric-content">
+                      <span className="survey-metric-value">{surveyData.summary?.ijRatePct?.toFixed(2) || 0}%</span>
+                      <span className="survey-metric-label">IJ Rate</span>
+                    </div>
+                  </div>
+                  <div className="survey-metric-card">
+                    <div className="survey-metric-icon purple">
+                      <Building2 size={20} />
+                    </div>
+                    <div className="survey-metric-content">
+                      <span className="survey-metric-value">{surveyData.summary?.facilitiesWithIJ || 0}</span>
+                      <span className="survey-metric-label">Facilities w/ IJ</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Year-over-Year Comparison */}
+                {surveyData.yearOverYear && (
+                  <div className="ownership-card yoy-comparison">
+                    <div className="ownership-card-header">
+                      <h3 className="ownership-card-title">
+                        {surveyData.yearOverYear.changePct < 0 ? (
+                          <TrendingDown size={18} className="trend-down" />
+                        ) : surveyData.yearOverYear.changePct > 0 ? (
+                          <TrendingUp size={18} className="trend-up" />
+                        ) : null}
+                        Year-over-Year Comparison
+                      </h3>
+                    </div>
+                    <div className="yoy-content">
+                      <div className="yoy-stat">
+                        <span className="yoy-label">Current Year</span>
+                        <span className="yoy-value">{surveyData.yearOverYear.currentYear.deficiencies} deficiencies</span>
+                        <span className="yoy-sub">({surveyData.yearOverYear.currentYear.surveys} surveys, avg {surveyData.yearOverYear.currentYear.avgDefs})</span>
+                      </div>
+                      <div className="yoy-stat">
+                        <span className="yoy-label">Prior Year</span>
+                        <span className="yoy-value">{surveyData.yearOverYear.priorYear.deficiencies} deficiencies</span>
+                        <span className="yoy-sub">({surveyData.yearOverYear.priorYear.surveys} surveys, avg {surveyData.yearOverYear.priorYear.avgDefs})</span>
+                      </div>
+                      <div className={`yoy-change ${surveyData.yearOverYear.changePct < 0 ? 'positive' : surveyData.yearOverYear.changePct > 0 ? 'negative' : ''}`}>
+                        {surveyData.yearOverYear.changePct < 0 ? (
+                          <TrendingDown size={16} />
+                        ) : surveyData.yearOverYear.changePct > 0 ? (
+                          <TrendingUp size={16} />
+                        ) : null}
+                        {Math.abs(surveyData.yearOverYear.changePct)}% {surveyData.yearOverYear.changePct < 0 ? 'decrease' : surveyData.yearOverYear.changePct > 0 ? 'increase' : 'no change'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Monthly Trend Chart */}
+                {surveyData.monthlyTrends?.length > 0 && (
+                  <div className="ownership-card">
+                    <div className="ownership-card-header">
+                      <h3 className="ownership-card-title">
+                        <Activity size={18} /> Monthly Deficiency Trends
+                      </h3>
+                    </div>
+                    <div className="chart-container">
+                      <ResponsiveContainer width="100%" height={280}>
+                        <LineChart data={surveyData.monthlyTrends} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="monthLabel" tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip />
+                          <Legend />
+                          <Line type="monotone" dataKey="deficiencies" name="Deficiencies" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444', r: 3 }} />
+                          <Line type="monotone" dataKey="surveys" name="Surveys" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 3 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                <div className="survey-tables-grid">
+                  {/* Top F-Tags */}
+                  {surveyData.topFTags?.length > 0 && (
+                    <div className="ownership-card">
+                      <div className="ownership-card-header">
+                        <h3 className="ownership-card-title">
+                          <AlertCircle size={18} /> Top Deficiency Tags
+                        </h3>
+                      </div>
+                      <table className="survey-table">
+                        <thead>
+                          <tr>
+                            <th>F-Tag</th>
+                            <th>Description</th>
+                            <th>Count</th>
+                            <th>Trend</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {surveyData.topFTags.map((ftag, idx) => (
+                            <tr key={idx}>
+                              <td><span className="ftag-code">{ftag.code}</span></td>
+                              <td className="ftag-name">{ftag.name?.substring(0, 50)}{ftag.name?.length > 50 ? '...' : ''}</td>
+                              <td>{ftag.count}</td>
+                              <td>
+                                <span className={`trend-badge ${ftag.trend.toLowerCase()}`}>
+                                  {ftag.trend === 'UP' && <TrendingUp size={12} />}
+                                  {ftag.trend === 'DOWN' && <TrendingDown size={12} />}
+                                  {ftag.trend}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Facility Breakdown */}
+                  {surveyData.facilityBreakdown?.length > 0 && (
+                    <div className="ownership-card">
+                      <div className="ownership-card-header">
+                        <h3 className="ownership-card-title">
+                          <Building2 size={18} /> Facility Survey Status
+                        </h3>
+                      </div>
+                      <table className="survey-table">
+                        <thead>
+                          <tr>
+                            <th>Facility</th>
+                            <th>Last Survey</th>
+                            <th>Days Since</th>
+                            <th>Defs</th>
+                            <th>IJ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {surveyData.facilityBreakdown.map((facility, idx) => (
+                            <tr
+                              key={idx}
+                              className="clickable-row"
+                              onClick={() => navigate(`/facility-metrics/${facility.ccn}`)}
+                            >
+                              <td>
+                                <div className="facility-name-cell">
+                                  <span className="facility-name">{facility.name}</span>
+                                  <span className="facility-location">{facility.city}, {facility.state}</span>
+                                </div>
+                              </td>
+                              <td>{facility.lastSurveyDate ? new Date(facility.lastSurveyDate).toLocaleDateString() : 'N/A'}</td>
+                              <td>
+                                <span className={`days-badge ${facility.daysSince > 365 ? 'overdue' : facility.daysSince > 300 ? 'warning' : ''}`}>
+                                  {facility.daysSince || 'N/A'}
+                                </span>
+                              </td>
+                              <td>{facility.deficiencyCount}</td>
+                              <td>
+                                {facility.ijCount > 0 ? (
+                                  <span className="ij-badge">{facility.ijCount}</span>
+                                ) : (
+                                  <span className="no-ij">0</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {surveyData.dataAsOf && (
+                  <div className="data-freshness">
+                    Data as of {new Date(surveyData.dataAsOf).toLocaleDateString()}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-state">
+                <ClipboardList size={48} className="empty-state-icon" />
+                <h3>No Survey Data Available</h3>
+                <p>Survey analytics will appear here once data is loaded.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
