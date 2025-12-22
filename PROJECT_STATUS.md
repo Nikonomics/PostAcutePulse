@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
 - **2025-12-22** - Add market comments feature (Phase 4)
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
@@ -41,18 +42,17 @@
 - **2025-12-17** - Add deal position ordering, fix portfolio extraction, and sync risk scores
 - **2025-12-16** - Fix OwnershipProfile aggregate metrics display
 - **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
-- **2025-12-15** - Add ownership field to contact_information TypeScript schema
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     66 files
+Backend:     65 files
 Frontend:    127 files
 Routes:      6 files
 Services:    9 files
 Components:  94 files
-Migrations:  9 files
+Migrations:  8 files
 ```
 
 ### New Files Added (Last 20 Commits)
@@ -67,12 +67,12 @@ backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
-backend/migrations/add-deals-position-column.js
 backend/migrations/add-facility-comments-tables.js
 backend/migrations/add-market-comments-tables.js
 backend/models/facility_change_logs.js
 backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
+backend/models/market_comment_mentions.js
 ```
 
 ---

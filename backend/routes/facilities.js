@@ -5,8 +5,9 @@
  * from the CMS nursing home and ALF reference databases
  *
  * Database Strategy:
- * - Market DB (MARKET_DATABASE_URL): For current facility data (snf_facilities, alf_facilities, cms_facility_deficiencies)
- * - Main DB (DATABASE_URL): For time-series data (facility_snapshots, vbp_scores, health_citations, etc.)
+ * - Market DB (MARKET_DATABASE_URL): For CMS facility data including snf_facilities, alf_facilities,
+ *   cms_facility_deficiencies, VBP tables (vbp_scores, snf_vbp_performance, facility_vbp_rankings)
+ * - Main DB (DATABASE_URL): For user-generated data (deals, documents, etc.)
  */
 
 const express = require('express');
@@ -601,75 +602,71 @@ router.get('/snf/:ccn/vbp-rankings', async (req, res) => {
   try {
     const { ccn } = req.params;
     const { year } = req.query;
-    const { getSequelizeInstance } = require('../config/database');
-    const sequelize = getSequelizeInstance();
+    const pool = getMarketPool();
 
-    try {
-      // Get rankings - either for specific year or most recent
-      let query;
-      let replacements = { ccn };
+    // Get rankings - either for specific year or most recent
+    let query;
+    let params;
 
-      if (year) {
-        query = `
-          SELECT *
-          FROM facility_vbp_rankings
-          WHERE federal_provider_number = :ccn
-            AND fiscal_year = :year
-        `;
-        replacements.year = parseInt(year);
-      } else {
-        // Get most recent year's rankings
-        query = `
-          SELECT *
-          FROM facility_vbp_rankings
-          WHERE federal_provider_number = :ccn
-          ORDER BY fiscal_year DESC
-          LIMIT 1
-        `;
-      }
-
-      const [results] = await sequelize.query(query, { replacements });
-
-      if (results.length === 0) {
-        return res.json({
-          success: true,
-          rankings: null,
-          message: 'No VBP rankings found for this facility'
-        });
-      }
-
-      const r = results[0];
-
-      // Format response
-      const rankings = {
-        fiscal_year: r.fiscal_year,
-        national: {
-          rank: r.national_rank,
-          total: r.national_total,
-          percentile: parseFloat(r.national_percentile)
-        },
-        state: r.state_rank ? {
-          rank: r.state_rank,
-          total: r.state_total,
-          percentile: parseFloat(r.state_percentile)
-        } : null,
-        market: r.market_rank ? {
-          rank: r.market_rank,
-          total: r.market_total,
-          percentile: parseFloat(r.market_percentile)
-        } : null,
-        chain: r.chain_rank ? {
-          rank: r.chain_rank,
-          total: r.chain_total,
-          percentile: parseFloat(r.chain_percentile)
-        } : null,
-        calculated_at: r.calculated_at
-      };
-
-      res.json({ success: true, rankings });
-    } finally {
-      await sequelize.close();
+    if (year) {
+      query = `
+        SELECT *
+        FROM facility_vbp_rankings
+        WHERE federal_provider_number = $1
+          AND fiscal_year = $2
+      `;
+      params = [ccn, parseInt(year)];
+    } else {
+      // Get most recent year's rankings
+      query = `
+        SELECT *
+        FROM facility_vbp_rankings
+        WHERE federal_provider_number = $1
+        ORDER BY fiscal_year DESC
+        LIMIT 1
+      `;
+      params = [ccn];
     }
+
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        rankings: null,
+        message: 'No VBP rankings found for this facility'
+      });
+    }
+
+    const r = result.rows[0];
+
+    // Format response
+    const rankings = {
+      fiscal_year: r.fiscal_year,
+      national: {
+        rank: r.national_rank,
+        total: r.national_total,
+        percentile: parseFloat(r.national_percentile)
+      },
+      state: r.state_rank ? {
+        rank: r.state_rank,
+        total: r.state_total,
+        percentile: parseFloat(r.state_percentile)
+      } : null,
+      market: r.market_rank ? {
+        rank: r.market_rank,
+        total: r.market_total,
+        percentile: parseFloat(r.market_percentile)
+      } : null,
+      chain: r.chain_rank ? {
+        rank: r.chain_rank,
+        total: r.chain_total,
+        percentile: parseFloat(r.chain_percentile)
+      } : null,
+      calculated_at: r.calculated_at || r.created_at
+    };
+
+    res.json({ success: true, rankings });
   } catch (error) {
     console.error('Error fetching VBP rankings:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1239,51 +1236,44 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
     });
   }
 
-  const { getSequelizeInstance } = require('../config/database');
-  const sequelize = getSequelizeInstance();
+  const pool = getMarketPool();
 
   try {
-    // Get current year detailed data from snf_vbp_performance (FY2026)
-    const [currentResult] = await sequelize.query(`
+    // Get current year detailed data from snf_vbp_performance
+    const currentResult = await pool.query(`
       SELECT
         fiscal_year,
         performance_score,
         incentive_payment_multiplier,
         incentive_percentage,
-        -- Readmission measures
         baseline_readmission_rate,
         performance_readmission_rate,
         readmission_achievement_score,
         readmission_improvement_score,
         readmission_measure_score,
-        -- HAI measures
         baseline_hai_rate,
         performance_hai_rate,
         hai_achievement_score,
         hai_improvement_score,
         hai_measure_score,
-        -- Turnover measures
         baseline_turnover_rate,
         performance_turnover_rate,
         turnover_achievement_score,
         turnover_improvement_score,
         turnover_measure_score,
-        -- Staffing measures
         baseline_staffing_hours,
         performance_staffing_hours,
         staffing_achievement_score,
         staffing_improvement_score,
         staffing_measure_score
       FROM snf_vbp_performance
-      WHERE cms_certification_number = :ccn
+      WHERE cms_certification_number = $1
       ORDER BY fiscal_year DESC
       LIMIT 1
-    `, {
-      replacements: { ccn }
-    });
+    `, [ccn]);
 
     // Get historical data from vbp_scores (6 years)
-    const [historyResult] = await sequelize.query(`
+    const historyResult = await pool.query(`
       SELECT
         fiscal_year,
         performance_score,
@@ -1296,14 +1286,12 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
         improvement_score,
         vbp_ranking
       FROM vbp_scores
-      WHERE ccn = :ccn
+      WHERE ccn = $1
       ORDER BY fiscal_year DESC
-    `, {
-      replacements: { ccn }
-    });
+    `, [ccn]);
 
     // Get rankings from facility_vbp_rankings (most recent year)
-    const [rankingsResult] = await sequelize.query(`
+    const rankingsResult = await pool.query(`
       SELECT
         fiscal_year,
         national_rank, national_total, national_percentile,
@@ -1311,41 +1299,32 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
         market_rank, market_total, market_percentile,
         chain_rank, chain_total, chain_percentile
       FROM facility_vbp_rankings
-      WHERE federal_provider_number = :ccn
+      WHERE federal_provider_number = $1
       ORDER BY fiscal_year DESC
       LIMIT 1
-    `, {
-      replacements: { ccn }
-    });
+    `, [ccn]);
 
     // Get facility info for benchmarks and dollar impact
-    const [facilityResult] = await sequelize.query(`
+    const facilityResult = await pool.query(`
       SELECT certified_beds, state, county
       FROM snf_facilities
-      WHERE federal_provider_number = :ccn
+      WHERE federal_provider_number = $1
       LIMIT 1
-    `, {
-      replacements: { ccn }
-    });
-
-    const facilityState = facilityResult?.[0]?.state;
-    const facilityCounty = facilityResult?.[0]?.county;
+    `, [ccn]);
 
     // Get benchmark averages (national, state, county) for each measure
-    const [benchmarkResult] = await sequelize.query(`
+    const benchmarkResult = await pool.query(`
       WITH facility_info AS (
         SELECT state, county
         FROM snf_facilities
-        WHERE federal_provider_number = :ccn
+        WHERE federal_provider_number = $1
         LIMIT 1
       )
       SELECT
-        -- National averages
         AVG(performance_readmission_rate) as national_readmission,
         AVG(performance_hai_rate) as national_hai,
         AVG(performance_turnover_rate) as national_turnover,
         AVG(performance_staffing_hours) as national_staffing,
-        -- State averages
         AVG(CASE WHEN v.state = (SELECT state FROM facility_info)
             THEN performance_readmission_rate END) as state_readmission,
         AVG(CASE WHEN v.state = (SELECT state FROM facility_info)
@@ -1354,7 +1333,6 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
             THEN performance_turnover_rate END) as state_turnover,
         AVG(CASE WHEN v.state = (SELECT state FROM facility_info)
             THEN performance_staffing_hours END) as state_staffing,
-        -- County averages (using snf_facilities for county lookup)
         AVG(CASE WHEN f.county = (SELECT county FROM facility_info) AND f.state = (SELECT state FROM facility_info)
             THEN performance_readmission_rate END) as county_readmission,
         AVG(CASE WHEN f.county = (SELECT county FROM facility_info) AND f.state = (SELECT state FROM facility_info)
@@ -1366,14 +1344,12 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
       FROM snf_vbp_performance v
       LEFT JOIN snf_facilities f ON v.cms_certification_number = f.federal_provider_number
       WHERE v.fiscal_year = (SELECT MAX(fiscal_year) FROM snf_vbp_performance)
-    `, {
-      replacements: { ccn }
-    });
+    `, [ccn]);
 
     // Build current year response
     let current = null;
-    if (currentResult && currentResult.length > 0) {
-      const c = currentResult[0];
+    if (currentResult.rows && currentResult.rows.length > 0) {
+      const c = currentResult.rows[0];
       current = {
         fiscal_year: c.fiscal_year,
         performance_score: parseFloat(c.performance_score) || null,
@@ -1413,7 +1389,7 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
     }
 
     // Build history response
-    const history = (historyResult || []).map(h => ({
+    const history = (historyResult.rows || []).map(h => ({
       fiscal_year: h.fiscal_year,
       performance_score: parseFloat(h.performance_score) || null,
       incentive_multiplier: parseFloat(h.incentive_payment_multiplier) || null,
@@ -1428,8 +1404,8 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
 
     // Build rankings response
     let rankings = null;
-    if (rankingsResult && rankingsResult.length > 0) {
-      const r = rankingsResult[0];
+    if (rankingsResult.rows && rankingsResult.rows.length > 0) {
+      const r = rankingsResult.rows[0];
       rankings = {
         fiscal_year: r.fiscal_year,
         national: {
@@ -1457,8 +1433,8 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
 
     // Calculate estimated dollar impact
     let estimated_impact = null;
-    const certifiedBeds = facilityResult && facilityResult.length > 0
-      ? parseInt(facilityResult[0].certified_beds)
+    const certifiedBeds = facilityResult.rows && facilityResult.rows.length > 0
+      ? parseInt(facilityResult.rows[0].certified_beds)
       : null;
     const multiplier = current?.incentive_multiplier || (history.length > 0 ? history[0].incentive_multiplier : null);
 
@@ -1485,8 +1461,8 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
 
     // Build benchmarks response
     let benchmarks = null;
-    if (benchmarkResult && benchmarkResult.length > 0) {
-      const b = benchmarkResult[0];
+    if (benchmarkResult.rows && benchmarkResult.rows.length > 0) {
+      const b = benchmarkResult.rows[0];
       benchmarks = {
         readmission: {
           national: parseFloat(b.national_readmission) || null,
