@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 08:47:53
+> Last updated: 2025-12-22 09:10:39
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -535,6 +535,194 @@ DELETE /api/v1/deal/facility/:facilityId           Delete facility
 POST   /api/v1/deal/add-deal-document     Upload document
 GET    /api/v1/deal/get-deal-documents    List documents
 DELETE /api/v1/deal/delete-deal-document  Delete document
+```
+
+---
+
+## Production Databases
+
+SNFalyze uses THREE PostgreSQL databases on Render:
+
+### 1. snf_platform (CMS Survey & Facility Data)
+**Connection:** `DATABASE_URL` environment variable
+**Purpose:** CMS survey citations, deficiencies, facility details
+
+| Table | Records | Description |
+|-------|---------|-------------|
+| health_citations | 417K | Survey deficiency records (2017-present) |
+| survey_dates | 151K | Survey visit dates by type |
+| snf_facilities | 14.6K | Facility details (name, address, beds, lat/lng) |
+| citation_descriptions | 551 | F-Tag descriptions |
+| facility_bellwether_relationships | — | Predictive survey patterns |
+| survey_alert_subscriptions | — | User alert preferences |
+| survey_alerts | — | Generated alerts |
+
+### 2. snf_market_data (Market Analytics)
+**Connection:** `MARKET_DATABASE_URL` environment variable
+**Purpose:** Market-level analytics, ownership chains, M&A activity
+
+| Table | Description |
+|-------|-------------|
+| ownership_profiles | Parent organizations |
+| snf_ownership_data | Facility-to-owner mappings |
+| snf_vbp_performance | Value-Based Purchasing scores |
+| market_comments | User comments on markets |
+
+### 3. snfalyze_db (Application Data)
+**Connection:** `DATABASE_URL` in production app
+**Purpose:** Deals, users, documents, activity
+
+| Table | Description |
+|-------|-------------|
+| deals | Deal records |
+| deal_facilities | Multi-facility support |
+| users | User accounts |
+| facility_comments | User comments on facilities |
+
+---
+
+## Survey Intelligence API
+
+**Base URL:** `/api/v1/survey-intelligence`
+**Database:** snf_platform (Render PostgreSQL)
+**Total Endpoints:** 26
+
+### National & State Analytics
+```
+GET /national/summary              YTD national survey stats
+GET /national/trends?months=12     Monthly trend data
+GET /states                        All states summary (survey counts, citations)
+GET /states/:stateCode             State detail with top facilities
+GET /states/:stateCode/trends      State monthly trends
+```
+
+### F-Tag Analysis
+```
+GET /ftags/top?limit=20&state=CA   Top deficiency tags
+GET /ftags/:ftagCode               F-Tag detail with trends
+```
+
+### Timing Patterns
+```
+GET /patterns/day-of-week          Survey distribution by day (Thu=peak)
+GET /patterns/week-of-month        Distribution by week (Week 4=peak)
+GET /patterns/seasonal             Monthly patterns (Aug-Oct=peak)
+```
+
+### Regional Activity
+```
+GET /regions/hotspots?days=30      Counties with most activity
+GET /counties/:state/:county/activity  County survey detail
+GET /nearby?lat=X&lng=Y&radius=10  Geographic proximity search
+```
+
+### Facility Forecasts
+```
+GET /facilities/:ccn/forecast      Survey probability prediction
+GET /facilities/:ccn/history       Past survey results
+GET /facilities/:ccn/regional-activity  Nearby facility surveys
+GET /facilities/:ccn/risk-profile  Risk assessment with prep checklist
+```
+
+### Bellwether System
+Identifies facilities consistently surveyed first in an area (predictive signals).
+
+```
+GET  /bellwethers/:ccn             Bellwether relationships for facility
+GET  /bellwethers/:ccn/signals     Active signals (nearby bellwether surveyed)
+POST /bellwethers/calculate        Calculate patterns for state/county
+     Body: { state: "CA", county: "Los Angeles", min_occurrences: 3 }
+POST /bellwethers/update-signals   Refresh signals after new survey data
+```
+
+### Alert System
+```
+GET    /alerts?user_id=X           User's survey alerts
+POST   /alerts/subscribe           Subscribe to alerts
+       Body: { user_id, federal_provider_number, alert_types: ["bellwether"] }
+PUT    /alerts/:alertId/read       Mark alert as read
+DELETE /alerts/subscribe/:id       Unsubscribe
+```
+
+### Metadata
+```
+GET /meta/freshness                Data recency (lag days, coverage)
+```
+
+### Key Probability Factors (from forecast endpoint)
+```javascript
+// Day-of-week factors (surveys rarely on weekends)
+DOW_FACTORS = { Sun: 0.1, Mon: 1.0, Tue: 1.1, Wed: 1.4, Thu: 1.1, Fri: 0.3, Sat: 0.1 }
+
+// Week-of-month factors (Week 4 highest)
+WEEK_FACTORS = { 1: 0.9, 2: 1.0, 3: 0.9, 4: 1.3 }
+
+// Seasonal factors (Aug-Oct peak, Dec low)
+SEASONAL_FACTORS = { Jan: 0.8, ..., Aug: 1.1, Sep: 1.1, Oct: 1.1, Nov: 0.9, Dec: 0.7 }
+
+// Federal maximum survey interval: 456 days (15 months)
+```
+
+---
+
+## Market Analysis API
+
+**Base URL:** `/api/v1/markets`
+**Database:** snf_market_data
+
+```
+GET /states                        List states with facility counts
+GET /states/:stateCode             State market summary
+GET /states/:stateCode/counties    Counties in state with metrics
+GET /counties/:stateCode/:county   County detail with facilities
+GET /facilities/search             Search facilities by name/CCN
+GET /facilities/:ccn               Facility detail with quality scores
+```
+
+---
+
+## Ownership Research API
+
+**Base URL:** `/api/v1/ownership`
+**Database:** snf_market_data
+
+```
+GET /profiles                      Search ownership profiles
+GET /profiles/:id                  Profile detail with facilities
+GET /profiles/:id/facilities       Facilities owned by organization
+GET /profiles/:id/timeline         Acquisition history
+GET /chain/:ccn                    Ownership chain for facility
+```
+
+---
+
+## M&A Intelligence API
+
+**Base URL:** `/api/v1/ma-analytics`
+**Database:** snf_market_data
+
+```
+GET /activity/recent               Recent M&A transactions
+GET /activity/by-state             Transactions by state
+GET /activity/by-operator          Transactions by buyer/seller
+GET /targets/potential             Potential acquisition targets
+GET /valuations/comparables        Comparable transaction analysis
+```
+
+---
+
+## Facility Metrics API
+
+**Base URL:** `/api/v1/facilities`
+**Database:** snf_platform + snf_market_data
+
+```
+GET /:ccn/overview                 Facility summary (beds, occupancy, ratings)
+GET /:ccn/quality                  Star ratings, health inspections
+GET /:ccn/staffing                 Staffing hours, turnover
+GET /:ccn/citations                Recent deficiencies
+GET /:ccn/ownership                Current owner + history
+GET /:ccn/financials               Cost report data (if available)
 ```
 
 ---
@@ -1292,6 +1480,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1485,6 +1674,7 @@ backend/migrations/create-snf-vbp-performance.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add market comments feature (Phase 4)
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
@@ -1514,22 +1704,23 @@ backend/migrations/create-snf-vbp-performance.js
 - **2025-12-16** - Fix OwnershipProfile aggregate metrics display
 - **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
 - **2025-12-15** - Add ownership field to contact_information TypeScript schema
-- **2025-12-15** - Improve Deal Overview page for portfolio deals
+
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     68 files
-Frontend:    136 files
+Backend:     66 files
+Frontend:    127 files
 Routes:      6 files
 Services:    9 files
-Components:  102 files
+Components:  94 files
 Migrations:  9 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
+TECHNICAL_DEBT.md
 backend/DATABASE_ARCHITECTURE.md
 backend/bellwether_validation.js
 backend/controller/SurveyIntelligenceController.js
@@ -1544,7 +1735,6 @@ backend/migrations/add-market-comments-tables.js
 backend/models/facility_change_logs.js
 backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
-backend/models/market_comment_mentions.js
 ```
 
 ---

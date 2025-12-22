@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add market comments feature (Phase 4)
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
@@ -41,22 +42,23 @@
 - **2025-12-16** - Fix OwnershipProfile aggregate metrics display
 - **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
 - **2025-12-15** - Add ownership field to contact_information TypeScript schema
-- **2025-12-15** - Improve Deal Overview page for portfolio deals
+
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     68 files
-Frontend:    136 files
+Backend:     66 files
+Frontend:    127 files
 Routes:      6 files
 Services:    9 files
-Components:  102 files
+Components:  94 files
 Migrations:  9 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
+TECHNICAL_DEBT.md
 backend/DATABASE_ARCHITECTURE.md
 backend/bellwether_validation.js
 backend/controller/SurveyIntelligenceController.js
@@ -71,7 +73,6 @@ backend/migrations/add-market-comments-tables.js
 backend/models/facility_change_logs.js
 backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
-backend/models/market_comment_mentions.js
 ```
 
 ---
