@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 14:57:50
+> Last updated: 2025-12-22 15:13:34
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1505,6 +1505,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1518,6 +1519,7 @@ backend/routes/contracts.js
 backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
+backend/routes/facilityRisk.js
 backend/routes/index.js
 backend/routes/ma-analytics.js
 backend/routes/market.js
@@ -1702,6 +1704,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix duplicate deal creation and add persistent logging
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
@@ -1731,13 +1734,12 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
 - **2025-12-21** - Add PostHog analytics and real-time notifications
 - **2025-12-21** - Add ownership import utilities and deal creation documentation
-- **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     19 files
+Backend:     18 files
 Frontend:    29 files
 Routes:      6 files
 Services:    4 files
@@ -1750,6 +1752,7 @@ Migrations:  1 files
 ```
 backend/migrations/add-user-invitations-table.js
 backend/models/user_invitations.js
+backend/routes/facilityRisk.js
 backend/routes/survey.js
 docs/Deal_Metrics_Explainer.md
 docs/cms/NH_DataCollectionIntervals_Nov2025.csv
@@ -1762,7 +1765,6 @@ frontend/src/components/InviteUserModal.jsx
 frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
 frontend/src/context/PageContext.js
 frontend/src/pages/AcceptInvite.jsx
-frontend/src/services/appHelpChatService.js
 ```
 
 ---
@@ -4390,6 +4392,7 @@ backend/routes/contracts.js
 backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
+backend/routes/facilityRisk.js
 backend/routes/index.js
 backend/routes/ma-analytics.js
 backend/routes/market.js

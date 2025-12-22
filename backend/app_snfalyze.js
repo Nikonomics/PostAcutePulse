@@ -169,6 +169,7 @@ var savedItemsRouter = require('./routes/savedItems');
 var userRouter = require('./routes/user');
 var surveyIntelligenceRouter = require('./routes/surveyIntelligence');
 var surveyRouter = require('./routes/survey');
+var facilityRiskRouter = require('./routes/facilityRisk');
 
 app.use(fileUpload());
 
@@ -204,6 +205,9 @@ app.use('/api/due-diligence', dueDiligenceRouter);
 // ALF Facilities API routes
 app.use('/api/facilities', facilitiesRouter);
 app.use('/api/v1/facilities', facilitiesRouter);
+
+// Facility Regulatory Risk API routes
+app.use('/api/v1/facilities', facilityRiskRouter);
 
 // Market Dynamics API routes (available at both /api/market and /api/v1/market)
 app.use('/api/market', marketRouter);
