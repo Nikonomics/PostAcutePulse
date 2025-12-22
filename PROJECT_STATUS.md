@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
 - **2025-12-21** - Add PostHog analytics and real-time notifications
@@ -41,17 +42,16 @@
 - **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
 - **2025-12-15** - Add ownership field to contact_information TypeScript schema
 - **2025-12-15** - Improve Deal Overview page for portfolio deals
-- **2025-12-15** - Add debug logging for deal edit issue
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     65 files
-Frontend:    133 files
+Backend:     68 files
+Frontend:    136 files
 Routes:      6 files
 Services:    9 files
-Components:  99 files
-Migrations:  8 files
+Components:  102 files
+Migrations:  9 files
 ```
 
 ### New Files Added (Last 20 Commits)
@@ -67,11 +67,11 @@ backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-deals-position-column.js
 backend/migrations/add-facility-comments-tables.js
+backend/migrations/add-market-comments-tables.js
 backend/models/facility_change_logs.js
 backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
-backend/models/user_change_logs.js
-backend/routes/ma-analytics.js
+backend/models/market_comment_mentions.js
 ```
 
 ---

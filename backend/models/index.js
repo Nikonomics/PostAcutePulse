@@ -183,6 +183,14 @@ const runPostSyncMigrations = async () => {
   } catch (err) {
     console.log('Facility comments tables migration error:', err.message);
   }
+
+  try {
+    // Add market comments tables
+    const { runMigration: runMarketCommentsMigration } = require('../migrations/add-market-comments-tables');
+    await runMarketCommentsMigration(sequelize);
+  } catch (err) {
+    console.log('Market comments tables migration error:', err.message);
+  }
 };
 
 // Sync database - creates new tables if they don't exist

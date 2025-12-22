@@ -149,3 +149,45 @@ export const getRefreshHistory = async (limit = 10) => {
   const response = await apiService.get(`${MARKET_BASE}/refresh-history`, { limit });
   return response.data;
 };
+
+// ============================================================================
+// MARKET COMMENTS API
+// ============================================================================
+
+/**
+ * Get all comments for a market (state + county)
+ * @param {string} state - State code (e.g., "CO")
+ * @param {string} county - County name
+ * @returns {Promise<Object>} Comments with replies and mentions
+ */
+export const getMarketComments = async (state, county) => {
+  const response = await apiService.get(`${MARKET_BASE}/${state}/${encodeURIComponent(county)}/comments`);
+  return response.data;
+};
+
+/**
+ * Add a comment to a market
+ * @param {string} state - State code
+ * @param {string} county - County name
+ * @param {Object} commentData - Comment data
+ * @param {string} commentData.comment - Comment text
+ * @param {number} commentData.parent_id - Parent comment ID for replies (optional)
+ * @param {number[]} commentData.mentioned_user_ids - IDs of mentioned users
+ * @returns {Promise<Object>} Created comment
+ */
+export const addMarketComment = async (state, county, commentData) => {
+  const response = await apiService.post(`${MARKET_BASE}/${state}/${encodeURIComponent(county)}/comments`, commentData);
+  return response.data;
+};
+
+/**
+ * Delete a market comment
+ * @param {string} state - State code
+ * @param {string} county - County name
+ * @param {number} commentId - Comment ID to delete
+ * @returns {Promise<Object>} Success response
+ */
+export const deleteMarketComment = async (state, county, commentId) => {
+  const response = await apiService.delete(`${MARKET_BASE}/${state}/${encodeURIComponent(county)}/comments/${commentId}`);
+  return response.data;
+};

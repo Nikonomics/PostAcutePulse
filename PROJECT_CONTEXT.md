@@ -967,6 +967,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1073,6 +1074,7 @@ FacilityCommentsSection
 FacilityMetrics
 MAIntelligence
 MarketAnalysis
+MarketCommentsSection
 MarketDynamicsTab
 MarketScorecard
 NotificationCenter
@@ -1108,6 +1110,8 @@ facility_comment_mentions
 facility_comments
 index
 init-models
+market_comment_mentions
+market_comments
 master_deals
 ownership_change_logs
 ownership_comment_mentions
@@ -1123,6 +1127,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/add-market-comments-tables.js
 backend/migrations/add-facility-comments-tables.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
@@ -1132,7 +1137,6 @@ backend/migrations/add-deals-position-column.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/create-cms-data-definitions.js
 backend/migrations/create-snf-vbp-performance.js
-backend/migrations/create-cms-state-benchmarks.js
 ```
 
 ---

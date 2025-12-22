@@ -936,4 +936,210 @@ router.get('/definitions', async (req, res) => {
   }
 });
 
+// ============================================================================
+// MARKET COMMENTS API
+// ============================================================================
+
+const db = require('../models');
+const requireAuthentication = require('../passport').authenticateUser;
+const { createNotification } = require('../services/notificationService');
+
+/**
+ * GET /api/market/:state/:county/comments
+ * Get all comments for a market (state + county)
+ */
+router.get('/:state/:county/comments', requireAuthentication, async (req, res) => {
+  try {
+    const { state, county } = req.params;
+
+    const comments = await db.market_comments.findAll({
+      where: { state: state.toUpperCase(), county, parent_id: null },
+      include: [
+        {
+          model: db.users,
+          as: 'user',
+          attributes: ['id', 'first_name', 'last_name', 'profile_url']
+        },
+        {
+          model: db.market_comments,
+          as: 'replies',
+          include: [
+            {
+              model: db.users,
+              as: 'user',
+              attributes: ['id', 'first_name', 'last_name', 'profile_url']
+            }
+          ],
+          order: [['created_at', 'ASC']]
+        },
+        {
+          model: db.market_comment_mentions,
+          as: 'mentions',
+          include: [
+            {
+              model: db.users,
+              as: 'mentionedUser',
+              attributes: ['id', 'first_name', 'last_name']
+            }
+          ]
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      comments
+    });
+  } catch (error) {
+    console.error('[Market Routes] Error fetching comments:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch comments'
+    });
+  }
+});
+
+/**
+ * POST /api/market/:state/:county/comments
+ * Add a new comment to a market
+ */
+router.post('/:state/:county/comments', requireAuthentication, async (req, res) => {
+  try {
+    const { state, county } = req.params;
+    const { comment, parent_id, mentioned_user_ids = [] } = req.body;
+    const userId = req.user.id;
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Comment text is required'
+      });
+    }
+
+    // Create the comment
+    const newComment = await db.market_comments.create({
+      state: state.toUpperCase(),
+      county,
+      user_id: userId,
+      comment: comment.trim(),
+      parent_id: parent_id || null
+    });
+
+    // Create mentions and send notifications
+    if (mentioned_user_ids.length > 0) {
+      const mentions = mentioned_user_ids.map(mentionedUserId => ({
+        comment_id: newComment.id,
+        mentioned_user_id: mentionedUserId
+      }));
+      await db.market_comment_mentions.bulkCreate(mentions);
+
+      // Send notifications to mentioned users
+      const commenter = await db.users.findByPk(userId, {
+        attributes: ['first_name', 'last_name']
+      });
+      const commenterName = `${commenter.first_name} ${commenter.last_name}`;
+
+      for (const mentionedUserId of mentioned_user_ids) {
+        if (mentionedUserId !== userId) {
+          await createNotification({
+            to_id: mentionedUserId,
+            from_id: userId,
+            title: 'You were mentioned in a market comment',
+            body: `${commenterName} mentioned you in a comment on ${county} County, ${state}`,
+            type: 'mention',
+            resource_type: 'market',
+            resource_id: `${state}:${county}`
+          });
+        }
+      }
+    }
+
+    // Fetch the created comment with associations
+    const createdComment = await db.market_comments.findByPk(newComment.id, {
+      include: [
+        {
+          model: db.users,
+          as: 'user',
+          attributes: ['id', 'first_name', 'last_name', 'profile_url']
+        },
+        {
+          model: db.market_comment_mentions,
+          as: 'mentions',
+          include: [
+            {
+              model: db.users,
+              as: 'mentionedUser',
+              attributes: ['id', 'first_name', 'last_name']
+            }
+          ]
+        }
+      ]
+    });
+
+    res.status(201).json({
+      success: true,
+      comment: createdComment
+    });
+  } catch (error) {
+    console.error('[Market Routes] Error adding comment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add comment'
+    });
+  }
+});
+
+/**
+ * DELETE /api/market/:state/:county/comments/:commentId
+ * Delete a comment (only owner or admin can delete)
+ */
+router.delete('/:state/:county/comments/:commentId', requireAuthentication, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user.id;
+
+    const comment = await db.market_comments.findByPk(commentId);
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Comment not found'
+      });
+    }
+
+    // Check if user owns the comment or is admin
+    if (comment.user_id !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete this comment'
+      });
+    }
+
+    // Delete associated mentions first
+    await db.market_comment_mentions.destroy({
+      where: { comment_id: commentId }
+    });
+
+    // Delete any replies
+    await db.market_comments.destroy({
+      where: { parent_id: commentId }
+    });
+
+    // Delete the comment
+    await comment.destroy();
+
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully'
+    });
+  } catch (error) {
+    console.error('[Market Routes] Error deleting comment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete comment'
+    });
+  }
+});
+
 module.exports = router;

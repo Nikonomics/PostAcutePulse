@@ -36,6 +36,7 @@ import {
   getFacilitiesInCounty,
   getNationalBenchmarks,
 } from '../api/marketService';
+import MarketCommentsSection from '../components/MarketCommentsSection';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -815,6 +816,14 @@ const MarketAnalysis = () => {
           stateSummary={stateSummary}
           stateBenchmarks={stateBenchmarks}
           nationalCmsBenchmarks={nationalCmsBenchmarks}
+        />
+      )}
+
+      {/* Market Comments Section */}
+      {!loading && selectedCounty && selectedState && (
+        <MarketCommentsSection
+          state={selectedState}
+          county={selectedCounty}
         />
       )}
 
