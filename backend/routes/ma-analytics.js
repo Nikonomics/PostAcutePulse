@@ -8,16 +8,10 @@
 
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
+const { getMarketPool } = require('../config/database');
 
-// Database connection
-const getPool = () => {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/snf_platform';
-  return new Pool({
-    connectionString,
-    ssl: connectionString.includes('render.com') ? { rejectUnauthorized: false } : false,
-  });
-};
+// Use market database pool (M&A data is in MARKET_DATABASE_URL)
+const getPool = () => getMarketPool();
 
 /**
  * GET /api/ma-analytics/summary
@@ -115,7 +109,7 @@ router.get('/summary', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -188,7 +182,7 @@ router.get('/volume', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -323,7 +317,7 @@ router.get('/by-state', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -404,7 +398,7 @@ router.get('/top-buyers', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -485,7 +479,7 @@ router.get('/top-sellers', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -565,7 +559,7 @@ router.get('/recent-transactions', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -657,7 +651,7 @@ router.get('/facility/:ccn/history', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -870,7 +864,7 @@ router.get('/transactions', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -949,7 +943,7 @@ router.get('/filter-options', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -1106,7 +1100,7 @@ router.get('/owner-history', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -1226,7 +1220,7 @@ router.get('/operator-facilities', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -1339,7 +1333,7 @@ router.get('/state-facilities', async (req, res) => {
       error: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 
@@ -1383,7 +1377,7 @@ router.get('/health', async (req, res) => {
       details: error.message
     });
   } finally {
-    await pool.end();
+    // Pool is shared, don't close
   }
 });
 

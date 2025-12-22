@@ -39,6 +39,10 @@ const MARKET_TABLES = [
   { name: 'snf_facilities', primaryKey: 'id' },
   { name: 'alf_facilities', primaryKey: 'id' },
   { name: 'cms_facility_deficiencies', primaryKey: 'id' },
+  // M&A Analytics tables (ownership change tracking)
+  { name: 'cms_extracts', primaryKey: 'extract_id' },
+  { name: 'facility_events', primaryKey: 'event_id' },
+  { name: 'facility_ownership_details', primaryKey: 'id' },
 ];
 
 const BATCH_SIZE = 500;
@@ -210,6 +214,20 @@ async function syncTable(mainClient, marketClient, tableConfig, dryRun = false) 
   } else if (tableName === 'cms_facility_deficiencies') {
     await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_def_fpn ON cms_facility_deficiencies(federal_provider_number)`);
     await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_def_date ON cms_facility_deficiencies(survey_date)`);
+  } else if (tableName === 'cms_extracts') {
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_extracts_date ON cms_extracts(extract_date)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_extracts_status ON cms_extracts(import_status)`);
+  } else if (tableName === 'facility_events') {
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fe_ccn ON facility_events(ccn)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fe_date ON facility_events(event_date)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fe_type ON facility_events(event_type)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fe_state ON facility_events(state)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fe_ccn_type ON facility_events(ccn, event_type)`);
+  } else if (tableName === 'facility_ownership_details') {
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fod_ccn ON facility_ownership_details(ccn)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fod_extract ON facility_ownership_details(extract_id)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fod_ccn_extract ON facility_ownership_details(ccn, extract_id)`);
+    await marketClient.query(`CREATE INDEX IF NOT EXISTS idx_fod_owner_name ON facility_ownership_details(owner_name)`);
   }
 
   console.log(`\n  ✓ Synced ${inserted} rows`);
