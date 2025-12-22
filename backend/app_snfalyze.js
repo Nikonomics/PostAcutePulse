@@ -10,6 +10,40 @@ var logger = require('morgan');
 var cors = require("cors");
 var app = express();
 var fs = require('fs');
+
+// Persistent file logging
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// Create a write stream for access logs (append mode)
+const accessLogStream = fs.createWriteStream(
+  path.join(logsDir, 'access.log'),
+  { flags: 'a' }
+);
+
+// Override console.log to also write to file
+const logFile = fs.createWriteStream(
+  path.join(logsDir, 'app.log'),
+  { flags: 'a' }
+);
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+console.log = function(...args) {
+  const timestamp = new Date().toISOString();
+  const message = `[${timestamp}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}\n`;
+  logFile.write(message);
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = function(...args) {
+  const timestamp = new Date().toISOString();
+  const message = `[${timestamp}] ERROR: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}\n`;
+  logFile.write(message);
+  originalConsoleError.apply(console, args);
+};
 var http = require('http');
 var https = require('https');
 var options = {};
@@ -143,6 +177,8 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
 app.use(logger('dev'));
+// Also log HTTP requests to file
+app.use(logger('combined', { stream: accessLogStream }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 app.use(cookieParser());

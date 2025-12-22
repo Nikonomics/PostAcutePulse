@@ -11,12 +11,27 @@ import { apiService } from './apiService';
 const SURVEY_BASE = '/survey';
 
 /**
+ * Deficiency types for filtering
+ * - all: All deficiency types combined
+ * - standard: Annual/standard health surveys only
+ * - complaint: Complaint-driven surveys only
+ * - infection: Infection control surveys only
+ */
+export const DEFICIENCY_TYPES = {
+  ALL: 'all',
+  STANDARD: 'standard',
+  COMPLAINT: 'complaint',
+  INFECTION: 'infection'
+};
+
+/**
  * Get national overview data - top F-tags, monthly volume, trends
  * @param {string} period - Time period: '30days', '90days', '12months'
+ * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
  * @returns {Promise<Object>} National survey overview data
  */
-export const getNationalOverview = async (period = '90days') => {
-  const response = await apiService.get(`${SURVEY_BASE}/national-overview`, { period });
+export const getNationalOverview = async (period = '90days', deficiencyType = 'all') => {
+  const response = await apiService.get(`${SURVEY_BASE}/national-overview`, { period, deficiencyType });
   return response.data;
 };
 
@@ -24,10 +39,11 @@ export const getNationalOverview = async (period = '90days') => {
  * Get state-specific data compared to national averages
  * @param {string} stateCode - State code (e.g., "CA")
  * @param {string} period - Time period
+ * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
  * @returns {Promise<Object>} State vs national comparison data
  */
-export const getStateData = async (stateCode, period = '90days') => {
-  const response = await apiService.get(`${SURVEY_BASE}/state/${stateCode}`, { period });
+export const getStateData = async (stateCode, period = '90days', deficiencyType = 'all') => {
+  const response = await apiService.get(`${SURVEY_BASE}/state/${stateCode}`, { period, deficiencyType });
   return response.data;
 };
 
@@ -35,10 +51,11 @@ export const getStateData = async (stateCode, period = '90days') => {
  * Get F-tag trend data over time
  * @param {string} period - Time period
  * @param {number} topN - Number of top F-tags to return
+ * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
  * @returns {Promise<Object>} F-tag trend data
  */
-export const getFTagTrends = async (period = '90days', topN = 10) => {
-  const response = await apiService.get(`${SURVEY_BASE}/ftag-trends`, { period, topN });
+export const getFTagTrends = async (period = '90days', topN = 10, deficiencyType = 'all') => {
+  const response = await apiService.get(`${SURVEY_BASE}/ftag-trends`, { period, topN, deficiencyType });
   return response.data;
 };
 
@@ -64,13 +81,15 @@ export const getNearbySurveys = async (ccn, radiusMiles = 25) => {
 };
 
 /**
- * Get regional hot spots data (counties with high activity)
+ * Get regional hot spots data (counties or CBSAs with high activity)
  * @param {string} stateCode - State code
- * @param {string} period - Time period
- * @returns {Promise<Object>} Regional hot spots data with county breakdown
+ * @param {string} period - Time period: '30days', '90days', '12months'
+ * @param {string} level - Geographic level: 'county' or 'cbsa'
+ * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
+ * @returns {Promise<Object>} Regional hot spots data with geographic breakdown
  */
-export const getRegionalHotSpots = async (stateCode, period = '90days') => {
-  const response = await apiService.get(`${SURVEY_BASE}/regional-hotspots/${stateCode}`, { period });
+export const getRegionalHotSpots = async (stateCode, period = '90days', level = 'county', deficiencyType = 'all') => {
+  const response = await apiService.get(`${SURVEY_BASE}/regional-hotspots/${stateCode}`, { period, level, deficiencyType });
   return response.data;
 };
 
@@ -82,5 +101,34 @@ export const getRegionalHotSpots = async (stateCode, period = '90days') => {
  */
 export const getFacilityIntelligence = async (ccn) => {
   const response = await apiService.get(`${SURVEY_BASE}/facility-intelligence/${ccn}`);
+  return response.data;
+};
+
+/**
+ * Get list of facilities surveyed in a state with their deficiency details
+ * @param {string} stateCode - State code (e.g., "CA")
+ * @param {string} period - Time period
+ * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
+ * @param {number} page - Page number for pagination
+ * @param {number} limit - Number of results per page
+ * @returns {Promise<Object>} Paginated list of surveyed facilities
+ */
+export const getStateFacilities = async (stateCode, period = '90days', deficiencyType = 'all', page = 1, limit = 50) => {
+  const response = await apiService.get(`${SURVEY_BASE}/state/${stateCode}/facilities`, {
+    period,
+    deficiencyType,
+    page,
+    limit
+  });
+  return response.data;
+};
+
+/**
+ * Get deficiency tag description
+ * @param {string} tag - F-tag code (e.g., "F0880" or "0880")
+ * @returns {Promise<Object>} Deficiency description and category
+ */
+export const getDeficiencyDetails = async (tag) => {
+  const response = await apiService.get(`${SURVEY_BASE}/deficiency/${tag}`);
   return response.data;
 };

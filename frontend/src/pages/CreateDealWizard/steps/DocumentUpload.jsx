@@ -459,13 +459,12 @@ const DocumentUpload = () => {
           const createdDeal = response.body.deal;
           console.log('[DocumentUpload] Portfolio deal created:', createdDeal.id);
 
-          if (createdDeal.extraction_data) {
-            applyExtractionData({
-              ...createdDeal.extraction_data,
-              deal_overview: createdDeal.extraction_data.deal_overview || null,
-              _portfolioDealId: createdDeal.id,
-            });
-          }
+          // Always set _portfolioDealId so wizard knows deal exists and doesn't create duplicate
+          applyExtractionData({
+            ...(createdDeal.extraction_data || {}),
+            deal_overview: createdDeal.extraction_data?.deal_overview || null,
+            _portfolioDealId: createdDeal.id,
+          });
 
           setExtractionProgress(100);
           toast.success(`Portfolio extraction complete! ${selectedFacilities.length} facilities processed.`);

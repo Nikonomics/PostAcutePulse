@@ -2231,7 +2231,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 padding: '1.25rem',
                 backgroundColor: '#fffbeb',
                 borderRadius: '0.75rem',
-                border: '1px solid #fcd34d'
+                border: '1px solid #fcd34d',
+                order: 4
               }}>
                 <h3 style={{
                   fontSize: '1rem',
@@ -2282,7 +2283,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 padding: '1.25rem',
                 backgroundColor: '#f8fafc',
                 borderRadius: '0.75rem',
-                border: '1px solid #e2e8f0'
+                border: '1px solid #e2e8f0',
+                order: 5
               }}>
                 <h3 style={{
                   fontSize: '1rem',
@@ -2318,7 +2320,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 padding: '1.25rem',
                 backgroundColor: 'white',
                 borderRadius: '0.75rem',
-                border: '1px solid #e5e7eb'
+                border: '1px solid #e5e7eb',
+                order: 6
               }}>
                 <h3 style={{
                   fontSize: '1rem',
@@ -2403,7 +2406,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 padding: '1.25rem',
                 backgroundColor: '#f8fafc',
                 borderRadius: '0.75rem',
-                border: '1px solid #e2e8f0'
+                border: '1px solid #e2e8f0',
+                order: 7
               }}>
                 <h3 style={{
                   fontSize: '1rem',
@@ -2430,7 +2434,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
 
         {/* Individual Collapsible Sections for Markdown Content */}
         {overview.detailed_narrative_markdown && (
-          <>
+          <div style={{ order: 8, display: 'contents' }}>
             {parseMarkdownSections(overview.detailed_narrative_markdown).map((section, index) => {
               const sectionKey = section.title.replace(/\s+/g, '-');
               const isExpanded = expandedSections[sectionKey] || false;
@@ -2441,7 +2445,8 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                   borderRadius: '0.75rem',
                   border: '1px solid #e5e7eb',
                   overflow: 'hidden',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  order: 8
                 }}>
                   {/* Collapsible Header */}
                   <button
@@ -2588,7 +2593,7 @@ const DealExtractionViewer: React.FC<DealExtractionViewerProps> = ({
                 </div>
               );
             })}
-          </>
+          </div>
         )}
       </div>
     );

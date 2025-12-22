@@ -19,8 +19,9 @@ export const SocketProvider = ({ children }) => {
       const newSocket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000,
+        timeout: 10000
       });
 
       newSocket.on('connect', () => {
@@ -34,7 +35,11 @@ export const SocketProvider = ({ children }) => {
       });
 
       newSocket.on('connect_error', (error) => {
-        console.error('[Socket] Connection error:', error);
+        // Only log first connection error, not every retry
+        if (!newSocket._errorLogged) {
+          console.warn('[Socket] Connection unavailable - real-time features disabled');
+          newSocket._errorLogged = true;
+        }
       });
 
       setSocket(newSocket);

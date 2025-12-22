@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 13:49:52
+> Last updated: 2025-12-22 14:57:50
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1504,6 +1504,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1701,6 +1702,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add 'All Time' period option to Survey Analytics
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 - **2025-12-22** - Make summary cards ultra-compact single-row design
@@ -1730,17 +1732,16 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-21** - Add PostHog analytics and real-time notifications
 - **2025-12-21** - Add ownership import utilities and deal creation documentation
 - **2025-12-21** - Fix M&A Intelligence dropdown styling and add database check script
-- **2025-12-19** - Add M&A Intelligence with state/operator map views and filtering
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     18 files
-Frontend:    28 files
+Backend:     19 files
+Frontend:    29 files
 Routes:      6 files
 Services:    4 files
-Components:  12 files
+Components:  11 files
 Migrations:  1 files
 ```
 
@@ -1750,6 +1751,7 @@ Migrations:  1 files
 backend/migrations/add-user-invitations-table.js
 backend/models/user_invitations.js
 backend/routes/survey.js
+docs/Deal_Metrics_Explainer.md
 docs/cms/NH_DataCollectionIntervals_Nov2025.csv
 docs/cms/NH_Data_Dictionary.pdf
 frontend/src/api/surveyService.js

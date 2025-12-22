@@ -60,9 +60,18 @@ import {
   Home,
   ChevronRight,
   FileQuestion,
+  X,
 } from 'lucide-react';
 import './SurveyAnalytics.css';
-import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots } from '../api/surveyService';
+import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots, getStateFacilities, getDeficiencyDetails, DEFICIENCY_TYPES } from '../api/surveyService';
+
+// Deficiency type options for the filter
+const DEFICIENCY_TYPE_OPTIONS = [
+  { value: 'all', label: 'All Types' },
+  { value: 'standard', label: 'Standard' },
+  { value: 'complaint', label: 'Complaint' },
+  { value: 'infection', label: 'Infection' },
+];
 
 // US States for dropdown
 const US_STATES = [
@@ -483,7 +492,7 @@ const SurveyVolumeChart = ({ data }) => {
 /**
  * National Overview Tab Content
  */
-const NationalOverviewTab = ({ data, selectedState, selectedPeriod }) => {
+const NationalOverviewTab = ({ data, selectedState, selectedPeriod, selectedDeficiencyType }) => {
   const [overviewData, setOverviewData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -491,7 +500,7 @@ const NationalOverviewTab = ({ data, selectedState, selectedPeriod }) => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const response = await getNationalOverview(selectedPeriod);
+        const response = await getNationalOverview(selectedPeriod, selectedDeficiencyType);
         if (response.success) {
           setOverviewData(response.data);
         } else {
@@ -506,7 +515,7 @@ const NationalOverviewTab = ({ data, selectedState, selectedPeriod }) => {
       }
     };
     fetchData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, selectedDeficiencyType]);
 
   if (isLoading) {
     return (
@@ -816,16 +825,25 @@ const StateInsightsBox = ({ insights, stateName }) => {
 /**
  * State Deep Dive Tab Content
  */
-const StateDeepDiveTab = ({ data, selectedState, selectedPeriod }) => {
+const StateDeepDiveTab = ({ data, selectedState, selectedPeriod, selectedDeficiencyType }) => {
   const [stateData, setStateData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Facilities list state
+  const [facilitiesData, setFacilitiesData] = useState(null);
+  const [facilitiesLoading, setFacilitiesLoading] = useState(false);
+  const [facilitiesPage, setFacilitiesPage] = useState(1);
+
+  // Deficiency modal state
+  const [selectedDeficiency, setSelectedDeficiency] = useState(null);
+  const [deficiencyLoading, setDeficiencyLoading] = useState(false);
 
   useEffect(() => {
     if (selectedState && selectedState !== 'ALL') {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          const response = await getStateData(selectedState, selectedPeriod);
+          const response = await getStateData(selectedState, selectedPeriod, selectedDeficiencyType);
           if (response.success) {
             setStateData(response.data);
           } else {
@@ -841,7 +859,50 @@ const StateDeepDiveTab = ({ data, selectedState, selectedPeriod }) => {
       };
       fetchData();
     }
-  }, [selectedState, selectedPeriod]);
+  }, [selectedState, selectedPeriod, selectedDeficiencyType]);
+
+  // Fetch facilities list
+  useEffect(() => {
+    if (selectedState && selectedState !== 'ALL') {
+      const fetchFacilities = async () => {
+        setFacilitiesLoading(true);
+        try {
+          const response = await getStateFacilities(selectedState, selectedPeriod, selectedDeficiencyType, facilitiesPage, 25);
+          if (response.success) {
+            setFacilitiesData(response.data);
+          } else {
+            setFacilitiesData(null);
+          }
+        } catch (error) {
+          console.error('Error fetching facilities:', error);
+          setFacilitiesData(null);
+        } finally {
+          setFacilitiesLoading(false);
+        }
+      };
+      fetchFacilities();
+    }
+  }, [selectedState, selectedPeriod, selectedDeficiencyType, facilitiesPage]);
+
+  // Handle deficiency click
+  const handleDeficiencyClick = async (tag) => {
+    setDeficiencyLoading(true);
+    try {
+      const response = await getDeficiencyDetails(tag);
+      if (response.success) {
+        setSelectedDeficiency(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching deficiency details:', error);
+    } finally {
+      setDeficiencyLoading(false);
+    }
+  };
+
+  // Close deficiency modal
+  const closeDeficiencyModal = () => {
+    setSelectedDeficiency(null);
+  };
 
   // Show prompt when no state selected
   if (selectedState === 'ALL') {
@@ -943,6 +1004,156 @@ const StateDeepDiveTab = ({ data, selectedState, selectedPeriod }) => {
           <StateFTagPriorityTable data={ftagPriorities} stateName={stateName} />
         </Col>
       </Row>
+
+      {/* Surveyed Facilities List */}
+      <Card className="facilities-list-card mt-4">
+        <Card.Header className="facilities-header">
+          <div className="facilities-title-row">
+            <h6 className="facilities-title">
+              <Building2 size={18} />
+              Surveyed Facilities
+            </h6>
+            {facilitiesData?.pagination && (
+              <span className="facilities-count">
+                {facilitiesData.pagination.total} surveys in this period
+              </span>
+            )}
+          </div>
+        </Card.Header>
+        <Card.Body className="facilities-body">
+          {facilitiesLoading ? (
+            <div className="facilities-loading">
+              <Loader2 size={24} className="spin" />
+              <span>Loading facilities...</span>
+            </div>
+          ) : facilitiesData?.facilities?.length > 0 ? (
+            <>
+              <div className="facilities-table-wrapper">
+                <table className="facilities-table">
+                  <thead>
+                    <tr>
+                      <th>Facility</th>
+                      <th>City</th>
+                      <th>Survey Date</th>
+                      <th>Deficiencies</th>
+                      <th>F-Tags</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facilitiesData.facilities.map((facility, idx) => (
+                      <tr key={`${facility.ccn}-${facility.surveyDate}-${idx}`}>
+                        <td className="facility-name-cell">
+                          <Link to={`/facility/${facility.ccn}`} className="facility-link">
+                            {facility.name}
+                          </Link>
+                          <span className="facility-ccn">{facility.ccn}</span>
+                        </td>
+                        <td className="facility-city">{facility.city}</td>
+                        <td className="facility-date">
+                          {new Date(facility.surveyDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                          <span className="days-ago">({facility.daysAgo}d ago)</span>
+                        </td>
+                        <td className="facility-defs">
+                          <span className={`def-count ${facility.ijCount > 0 ? 'has-ij' : ''}`}>
+                            {facility.deficiencyCount}
+                          </span>
+                          {facility.ijCount > 0 && (
+                            <span className="ij-badge" title="Immediate Jeopardy">
+                              {facility.ijCount} IJ
+                            </span>
+                          )}
+                        </td>
+                        <td className="facility-ftags">
+                          <div className="ftag-chips">
+                            {facility.deficiencyTags.slice(0, 5).map((tag) => (
+                              <button
+                                key={tag}
+                                className="ftag-chip"
+                                onClick={() => handleDeficiencyClick(tag)}
+                                title="Click to see description"
+                              >
+                                F{tag}
+                              </button>
+                            ))}
+                            {facility.deficiencyTags.length > 5 && (
+                              <span className="ftag-more">
+                                +{facility.deficiencyTags.length - 5} more
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {facilitiesData.pagination.totalPages > 1 && (
+                <div className="facilities-pagination">
+                  <button
+                    className="pagination-btn"
+                    disabled={facilitiesPage === 1}
+                    onClick={() => setFacilitiesPage(p => p - 1)}
+                  >
+                    Previous
+                  </button>
+                  <span className="pagination-info">
+                    Page {facilitiesPage} of {facilitiesData.pagination.totalPages}
+                  </span>
+                  <button
+                    className="pagination-btn"
+                    disabled={facilitiesPage >= facilitiesData.pagination.totalPages}
+                    onClick={() => setFacilitiesPage(p => p + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="no-facilities">
+              <Building2 size={32} strokeWidth={1.5} />
+              <p>No facilities surveyed in this period</p>
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+
+      {/* Deficiency Details Modal */}
+      {selectedDeficiency && (
+        <div className="deficiency-modal-overlay" onClick={closeDeficiencyModal}>
+          <div className="deficiency-modal" onClick={e => e.stopPropagation()}>
+            <div className="deficiency-modal-header">
+              <h5>{selectedDeficiency.tag}</h5>
+              <button className="close-btn" onClick={closeDeficiencyModal}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="deficiency-modal-body">
+              <div className="deficiency-category">
+                <span className="category-label">Category:</span>
+                <span className="category-value">{selectedDeficiency.category}</span>
+              </div>
+              <div className="deficiency-description">
+                <span className="description-label">Description:</span>
+                <p className="description-text">{selectedDeficiency.description}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deficiency Loading Overlay */}
+      {deficiencyLoading && (
+        <div className="deficiency-loading-overlay">
+          <Loader2 size={24} className="spin" />
+        </div>
+      )}
     </div>
   );
 };
@@ -1230,7 +1441,7 @@ const RecentSurveyFeed = ({ surveys, stateName }) => {
 /**
  * Regional Hot Spots Tab Content
  */
-const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod }) => {
+const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDeficiencyType }) => {
   const [hotSpotsData, setHotSpotsData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [level, setLevel] = useState('county'); // 'county' or 'cbsa'
@@ -1240,7 +1451,7 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod }) => {
       if (selectedState && selectedState !== 'ALL') {
         setIsLoading(true);
         try {
-          const response = await getRegionalHotSpots(selectedState, selectedPeriod, level);
+          const response = await getRegionalHotSpots(selectedState, selectedPeriod, level, selectedDeficiencyType);
           if (response.success) {
             setHotSpotsData(response.data);
           } else {
@@ -1255,7 +1466,7 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod }) => {
       }
     };
     fetchData();
-  }, [selectedState, selectedPeriod, level]);
+  }, [selectedState, selectedPeriod, level, selectedDeficiencyType]);
 
   // Show prompt when no state selected
   if (selectedState === 'ALL') {
@@ -1732,7 +1943,7 @@ const CorrelationInsights = ({ insights }) => {
 /**
  * F-Tag Trends Tab Content
  */
-const FTagTrendsTab = ({ data, selectedState, selectedPeriod }) => {
+const FTagTrendsTab = ({ data, selectedState, selectedPeriod, selectedDeficiencyType }) => {
   const [trendsData, setTrendsData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFTags, setSelectedFTags] = useState(['F0880', 'F0689', 'F0812', 'F0684', 'F0686']); // Top 5 pre-selected
@@ -1742,7 +1953,7 @@ const FTagTrendsTab = ({ data, selectedState, selectedPeriod }) => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const response = await getFTagTrends(selectedPeriod, 10);
+        const response = await getFTagTrends(selectedPeriod, 10, selectedDeficiencyType);
         if (response.success) {
           setTrendsData(response.data);
         } else {
@@ -1757,7 +1968,7 @@ const FTagTrendsTab = ({ data, selectedState, selectedPeriod }) => {
       }
     };
     fetchData();
-  }, [selectedState, selectedPeriod]);
+  }, [selectedState, selectedPeriod, selectedDeficiencyType]);
 
   // Handle toggling F-Tags in the chart
   const handleToggleFTag = (code) => {
@@ -2055,6 +2266,9 @@ const SurveyAnalytics = () => {
   const [selectedPeriod, setSelectedPeriod] = useState(
     searchParams.get('period') || '90days'
   );
+  const [selectedDeficiencyType, setSelectedDeficiencyType] = useState(
+    searchParams.get('type') || 'all'
+  );
   const [activeTab, setActiveTab] = useState(() => {
     // If state is specified in URL, default to state tab
     const urlState = searchParams.get('state');
@@ -2093,8 +2307,9 @@ const SurveyAnalytics = () => {
     const params = new URLSearchParams();
     if (selectedState !== 'ALL') params.set('state', selectedState);
     if (selectedPeriod !== '90days') params.set('period', selectedPeriod);
+    if (selectedDeficiencyType !== 'all') params.set('type', selectedDeficiencyType);
     setSearchParams(params, { replace: true });
-  }, [selectedState, selectedPeriod, setSearchParams]);
+  }, [selectedState, selectedPeriod, selectedDeficiencyType, setSearchParams]);
 
   // Fetch summary data when filters change
   useEffect(() => {
@@ -2103,9 +2318,9 @@ const SurveyAnalytics = () => {
       try {
         if (selectedState === 'ALL') {
           // Fetch national overview data
-          const response = await getNationalOverview(selectedPeriod);
+          const response = await getNationalOverview(selectedPeriod, selectedDeficiencyType);
           if (response.success) {
-            const { summary, topFTags, dataAsOf: apiDataAsOf } = response.data;
+            const { summary, topFTags, dataAsOf: apiDataAsOf, typeBreakdown } = response.data;
             setDataAsOf(apiDataAsOf);
             setSummaryData({
               surveyCount: parseInt(summary.survey_count) || 0,
@@ -2115,12 +2330,13 @@ const SurveyAnalytics = () => {
                 code: topFTags[0].code,
                 name: topFTags[0].name,
                 count: topFTags[0].count
-              } : null
+              } : null,
+              typeBreakdown
             });
           }
         } else {
           // Fetch state-specific data
-          const response = await getStateData(selectedState, selectedPeriod);
+          const response = await getStateData(selectedState, selectedPeriod, selectedDeficiencyType);
           if (response.success) {
             const { comparison, ftagPriorities, dataAsOf: apiDataAsOf } = response.data;
             setDataAsOf(apiDataAsOf);
@@ -2145,7 +2361,7 @@ const SurveyAnalytics = () => {
     };
 
     fetchSummaryData();
-  }, [selectedState, selectedPeriod]);
+  }, [selectedState, selectedPeriod, selectedDeficiencyType]);
 
   // Handle state change
   const handleStateChange = (e) => {
@@ -2242,6 +2458,23 @@ const SurveyAnalytics = () => {
                 </button>
               ))}
             </div>
+
+            <div className="type-toggle" role="group" aria-label="Select deficiency type">
+              {DEFICIENCY_TYPE_OPTIONS.map((type) => (
+                <button
+                  key={type.value}
+                  className={`type-btn ${selectedDeficiencyType === type.value ? 'active' : ''}`}
+                  onClick={() => setSelectedDeficiencyType(type.value)}
+                  aria-pressed={selectedDeficiencyType === type.value}
+                  title={type.value === 'standard' ? 'Annual health surveys' :
+                         type.value === 'complaint' ? 'Complaint-driven surveys' :
+                         type.value === 'infection' ? 'Infection control surveys' :
+                         'All deficiency types'}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -2332,6 +2565,7 @@ const SurveyAnalytics = () => {
                   data={summaryData}
                   selectedState={selectedState}
                   selectedPeriod={selectedPeriod}
+                  selectedDeficiencyType={selectedDeficiencyType}
                 />
               </Tab.Pane>
               <Tab.Pane eventKey="state">
@@ -2339,6 +2573,7 @@ const SurveyAnalytics = () => {
                   data={summaryData}
                   selectedState={selectedState}
                   selectedPeriod={selectedPeriod}
+                  selectedDeficiencyType={selectedDeficiencyType}
                 />
               </Tab.Pane>
               <Tab.Pane eventKey="hotspots">
@@ -2346,6 +2581,7 @@ const SurveyAnalytics = () => {
                   data={summaryData}
                   selectedState={selectedState}
                   selectedPeriod={selectedPeriod}
+                  selectedDeficiencyType={selectedDeficiencyType}
                 />
               </Tab.Pane>
               <Tab.Pane eventKey="ftags">
@@ -2353,6 +2589,7 @@ const SurveyAnalytics = () => {
                   data={summaryData}
                   selectedState={selectedState}
                   selectedPeriod={selectedPeriod}
+                  selectedDeficiencyType={selectedDeficiencyType}
                 />
               </Tab.Pane>
               <Tab.Pane eventKey="complaints">
