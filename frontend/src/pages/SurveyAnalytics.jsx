@@ -218,14 +218,13 @@ const getRegionalHotSpotsData = (stateCode, period) => {
 };
 
 /**
- * Summary Card Component - Compact Design
+ * Summary Card Component - Ultra Compact Design
  */
-const SummaryCard = ({ title, value, subtitle, icon: Icon, variant = 'primary', tooltip }) => {
+const SummaryCard = ({ title, value, icon: Icon, variant = 'primary', tooltip }) => {
   return (
     <Card className={`survey-summary-card survey-summary-card--${variant}`}>
       <Card.Body className="summary-card-body">
-        <div className="summary-card-header">
-          {Icon && <Icon size={14} className={`summary-card-icon text-${variant}`} />}
+        <div className="summary-card-row">
           <span className="summary-card-title">{title}</span>
           {tooltip && (
             <OverlayTrigger
@@ -235,10 +234,7 @@ const SummaryCard = ({ title, value, subtitle, icon: Icon, variant = 'primary', 
               <Info size={12} className="summary-card-info" />
             </OverlayTrigger>
           )}
-        </div>
-        <div className="summary-card-value-row">
           <span className={`summary-card-value text-${variant}`}>{value}</span>
-          {subtitle && <span className="summary-card-subtitle">{subtitle}</span>}
         </div>
       </Card.Body>
     </Card>
@@ -2064,16 +2060,18 @@ const EmptyState = ({ stateName, periodLabel }) => (
 );
 
 /**
- * Loading Skeleton for Summary Cards - Compact Design
+ * Loading Skeleton for Summary Cards - Ultra Compact
  */
 const SummarySkeleton = () => (
-  <Row className="g-3 mb-4">
+  <Row className="g-2 mb-3">
     {Array.from({ length: 4 }).map((_, i) => (
-      <Col key={i} xs={12} sm={6} lg={3}>
+      <Col key={i} xs={6} lg={3}>
         <Card className="survey-summary-card skeleton-card">
           <Card.Body className="summary-card-body">
-            <div className="skeleton-line skeleton-header" />
-            <div className="skeleton-line skeleton-value-compact" />
+            <div className="skeleton-row">
+              <div className="skeleton-line skeleton-label" />
+              <div className="skeleton-line skeleton-number" />
+            </div>
           </Card.Body>
         </Card>
       </Col>
@@ -2281,48 +2279,37 @@ const SurveyAnalytics = () => {
       {isLoading ? (
         <SummarySkeleton />
       ) : (
-        <Row className="g-3 mb-4">
-          <Col xs={12} sm={6} lg={3}>
+        <Row className="g-2 mb-3">
+          <Col xs={6} lg={3}>
             <SummaryCard
-              title="Surveys This Period"
+              title="Surveys"
               value={summaryData?.surveyCount?.toLocaleString() || '0'}
-              subtitle={selectedState === 'ALL' ? 'Nationwide' : `In ${selectedState}`}
-              icon={ClipboardList}
               variant="primary"
-              tooltip="Total number of standard health surveys completed"
+              tooltip={`Total standard health surveys completed ${selectedState === 'ALL' ? 'nationwide' : `in ${selectedState}`}`}
             />
           </Col>
-
-          <Col xs={12} sm={6} lg={3}>
+          <Col xs={6} lg={3}>
             <SummaryCard
-              title="Avg Deficiencies/Survey"
+              title="Avg Deficiencies"
               value={summaryData?.avgDeficiencies?.toFixed(1) || '0.0'}
-              subtitle="Per survey average"
-              icon={BarChart3}
               variant="info"
               tooltip="Average number of deficiency citations per survey"
             />
           </Col>
-
-          <Col xs={12} sm={6} lg={3}>
+          <Col xs={6} lg={3}>
             <SummaryCard
-              title="Immediate Jeopardy Rate"
+              title="IJ Rate"
               value={formatIJRate(summaryData?.ijRate)}
-              subtitle="Surveys with IJ citations"
-              icon={AlertTriangle}
               variant={summaryData?.ijRate > 0.02 ? 'danger' : 'warning'}
               tooltip="Percentage of surveys resulting in Immediate Jeopardy citations"
             />
           </Col>
-
-          <Col xs={12} sm={6} lg={3}>
+          <Col xs={6} lg={3}>
             <SummaryCard
               title="Top F-Tag"
               value={summaryData?.topFTag?.code || 'N/A'}
-              subtitle={summaryData?.topFTag?.name || 'No data'}
-              icon={Tag}
               variant="secondary"
-              tooltip={`Most frequently cited deficiency (${summaryData?.topFTag?.count || 0} citations)`}
+              tooltip={summaryData?.topFTag ? `${summaryData.topFTag.name} (${summaryData.topFTag.count?.toLocaleString() || 0} citations)` : 'Most frequently cited deficiency'}
             />
           </Col>
         </Row>

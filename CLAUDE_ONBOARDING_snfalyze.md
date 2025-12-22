@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 13:03:56
+> Last updated: 2025-12-22 13:12:00
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1500,6 +1500,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1697,6 +1698,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Redesign summary cards and remove unused mock data
 - **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
 - **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
@@ -1726,13 +1728,12 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-19** - Update project documentation
 - **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
-- **2025-12-18** - Add production database reference to main README
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     25 files
+Backend:     23 files
 Frontend:    32 files
 Routes:      7 files
 Services:    4 files
@@ -1744,20 +1745,20 @@ Migrations:  2 files
 
 ```
 TECHNICAL_DEBT.md
-backend/DATABASE_ARCHITECTURE.md
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-user-invitations-table.js
 backend/models/market_comment_mentions.js
 backend/models/market_comments.js
 backend/models/user_invitations.js
 backend/routes/survey.js
-backend/scripts/migrate-production-ownership-tables.js
 docs/cms/NH_DataCollectionIntervals_Nov2025.csv
 docs/cms/NH_Data_Dictionary.pdf
 frontend/src/api/surveyService.js
 frontend/src/components/AppHelpPanel/AppHelpPanel.css
 frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
 frontend/src/components/AppHelpPanel/index.js
+frontend/src/components/InviteUserModal.jsx
+frontend/src/components/MarketCommentsSection/MarketCommentsSection.css
 ```
 
 ---
