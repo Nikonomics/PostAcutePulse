@@ -20,13 +20,17 @@ import {
   AlertTriangle,
   Edit3,
   Trash2,
+  Mail,
+  RefreshCw,
+  XCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getUsers, getUserStats, deleteUser } from "../api/userService";
 import { getRecentActivity } from "../api/DealService";
-import { getPendingUsers, approveUser, rejectUser } from "../api/authService";
+import { getPendingUsers, approveUser, rejectUser, getInvitations, cancelInvitation, resendInvitation } from "../api/authService";
 import { toast } from "react-toastify";
 import { Modal, Button, Badge } from "react-bootstrap";
+import InviteUserModal from "../components/InviteUserModal";
 
 
 const StatusBadge = ({ status }) => {
@@ -106,10 +110,16 @@ const UserManagement = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Pending users approval state
-  const [activeTab, setActiveTab] = useState("users"); // "users" or "pending"
+  const [activeTab, setActiveTab] = useState("users"); // "users", "pending", or "invitations"
   const [pendingUsers, setPendingUsers] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(null);
+
+  // Invitation state
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [invitations, setInvitations] = useState([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [invitationActionLoading, setInvitationActionLoading] = useState(null);
 
   const roleStats = [
     {
@@ -238,6 +248,60 @@ const UserManagement = () => {
     }
   };
 
+  // Fetch invitations
+  const fetchInvitations = async () => {
+    setInvitationsLoading(true);
+    try {
+      const response = await getInvitations();
+      if (response.success) {
+        setInvitations(response.body || []);
+      }
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+      setInvitations([]);
+    } finally {
+      setInvitationsLoading(false);
+    }
+  };
+
+  // Handle cancel invitation
+  const handleCancelInvitation = async (invitationId) => {
+    setInvitationActionLoading(invitationId);
+    try {
+      const response = await cancelInvitation(invitationId);
+      if (response.success) {
+        toast.success("Invitation cancelled");
+        fetchInvitations();
+      } else {
+        toast.error(response.message || "Failed to cancel invitation");
+      }
+    } catch (error) {
+      console.error("Error cancelling invitation:", error);
+      toast.error("Failed to cancel invitation");
+    } finally {
+      setInvitationActionLoading(null);
+    }
+  };
+
+  // Handle resend invitation
+  const handleResendInvitation = async (invitationId) => {
+    setInvitationActionLoading(invitationId);
+    try {
+      const response = await resendInvitation(invitationId);
+      if (response.success) {
+        toast.success("Invitation resent");
+        fetchInvitations();
+      } else {
+        toast.error(response.message || "Failed to resend invitation");
+      }
+    } catch (error) {
+      console.error("Error resending invitation:", error);
+      toast.error("Failed to resend invitation");
+    } finally {
+      setInvitationActionLoading(null);
+    }
+  };
+
   // handle delete deal
   const handleDeleteUser = async (id) => {
     setDeleteLoading(true);
@@ -264,6 +328,7 @@ const UserManagement = () => {
   useEffect(() => {
     fetchData();
     fetchPendingUsers(); // Also fetch pending users on load
+    fetchInvitations(); // Also fetch invitations on load
   }, [
     currentPage,
     pageSize,
@@ -420,10 +485,14 @@ const UserManagement = () => {
                       <Download size={16} />
                       Export
                     </button>
-                    {/* <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                      <FileText size={16} />
-                      Bulk Edit
-                    </button> */}
+                    <button
+                      className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 border-0"
+                      style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                      onClick={() => setShowInviteModal(true)}
+                    >
+                      <Mail size={16} />
+                      Invite User
+                    </button>
                     <button
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-0"
                       onClick={() => navigate("/create-user")}
@@ -462,6 +531,22 @@ const UserManagement = () => {
                   {pendingUsers.length > 0 && (
                     <Badge bg="danger" pill style={{ fontSize: "0.75rem" }}>
                       {pendingUsers.length}
+                    </Badge>
+                  )}
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-lg font-medium d-flex align-items-center gap-2 ${
+                    activeTab === "invitations"
+                      ? "text-white"
+                      : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setActiveTab("invitations")}
+                  style={activeTab === "invitations" ? { background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' } : {}}
+                >
+                  Invitations
+                  {invitations.filter(i => i.status === 'pending').length > 0 && (
+                    <Badge bg="primary" pill style={{ fontSize: "0.75rem" }}>
+                      {invitations.filter(i => i.status === 'pending').length}
                     </Badge>
                   )}
                 </button>
@@ -542,6 +627,143 @@ const UserManagement = () => {
                                   Reject
                                 </button>
                               </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Invitations Section */}
+            {activeTab === "invitations" && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-3">
+                <div className="d-flex justify-content-between align-items-center mb-4 px-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-0">
+                    User Invitations
+                  </h3>
+                  <button
+                    className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 border-0"
+                    style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                    onClick={() => setShowInviteModal(true)}
+                  >
+                    <Mail size={16} />
+                    Send New Invitation
+                  </button>
+                </div>
+                {invitationsLoading ? (
+                  <div className="text-center py-5">
+                    <span className="spinner-border spinner-border-sm" role="status"></span>
+                    <span className="ms-2">Loading...</span>
+                  </div>
+                ) : invitations.length === 0 ? (
+                  <div className="text-center py-5 text-gray-500">
+                    <Mail size={48} className="mx-auto mb-3 opacity-50" />
+                    <p>No invitations sent yet</p>
+                    <button
+                      className="mt-2 px-4 py-2 text-white rounded-lg border-0"
+                      style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                      onClick={() => setShowInviteModal(true)}
+                    >
+                      Send Your First Invitation
+                    </button>
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Role
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Invited By
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Sent
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {invitations.map((invitation) => (
+                          <tr key={invitation.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {invitation.email}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <RoleBadge role={invitation.role?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {invitation.status === 'pending' && !invitation.is_expired && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  Pending
+                                </span>
+                              )}
+                              {invitation.status === 'pending' && invitation.is_expired && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  Expired
+                                </span>
+                              )}
+                              {invitation.status === 'accepted' && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Accepted
+                                </span>
+                              )}
+                              {invitation.status === 'cancelled' && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                  Cancelled
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {invitation.invited_by}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {invitation.created_at ? new Date(invitation.created_at).toLocaleDateString() : "—"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {invitation.status === 'pending' && (
+                                <div className="d-flex gap-2">
+                                  <button
+                                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 border-0 d-flex align-items-center gap-1"
+                                    onClick={() => handleResendInvitation(invitation.id)}
+                                    disabled={invitationActionLoading === invitation.id}
+                                    title="Resend invitation"
+                                  >
+                                    {invitationActionLoading === invitation.id ? (
+                                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                                    ) : (
+                                      <>
+                                        <RefreshCw size={14} />
+                                        Resend
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 border-0 d-flex align-items-center gap-1"
+                                    onClick={() => handleCancelInvitation(invitation.id)}
+                                    disabled={invitationActionLoading === invitation.id}
+                                    title="Cancel invitation"
+                                  >
+                                    <XCircle size={14} />
+                                    Cancel
+                                  </button>
+                                </div>
+                              )}
+                              {invitation.status !== 'pending' && (
+                                <span className="text-gray-400 text-sm">—</span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -889,6 +1111,13 @@ const UserManagement = () => {
               </Button>
             </Modal.Footer>
           </Modal>
+
+          {/* Invite User Modal */}
+          <InviteUserModal
+            show={showInviteModal}
+            onHide={() => setShowInviteModal(false)}
+            onInviteSent={fetchInvitations}
+          />
         </>
       )}
     </>

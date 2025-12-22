@@ -1160,6 +1160,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1223,6 +1224,7 @@ backend/controller/SurveyIntelligenceController.js
 
 ### Frontend Pages
 ```
+frontend/src/pages/AcceptInvite.jsx
 frontend/src/pages/AIAssistant.jsx
 frontend/src/pages/ChatInterfaceAI.jsx
 frontend/src/pages/CombinedDealForm.jsx
@@ -1312,6 +1314,7 @@ ownership_contacts
 recent_activity
 state
 user_change_logs
+user_invitations
 user_notifications
 user_saved_items
 users
@@ -1319,6 +1322,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/add-user-invitations-table.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-facility-comments-tables.js
 backend/migrations/20241218-add-deal-match-status.js
@@ -1328,7 +1332,6 @@ backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/add-deals-position-column.js
 backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/create-cms-data-definitions.js
-backend/migrations/create-snf-vbp-performance.js
 ```
 
 ---

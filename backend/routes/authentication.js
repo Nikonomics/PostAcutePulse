@@ -1,6 +1,6 @@
 var express = require('express');
 var AuthenticationController = require('../controller/AuthenticationController.js');
-const requireAuthentication = require("../passport").authenticateUser;
+const { authenticateUser: requireAuthentication, requireAdmin } = require("../passport");
 var router = express.Router();
 
 
@@ -32,5 +32,17 @@ router.put('/notifications/read', requireAuthentication, AuthenticationControlle
 
 // Token refresh route (no authentication required - uses refresh token in header)
 router.get('/generate-access-token', AuthenticationController.generateAccessToken);
+
+// Invitation routes
+router.post('/invite', requireAuthentication, requireAdmin, AuthenticationController.sendInvitation);
+router.get('/invite/:token', AuthenticationController.validateInvitation);  // Public - validates token
+router.post('/accept-invite', AuthenticationController.acceptInvitation);   // Public - accepts invitation
+router.get('/invitations', requireAuthentication, requireAdmin, AuthenticationController.getInvitations);
+router.delete('/invite/:id', requireAuthentication, requireAdmin, AuthenticationController.cancelInvitation);
+router.post('/invite/:id/resend', requireAuthentication, requireAdmin, AuthenticationController.resendInvitation);
+
+// Role management routes
+router.get('/roles', requireAuthentication, AuthenticationController.getRoles);
+router.put('/user/:id/role', requireAuthentication, requireAdmin, AuthenticationController.updateUserRole);
 
 module.exports = router

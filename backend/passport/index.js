@@ -17,7 +17,7 @@ passport.use('user', new JWTStrategy(opts,
                 return done(null, false);
             }
             const existingUser = await User.findOne({
-                attributes: ['id', 'email'],
+                attributes: ['id', 'email', 'role', 'first_name', 'last_name'],
                 where: {
                     id: payload.data.id,
                     email: payload.data.email
@@ -34,6 +34,35 @@ passport.use('user', new JWTStrategy(opts,
         }
     }
 ));
+
+// Valid roles in the system
+const VALID_ROLES = ['admin', 'deal_manager', 'analyst', 'viewer'];
+
+// RBAC middleware - checks if user has one of the allowed roles
+const requireRole = (...allowedRoles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return helper.unauth(res, 'Authentication required');
+        }
+
+        const userRole = req.user.role;
+
+        if (!allowedRoles.includes(userRole)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Insufficient permissions. Required role: ' + allowedRoles.join(' or ')
+            });
+        }
+
+        next();
+    };
+};
+
+// Convenience middleware for common role checks
+const requireAdmin = requireRole('admin');
+const requireDealManager = requireRole('admin', 'deal_manager');
+const requireAnalyst = requireRole('admin', 'deal_manager', 'analyst');
+const requireAnyRole = requireRole('admin', 'deal_manager', 'analyst', 'viewer');
 
 module.exports = {
     initialize: function() {
@@ -52,4 +81,11 @@ module.exports = {
             next();
         })(req, res, next);
     },
+    // RBAC exports
+    requireRole,
+    requireAdmin,
+    requireDealManager,
+    requireAnalyst,
+    requireAnyRole,
+    VALID_ROLES
 }

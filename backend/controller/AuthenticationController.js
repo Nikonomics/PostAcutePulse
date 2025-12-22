@@ -9,13 +9,17 @@ const Op = sequelize.Op;
 const AWS = require('aws-sdk');
 const User = db.users;
 const UserNotifications = db.user_notifications;
+const UserInvitations = db.user_invitations;
 const randomstring = require('randomstring');
+const crypto = require('crypto');
 const Deal = db.deals;
 const DealComments = db.deal_comments;
 const DealTeamMembers = db.deal_team_members;
 const DealExternalAdvisors = db.deal_external_advisors;
 const RecentActivity = db.recent_activities;
 const { detectChanges, logUserChanges } = require('../services/changeLogService');
+const { sendInvitationEmail } = require('../config/sendMail');
+const { VALID_ROLES } = require('../passport');
 
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -848,6 +852,451 @@ module.exports = {
     } catch (err) {
       console.error('Generate access token error:', err);
       return helper.error(res, err.message || "Failed to refresh token", 401);
+    }
+  },
+
+  /*
+  Send invitation to a new user
+  Method: POST
+  URL: /api/v1/auth/invite
+  Body: { email, role }
+  */
+  sendInvitation: async (req, res) => {
+    try {
+      const adminId = req.user.id;
+      const { email, role } = req.body;
+
+      // Validate inputs
+      if (!email || !role) {
+        return helper.error(res, "Email and role are required");
+      }
+
+      // Validate role
+      if (!VALID_ROLES.includes(role)) {
+        return helper.error(res, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return helper.error(res, "Invalid email format");
+      }
+
+      // Check if user already exists
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser) {
+        return helper.error(res, "This email is already registered");
+      }
+
+      // Check if there's already a pending invitation for this email
+      const existingInvitation = await UserInvitations.findOne({
+        where: { email, status: 'pending' }
+      });
+      if (existingInvitation) {
+        return helper.error(res, "An invitation is already pending for this email. Use resend if needed.");
+      }
+
+      // Get inviter details
+      const inviter = await User.findByPk(adminId);
+
+      // Generate secure token
+      const token = crypto.randomBytes(32).toString('hex');
+
+      // Create invitation (expires in 7 days)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const invitation = await UserInvitations.create({
+        email,
+        role,
+        invited_by: adminId,
+        token,
+        status: 'pending',
+        expires_at: expiresAt
+      });
+
+      // Send invitation email
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const inviteLink = `${frontendUrl}/accept-invite?token=${token}`;
+
+      const emailResult = await sendInvitationEmail({
+        invitee_email: email,
+        inviter_name: `${inviter.first_name} ${inviter.last_name}`,
+        role,
+        invite_link: inviteLink
+      });
+
+      if (emailResult.STATUS_CODE !== 200) {
+        console.error('Failed to send invitation email:', emailResult);
+        // Don't fail the invitation creation, just warn
+      }
+
+      return helper.success(res, "Invitation sent successfully", {
+        id: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        expires_at: invitation.expires_at,
+        email_sent: emailResult.STATUS_CODE === 200
+      });
+    } catch (err) {
+      console.error('Send invitation error:', err);
+      return helper.error(res, err.message || "Failed to send invitation");
+    }
+  },
+
+  /*
+  Validate invitation token (public endpoint)
+  Method: GET
+  URL: /api/v1/auth/invite/:token
+  */
+  validateInvitation: async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const invitation = await UserInvitations.findOne({
+        where: { token, status: 'pending' }
+      });
+
+      if (!invitation) {
+        return helper.error(res, "Invalid or expired invitation", 404);
+      }
+
+      // Check if expired
+      if (new Date() > new Date(invitation.expires_at)) {
+        await invitation.update({ status: 'expired' });
+        return helper.error(res, "This invitation has expired", 410);
+      }
+
+      // Get inviter name
+      const inviter = await User.findByPk(invitation.invited_by, {
+        attributes: ['first_name', 'last_name']
+      });
+
+      return helper.success(res, "Valid invitation", {
+        email: invitation.email,
+        role: invitation.role,
+        invited_by: inviter ? `${inviter.first_name} ${inviter.last_name}` : 'Unknown',
+        expires_at: invitation.expires_at
+      });
+    } catch (err) {
+      return helper.error(res, err.message || "Failed to validate invitation");
+    }
+  },
+
+  /*
+  Accept invitation and create account
+  Method: POST
+  URL: /api/v1/auth/accept-invite
+  Body: { token, first_name, last_name, password }
+  */
+  acceptInvitation: async (req, res) => {
+    try {
+      const { token, first_name, last_name, password } = req.body;
+
+      // Validate inputs
+      if (!token || !first_name || !last_name || !password) {
+        return helper.error(res, "Token, first name, last name, and password are required");
+      }
+
+      if (password.length < 8) {
+        return helper.error(res, "Password must be at least 8 characters");
+      }
+
+      // Find invitation
+      const invitation = await UserInvitations.findOne({
+        where: { token, status: 'pending' }
+      });
+
+      if (!invitation) {
+        return helper.error(res, "Invalid or expired invitation", 404);
+      }
+
+      // Check if expired
+      if (new Date() > new Date(invitation.expires_at)) {
+        await invitation.update({ status: 'expired' });
+        return helper.error(res, "This invitation has expired", 410);
+      }
+
+      // Check if email already registered (race condition check)
+      const existingUser = await User.findOne({ where: { email: invitation.email } });
+      if (existingUser) {
+        await invitation.update({ status: 'accepted' });
+        return helper.error(res, "This email is already registered");
+      }
+
+      // Hash password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+      // Create user with pre-approved status
+      const user = await User.create({
+        email: invitation.email,
+        password: hashedPassword,
+        first_name,
+        last_name,
+        role: invitation.role,
+        status: 'active',
+        approval_status: 'approved', // Pre-approved since invited
+        approved_by: invitation.invited_by,
+        approved_at: new Date()
+      });
+
+      // Mark invitation as accepted
+      await invitation.update({
+        status: 'accepted',
+        accepted_at: new Date()
+      });
+
+      // Create notification for inviter
+      await UserNotifications.create({
+        from_id: user.id,
+        to_id: invitation.invited_by,
+        notification_type: 'invitation_accepted',
+        title: 'Invitation Accepted',
+        content: `${first_name} ${last_name} (${invitation.email}) has accepted your invitation and joined as ${invitation.role}.`,
+        ref_id: user.id,
+        is_read: false
+      });
+
+      // Generate tokens for auto-login
+      const credentials = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      };
+
+      const accessToken = jwt.sign({ data: credentials }, jwtToken, { expiresIn: "1h" });
+      const refreshToken = jwt.sign({ data: credentials, type: 'refresh' }, jwtToken, { expiresIn: "30d" });
+
+      return helper.success(res, "Account created successfully", {
+        token: accessToken,
+        refresh: refreshToken,
+        user: {
+          id: user.id,
+          name: `${user.first_name} ${user.last_name}`,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          role: user.role
+        }
+      });
+    } catch (err) {
+      console.error('Accept invitation error:', err);
+      return helper.error(res, err.message || "Failed to create account");
+    }
+  },
+
+  /*
+  Get all invitations (admin only)
+  Method: GET
+  URL: /api/v1/auth/invitations
+  Query: { status } - optional filter
+  */
+  getInvitations: async (req, res) => {
+    try {
+      const { status } = req.query;
+
+      let whereClause = {};
+      if (status) {
+        whereClause.status = status;
+      }
+
+      const invitations = await UserInvitations.findAll({
+        where: whereClause,
+        order: [['created_at', 'DESC']],
+        include: [{
+          model: User,
+          as: 'inviter',
+          attributes: ['id', 'first_name', 'last_name', 'email'],
+          required: false
+        }]
+      });
+
+      // Format response
+      const formattedInvitations = invitations.map(inv => ({
+        id: inv.id,
+        email: inv.email,
+        role: inv.role,
+        status: inv.status,
+        invited_by: inv.inviter ? `${inv.inviter.first_name} ${inv.inviter.last_name}` : 'Unknown',
+        invited_by_email: inv.inviter?.email,
+        expires_at: inv.expires_at,
+        accepted_at: inv.accepted_at,
+        created_at: inv.created_at,
+        is_expired: new Date() > new Date(inv.expires_at)
+      }));
+
+      return helper.success(res, "Invitations fetched successfully", formattedInvitations);
+    } catch (err) {
+      return helper.error(res, err.message || "Failed to fetch invitations");
+    }
+  },
+
+  /*
+  Cancel an invitation
+  Method: DELETE
+  URL: /api/v1/auth/invite/:id
+  */
+  cancelInvitation: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const invitation = await UserInvitations.findByPk(id);
+      if (!invitation) {
+        return helper.error(res, "Invitation not found", 404);
+      }
+
+      if (invitation.status !== 'pending') {
+        return helper.error(res, "Can only cancel pending invitations");
+      }
+
+      await invitation.update({ status: 'cancelled' });
+
+      return helper.success(res, "Invitation cancelled successfully");
+    } catch (err) {
+      return helper.error(res, err.message || "Failed to cancel invitation");
+    }
+  },
+
+  /*
+  Resend invitation email
+  Method: POST
+  URL: /api/v1/auth/invite/:id/resend
+  */
+  resendInvitation: async (req, res) => {
+    try {
+      const adminId = req.user.id;
+      const { id } = req.params;
+
+      const invitation = await UserInvitations.findByPk(id);
+      if (!invitation) {
+        return helper.error(res, "Invitation not found", 404);
+      }
+
+      if (invitation.status !== 'pending') {
+        return helper.error(res, "Can only resend pending invitations");
+      }
+
+      // Generate new token and extend expiration
+      const newToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      await invitation.update({
+        token: newToken,
+        expires_at: expiresAt
+      });
+
+      // Get inviter details
+      const inviter = await User.findByPk(adminId);
+
+      // Send invitation email
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const inviteLink = `${frontendUrl}/accept-invite?token=${newToken}`;
+
+      const emailResult = await sendInvitationEmail({
+        invitee_email: invitation.email,
+        inviter_name: `${inviter.first_name} ${inviter.last_name}`,
+        role: invitation.role,
+        invite_link: inviteLink
+      });
+
+      return helper.success(res, "Invitation resent successfully", {
+        id: invitation.id,
+        email: invitation.email,
+        expires_at: expiresAt,
+        email_sent: emailResult.STATUS_CODE === 200
+      });
+    } catch (err) {
+      return helper.error(res, err.message || "Failed to resend invitation");
+    }
+  },
+
+  /*
+  Get available roles for invitation dropdown
+  Method: GET
+  URL: /api/v1/auth/roles
+  */
+  getRoles: async (req, res) => {
+    try {
+      const roleDescriptions = {
+        'admin': 'Full platform access including user management',
+        'deal_manager': 'Create and manage M&A deals',
+        'analyst': 'Work on assigned deals and run analyses',
+        'viewer': 'View-only access to assigned deals'
+      };
+
+      const roles = VALID_ROLES.map(role => ({
+        value: role,
+        label: role.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        description: roleDescriptions[role]
+      }));
+
+      return helper.success(res, "Roles fetched successfully", roles);
+    } catch (err) {
+      return helper.error(res, err.message || "Failed to fetch roles");
+    }
+  },
+
+  /*
+  Update user role (admin only)
+  Method: PUT
+  URL: /api/v1/auth/user/:id/role
+  Body: { role }
+  */
+  updateUserRole: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+      const adminId = req.user.id;
+
+      if (!role) {
+        return helper.error(res, "Role is required");
+      }
+
+      if (!VALID_ROLES.includes(role)) {
+        return helper.error(res, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+      }
+
+      const user = await User.findByPk(id);
+      if (!user) {
+        return helper.error(res, "User not found", 404);
+      }
+
+      // Prevent changing own role
+      if (parseInt(id) === adminId) {
+        return helper.error(res, "Cannot change your own role");
+      }
+
+      const oldRole = user.role;
+      await user.update({ role, updated_at: new Date() });
+
+      // Log the change
+      await logUserChanges(adminId, id, 'role_updated', [{
+        field_name: 'role',
+        field_label: 'Role',
+        old_value: oldRole,
+        new_value: role
+      }]);
+
+      // Notify user
+      await UserNotifications.create({
+        from_id: adminId,
+        to_id: user.id,
+        notification_type: 'role_changed',
+        title: 'Role Updated',
+        content: `Your role has been changed from ${oldRole} to ${role}.`,
+        ref_id: user.id,
+        is_read: false
+      });
+
+      return helper.success(res, "User role updated successfully", {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      });
+    } catch (err) {
+      return helper.error(res, err.message || "Failed to update user role");
     }
   },
 };

@@ -155,3 +155,69 @@ export const markNotificationsRead = async (notificationIds = null, markAll = fa
   });
   return response.data;
 };
+
+// ============ Invitation APIs ============
+
+// Send invitation (admin only)
+export const sendInvitation = async (email, role) => {
+  const response = await apiService.post(apiRoutes.sendInvitation, { email, role });
+  return response.data;
+};
+
+// Validate invitation token (public - no auth required)
+export const validateInvitation = async (token) => {
+  const response = await axios.get(`${apiRoutes.validateInvitation}/${token}`);
+  return response.data;
+};
+
+// Accept invitation and create account (public - no auth required)
+export const acceptInvitation = async (token, firstName, lastName, password) => {
+  try {
+    const response = await axios.post(apiRoutes.acceptInvitation, {
+      token,
+      first_name: firstName,
+      last_name: lastName,
+      password,
+    });
+    // Auto-login: store tokens and user data
+    if (response.data.success && response.data.body) {
+      localStorage.setItem("authToken", response.data.body.token);
+      localStorage.setItem("refreshToken", response.data.body.refresh);
+      localStorage.setItem("authUser", JSON.stringify(response.data.body.user));
+    }
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Failed to accept invitation");
+  }
+};
+
+// Get all invitations (admin only)
+export const getInvitations = async (status = null) => {
+  const params = status ? `?status=${status}` : '';
+  const response = await apiService.get(`${apiRoutes.getInvitations}${params}`);
+  return response.data;
+};
+
+// Cancel invitation (admin only)
+export const cancelInvitation = async (invitationId) => {
+  const response = await apiService.delete(`${apiRoutes.cancelInvitation}/${invitationId}`);
+  return response.data;
+};
+
+// Resend invitation (admin only)
+export const resendInvitation = async (invitationId) => {
+  const response = await apiService.post(`${apiRoutes.resendInvitation}/${invitationId}/resend`);
+  return response.data;
+};
+
+// Get available roles
+export const getRoles = async () => {
+  const response = await apiService.get(apiRoutes.getRoles);
+  return response.data;
+};
+
+// Update user role (admin only)
+export const updateUserRole = async (userId, role) => {
+  const response = await apiService.put(`${apiRoutes.updateUserRole}/${userId}/role`, { role });
+  return response.data;
+};

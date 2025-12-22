@@ -92,6 +92,15 @@ const apiRoutes = {
     // User Notifications (existing via deal routes)
     getUserNotifications: `${BASE_URL}/deal/get-user-notifications`, // GET
     markNotificationRead: `${BASE_URL}/deal/read-notification`, // POST
+    // Invitation routes
+    sendInvitation: `${BASE_URL}/auth/invite`, // POST
+    validateInvitation: `${BASE_URL}/auth/invite`, // GET: `${validateInvitation}/${token}`
+    acceptInvitation: `${BASE_URL}/auth/accept-invite`, // POST
+    getInvitations: `${BASE_URL}/auth/invitations`, // GET
+    cancelInvitation: `${BASE_URL}/auth/invite`, // DELETE: `${cancelInvitation}/${id}`
+    resendInvitation: `${BASE_URL}/auth/invite`, // POST: `${resendInvitation}/${id}/resend`
+    getRoles: `${BASE_URL}/auth/roles`, // GET
+    updateUserRole: `${BASE_URL}/auth/user`, // PUT: `${updateUserRole}/${id}/role`
 };
 
 export default apiRoutes;

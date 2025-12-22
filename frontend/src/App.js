@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useParams, useLocation } from "react-router-do
 import Layout from "./components/common/Layout";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AcceptInvite from "./pages/AcceptInvite";
 import Dashboard from "./pages/Dashboard";
 import Deals from "./pages/Deals";
 import CreateDeal from "./pages/CreateDeal";
@@ -82,6 +83,7 @@ function App() {
         <Routes>
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="*" element={<Login />} />
         </Routes>
       </ErrorBoundary>

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix M&A routes to use market database and update sync script
 - **2025-12-22** - Start VBP metrics sections collapsed by default
 - **2025-12-22** - Migrate VBP endpoints to use Market DB
 - **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
@@ -41,17 +42,16 @@
 - **2025-12-17** - Add missing ComparisonView component
 - **2025-12-17** - Add missing SkeletonCard component
 - **2025-12-17** - Add Benchmarks and Reports tabs to Facility Metrics
-- **2025-12-17** - Add deal position ordering, fix portfolio extraction, and sync risk scores
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     64 files
-Frontend:    127 files
+Backend:     57 files
+Frontend:    129 files
 Routes:      6 files
 Services:    8 files
-Components:  94 files
+Components:  93 files
 Migrations:  8 files
 ```
 
@@ -66,9 +66,9 @@ backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-add-deal-match-status.js
 backend/migrations/20241218-create-vbp-rankings-table.js
-backend/migrations/add-cms-facility-saved-items.js
 backend/migrations/add-facility-comments-tables.js
 backend/migrations/add-market-comments-tables.js
+backend/migrations/add-user-invitations-table.js
 backend/models/facility_change_logs.js
 backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
