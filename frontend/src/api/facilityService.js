@@ -233,3 +233,13 @@ export const deleteFacilityComment = async (ccn, commentId) => {
   const response = await apiService.delete(`${FACILITIES_BASE}/snf/${ccn}/comments/${commentId}`);
   return response.data;
 };
+
+/**
+ * Get regulatory risk assessment for a facility
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Regulatory risk data including IJ history, peer comparison, trend, etc.
+ */
+export const getRegulatoryRisk = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/${ccn}/regulatory-risk`);
+  return response.data;
+};

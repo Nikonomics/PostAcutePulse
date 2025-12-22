@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 15:13:34
+> Last updated: 2025-12-22 15:22:02
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1506,6 +1506,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1622,6 +1623,7 @@ MarketScorecard
 NotificationCenter
 OwnershipResearch
 ProFormaTab
+RegulatoryRiskCard
 SNFalyzePanel
 ui
 ```
@@ -1704,6 +1706,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add facility regulatory risk assessment API endpoint
 - **2025-12-22** - Fix duplicate deal creation and add persistent logging
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
@@ -1733,25 +1736,23 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
 - **2025-12-21** - Add PostHog analytics and real-time notifications
-- **2025-12-21** - Add ownership import utilities and deal creation documentation
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     18 files
-Frontend:    29 files
+Backend:     13 files
+Frontend:    30 files
 Routes:      6 files
 Services:    4 files
-Components:  11 files
-Migrations:  1 files
+Components:  13 files
+Migrations:  0
+0 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
-backend/migrations/add-user-invitations-table.js
-backend/models/user_invitations.js
 backend/routes/facilityRisk.js
 backend/routes/survey.js
 docs/Deal_Metrics_Explainer.md
@@ -1761,10 +1762,12 @@ frontend/src/api/surveyService.js
 frontend/src/components/AppHelpPanel/AppHelpPanel.css
 frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
 frontend/src/components/AppHelpPanel/index.js
-frontend/src/components/InviteUserModal.jsx
+frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.css
+frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.jsx
+frontend/src/components/RegulatoryRiskCard/index.js
 frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
 frontend/src/context/PageContext.js
-frontend/src/pages/AcceptInvite.jsx
+frontend/src/services/appHelpChatService.js
 ```
 
 ---

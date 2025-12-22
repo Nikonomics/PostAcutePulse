@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../context/UserContext';
 import { useGoogleMaps } from '../context/GoogleMapsContext';
 import FacilityCommentsSection from '../components/FacilityCommentsSection';
+import RegulatoryRiskCard from '../components/RegulatoryRiskCard';
 import './FacilityProfile.css';
 
 function FacilityProfile() {
@@ -400,6 +401,11 @@ function FacilityProfile() {
                   <StarRating rating={facility.staffing_rating} size={20} />
                 </div>
               </div>
+            </div>
+
+            {/* Regulatory Risk Card - full width */}
+            <div className="regulatory-risk-row">
+              <RegulatoryRiskCard ccn={facility.ccn} />
             </div>
 
             <div className="overview-grid">

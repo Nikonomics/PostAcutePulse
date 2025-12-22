@@ -1083,6 +1083,11 @@
   gap: 0.5rem;
 }
 
+/* Regulatory Risk Row */
+.regulatory-risk-row {
+  margin-bottom: 1.5rem;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .rating-cards-grid {

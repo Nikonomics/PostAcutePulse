@@ -1,0 +1,318 @@
+/* Regulatory Risk Card Styles */
+
+.regulatory-risk-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Header */
+.risk-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.risk-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.risk-card-title svg {
+  color: #6b7280;
+}
+
+/* Risk Badge */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: 9999px;
+}
+
+/* Loading state */
+.risk-card-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.risk-card-loading .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Error state */
+.risk-card-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.risk-card-error svg {
+  color: #9ca3af;
+}
+
+/* Summary content */
+.risk-card-summary {
+  padding: 1rem 1.25rem;
+}
+
+.risk-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  color: #374151;
+  padding: 0.375rem 0;
+}
+
+.risk-summary-row:first-child {
+  padding-top: 0;
+}
+
+.risk-summary-row .risk-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #6b7280;
+}
+
+.risk-summary-row.ij-warning {
+  color: #dc3545;
+  background: #fef2f2;
+  margin: 0.5rem -1.25rem 0;
+  padding: 0.625rem 1.25rem;
+}
+
+.risk-summary-row.ij-warning .risk-icon {
+  color: #dc3545;
+}
+
+.risk-summary-row.low-risk {
+  margin-top: 0.25rem;
+}
+
+.percentile-note {
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+
+.trend-change {
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+
+.ij-count {
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+
+/* Expand button */
+.risk-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.625rem;
+  background: #f3f4f6;
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.risk-expand-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* Expanded details */
+.risk-card-details {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.risk-detail-section {
+  margin-bottom: 1.25rem;
+}
+
+.risk-detail-section:last-of-type {
+  margin-bottom: 0.75rem;
+}
+
+.risk-detail-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  margin: 0 0 0.75rem 0;
+}
+
+.risk-detail-section h4 svg {
+  color: #6b7280;
+}
+
+/* Complaint stats */
+.complaint-stats {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.complaint-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.complaint-stat .stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.complaint-stat .stat-label {
+  font-size: 0.6875rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+/* Findings list */
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.finding-item {
+  padding: 0.75rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.finding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.finding-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.finding-ftag {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: 'SF Mono', Monaco, monospace;
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.finding-severity {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.finding-complaint {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #9333ea;
+  background: #f3e8ff;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.finding-date {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.finding-summary {
+  font-size: 0.8125rem;
+  color: #4b5563;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Data freshness */
+.risk-data-freshness {
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  text-align: right;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .risk-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .complaint-stats {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .finding-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .finding-date {
+    align-self: flex-start;
+  }
+}
