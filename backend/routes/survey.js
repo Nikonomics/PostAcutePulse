@@ -104,7 +104,7 @@ router.get('/national-overview', async (req, res) => {
         COUNT(DISTINCT federal_provider_number || survey_date::text) as survey_count,
         ROUND(AVG(def_count)::numeric, 1) as avg_deficiencies,
         ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-               NULLIF(COUNT(*), 0) * 100)::numeric, 2) as ij_rate
+               NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
       FROM (
         SELECT
           federal_provider_number,
@@ -201,7 +201,7 @@ router.get('/state/:stateCode', async (req, res) => {
           COUNT(*) as total_defs,
           ROUND(AVG(def_count)::numeric, 1) as avg_defs,
           ROUND((SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-                 NULLIF(COUNT(*), 0) * 100)::numeric, 3) as ij_rate
+                 NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
         FROM cms_facility_deficiencies d
         JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
         CROSS JOIN LATERAL (
@@ -219,7 +219,7 @@ router.get('/state/:stateCode', async (req, res) => {
           COUNT(*) as total_defs,
           ROUND(AVG(def_count)::numeric, 1) as avg_defs,
           ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-                 NULLIF(COUNT(*), 0) * 100)::numeric, 3) as ij_rate
+                 NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
         FROM cms_facility_deficiencies d
         CROSS JOIN LATERAL (
           SELECT COUNT(*) as def_count
