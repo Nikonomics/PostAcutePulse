@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Make EditUser form fields optional except name, email, role
 - **2025-12-22** - Add update-user endpoint for admin user management
 - **2025-12-22** - Add user invitation system with role-based access control
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
@@ -41,17 +42,16 @@
 - **2025-12-17** - Fix Deals.jsx crash and add CMS production migration scripts
 - **2025-12-17** - Improve facilities section UI and portfolio extraction flow
 - **2025-12-17** - Add remaining missing FacilityMetrics components
-- **2025-12-17** - Add missing ComparisonView component
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     57 files
-Frontend:    130 files
-Routes:      6 files
-Services:    8 files
-Components:  93 files
+Backend:     59 files
+Frontend:    132 files
+Routes:      7 files
+Services:    9 files
+Components:  94 files
 Migrations:  8 files
 ```
 

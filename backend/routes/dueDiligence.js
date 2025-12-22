@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getSequelizeInstance } = require('../config/database');
+const { UPLOAD_DIR } = require('../services/fileStorage');
 
 // Helper to run queries
 const runQuery = async (sql, params = []) => {
@@ -44,11 +45,12 @@ const runUpdate = async (sql, params = []) => {
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Upload directory
-const uploadDir = path.join(__dirname, '..', 'uploads', 'due-diligence');
+// Upload directory - use UPLOAD_DIR for persistent disk support on Render
+const uploadDir = path.join(UPLOAD_DIR, 'due-diligence');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+console.log('[DueDiligence] Using upload directory:', uploadDir);
 
 // Initialize database tables
 const initDb = async () => {

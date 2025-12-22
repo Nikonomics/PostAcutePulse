@@ -21,7 +21,7 @@ const getDateDiffLiteral = (col1, col2) => {
 const { sendBrevoEmail } = require("../config/sendMail");
 const { extractDealFromDocument, extractFromMultipleDocuments } = require("../services/aiExtractor");
 const { runFullExtraction, storeExtractionResults } = require("../services/extractionOrchestrator");
-const { saveFiles, getFile, getDealFiles } = require("../services/fileStorage");
+const { saveFiles, getFile, getDealFiles, UPLOAD_DIR } = require("../services/fileStorage");
 const {
   matchFacility,
   detectFacilitiesFromText,
@@ -6079,12 +6079,14 @@ module.exports = {
       // 4. Save uploaded documents to deal_documents
       const path = require('path');
       const fs = require('fs');
-      const uploadsDir = path.join(__dirname, '..', 'uploads', 'deals', deal.id.toString());
+      // Use UPLOAD_DIR from fileStorage for persistent disk support on Render
+      const uploadsDir = path.join(UPLOAD_DIR, 'deals', deal.id.toString());
 
       // Create uploads directory if it doesn't exist
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
+      console.log(`[extractPortfolio] Using upload directory: ${uploadsDir}`);
 
       let savedDocumentCount = 0;
       for (const file of files) {

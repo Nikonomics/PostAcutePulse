@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 10:09:17
+> Last updated: 2025-12-22 11:09:29
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1487,6 +1487,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1507,6 +1508,7 @@ backend/routes/markets.js
 backend/routes/ownership.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
+backend/routes/survey.js
 backend/routes/surveyIntelligence.js
 backend/routes/taxonomy.js
 backend/routes/user.js
@@ -1587,6 +1589,7 @@ No pages found
 ### Frontend Components (Top Level)
 ```
 ActivityHistory
+AppHelpPanel
 common
 DataDictionaryTab
 DealExtractionViewer
@@ -1682,6 +1685,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Make EditUser form fields optional except name, email, role
 - **2025-12-22** - Add update-user endpoint for admin user management
 - **2025-12-22** - Add user invitation system with role-based access control
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
@@ -1711,17 +1715,16 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-17** - Fix Deals.jsx crash and add CMS production migration scripts
 - **2025-12-17** - Improve facilities section UI and portfolio extraction flow
 - **2025-12-17** - Add remaining missing FacilityMetrics components
-- **2025-12-17** - Add missing ComparisonView component
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     57 files
-Frontend:    130 files
-Routes:      6 files
-Services:    8 files
-Components:  93 files
+Backend:     59 files
+Frontend:    132 files
+Routes:      7 files
+Services:    9 files
+Components:  94 files
 Migrations:  8 files
 ```
 
@@ -4377,6 +4380,7 @@ backend/routes/markets.js
 backend/routes/ownership.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
+backend/routes/survey.js
 backend/routes/surveyIntelligence.js
 backend/routes/taxonomy.js
 backend/routes/user.js

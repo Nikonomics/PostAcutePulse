@@ -8,7 +8,21 @@ const path = require('path');
 const crypto = require('crypto');
 
 // Base upload directory - use Render disk mount path in production, local path in development
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
+// Priority: 1) UPLOAD_DIR env var, 2) Render persistent disk, 3) Local development path
+const getUploadDir = () => {
+  if (process.env.UPLOAD_DIR) {
+    return process.env.UPLOAD_DIR;
+  }
+  // Check for Render persistent disk
+  if (fs.existsSync('/var/data/uploads')) {
+    console.log('[FileStorage] Using Render persistent disk: /var/data/uploads');
+    return '/var/data/uploads';
+  }
+  // Local development fallback
+  return path.join(__dirname, '..', 'uploads');
+};
+const UPLOAD_DIR = getUploadDir();
+console.log('[FileStorage] UPLOAD_DIR:', UPLOAD_DIR);
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {

@@ -1163,6 +1163,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1183,6 +1184,7 @@ backend/routes/markets.js
 backend/routes/ownership.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
+backend/routes/survey.js
 backend/routes/surveyIntelligence.js
 backend/routes/taxonomy.js
 backend/routes/user.js
@@ -1263,6 +1265,7 @@ No pages found
 ### Frontend Components (Top Level)
 ```
 ActivityHistory
+AppHelpPanel
 common
 DataDictionaryTab
 DealExtractionViewer
