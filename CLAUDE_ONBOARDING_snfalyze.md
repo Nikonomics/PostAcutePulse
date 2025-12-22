@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 09:11:00
+> Last updated: 2025-12-22 09:19:08
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1482,6 +1482,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1675,6 +1676,7 @@ backend/migrations/create-snf-vbp-performance.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Migrate VBP endpoints to use Market DB
 - **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
 - **2025-12-22** - Add market comments feature (Phase 4)
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
@@ -1704,16 +1706,15 @@ backend/migrations/create-snf-vbp-performance.js
 - **2025-12-17** - Add Benchmarks and Reports tabs to Facility Metrics
 - **2025-12-17** - Add deal position ordering, fix portfolio extraction, and sync risk scores
 - **2025-12-16** - Fix OwnershipProfile aggregate metrics display
-- **2025-12-15** - Make CIM extraction the single source of truth for Deal Overview
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     65 files
+Backend:     64 files
 Frontend:    127 files
 Routes:      6 files
-Services:    9 files
+Services:    8 files
 Components:  94 files
 Migrations:  8 files
 ```

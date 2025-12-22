@@ -177,9 +177,9 @@ const MetricSection = ({ section, current, searchTerm, expandedSections, onToggl
 const VBPMetricsTable = ({ vbpData, facility }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState(() => {
-    // All sections expanded by default
+    // All sections collapsed by default
     const initial = {};
-    METRIC_SECTIONS.forEach(s => { initial[s.key] = true; });
+    METRIC_SECTIONS.forEach(s => { initial[s.key] = false; });
     return initial;
   });
 
