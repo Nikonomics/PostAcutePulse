@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 12:22:50
+> Last updated: 2025-12-22 12:26:44
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1495,6 +1495,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1692,6 +1693,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix SQL errors in facilities endpoints
 - **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
@@ -1721,13 +1723,12 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-18** - Add database scripts documentation
 - **2025-12-18** - Add market database sync script
 - **2025-12-18** - Trigger redeploy for database schema refresh
-- **2025-12-18** - Add CMS data sync scripts and saved items improvements
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     42 files
+Backend:     41 files
 Frontend:    51 files
 Routes:      7 files
 Services:    5 files
@@ -1751,8 +1752,8 @@ backend/models/market_comments.js
 backend/models/user_change_logs.js
 backend/models/user_invitations.js
 backend/routes/survey.js
-backend/scripts/check-deals.js
 backend/scripts/compare-alf.js
+backend/scripts/compare-all-tables.js
 ```
 
 ---

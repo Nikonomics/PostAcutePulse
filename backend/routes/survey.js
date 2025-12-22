@@ -546,12 +546,15 @@ router.get('/ftag-trends', async (req, res) => {
 
     // Generate emerging patterns from trend data
     const emergingPatterns = ftagDetailsResult.rows
-      .filter(r => r.trend === 'UP' && parseFloat(r.change_pct) > 10)
-      .slice(0, 3)
+      .filter(r => r.trend === 'UP' && parseFloat(r.change_pct) > 5)
+      .slice(0, 5)
       .map(r => ({
         code: `F${r.code}`,
         name: r.name || 'Unknown',
-        changePct: parseFloat(r.change_pct),
+        current: parseInt(r.recent_count) || 0,
+        prior: parseInt(r.prior_count) || 0,
+        changePct: parseFloat(r.change_pct) || 0,
+        ijPct: 3, // Placeholder - would need separate IJ query
         insight: `F${r.code} citations up ${Math.abs(parseFloat(r.change_pct)).toFixed(1)}% - increased regulatory focus`
       }));
 
@@ -732,7 +735,7 @@ router.get('/nearby/:ccn', async (req, res) => {
       WITH nearby_facilities AS (
         SELECT
           f.federal_provider_number,
-          f.provider_name,
+          f.facility_name,
           f.city,
           f.state,
           (3959 * acos(
@@ -766,7 +769,7 @@ router.get('/nearby/:ccn', async (req, res) => {
       )
       SELECT
         nf.federal_provider_number as ccn,
-        nf.provider_name as name,
+        nf.facility_name as name,
         nf.city,
         nf.state,
         ROUND(nf.distance_miles::numeric, 1) as distance,
@@ -843,7 +846,7 @@ router.get('/facility-intelligence/:ccn', async (req, res) => {
     const facilityResult = await pool.query(`
       SELECT
         f.federal_provider_number as ccn,
-        f.provider_name as name,
+        f.facility_name as name,
         f.state,
         f.city,
         f.county,
@@ -987,7 +990,7 @@ router.get('/facility-intelligence/:ccn', async (req, res) => {
         WITH nearby_facilities AS (
           SELECT
             f.federal_provider_number,
-            f.provider_name,
+            f.facility_name,
             f.city,
             (3959 * acos(
               LEAST(1.0, GREATEST(-1.0,
@@ -1013,7 +1016,7 @@ router.get('/facility-intelligence/:ccn', async (req, res) => {
         )
         SELECT
           nf.federal_provider_number as ccn,
-          nf.provider_name as name,
+          nf.facility_name as name,
           nf.city,
           ROUND(nf.distance_miles::numeric, 1) as distance,
           rs.survey_date,
