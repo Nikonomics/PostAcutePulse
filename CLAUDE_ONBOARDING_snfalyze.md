@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 11:57:59
+> Last updated: 2025-12-22 12:09:03
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1493,6 +1493,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1690,6 +1691,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
 - **2025-12-22** - Add App Help chatbot with floating widget UI
@@ -1719,7 +1721,6 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-18** - Trigger redeploy for database schema refresh
 - **2025-12-18** - Add CMS data sync scripts and saved items improvements
 - **2025-12-17** - Fix deal detail tabs not showing when extraction_data is null
-- **2025-12-17** - Fix market analysis - remove non-existent long_stay_qm_rating columns
 
 
 ### Areas Modified (Last 20 Commits)

@@ -295,77 +295,70 @@ router.get('/snf/:ccn', async (req, res) => {
 
 /**
  * GET /api/facilities/snf/:ccn/competitors
- * Get nearby competing facilities
+ * Get nearby competing facilities from Market DB (fast query on ~15k rows)
  */
 router.get('/snf/:ccn/competitors', async (req, res) => {
   try {
     const { ccn } = req.params;
     const { radiusMiles = 25, limit = 20 } = req.query;
-    const { getSequelizeInstance } = require('../config/database');
-    const sequelize = getSequelizeInstance();
+    const pool = getMarketPool();
 
-    try {
-      // Get the target facility's location
-      const [[facility]] = await sequelize.query(`
-        SELECT latitude, longitude, certified_beds
-        FROM facility_snapshots fs
-        JOIN cms_extracts e ON fs.extract_id = e.extract_id
-        WHERE fs.ccn = :ccn
-        ORDER BY e.extract_date DESC
-        LIMIT 1
-      `, { replacements: { ccn } });
+    // Get the target facility's location from Market DB
+    const facilityResult = await pool.query(`
+      SELECT latitude, longitude, certified_beds
+      FROM snf_facilities
+      WHERE federal_provider_number = $1
+      LIMIT 1
+    `, [ccn]);
 
-      if (!facility || !facility.latitude || !facility.longitude) {
-        return res.json({ success: true, competitors: [] });
-      }
-
-      // Find nearby facilities using Haversine formula
-      const [competitors] = await sequelize.query(`
-        WITH latest AS (
-          SELECT DISTINCT ON (fs.ccn) fs.*, e.extract_date
-          FROM facility_snapshots fs
-          JOIN cms_extracts e ON fs.extract_id = e.extract_id
-          ORDER BY fs.ccn, e.extract_date DESC
-        )
-        SELECT
-          ccn, provider_name as facility_name, city, state,
-          overall_rating, health_inspection_rating, qm_rating as quality_measure_rating, staffing_rating,
-          certified_beds as number_of_certified_beds, average_residents_per_day as number_of_residents_in_certified_beds,
-          latitude, longitude,
-          (3959 * acos(
-            cos(radians(:lat)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(latitude))
-          )) AS distance_miles
-        FROM latest
-        WHERE ccn != :ccn
-          AND latitude IS NOT NULL
-          AND longitude IS NOT NULL
-          AND (3959 * acos(
-            cos(radians(:lat)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(latitude))
-          )) <= :radius
-        ORDER BY distance_miles
-        LIMIT :limit
-      `, {
-        replacements: {
-          ccn,
-          lat: parseFloat(facility.latitude),
-          lng: parseFloat(facility.longitude),
-          radius: parseInt(radiusMiles),
-          limit: parseInt(limit)
-        }
-      });
-
-      res.json({
-        success: true,
-        competitors
-      });
-
-    } finally {
-      await sequelize.close();
+    const facility = facilityResult.rows[0];
+    if (!facility || !facility.latitude || !facility.longitude) {
+      return res.json({ success: true, competitors: [] });
     }
+
+    // Find nearby facilities using Haversine formula
+    const competitorsResult = await pool.query(`
+      SELECT
+        federal_provider_number as ccn,
+        provider_name as facility_name,
+        city,
+        state,
+        overall_rating,
+        health_inspection_rating,
+        staffing_rating,
+        certified_beds as number_of_certified_beds,
+        average_residents_per_day as number_of_residents_in_certified_beds,
+        latitude,
+        longitude,
+        (3959 * acos(
+          cos(radians($1)) * cos(radians(latitude)) *
+          cos(radians(longitude) - radians($2)) +
+          sin(radians($1)) * sin(radians(latitude))
+        )) AS distance_miles
+      FROM snf_facilities
+      WHERE federal_provider_number != $3
+        AND latitude IS NOT NULL
+        AND longitude IS NOT NULL
+        AND active = true
+        AND (3959 * acos(
+          cos(radians($1)) * cos(radians(latitude)) *
+          cos(radians(longitude) - radians($2)) +
+          sin(radians($1)) * sin(radians(latitude))
+        )) <= $4
+      ORDER BY distance_miles
+      LIMIT $5
+    `, [
+      parseFloat(facility.latitude),
+      parseFloat(facility.longitude),
+      ccn,
+      parseInt(radiusMiles),
+      parseInt(limit)
+    ]);
+
+    res.json({
+      success: true,
+      competitors: competitorsResult.rows
+    });
 
   } catch (error) {
     console.error('Error getting competitors:', error);
@@ -560,34 +553,36 @@ router.get('/snf/:ccn/penalties', async (req, res) => {
 
 /**
  * GET /api/facilities/snf/:ccn/ownership
- * Get ownership records for a facility
+ * Get ownership records for a facility from Market DB
  */
 router.get('/snf/:ccn/ownership', async (req, res) => {
   try {
     const { ccn } = req.params;
-    const { getSequelizeInstance } = require('../config/database');
-    const sequelize = getSequelizeInstance();
+    const pool = getMarketPool();
 
-    try {
-      const [ownership] = await sequelize.query(`
-        SELECT
-          role_type,
-          owner_type,
-          owner_name,
-          ownership_percentage,
-          association_date
-        FROM ownership_records
-        WHERE ccn = :ccn
-        ORDER BY
-          CASE WHEN ownership_percentage IS NOT NULL THEN 0 ELSE 1 END,
-          ownership_percentage DESC NULLS LAST,
-          role_type
-      `, { replacements: { ccn } });
+    // Get ownership details from Market DB - most recent extract only
+    const result = await pool.query(`
+      WITH latest_extract AS (
+        SELECT MAX(extract_id) as max_extract_id
+        FROM facility_ownership_details
+        WHERE ccn = $1
+      )
+      SELECT DISTINCT
+        owner_role as role_type,
+        owner_type,
+        owner_name,
+        ownership_percentage,
+        association_date
+      FROM facility_ownership_details
+      WHERE ccn = $1
+        AND extract_id = (SELECT max_extract_id FROM latest_extract)
+      ORDER BY
+        CASE WHEN ownership_percentage IS NOT NULL THEN 0 ELSE 1 END,
+        ownership_percentage DESC NULLS LAST,
+        owner_role
+    `, [ccn]);
 
-      res.json({ success: true, ownership });
-    } finally {
-      await sequelize.close();
-    }
+    res.json({ success: true, ownership: result.rows });
   } catch (error) {
     console.error('Error fetching ownership:', error);
     res.status(500).json({ success: false, error: error.message });
