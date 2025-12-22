@@ -17,6 +17,7 @@ import "./styles/global.css";
 import { useAuth } from "./context/UserContext";
 import { GoogleMapsProvider } from "./context/GoogleMapsContext";
 import { SocketProvider } from "./context/SocketContext";
+import { PageContextProvider } from "./context/PageContext";
 import EditDeal from "./pages/EditDeal/EditDeal";
 import DealDetail from "./pages/DealDetail";
 import ChatInterfaceAI from "./pages/ChatInterfaceAI";
@@ -95,6 +96,7 @@ function App() {
     <ErrorBoundary>
     <SocketProvider>
       <GoogleMapsProvider>
+        <PageContextProvider>
         <Layout>
         <Routes>
         {/* Redirect root to dashboard */}
@@ -334,6 +336,7 @@ function App() {
         {/* <Route path="*" element={<Navigate to="/dashboard" replace />} /> */}
       </Routes>
         </Layout>
+        </PageContextProvider>
       </GoogleMapsProvider>
     </SocketProvider>
     </ErrorBoundary>
