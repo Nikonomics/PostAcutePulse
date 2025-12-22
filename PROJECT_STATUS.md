@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add App Help chatbot with floating widget UI
 - **2025-12-22** - Fix: Use persistent disk for file uploads on Render
 - **2025-12-22** - Make EditUser form fields optional except name, email, role
 - **2025-12-22** - Add update-user endpoint for admin user management
@@ -41,7 +42,6 @@
 - **2025-12-17** - Fix market analysis - remove non-existent long_stay_qm_rating columns
 - **2025-12-17** - Add position column migration for deals table
 - **2025-12-17** - Fix Deals.jsx crash and add CMS production migration scripts
-- **2025-12-17** - Improve facilities section UI and portfolio extraction flow
 
 
 ### Areas Modified (Last 20 Commits)

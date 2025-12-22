@@ -4,11 +4,14 @@
  * Provides ownership intelligence endpoints for facility and chain research.
  * Uses Claude API for natural language facility search.
  *
- * Database Strategy:
- * - Uses Market DB (MARKET_DATABASE_URL) for market data tables:
- *   snf_facilities, ownership_profiles, cms_facility_deficiencies
- * - Uses Main DB (DATABASE_URL) for app-specific data:
- *   ownership_comments, ownership_contacts via Sequelize models
+ * Database Strategy (DUAL-DB):
+ * - Market DB (getMarketPool / MARKET_DATABASE_URL):
+ *   snf_facilities, ownership_profiles, ownership_contacts, cms_facility_deficiencies
+ * - Main DB (getMainPool / DATABASE_URL):
+ *   users, ownership_comments, ownership_comment_mentions, ownership_change_logs
+ *
+ * IMPORTANT: When querying data that references users (comments, activity logs),
+ * use getMainPoolInstance(). When querying ownership/facility data, use getPoolInstance().
  */
 
 const express = require('express');
@@ -17,11 +20,16 @@ const Anthropic = require('@anthropic-ai/sdk');
 const requireAuthentication = require("../passport").authenticateUser;
 const db = require('../models');
 const { createNotification } = require('../services/notificationService');
-const { getMarketPool } = require('../config/database');
+const { getMarketPool, getMainPool } = require('../config/database');
 
 // Use Market DB for ownership/facility queries
 const getPoolInstance = () => {
   return getMarketPool();
+};
+
+// Use Main DB for user-related data (comments, activity logs)
+const getMainPoolInstance = () => {
+  return getMainPool();
 };
 
 // Initialize Anthropic client
@@ -1058,7 +1066,8 @@ router.post('/profiles', requireAuthentication, async (req, res) => {
       });
     }
 
-    const pool = getPoolInstance();
+    const pool = getPoolInstance();  // Market DB for ownership_profiles
+    const mainPool = getMainPoolInstance();  // Main DB for change_logs
 
     // Check if profile already exists
     const existingCheck = await pool.query(
@@ -1110,8 +1119,8 @@ router.post('/profiles', requireAuthentication, async (req, res) => {
       userId
     ]);
 
-    // Log the creation
-    await pool.query(`
+    // Log the creation (Main DB)
+    await mainPool.query(`
       INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
       VALUES ($1, $2, 'profile_created', $3)
     `, [result.rows[0].id, userId, JSON.stringify({ parent_organization })]);
@@ -1147,7 +1156,8 @@ router.put('/profiles/:id', requireAuthentication, async (req, res) => {
       logo_url
     } = req.body;
 
-    const pool = getPoolInstance();
+    const pool = getPoolInstance();  // Market DB for ownership_profiles
+    const mainPool = getMainPoolInstance();  // Main DB for change_logs
 
     // Get current profile
     const isNumeric = /^\d+$/.test(id);
@@ -1221,9 +1231,9 @@ router.put('/profiles/:id', requireAuthentication, async (req, res) => {
       RETURNING *
     `, values);
 
-    // Log each change
+    // Log each change (Main DB)
     for (const change of changes) {
-      await pool.query(`
+      await mainPool.query(`
         INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, field_name, old_value, new_value)
         VALUES ($1, $2, 'profile_updated', $3, $4, $5)
       `, [currentProfile.id, userId, change.field, change.old_value?.toString() || null, change.new_value?.toString() || null]);
@@ -1312,7 +1322,8 @@ router.post('/profiles/:id/contacts', requireAuthentication, async (req, res) =>
       });
     }
 
-    const pool = getPoolInstance();
+    const pool = getPoolInstance();  // Market DB for ownership_profiles, ownership_contacts
+    const mainPool = getMainPoolInstance();  // Main DB for change_logs
 
     const isNumeric = /^\d+$/.test(id);
     const profileQuery = isNumeric
@@ -1343,8 +1354,8 @@ router.post('/profiles/:id/contacts', requireAuthentication, async (req, res) =>
       RETURNING *
     `, [profileId, first_name, last_name, title, email, phone, mobile, linkedin_url, contact_type || 'other', is_primary || false, notes, userId]);
 
-    // Log the addition
-    await pool.query(`
+    // Log the addition (Main DB)
+    await mainPool.query(`
       INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
       VALUES ($1, $2, 'contact_added', $3)
     `, [profileId, userId, JSON.stringify({ contact_id: result.rows[0].id, name: `${first_name} ${last_name}` })]);
@@ -1380,7 +1391,8 @@ router.put('/profiles/:id/contacts/:contactId', requireAuthentication, async (re
       notes
     } = req.body;
 
-    const pool = getPoolInstance();
+    const pool = getPoolInstance();  // Market DB for ownership_profiles, ownership_contacts
+    const mainPool = getMainPoolInstance();  // Main DB for change_logs
 
     // Verify contact exists and belongs to this profile
     const isNumeric = /^\d+$/.test(id);
@@ -1431,8 +1443,8 @@ router.put('/profiles/:id/contacts/:contactId', requireAuthentication, async (re
       RETURNING *
     `, [first_name, last_name, title, email, phone, mobile, linkedin_url, contact_type, is_primary, notes, userId, contactId]);
 
-    // Log the update
-    await pool.query(`
+    // Log the update (Main DB)
+    await mainPool.query(`
       INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
       VALUES ($1, $2, 'contact_updated', $3)
     `, [profileId, userId, JSON.stringify({ contact_id: contactId, name: `${result.rows[0].first_name} ${result.rows[0].last_name}` })]);
@@ -1455,7 +1467,8 @@ router.delete('/profiles/:id/contacts/:contactId', requireAuthentication, async 
   try {
     const { id, contactId } = req.params;
     const userId = req.user.id;
-    const pool = getPoolInstance();
+    const pool = getPoolInstance();  // Market DB for ownership_profiles, ownership_contacts
+    const mainPool = getMainPoolInstance();  // Main DB for change_logs
 
     const isNumeric = /^\d+$/.test(id);
     const profileQuery = isNumeric
@@ -1485,8 +1498,8 @@ router.delete('/profiles/:id/contacts/:contactId', requireAuthentication, async 
       [contactId, profileId]
     );
 
-    // Log the deletion
-    await pool.query(`
+    // Log the deletion (Main DB)
+    await mainPool.query(`
       INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
       VALUES ($1, $2, 'contact_deleted', $3)
     `, [profileId, userId, JSON.stringify({
@@ -1515,14 +1528,15 @@ router.delete('/profiles/:id/contacts/:contactId', requireAuthentication, async 
 router.get('/profiles/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    const pool = getPoolInstance();
+    const marketPool = getPoolInstance();  // Market DB for ownership_profiles
+    const mainPool = getMainPoolInstance();  // Main DB for users, comments
 
     const isNumeric = /^\d+$/.test(id);
     const profileQuery = isNumeric
       ? 'SELECT id FROM ownership_profiles WHERE id = $1'
       : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
 
-    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+    const profileResult = await marketPool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
 
     if (profileResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Profile not found' });
@@ -1530,8 +1544,8 @@ router.get('/profiles/:id/comments', async (req, res) => {
 
     const profileId = profileResult.rows[0].id;
 
-    // Get comments with user info
-    const result = await pool.query(`
+    // Get comments with user info (Main DB has users, comments)
+    const result = await mainPool.query(`
       SELECT
         c.id, c.comment, c.parent_id, c.created_at, c.updated_at,
         c.user_id,
@@ -1546,7 +1560,7 @@ router.get('/profiles/:id/comments', async (req, res) => {
     const commentIds = result.rows.map(c => c.id);
     let mentions = [];
     if (commentIds.length > 0) {
-      const mentionsResult = await pool.query(`
+      const mentionsResult = await mainPool.query(`
         SELECT m.comment_id, m.mentioned_user_id, u.first_name, u.last_name
         FROM ownership_comment_mentions m
         JOIN users u ON m.mentioned_user_id = u.id
@@ -1638,14 +1652,15 @@ router.post('/profiles/:id/comments', requireAuthentication, async (req, res) =>
       });
     }
 
-    const pool = getPoolInstance();
+    const marketPool = getPoolInstance();  // Market DB for ownership_profiles
+    const mainPool = getMainPoolInstance();  // Main DB for users, comments
 
     const isNumeric = /^\d+$/.test(id);
     const profileQuery = isNumeric
       ? 'SELECT id, parent_organization FROM ownership_profiles WHERE id = $1'
       : 'SELECT id, parent_organization FROM ownership_profiles WHERE parent_organization = $1';
 
-    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+    const profileResult = await marketPool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
 
     if (profileResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Profile not found' });
@@ -1654,9 +1669,9 @@ router.post('/profiles/:id/comments', requireAuthentication, async (req, res) =>
     const profileId = profileResult.rows[0].id;
     const parentOrg = profileResult.rows[0].parent_organization;
 
-    // Verify parent comment exists if provided
+    // Verify parent comment exists if provided (Main DB)
     if (parent_id) {
-      const parentCheck = await pool.query(
+      const parentCheck = await mainPool.query(
         'SELECT id FROM ownership_comments WHERE id = $1 AND ownership_profile_id = $2',
         [parent_id, profileId]
       );
@@ -1665,8 +1680,8 @@ router.post('/profiles/:id/comments', requireAuthentication, async (req, res) =>
       }
     }
 
-    // Insert comment
-    const result = await pool.query(`
+    // Insert comment (Main DB)
+    const result = await mainPool.query(`
       INSERT INTO ownership_comments (ownership_profile_id, user_id, comment, parent_id)
       VALUES ($1, $2, $3, $4)
       RETURNING *
@@ -1674,10 +1689,10 @@ router.post('/profiles/:id/comments', requireAuthentication, async (req, res) =>
 
     const newComment = result.rows[0];
 
-    // Handle mentions
+    // Handle mentions (Main DB)
     if (mentioned_user_ids && mentioned_user_ids.length > 0) {
       for (const mentionedUserId of mentioned_user_ids) {
-        await pool.query(`
+        await mainPool.query(`
           INSERT INTO ownership_comment_mentions (comment_id, mentioned_user_id)
           VALUES ($1, $2)
           ON CONFLICT DO NOTHING
@@ -1696,14 +1711,14 @@ router.post('/profiles/:id/comments', requireAuthentication, async (req, res) =>
       }
     }
 
-    // Log the comment
-    await pool.query(`
+    // Log the comment (Main DB)
+    await mainPool.query(`
       INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
       VALUES ($1, $2, 'comment_added', $3)
     `, [profileId, userId, JSON.stringify({ comment_id: newComment.id, preview: comment.substring(0, 100) })]);
 
-    // Get user info for response
-    const userInfo = await pool.query(
+    // Get user info for response (Main DB)
+    const userInfo = await mainPool.query(
       'SELECT first_name, last_name, profile_url FROM users WHERE id = $1',
       [userId]
     );
@@ -1731,14 +1746,15 @@ router.delete('/profiles/:id/comments/:commentId', requireAuthentication, async 
   try {
     const { id, commentId } = req.params;
     const userId = req.user.id;
-    const pool = getPoolInstance();
+    const marketPool = getPoolInstance();  // Market DB for ownership_profiles
+    const mainPool = getMainPoolInstance();  // Main DB for comments
 
     const isNumeric = /^\d+$/.test(id);
     const profileQuery = isNumeric
       ? 'SELECT id FROM ownership_profiles WHERE id = $1'
       : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
 
-    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+    const profileResult = await marketPool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
 
     if (profileResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Profile not found' });
@@ -1746,8 +1762,8 @@ router.delete('/profiles/:id/comments/:commentId', requireAuthentication, async 
 
     const profileId = profileResult.rows[0].id;
 
-    // Verify comment exists and user owns it (or is admin)
-    const commentCheck = await pool.query(
+    // Verify comment exists and user owns it (or is admin) (Main DB)
+    const commentCheck = await mainPool.query(
       'SELECT user_id, comment FROM ownership_comments WHERE id = $1 AND ownership_profile_id = $2',
       [commentId, profileId]
     );
@@ -1761,14 +1777,14 @@ router.delete('/profiles/:id/comments/:commentId', requireAuthentication, async 
       return res.status(403).json({ success: false, error: 'Not authorized to delete this comment' });
     }
 
-    // Delete comment (CASCADE will handle replies and mentions)
-    await pool.query(
+    // Delete comment (CASCADE will handle replies and mentions) (Main DB)
+    await mainPool.query(
       'DELETE FROM ownership_comments WHERE id = $1',
       [commentId]
     );
 
-    // Log the deletion
-    await pool.query(`
+    // Log the deletion (Main DB)
+    await mainPool.query(`
       INSERT INTO ownership_change_logs (ownership_profile_id, user_id, change_type, metadata)
       VALUES ($1, $2, 'comment_deleted', $3)
     `, [profileId, userId, JSON.stringify({ comment_id: commentId, preview: commentCheck.rows[0].comment.substring(0, 100) })]);
@@ -1795,14 +1811,15 @@ router.get('/profiles/:id/activity', async (req, res) => {
   try {
     const { id } = req.params;
     const { limit = 50, offset = 0 } = req.query;
-    const pool = getPoolInstance();
+    const marketPool = getPoolInstance();  // Market DB for ownership_profiles
+    const mainPool = getMainPoolInstance();  // Main DB for users, change_logs
 
     const isNumeric = /^\d+$/.test(id);
     const profileQuery = isNumeric
       ? 'SELECT id FROM ownership_profiles WHERE id = $1'
       : 'SELECT id FROM ownership_profiles WHERE parent_organization = $1';
 
-    const profileResult = await pool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
+    const profileResult = await marketPool.query(profileQuery, [isNumeric ? parseInt(id) : decodeURIComponent(id)]);
 
     if (profileResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Profile not found' });
@@ -1810,7 +1827,8 @@ router.get('/profiles/:id/activity', async (req, res) => {
 
     const profileId = profileResult.rows[0].id;
 
-    const result = await pool.query(`
+    // Query change_logs and users from Main DB
+    const result = await mainPool.query(`
       SELECT
         cl.id, cl.change_type, cl.field_name, cl.old_value, cl.new_value, cl.metadata, cl.created_at,
         u.id as user_id, u.first_name, u.last_name, u.profile_url
@@ -1821,7 +1839,7 @@ router.get('/profiles/:id/activity', async (req, res) => {
       LIMIT $2 OFFSET $3
     `, [profileId, parseInt(limit), parseInt(offset)]);
 
-    const countResult = await pool.query(
+    const countResult = await mainPool.query(
       'SELECT COUNT(*) FROM ownership_change_logs WHERE ownership_profile_id = $1',
       [profileId]
     );

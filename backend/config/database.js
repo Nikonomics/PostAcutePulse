@@ -8,8 +8,9 @@
  * │ ─────────────────────────────────────────────────────────────────────────── │
  * │ Purpose: User-generated and application-specific data                      │
  * │ Tables:  users, deals, deal_facilities, documents, saved_items,            │
- * │          notifications, extraction_history, benchmarks, pro_forma, etc.    │
- * │ Access:  getSequelizeInstance() - for Sequelize ORM                        │
+ * │          notifications, extraction_history, benchmarks, pro_forma,         │
+ * │          ownership_comments, ownership_change_logs (user-linked data)      │
+ * │ Access:  getSequelizeInstance() or getMainPool() for raw SQL               │
  * └─────────────────────────────────────────────────────────────────────────────┘
  *
  * ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -17,7 +18,7 @@
  * │ ─────────────────────────────────────────────────────────────────────────── │
  * │ Purpose: CMS data, facility info, ownership data, M&A transactions         │
  * │ Tables:  snf_facilities, ownership_profiles, ownership_contacts,           │
- * │          ownership_comments, ma_transactions, cms_*, vbp_scores, etc.      │
+ * │          ma_transactions, cms_*, vbp_scores, etc.                          │
  * │ Access:  getMarketPool() - returns pg Pool instance                        │
  * └─────────────────────────────────────────────────────────────────────────────┘
  *
@@ -115,6 +116,34 @@ const getSequelizeInstance = () => {
 const DB_PATH = getSQLitePath();
 
 /**
+ * Main Database Pool
+ *
+ * For app-specific tables (users, deals, notifications, comments, etc.)
+ * Uses DATABASE_URL for the main application database.
+ */
+let mainPool = null;
+
+const getMainPool = () => {
+  if (!mainPool) {
+    const connectionString = process.env.DATABASE_URL ||
+                            'postgresql://localhost:5432/snf_platform';
+    const isProduction = connectionString.includes('render.com');
+
+    console.log('[Database Config] Main DB pool:',
+      process.env.DATABASE_URL ? 'Using DATABASE_URL' : 'Using local default');
+
+    mainPool = new Pool({
+      connectionString,
+      ssl: isProduction ? { rejectUnauthorized: false } : false,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000
+    });
+  }
+  return mainPool;
+};
+
+/**
  * Market Database Pool
  *
  * For market data tables (snf_facilities, alf_facilities, demographics, etc.)
@@ -150,5 +179,6 @@ module.exports = {
   getSQLitePath,
   getConnectionString,
   getSequelizeInstance,
+  getMainPool,
   getMarketPool
 };
