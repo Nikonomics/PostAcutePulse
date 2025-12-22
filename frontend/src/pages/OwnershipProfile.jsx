@@ -5,7 +5,7 @@ import {
   Loader, ArrowLeft, Edit2, Save, X, Plus, Trash2, Mail,
   Phone, Globe, Linkedin, MessageSquare, Clock, ChevronRight,
   Send, User, Bookmark, BookmarkCheck, Map, TrendingUp, TrendingDown,
-  ArrowRightLeft, ExternalLink
+  ArrowRightLeft, ExternalLink, Activity, ClipboardList
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
@@ -24,8 +24,9 @@ import {
 } from '../api/ownershipService';
 import { getOwnerHistory } from '../api/maAnalyticsService';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import { getCompanySurveyAnalytics } from '../api/surveyService';
 import {
   saveOwnershipGroup,
   checkSavedItems,
@@ -47,6 +48,8 @@ function OwnershipProfile() {
   const [contacts, setContacts] = useState([]);
   const [comments, setComments] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [surveyData, setSurveyData] = useState(null);
+  const [surveyLoading, setSurveyLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -164,6 +167,27 @@ function OwnershipProfile() {
       loadActivity();
     }
   }, [activeTab, loadComments, loadActivity]);
+
+  // Load survey analytics when surveys tab is active
+  useEffect(() => {
+    const loadSurveyData = async () => {
+      if (activeTab !== 'surveys' || !profile?.parent_organization) return;
+      if (surveyData) return; // Already loaded
+
+      setSurveyLoading(true);
+      try {
+        const result = await getCompanySurveyAnalytics(profile.parent_organization);
+        if (result.success) {
+          setSurveyData(result.data);
+        }
+      } catch (err) {
+        console.error('Error loading survey analytics:', err);
+      } finally {
+        setSurveyLoading(false);
+      }
+    };
+    loadSurveyData();
+  }, [activeTab, profile?.parent_organization, surveyData]);
 
   // Check if profile is saved when it loads
   useEffect(() => {

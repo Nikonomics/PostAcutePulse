@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 16:37:05
+> Last updated: 2025-12-22 16:37:42
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1508,6 +1508,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1708,6 +1709,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add company survey analytics and deal regulatory risk component
 - **2025-12-22** - Add RegulatoryRiskCard component to facility profile
 - **2025-12-22** - Add facility regulatory risk assessment API endpoint
 - **2025-12-22** - Fix duplicate deal creation and add persistent logging
@@ -1737,14 +1739,13 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-22** - Add market comments feature (Phase 4)
 - **2025-12-22** - Add M&A v1 route and database architecture documentation
 - **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
-- **2025-12-21** - Migrate market data routes to use shared Market DB connection
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     11 files
-Frontend:    34 files
+Frontend:    33 files
 Routes:      5 files
 Services:    4 files
 Components:  16 files
