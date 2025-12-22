@@ -778,37 +778,6 @@ const DealDetailPage = () => {
     // eslint-disable-next-line
   }, [id]);
 
-  // Mock data
-  const dealData = {
-    name: "Maple Grove SNF",
-    subtitle: "120 Beds • Skilled Nursing Facility • Phoenix, AZ",
-    status: "Due Diligence",
-    value: "$15.2M",
-    basicInfo: {
-      facilityType: "Skilled Nursing",
-      beds: 120,
-      yearBuilt: 1995,
-      renovated: 2018,
-      location: "Phoenix, AZ",
-      assigned: "Sarah K.",
-    },
-    financialMetrics: {
-      purchasePrice: "$15.2M",
-      annualRevenue: "$28.1M",
-      ebitda: "$4.2M",
-      capRate: "8.7%",
-      roiProjection: "12.4%",
-      paybackPeriod: "5.2 years",
-    },
-    timeline: {
-      started: "June 15, 2025",
-      dueDate: "August 25, 2025",
-      daysRemaining: 38,
-      progress: 65,
-      nextMilestone: "Survey Review",
-    },
-  };
-
   const commentSchema = yup.object().shape({
     comment: yup.string().required("Comment is required"),
     tags: yup.array().of(yup.string()).required("At least one tag is required"),

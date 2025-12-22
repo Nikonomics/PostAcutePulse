@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
 - **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
 - **2025-12-22** - Fix survey.js column name: provider_name → facility_name
@@ -41,18 +42,17 @@
 - **2025-12-19** - Add auto-update script for project documentation
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 - **2025-12-18** - Add production database reference to main README
-- **2025-12-18** - Add explanation of why two databases exist
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     28 files
-Frontend:    41 files
+Backend:     25 files
+Frontend:    32 files
 Routes:      7 files
 Services:    4 files
-Components:  22 files
-Migrations:  3 files
+Components:  14 files
+Migrations:  2 files
 ```
 
 ### New Files Added (Last 20 Commits)
@@ -60,11 +60,8 @@ Migrations:  3 files
 ```
 TECHNICAL_DEBT.md
 backend/DATABASE_ARCHITECTURE.md
-backend/migrations/add-facility-comments-tables.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-user-invitations-table.js
-backend/models/facility_comment_mentions.js
-backend/models/facility_comments.js
 backend/models/market_comment_mentions.js
 backend/models/market_comments.js
 backend/models/user_invitations.js
@@ -73,6 +70,9 @@ backend/scripts/migrate-production-ownership-tables.js
 docs/cms/NH_DataCollectionIntervals_Nov2025.csv
 docs/cms/NH_Data_Dictionary.pdf
 frontend/src/api/surveyService.js
+frontend/src/components/AppHelpPanel/AppHelpPanel.css
+frontend/src/components/AppHelpPanel/AppHelpPanel.jsx
+frontend/src/components/AppHelpPanel/index.js
 ```
 
 ---

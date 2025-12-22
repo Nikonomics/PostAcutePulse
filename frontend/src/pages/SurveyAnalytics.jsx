@@ -125,112 +125,7 @@ const TIME_PERIODS = [
   { value: '12months', label: 'Last 12 Months' },
 ];
 
-// Mock data for National Overview tab (kept for fallback)
-const getNationalOverviewData = (period) => {
-  const periodMultipliers = {
-    '30days': 0.33,
-    '90days': 1,
-    '12months': 4,
-  };
-  const multiplier = periodMultipliers[period] || 1;
-
-  return {
-    topFTags: [
-      { rank: 1, code: 'F0880', name: 'Infection Control', count: Math.round(4231 * multiplier), priorCount: Math.round(3778 * multiplier), changePct: 12, trend: 'UP' },
-      { rank: 2, code: 'F0689', name: 'Free of Accident Hazards', count: Math.round(3892 * multiplier), priorCount: Math.round(4230 * multiplier), changePct: -8, trend: 'DOWN' },
-      { rank: 3, code: 'F0812', name: 'Food Safety', count: Math.round(3654 * multiplier), priorCount: Math.round(3580 * multiplier), changePct: 2, trend: 'STABLE' },
-      { rank: 4, code: 'F0684', name: 'Quality of Care', count: Math.round(3211 * multiplier), priorCount: Math.round(2890 * multiplier), changePct: 11, trend: 'UP' },
-      { rank: 5, code: 'F0686', name: 'Pressure Ulcers', count: Math.round(2987 * multiplier), priorCount: Math.round(3102 * multiplier), changePct: -4, trend: 'DOWN' },
-      { rank: 6, code: 'F0758', name: 'Free from Medication Errors', count: Math.round(2845 * multiplier), priorCount: Math.round(2756 * multiplier), changePct: 3, trend: 'STABLE' },
-      { rank: 7, code: 'F0656', name: 'Comprehensive Care Plans', count: Math.round(2654 * multiplier), priorCount: Math.round(2432 * multiplier), changePct: 9, trend: 'UP' },
-      { rank: 8, code: 'F0641', name: 'Accuracy of Assessments', count: Math.round(2432 * multiplier), priorCount: Math.round(2567 * multiplier), changePct: -5, trend: 'DOWN' },
-      { rank: 9, code: 'F0600', name: 'Free from Abuse/Neglect', count: Math.round(2234 * multiplier), priorCount: Math.round(2198 * multiplier), changePct: 2, trend: 'STABLE' },
-      { rank: 10, code: 'F0725', name: 'Sufficient Nursing Staff', count: Math.round(2102 * multiplier), priorCount: Math.round(1876 * multiplier), changePct: 12, trend: 'UP' },
-    ],
-    insights: [
-      'F0880 (Infection Control) remains #1 nationally, up 12% from prior period',
-      'F0689 (Accident Hazards) citations down 8% - first decline in 18 months',
-      'Immediate Jeopardy citations up 15% in Q4 vs Q3',
-      'December survey volume down 45% vs November (holiday slowdown)',
-    ],
-    monthlyVolume: [
-      { month: '2024-07', monthLabel: 'Jul', surveys: 4521, avgDefs: 5.1 },
-      { month: '2024-08', monthLabel: 'Aug', surveys: 4832, avgDefs: 5.3 },
-      { month: '2024-09', monthLabel: 'Sep', surveys: 4654, avgDefs: 5.2 },
-      { month: '2024-10', monthLabel: 'Oct', surveys: 4923, avgDefs: 5.4 },
-      { month: '2024-11', monthLabel: 'Nov', surveys: 4456, avgDefs: 5.0 },
-      { month: '2024-12', monthLabel: 'Dec', surveys: 2451, avgDefs: 4.8 },
-    ],
-  };
-};
-
-// Mock data for State Deep Dive tab
-const getStateDeepDiveData = (stateCode, period) => {
-  const stateName = US_STATES.find(s => s.code === stateCode)?.name || stateCode;
-
-  const periodMultipliers = {
-    '30days': 0.33,
-    '90days': 1,
-    '12months': 4,
-  };
-  const multiplier = periodMultipliers[period] || 1;
-
-  // Generate slightly different data for different states
-  const stateVariance = stateCode.charCodeAt(0) % 10 / 10;
-
-  return {
-    state: stateCode,
-    stateName,
-    comparison: {
-      surveys: {
-        state: Math.round((312 + stateVariance * 100) * multiplier),
-        national: Math.round(4231 * multiplier),
-        stateAvgPerFacility: 2.1 + stateVariance * 0.5,
-      },
-      avgDeficiencies: {
-        state: 5.8 + stateVariance,
-        national: 5.1,
-        delta: 0.7 + stateVariance,
-        status: stateVariance > 0.3 ? 'ABOVE' : stateVariance < 0.2 ? 'BELOW' : 'AT',
-      },
-      ijRate: {
-        state: 0.021 + stateVariance * 0.01,
-        national: 0.016,
-        delta: 0.005 + stateVariance * 0.005,
-        status: stateVariance > 0.4 ? 'ABOVE' : 'AT',
-      },
-    },
-    ftagPriorities: [
-      { stateRank: 1, code: 'F0880', name: 'Infection Control', stateCount: Math.round(423 * multiplier), statePct: 14.2, nationalRank: 1, delta: 0 },
-      { stateRank: 2, code: 'F0758', name: 'Free from Medication Errors', stateCount: Math.round(289 * multiplier), statePct: 9.7, nationalRank: 8, delta: -6 },
-      { stateRank: 3, code: 'F0689', name: 'Free of Accident Hazards', stateCount: Math.round(267 * multiplier), statePct: 8.9, nationalRank: 2, delta: 1 },
-      { stateRank: 4, code: 'F0609', name: 'Reporting of Abuse', stateCount: Math.round(198 * multiplier), statePct: 6.6, nationalRank: 12, delta: -8 },
-      { stateRank: 5, code: 'F0684', name: 'Quality of Care', stateCount: Math.round(187 * multiplier), statePct: 6.3, nationalRank: 4, delta: 1 },
-      { stateRank: 6, code: 'F0812', name: 'Food Safety', stateCount: Math.round(165 * multiplier), statePct: 5.5, nationalRank: 3, delta: 3 },
-      { stateRank: 7, code: 'F0686', name: 'Pressure Ulcers', stateCount: Math.round(145 * multiplier), statePct: 4.9, nationalRank: 5, delta: 2 },
-      { stateRank: 8, code: 'F0725', name: 'Sufficient Nursing Staff', stateCount: Math.round(132 * multiplier), statePct: 4.4, nationalRank: 10, delta: -2 },
-    ],
-    dayOfWeekDistribution: [
-      { day: 'Monday', shortDay: 'Mon', pct: 14, nationalPct: 18 },
-      { day: 'Tuesday', shortDay: 'Tue', pct: 21, nationalPct: 22 },
-      { day: 'Wednesday', shortDay: 'Wed', pct: 38, nationalPct: 24 },
-      { day: 'Thursday', shortDay: 'Thu', pct: 19, nationalPct: 21 },
-      { day: 'Friday', shortDay: 'Fri', pct: 7, nationalPct: 14 },
-      { day: 'Saturday', shortDay: 'Sat', pct: 1, nationalPct: 1 },
-    ],
-    peakDay: 'Wednesday',
-    peakDayPct: 38,
-    nationalPeakDay: 'Wednesday',
-    nationalPeakPct: 24,
-    insights: [
-      `${stateName} cites F0880 (Infection Control) at 1.4x the national rate`,
-      `F0758 (Medication Errors) is a ${stateName} enforcement focus - ranked #2 in state vs #8 nationally`,
-      'Weekend surveys rare (1%) but have 4.2% IJ rate vs 1.8% weekday average',
-    ],
-  };
-};
-
-// Mock data for Regional Hot Spots tab
+// Mock data for Regional Hot Spots tab (TODO: Backend endpoint /api/survey/regional-hotspots/:stateCode not yet implemented)
 const getRegionalHotSpotsData = (stateCode, period) => {
   const stateName = US_STATES.find(s => s.code === stateCode)?.name || stateCode;
 
@@ -322,315 +217,32 @@ const getRegionalHotSpotsData = (stateCode, period) => {
   };
 };
 
-// Mock data for F-Tag Trends tab
-const getFTagTrendsData = (stateCode, period) => {
-  const periodMultipliers = {
-    '30days': 0.33,
-    '90days': 1,
-    '12months': 4,
-  };
-  const multiplier = periodMultipliers[period] || 1;
-
-  // Monthly trend data for line chart (24 months)
-  const trendData = [
-    { month: '2023-01', monthLabel: 'Jan 23', F0880: 1423, F0689: 1312, F0812: 1198, F0684: 1089, F0686: 978, F0758: 901, F0656: 834, F0641: 767, F0600: 712, F0725: 654 },
-    { month: '2023-03', monthLabel: 'Mar 23', F0880: 1456, F0689: 1334, F0812: 1201, F0684: 1123, F0686: 989, F0758: 934, F0656: 856, F0641: 789, F0600: 734, F0725: 678 },
-    { month: '2023-06', monthLabel: 'Jun 23', F0880: 1567, F0689: 1298, F0812: 1234, F0684: 1178, F0686: 1012, F0758: 967, F0656: 889, F0641: 756, F0600: 756, F0725: 712 },
-    { month: '2023-09', monthLabel: 'Sep 23', F0880: 1612, F0689: 1267, F0812: 1189, F0684: 1201, F0686: 1034, F0758: 989, F0656: 912, F0641: 778, F0600: 778, F0725: 745 },
-    { month: '2023-12', monthLabel: 'Dec 23', F0880: 1678, F0689: 1245, F0812: 1167, F0684: 1234, F0686: 1023, F0758: 1012, F0656: 934, F0641: 767, F0600: 789, F0725: 778 },
-    { month: '2024-03', monthLabel: 'Mar 24', F0880: 1723, F0689: 1223, F0812: 1145, F0684: 1267, F0686: 1001, F0758: 1034, F0656: 956, F0641: 756, F0600: 801, F0725: 812 },
-    { month: '2024-06', monthLabel: 'Jun 24', F0880: 1789, F0689: 1198, F0812: 1156, F0684: 1289, F0686: 989, F0758: 1056, F0656: 978, F0641: 745, F0600: 812, F0725: 845 },
-    { month: '2024-09', monthLabel: 'Sep 24', F0880: 1834, F0689: 1178, F0812: 1134, F0684: 1312, F0686: 978, F0758: 1078, F0656: 989, F0641: 734, F0600: 823, F0725: 867 },
-    { month: '2024-12', monthLabel: 'Dec 24', F0880: 1867, F0689: 1156, F0812: 1112, F0684: 1334, F0686: 967, F0758: 1098, F0656: 1001, F0641: 723, F0600: 834, F0725: 889 },
-  ];
-
-  // Complete F-Tag details
-  const ftagDetails = {
-    F0880: {
-      code: 'F0880',
-      name: 'Infection Prevention and Control',
-      description: 'The facility must establish and maintain an infection prevention and control program designed to provide a safe, sanitary and comfortable environment and to help prevent the development and transmission of communicable diseases and infections.',
-      currentCount: Math.round(4231 * multiplier),
-      priorCount: Math.round(3778 * multiplier),
-      changePct: 12,
-      trend: 'UP',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 1523, pct: 36 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 1269, pct: 30 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 845, pct: 20 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 423, pct: 10 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 171, pct: 4 },
-      ],
-      coCitations: [
-        { code: 'F0812', name: 'Food Safety', coOccurrencePct: 34 },
-        { code: 'F0689', name: 'Free of Accident Hazards', coOccurrencePct: 21 },
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 18 },
-      ],
-    },
-    F0689: {
-      code: 'F0689',
-      name: 'Free of Accident Hazards',
-      description: 'The facility must ensure that the resident environment remains as free of accident hazards as is possible and that each resident receives adequate supervision and assistance devices to prevent accidents.',
-      currentCount: Math.round(3892 * multiplier),
-      priorCount: Math.round(4230 * multiplier),
-      changePct: -8,
-      trend: 'DOWN',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 1401, pct: 36 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 1168, pct: 30 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 778, pct: 20 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 389, pct: 10 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 156, pct: 4 },
-      ],
-      coCitations: [
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 28 },
-        { code: 'F0880', name: 'Infection Control', coOccurrencePct: 21 },
-        { code: 'F0686', name: 'Pressure Ulcers', coOccurrencePct: 15 },
-      ],
-    },
-    F0812: {
-      code: 'F0812',
-      name: 'Food Safety',
-      description: 'The facility must store, prepare, distribute and serve food in accordance with professional standards for food service safety.',
-      currentCount: Math.round(3654 * multiplier),
-      priorCount: Math.round(3580 * multiplier),
-      changePct: 2,
-      trend: 'STABLE',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 1462, pct: 40 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 1096, pct: 30 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 731, pct: 20 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 292, pct: 8 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 73, pct: 2 },
-      ],
-      coCitations: [
-        { code: 'F0880', name: 'Infection Control', coOccurrencePct: 34 },
-        { code: 'F0758', name: 'Free from Medication Errors', coOccurrencePct: 12 },
-        { code: 'F0656', name: 'Comprehensive Care Plans', coOccurrencePct: 9 },
-      ],
-    },
-    F0684: {
-      code: 'F0684',
-      name: 'Quality of Care',
-      description: 'Each resident must receive, and the facility must provide, the necessary care and services to attain or maintain the highest practicable physical, mental, and psychosocial well-being.',
-      currentCount: Math.round(3211 * multiplier),
-      priorCount: Math.round(2890 * multiplier),
-      changePct: 11,
-      trend: 'UP',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 963, pct: 30 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 899, pct: 28 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 706, pct: 22 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 450, pct: 14 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 193, pct: 6 },
-      ],
-      coCitations: [
-        { code: 'F0689', name: 'Free of Accident Hazards', coOccurrencePct: 28 },
-        { code: 'F0686', name: 'Pressure Ulcers', coOccurrencePct: 24 },
-        { code: 'F0880', name: 'Infection Control', coOccurrencePct: 18 },
-      ],
-    },
-    F0686: {
-      code: 'F0686',
-      name: 'Pressure Ulcers',
-      description: 'Based on the comprehensive assessment of a resident, the facility must ensure that a resident who enters the facility without pressure ulcers does not develop pressure ulcers unless clinically unavoidable.',
-      currentCount: Math.round(2987 * multiplier),
-      priorCount: Math.round(3102 * multiplier),
-      changePct: -4,
-      trend: 'DOWN',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 896, pct: 30 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 836, pct: 28 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 657, pct: 22 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 419, pct: 14 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 179, pct: 6 },
-      ],
-      coCitations: [
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 24 },
-        { code: 'F0689', name: 'Free of Accident Hazards', coOccurrencePct: 15 },
-        { code: 'F0880', name: 'Infection Control', coOccurrencePct: 12 },
-      ],
-    },
-    F0758: {
-      code: 'F0758',
-      name: 'Free from Medication Errors',
-      description: 'The facility must ensure that its medication error rates are not 5 percent or greater, and that residents are free of any significant medication errors.',
-      currentCount: Math.round(2845 * multiplier),
-      priorCount: Math.round(2756 * multiplier),
-      changePct: 3,
-      trend: 'STABLE',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 1138, pct: 40 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 854, pct: 30 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 569, pct: 20 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 227, pct: 8 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 57, pct: 2 },
-      ],
-      coCitations: [
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 22 },
-        { code: 'F0880', name: 'Infection Control', coOccurrencePct: 14 },
-        { code: 'F0812', name: 'Food Safety', coOccurrencePct: 12 },
-      ],
-    },
-    F0656: {
-      code: 'F0656',
-      name: 'Comprehensive Care Plans',
-      description: 'The facility must develop and implement a comprehensive person-centered care plan for each resident that includes measurable objectives and timetables.',
-      currentCount: Math.round(2654 * multiplier),
-      priorCount: Math.round(2432 * multiplier),
-      changePct: 9,
-      trend: 'UP',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 1327, pct: 50 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 796, pct: 30 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 398, pct: 15 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 106, pct: 4 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 27, pct: 1 },
-      ],
-      coCitations: [
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 32 },
-        { code: 'F0641', name: 'Accuracy of Assessments', coOccurrencePct: 28 },
-        { code: 'F0686', name: 'Pressure Ulcers', coOccurrencePct: 16 },
-      ],
-    },
-    F0641: {
-      code: 'F0641',
-      name: 'Accuracy of Assessments',
-      description: 'The facility must coordinate and ensure that the assessment accurately reflects the resident\'s status.',
-      currentCount: Math.round(2432 * multiplier),
-      priorCount: Math.round(2567 * multiplier),
-      changePct: -5,
-      trend: 'DOWN',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 1216, pct: 50 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 730, pct: 30 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 365, pct: 15 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 97, pct: 4 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 24, pct: 1 },
-      ],
-      coCitations: [
-        { code: 'F0656', name: 'Comprehensive Care Plans', coOccurrencePct: 28 },
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 22 },
-        { code: 'F0686', name: 'Pressure Ulcers', coOccurrencePct: 14 },
-      ],
-    },
-    F0600: {
-      code: 'F0600',
-      name: 'Free from Abuse/Neglect',
-      description: 'The resident has the right to be free from abuse, neglect, misappropriation of resident property, and exploitation.',
-      currentCount: Math.round(2234 * multiplier),
-      priorCount: Math.round(2198 * multiplier),
-      changePct: 2,
-      trend: 'STABLE',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 670, pct: 30 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 625, pct: 28 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 491, pct: 22 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 313, pct: 14 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 134, pct: 6 },
-      ],
-      coCitations: [
-        { code: 'F0609', name: 'Reporting of Abuse', coOccurrencePct: 45 },
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 18 },
-        { code: 'F0689', name: 'Free of Accident Hazards', coOccurrencePct: 12 },
-      ],
-    },
-    F0725: {
-      code: 'F0725',
-      name: 'Sufficient Nursing Staff',
-      description: 'The facility must have sufficient nursing staff with the appropriate competencies and skills sets to provide nursing and related services to assure resident safety.',
-      currentCount: Math.round(2102 * multiplier),
-      priorCount: Math.round(1876 * multiplier),
-      changePct: 12,
-      trend: 'UP',
-      severityDistribution: [
-        { severity: 'D', label: 'No Actual Harm (D)', count: 630, pct: 30 },
-        { severity: 'E', label: 'No Actual Harm (E)', count: 589, pct: 28 },
-        { severity: 'F', label: 'No Actual Harm (F)', count: 462, pct: 22 },
-        { severity: 'G', label: 'Actual Harm (G)', count: 294, pct: 14 },
-        { severity: 'H-L', label: 'Immediate Jeopardy (H-L)', count: 126, pct: 6 },
-      ],
-      coCitations: [
-        { code: 'F0684', name: 'Quality of Care', coOccurrencePct: 34 },
-        { code: 'F0689', name: 'Free of Accident Hazards', coOccurrencePct: 28 },
-        { code: 'F0686', name: 'Pressure Ulcers', coOccurrencePct: 22 },
-      ],
-    },
-  };
-
-  // Emerging patterns (biggest increases)
-  const emergingPatterns = [
-    { code: 'F0609', name: 'Reporting of Abuse', current: Math.round(1987 * multiplier), prior: Math.round(1654 * multiplier), changePct: 20, trend: 'UP', ijPct: 8.2 },
-    { code: 'F0758', name: 'Free from Medication Errors', current: Math.round(2456 * multiplier), prior: Math.round(2134 * multiplier), changePct: 15, trend: 'UP', ijPct: 2.1 },
-    { code: 'F0725', name: 'Sufficient Nursing Staff', current: Math.round(2102 * multiplier), prior: Math.round(1876 * multiplier), changePct: 12, trend: 'UP', ijPct: 6.0 },
-    { code: 'F0880', name: 'Infection Prevention and Control', current: Math.round(4231 * multiplier), prior: Math.round(3778 * multiplier), changePct: 12, trend: 'UP', ijPct: 4.0 },
-    { code: 'F0684', name: 'Quality of Care', current: Math.round(3211 * multiplier), prior: Math.round(2890 * multiplier), changePct: 11, trend: 'UP', ijPct: 6.0 },
-  ];
-
-  // Correlation insights
-  const correlationInsights = [
-    { text: 'F0880 + F0812 cited together 34% of the time (up from 22% last year)', increase: true },
-    { text: 'F0689 citations often found alongside F0684 on same survey (28% co-occurrence)', increase: false },
-    { text: 'Surveys citing F0880 have 2.3x higher chance of Immediate Jeopardy finding', increase: true },
-    { text: 'F0725 (Staffing) + F0684 (Quality of Care) correlation at 34%, highest in 3 years', increase: true },
-    { text: 'F0656 (Care Plans) + F0641 (Assessments) cited together 28% of time - documentation pattern', increase: false },
-  ];
-
-  // List of available F-Tags for the selector (top 10)
-  const availableFTags = [
-    { code: 'F0880', name: 'Infection Prevention and Control', color: '#2563eb' },
-    { code: 'F0689', name: 'Free of Accident Hazards', color: '#dc2626' },
-    { code: 'F0812', name: 'Food Safety', color: '#16a34a' },
-    { code: 'F0684', name: 'Quality of Care', color: '#f59e0b' },
-    { code: 'F0686', name: 'Pressure Ulcers', color: '#8b5cf6' },
-    { code: 'F0758', name: 'Free from Medication Errors', color: '#ec4899' },
-    { code: 'F0656', name: 'Comprehensive Care Plans', color: '#06b6d4' },
-    { code: 'F0641', name: 'Accuracy of Assessments', color: '#84cc16' },
-    { code: 'F0600', name: 'Free from Abuse/Neglect', color: '#f97316' },
-    { code: 'F0725', name: 'Sufficient Nursing Staff', color: '#6366f1' },
-  ];
-
-  return {
-    trendData,
-    ftagDetails,
-    emergingPatterns,
-    correlationInsights,
-    availableFTags,
-  };
-};
-
 /**
- * Summary Card Component
+ * Summary Card Component - Compact Design
  */
 const SummaryCard = ({ title, value, subtitle, icon: Icon, variant = 'primary', tooltip }) => {
-  const content = (
-    <Card className={`survey-summary-card border-${variant}`}>
-      <Card.Body>
-        <div className="d-flex justify-content-between align-items-start">
-          <div className="summary-card-content">
-            <div className="summary-card-title">
-              {title}
-              {tooltip && (
-                <OverlayTrigger
-                  placement="top"
-                  overlay={<Tooltip id={`tooltip-${title}`}>{tooltip}</Tooltip>}
-                >
-                  <Info size={14} className="ms-1 info-icon" />
-                </OverlayTrigger>
-              )}
-            </div>
-            <h3 className={`mb-1 text-${variant}`}>{value}</h3>
-            {subtitle && <div className="text-muted small">{subtitle}</div>}
-          </div>
-          <div className={`summary-icon bg-${variant} bg-opacity-10`}>
-            {Icon && <Icon size={24} className={`text-${variant}`} />}
-          </div>
+  return (
+    <Card className={`survey-summary-card survey-summary-card--${variant}`}>
+      <Card.Body className="summary-card-body">
+        <div className="summary-card-header">
+          {Icon && <Icon size={14} className={`summary-card-icon text-${variant}`} />}
+          <span className="summary-card-title">{title}</span>
+          {tooltip && (
+            <OverlayTrigger
+              placement="top"
+              overlay={<Tooltip id={`tooltip-${title}`}>{tooltip}</Tooltip>}
+            >
+              <Info size={12} className="summary-card-info" />
+            </OverlayTrigger>
+          )}
+        </div>
+        <div className="summary-card-value-row">
+          <span className={`summary-card-value text-${variant}`}>{value}</span>
+          {subtitle && <span className="summary-card-subtitle">{subtitle}</span>}
         </div>
       </Card.Body>
     </Card>
   );
-
-  return content;
 };
 
 /**
@@ -2452,17 +2064,16 @@ const EmptyState = ({ stateName, periodLabel }) => (
 );
 
 /**
- * Loading Skeleton for Summary Cards
+ * Loading Skeleton for Summary Cards - Compact Design
  */
 const SummarySkeleton = () => (
   <Row className="g-3 mb-4">
     {Array.from({ length: 4 }).map((_, i) => (
       <Col key={i} xs={12} sm={6} lg={3}>
         <Card className="survey-summary-card skeleton-card">
-          <Card.Body>
-            <div className="skeleton-line skeleton-title" />
-            <div className="skeleton-line skeleton-value" />
-            <div className="skeleton-line skeleton-subtitle" />
+          <Card.Body className="summary-card-body">
+            <div className="skeleton-line skeleton-header" />
+            <div className="skeleton-line skeleton-value-compact" />
           </Card.Body>
         </Card>
       </Col>
