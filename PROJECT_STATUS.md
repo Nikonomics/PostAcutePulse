@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
 - **2025-12-22** - Fix survey.js column name: provider_name → facility_name
 - **2025-12-22** - Fix SQL errors in facilities endpoints
@@ -41,16 +42,15 @@
 - **2025-12-18** - Add extraction validation, facility metrics tabs, and CMS data improvements
 - **2025-12-18** - Add production database reference to main README
 - **2025-12-18** - Add explanation of why two databases exist
-- **2025-12-18** - Add database scripts documentation
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     29 files
+Backend:     28 files
 Frontend:    41 files
 Routes:      7 files
-Services:    5 files
+Services:    4 files
 Components:  22 files
 Migrations:  3 files
 ```

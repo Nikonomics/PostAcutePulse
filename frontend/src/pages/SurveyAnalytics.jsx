@@ -125,38 +125,7 @@ const TIME_PERIODS = [
   { value: '12months', label: 'Last 12 Months' },
 ];
 
-// Mock data for development - will be replaced by API calls
-const getMockSummaryData = (state, period) => {
-  // Simulate different data based on state/period
-  const baseData = {
-    surveyCount: 847,
-    avgDeficiencies: 5.2,
-    ijRate: 0.018,
-    topFTag: {
-      code: 'F0880',
-      name: 'Infection Control',
-      count: 312,
-    },
-  };
-
-  // Adjust based on period
-  const periodMultipliers = {
-    '30days': 0.33,
-    '90days': 1,
-    '12months': 4,
-  };
-
-  const multiplier = periodMultipliers[period] || 1;
-
-  return {
-    surveyCount: Math.round(baseData.surveyCount * multiplier),
-    avgDeficiencies: baseData.avgDeficiencies + (Math.random() - 0.5),
-    ijRate: baseData.ijRate + (Math.random() - 0.5) * 0.01,
-    topFTag: baseData.topFTag,
-  };
-};
-
-// Mock data for National Overview tab
+// Mock data for National Overview tab (kept for fallback)
 const getNationalOverviewData = (period) => {
   const periodMultipliers = {
     '30days': 0.33,
@@ -2556,15 +2525,51 @@ const SurveyAnalytics = () => {
 
   // Fetch summary data when filters change
   useEffect(() => {
-    setIsLoading(true);
-    // Simulate API call
-    const timer = setTimeout(() => {
-      const data = getMockSummaryData(selectedState, selectedPeriod);
-      setSummaryData(data);
-      setIsLoading(false);
-    }, 600);
+    const fetchSummaryData = async () => {
+      setIsLoading(true);
+      try {
+        if (selectedState === 'ALL') {
+          // Fetch national overview data
+          const response = await getNationalOverview(selectedPeriod);
+          if (response.success) {
+            const { summary, topFTags } = response.data;
+            setSummaryData({
+              surveyCount: parseInt(summary.survey_count) || 0,
+              avgDeficiencies: parseFloat(summary.avg_deficiencies) || 0,
+              ijRate: parseFloat(summary.ij_rate) || 0,
+              topFTag: topFTags?.[0] ? {
+                code: topFTags[0].code,
+                name: topFTags[0].name,
+                count: topFTags[0].count
+              } : null
+            });
+          }
+        } else {
+          // Fetch state-specific data
+          const response = await getStateData(selectedState, selectedPeriod);
+          if (response.success) {
+            const { comparison, ftagPriorities } = response.data;
+            setSummaryData({
+              surveyCount: comparison?.surveys?.state || 0,
+              avgDeficiencies: comparison?.avgDeficiencies?.state || 0,
+              ijRate: comparison?.ijRate?.state || 0,
+              topFTag: ftagPriorities?.[0] ? {
+                code: ftagPriorities[0].code,
+                name: ftagPriorities[0].name,
+                count: ftagPriorities[0].stateCount
+              } : null
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching summary data:', error);
+        setSummaryData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    fetchSummaryData();
   }, [selectedState, selectedPeriod]);
 
   // Handle state change
