@@ -1,13 +1,30 @@
 /**
  * Database Configuration
  *
- * Centralizes database configuration for both local and production environments.
+ * SNFalyze uses TWO separate databases in production:
  *
- * Production: Uses PostgreSQL via DATABASE_URL for all data
- * Local: Uses SQLite at ./database.sqlite for all data
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │ DATABASE_URL (snfalyze_db) - Application Database                          │
+ * │ ─────────────────────────────────────────────────────────────────────────── │
+ * │ Purpose: User-generated and application-specific data                      │
+ * │ Tables:  users, deals, deal_facilities, documents, saved_items,            │
+ * │          notifications, extraction_history, benchmarks, pro_forma, etc.    │
+ * │ Access:  getSequelizeInstance() - for Sequelize ORM                        │
+ * └─────────────────────────────────────────────────────────────────────────────┘
  *
- * NOTE: ALF facilities table can be stored in either database. The import script
- * and facility matcher will automatically use the correct database.
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │ MARKET_DATABASE_URL (snf_market_data) - Market/CMS Database                │
+ * │ ─────────────────────────────────────────────────────────────────────────── │
+ * │ Purpose: CMS data, facility info, ownership data, M&A transactions         │
+ * │ Tables:  snf_facilities, ownership_profiles, ownership_contacts,           │
+ * │          ownership_comments, ma_transactions, cms_*, vbp_scores, etc.      │
+ * │ Access:  getMarketPool() - returns pg Pool instance                        │
+ * └─────────────────────────────────────────────────────────────────────────────┘
+ *
+ * IMPORTANT: When adding new tables or features, determine which database
+ * they belong to based on the data type:
+ *   - User/deal/app data → DATABASE_URL (use Sequelize)
+ *   - CMS/market/facility data → MARKET_DATABASE_URL (use getMarketPool)
  */
 
 const path = require('path');

@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add facility comments, activity history UI, and fix notification dropdown
 - **2025-12-21** - Migrate market data routes to use shared Market DB connection
 - **2025-12-21** - Add PostHog analytics and real-time notifications
 - **2025-12-21** - Add ownership import utilities and deal creation documentation
@@ -41,12 +42,11 @@
 - **2025-12-15** - Add ownership field to contact_information TypeScript schema
 - **2025-12-15** - Improve Deal Overview page for portfolio deals
 - **2025-12-15** - Add debug logging for deal edit issue
-- **2025-12-15** - Fix deal edit navigation and add save button to deals
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     63 files
+Backend:     65 files
 Frontend:    133 files
 Routes:      6 files
 Services:    9 files
@@ -57,6 +57,7 @@ Migrations:  8 files
 ### New Files Added (Last 20 Commits)
 
 ```
+backend/DATABASE_ARCHITECTURE.md
 backend/bellwether_validation.js
 backend/controller/SurveyIntelligenceController.js
 backend/migrations/20241218-add-ccn-to-deal-facilities.js
@@ -71,7 +72,6 @@ backend/models/facility_comment_mentions.js
 backend/models/facility_comments.js
 backend/models/user_change_logs.js
 backend/routes/ma-analytics.js
-backend/routes/surveyIntelligence.js
 ```
 
 ---

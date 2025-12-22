@@ -183,6 +183,7 @@ app.use('/api/v1/ownership', ownershipRouter);
 
 // M&A Analytics API routes
 app.use('/api/ma-analytics', maAnalyticsRouter);
+app.use('/api/v1/ma-analytics', maAnalyticsRouter);
 
 // Survey Intelligence API routes
 app.use('/api/v1/survey-intelligence', surveyIntelligenceRouter);
