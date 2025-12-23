@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-23** - Add comprehensive audit logging for deal operations
 - **2025-12-23** - Add database migration reminder system
 - **2025-12-23** - Add automatic migration runner on app startup
 - **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
@@ -41,24 +42,24 @@
 - **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
 - **2025-12-22** - Fix survey.js column name: provider_name → facility_name
-- **2025-12-22** - Fix SQL errors in facilities endpoints
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     13 files
-Frontend:    30 files
+Backend:     14 files
+Frontend:    27 files
 Routes:      3 files
 Services:    2 files
-Components:  13 files
-Migrations:  1 files
+Components:  12 files
+Migrations:  3 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
 backend/DATABASE_MIGRATIONS.md
+backend/migrations/20241223-add-missing-columns.js
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
 backend/routes/customReports.js
@@ -66,7 +67,6 @@ backend/routes/facilityRisk.js
 backend/scripts/import-cutpoints.js
 backend/services/migrationRunner.js
 backend/services/reportQueryEngine.js
-docs/Deal_Metrics_Explainer.md
 frontend/src/api/customReportsService.js
 frontend/src/components/CustomReportBuilder/CustomReportBuilder.css
 frontend/src/components/CustomReportBuilder/FieldPalette.jsx

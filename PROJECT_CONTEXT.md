@@ -1201,6 +1201,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1373,6 +1374,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/20241223-add-missing-columns.js
 backend/migrations/add-custom-reports-table.js
 backend/migrations/add-user-invitations-table.js
 backend/migrations/add-market-comments-tables.js
@@ -1382,7 +1384,6 @@ backend/migrations/20241218-add-cms-facility-to-saved-items.js
 backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/add-deals-position-column.js
-backend/migrations/add-cms-facility-saved-items.js
 ```
 
 ---
