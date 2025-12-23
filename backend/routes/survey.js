@@ -831,6 +831,175 @@ router.get('/deficiency/:tag', async (req, res) => {
 // ============================================================================
 
 /**
+ * GET /api/survey/regional-hotspots/national
+ * Get national-level regional survey activity hot spots (top counties/CBSAs across all states)
+ *
+ * Query params:
+ * - period: '30days' | '90days' | '12months' | 'all' (default: '90days')
+ * - level: 'county' | 'cbsa' (default: 'county')
+ * - deficiencyType: 'all' | 'standard' | 'complaint' | 'infection' (default: 'all')
+ */
+router.get('/regional-hotspots/national', async (req, res) => {
+  const { period = '90days', level = 'county', deficiencyType = 'all' } = req.query;
+  const pool = getSurveyPool();
+  const typeFilter = buildDeficiencyTypeFilter(deficiencyType);
+
+  try {
+    // Get the most recent data date
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    const days = periodToDays(period);
+
+    if (level === 'cbsa') {
+      // National CBSA-level aggregation - uses materialized view for performance
+      const hotSpotsResult = await pool.query(`
+        WITH cbsa_stats AS (
+          SELECT
+            f.cbsa_code,
+            c.cbsa_title as cbsa_name,
+            f.state,
+            COUNT(*) as surveys,
+            SUM(mv.deficiency_count) as deficiencies,
+            COUNT(DISTINCT f.federal_provider_number) as facilities,
+            ROUND(AVG(mv.deficiency_count)::numeric, 1) as avg_defs_per_survey,
+            SUM(mv.ij_count) as ij_count
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
+          LEFT JOIN cbsas c ON f.cbsa_code = c.cbsa_code
+          WHERE mv.survey_date >= $1::date - INTERVAL '${days} days'
+            AND f.cbsa_code IS NOT NULL
+          GROUP BY f.cbsa_code, c.cbsa_title, f.state
+        )
+        SELECT
+          cbsa_code,
+          COALESCE(cbsa_name, 'Unknown CBSA') as region_name,
+          state,
+          surveys,
+          deficiencies,
+          facilities,
+          avg_defs_per_survey,
+          ij_count,
+          ROUND((ij_count::numeric / NULLIF(deficiencies, 0)) * 100, 1) as ij_pct
+        FROM cbsa_stats
+        ORDER BY deficiencies DESC
+        LIMIT 25
+      `, [maxDate]);
+
+      // Get national total for comparison
+      const nationalTotalResult = await pool.query(`
+        SELECT
+          COUNT(*) as total_surveys,
+          SUM(deficiency_count) as total_deficiencies
+        FROM mv_survey_aggregates
+        WHERE survey_date >= $1::date - INTERVAL '${days} days'
+      `, [maxDate]);
+
+      const nationalTotal = nationalTotalResult.rows[0] || { total_surveys: 0, total_deficiencies: 0 };
+
+      res.json({
+        success: true,
+        data: {
+          scope: 'national',
+          period,
+          level: 'cbsa',
+          dataAsOf: maxDate,
+          nationalTotal: {
+            surveys: parseInt(nationalTotal.total_surveys) || 0,
+            deficiencies: parseInt(nationalTotal.total_deficiencies) || 0
+          },
+          hotSpots: hotSpotsResult.rows.map(r => ({
+            code: r.cbsa_code,
+            name: r.region_name,
+            state: r.state,
+            surveys: parseInt(r.surveys),
+            deficiencies: parseInt(r.deficiencies),
+            facilities: parseInt(r.facilities),
+            avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey) || 0,
+            ijCount: parseInt(r.ij_count),
+            ijPct: parseFloat(r.ij_pct) || 0,
+            pctOfNational: Math.round((parseInt(r.deficiencies) / parseInt(nationalTotal.total_deficiencies)) * 100) || 0
+          }))
+        }
+      });
+    } else {
+      // National County-level aggregation - uses materialized view for performance
+      const hotSpotsResult = await pool.query(`
+        WITH county_stats AS (
+          SELECT
+            f.county,
+            f.state,
+            COUNT(*) as surveys,
+            SUM(mv.deficiency_count) as deficiencies,
+            COUNT(DISTINCT f.federal_provider_number) as facilities,
+            ROUND(AVG(mv.deficiency_count)::numeric, 1) as avg_defs_per_survey,
+            SUM(mv.ij_count) as ij_count
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
+          WHERE mv.survey_date >= $1::date - INTERVAL '${days} days'
+            AND f.county IS NOT NULL
+          GROUP BY f.county, f.state
+        )
+        SELECT
+          county as region_name,
+          state,
+          surveys,
+          deficiencies,
+          facilities,
+          avg_defs_per_survey,
+          ij_count,
+          ROUND((ij_count::numeric / NULLIF(deficiencies, 0)) * 100, 1) as ij_pct
+        FROM county_stats
+        ORDER BY deficiencies DESC
+        LIMIT 25
+      `, [maxDate]);
+
+      // Get national total for comparison
+      const nationalTotalResult = await pool.query(`
+        SELECT
+          COUNT(*) as total_surveys,
+          SUM(deficiency_count) as total_deficiencies
+        FROM mv_survey_aggregates
+        WHERE survey_date >= $1::date - INTERVAL '${days} days'
+      `, [maxDate]);
+
+      const nationalTotal = nationalTotalResult.rows[0] || { total_surveys: 0, total_deficiencies: 0 };
+
+      res.json({
+        success: true,
+        data: {
+          scope: 'national',
+          period,
+          level: 'county',
+          dataAsOf: maxDate,
+          nationalTotal: {
+            surveys: parseInt(nationalTotal.total_surveys) || 0,
+            deficiencies: parseInt(nationalTotal.total_deficiencies) || 0
+          },
+          hotSpots: hotSpotsResult.rows.map(r => ({
+            name: r.region_name,
+            state: r.state,
+            surveys: parseInt(r.surveys),
+            deficiencies: parseInt(r.deficiencies),
+            facilities: parseInt(r.facilities),
+            avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey) || 0,
+            ijCount: parseInt(r.ij_count),
+            ijPct: parseFloat(r.ij_pct) || 0,
+            pctOfNational: Math.round((parseInt(r.deficiencies) / parseInt(nationalTotal.total_deficiencies)) * 100) || 0
+          }))
+        }
+      });
+    }
+  } catch (error) {
+    console.error('[Survey API] National regional hotspots error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/survey/regional-hotspots/:stateCode
  * Get regional survey activity hot spots for a state
  *
@@ -2404,6 +2573,192 @@ router.get('/cutpoints/heatmap', async (req, res) => {
     });
   } catch (error) {
     console.error('[Survey API] Cutpoints heatmap error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// SURVEY PATTERNS ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/patterns/by-state
+ * Get survey type patterns (combined/standard-only/complaint-only) by state
+ *
+ * This reveals how different states approach CMS enforcement - whether they
+ * combine complaint investigations with standard surveys or conduct them separately.
+ *
+ * Query params:
+ * - period: '12months' | '24months' | 'all' (default: '12months')
+ */
+router.get('/patterns/by-state', async (req, res) => {
+  const { period = '12months' } = req.query;
+  const pool = getSurveyPool();
+
+  try {
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    let dateFilter = '';
+    if (period === '12months') {
+      dateFilter = `AND d.survey_date >= '${maxDate.toISOString().split('T')[0]}'::date - INTERVAL '12 months'`;
+    } else if (period === '24months') {
+      dateFilter = `AND d.survey_date >= '${maxDate.toISOString().split('T')[0]}'::date - INTERVAL '24 months'`;
+    }
+    // 'all' = no date filter
+
+    const result = await pool.query(`
+      WITH survey_types AS (
+        SELECT
+          f.state,
+          d.federal_provider_number,
+          d.survey_date,
+          BOOL_OR(d.is_standard_deficiency) as has_standard,
+          BOOL_OR(d.is_complaint_deficiency) as has_complaint
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE (d.is_standard_deficiency IS NOT NULL OR d.is_complaint_deficiency IS NOT NULL)
+          ${dateFilter}
+        GROUP BY f.state, d.federal_provider_number, d.survey_date
+      ),
+      state_stats AS (
+        SELECT
+          state,
+          COUNT(*) as total_surveys,
+          SUM(CASE WHEN has_standard AND has_complaint THEN 1 ELSE 0 END) as combined,
+          SUM(CASE WHEN has_standard AND NOT has_complaint THEN 1 ELSE 0 END) as standard_only,
+          SUM(CASE WHEN has_complaint AND NOT has_standard THEN 1 ELSE 0 END) as complaint_only
+        FROM survey_types
+        GROUP BY state
+      )
+      SELECT
+        state,
+        total_surveys,
+        combined,
+        standard_only,
+        complaint_only,
+        ROUND(combined * 100.0 / NULLIF(total_surveys, 0), 1) as combined_pct,
+        ROUND(standard_only * 100.0 / NULLIF(total_surveys, 0), 1) as standard_only_pct,
+        ROUND(complaint_only * 100.0 / NULLIF(total_surveys, 0), 1) as complaint_only_pct,
+        ROUND(combined * 100.0 / NULLIF(combined + standard_only, 0), 1) as pct_standard_with_complaint,
+        ROUND(combined * 100.0 / NULLIF(combined + complaint_only, 0), 1) as pct_complaint_with_standard
+      FROM state_stats
+      WHERE total_surveys >= 5
+      ORDER BY combined_pct DESC
+    `);
+
+    // Calculate national totals
+    const national = result.rows.reduce((acc, r) => {
+      acc.total_surveys += parseInt(r.total_surveys);
+      acc.combined += parseInt(r.combined);
+      acc.standard_only += parseInt(r.standard_only);
+      acc.complaint_only += parseInt(r.complaint_only);
+      return acc;
+    }, { total_surveys: 0, combined: 0, standard_only: 0, complaint_only: 0 });
+
+    national.combined_pct = Math.round(national.combined * 1000 / national.total_surveys) / 10;
+    national.standard_only_pct = Math.round(national.standard_only * 1000 / national.total_surveys) / 10;
+    national.complaint_only_pct = Math.round(national.complaint_only * 1000 / national.total_surveys) / 10;
+    national.pct_standard_with_complaint = Math.round(national.combined * 1000 / (national.combined + national.standard_only)) / 10;
+    national.pct_complaint_with_standard = Math.round(national.combined * 1000 / (national.combined + national.complaint_only)) / 10;
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        dataAsOf: maxDate,
+        national,
+        states: result.rows.map(r => ({
+          state: r.state,
+          totalSurveys: parseInt(r.total_surveys),
+          combined: parseInt(r.combined),
+          standardOnly: parseInt(r.standard_only),
+          complaintOnly: parseInt(r.complaint_only),
+          combinedPct: parseFloat(r.combined_pct),
+          standardOnlyPct: parseFloat(r.standard_only_pct),
+          complaintOnlyPct: parseFloat(r.complaint_only_pct),
+          pctStandardWithComplaint: parseFloat(r.pct_standard_with_complaint) || 0,
+          pctComplaintWithStandard: parseFloat(r.pct_complaint_with_standard) || 0
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('[Survey API] Survey patterns error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/patterns/trends
+ * Get survey type pattern trends over time (by year or quarter)
+ *
+ * Query params:
+ * - state: state code or 'ALL' for national (default: 'ALL')
+ * - granularity: 'year' | 'quarter' (default: 'year')
+ */
+router.get('/patterns/trends', async (req, res) => {
+  const { state = 'ALL', granularity = 'year' } = req.query;
+  const pool = getSurveyPool();
+
+  try {
+    const maxDateResult = await pool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    const stateFilter = state !== 'ALL' ? `AND f.state = '${state}'` : '';
+    const periodExpr = granularity === 'quarter'
+      ? `TO_CHAR(d.survey_date, 'YYYY-"Q"Q')`
+      : `EXTRACT(YEAR FROM d.survey_date)::text`;
+
+    const result = await pool.query(`
+      WITH survey_types AS (
+        SELECT
+          ${periodExpr} as period,
+          d.federal_provider_number,
+          d.survey_date,
+          BOOL_OR(d.is_standard_deficiency) as has_standard,
+          BOOL_OR(d.is_complaint_deficiency) as has_complaint
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE (d.is_standard_deficiency IS NOT NULL OR d.is_complaint_deficiency IS NOT NULL)
+          ${stateFilter}
+        GROUP BY ${periodExpr}, d.federal_provider_number, d.survey_date
+      )
+      SELECT
+        period,
+        COUNT(*) as total_surveys,
+        SUM(CASE WHEN has_standard AND has_complaint THEN 1 ELSE 0 END) as combined,
+        SUM(CASE WHEN has_standard AND NOT has_complaint THEN 1 ELSE 0 END) as standard_only,
+        SUM(CASE WHEN has_complaint AND NOT has_standard THEN 1 ELSE 0 END) as complaint_only,
+        ROUND(SUM(CASE WHEN has_standard AND has_complaint THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as combined_pct
+      FROM survey_types
+      GROUP BY period
+      ORDER BY period
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        state: state === 'ALL' ? 'National' : state,
+        granularity,
+        dataAsOf: maxDate,
+        trends: result.rows.map(r => ({
+          period: r.period,
+          totalSurveys: parseInt(r.total_surveys),
+          combined: parseInt(r.combined),
+          standardOnly: parseInt(r.standard_only),
+          complaintOnly: parseInt(r.complaint_only),
+          combinedPct: parseFloat(r.combined_pct)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('[Survey API] Survey patterns trends error:', error);
     res.status(500).json({
       success: false,
       error: error.message

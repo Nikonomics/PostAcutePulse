@@ -63,7 +63,7 @@ import {
   X,
 } from 'lucide-react';
 import './SurveyAnalytics.css';
-import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots, getStateFacilities, getDeficiencyDetails, getCutpointTrends, getCutpointComparison, getCutpointHeatmap, DEFICIENCY_TYPES } from '../api/surveyService';
+import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots, getNationalHotSpots, getStateFacilities, getDeficiencyDetails, getCutpointTrends, getCutpointComparison, getCutpointHeatmap, getSurveyPatternsByState, getSurveyPatternTrends, DEFICIENCY_TYPES } from '../api/surveyService';
 import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 
 // Deficiency type options for the filter
@@ -1682,41 +1682,34 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
   const [hotSpotsData, setHotSpotsData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [level, setLevel] = useState('county'); // 'county' or 'cbsa'
+  const isNationalView = selectedState === 'ALL';
 
   useEffect(() => {
     const fetchData = async () => {
-      if (selectedState && selectedState !== 'ALL') {
-        setIsLoading(true);
-        try {
-          const response = await getRegionalHotSpots(selectedState, selectedPeriod, level, selectedDeficiencyType);
-          if (response.success) {
-            setHotSpotsData(response.data);
-          } else {
-            setHotSpotsData(null);
-          }
-        } catch (error) {
-          console.error('Error fetching regional hot spots:', error);
-          setHotSpotsData(null);
-        } finally {
-          setIsLoading(false);
+      setIsLoading(true);
+      try {
+        let response;
+        if (isNationalView) {
+          // Fetch national-level hot spots
+          response = await getNationalHotSpots(selectedPeriod, level, selectedDeficiencyType);
+        } else {
+          // Fetch state-specific hot spots
+          response = await getRegionalHotSpots(selectedState, selectedPeriod, level, selectedDeficiencyType);
         }
+        if (response.success) {
+          setHotSpotsData(response.data);
+        } else {
+          setHotSpotsData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching regional hot spots:', error);
+        setHotSpotsData(null);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
-  }, [selectedState, selectedPeriod, level, selectedDeficiencyType]);
-
-  // Show prompt when no state selected
-  if (selectedState === 'ALL') {
-    return (
-      <div className="tab-content-area">
-        <div className="select-state-prompt">
-          <Flame size={48} strokeWidth={1.5} />
-          <h4>Select a State</h4>
-          <p>Choose a specific state from the dropdown above to see regional hot spots and activity patterns.</p>
-        </div>
-      </div>
-    );
-  }
+  }, [selectedState, selectedPeriod, level, selectedDeficiencyType, isNationalView]);
 
   // Show loading state
   if (isLoading) {
@@ -1742,8 +1735,9 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
     );
   }
 
-  const { hotSpots, stateTotal, dataAsOf } = hotSpotsData;
-  const stateName = US_STATES.find(s => s.code === selectedState)?.name || selectedState;
+  const { hotSpots, stateTotal, nationalTotal, dataAsOf } = hotSpotsData;
+  const totals = isNationalView ? nationalTotal : stateTotal;
+  const stateName = isNationalView ? 'National' : (US_STATES.find(s => s.code === selectedState)?.name || selectedState);
 
   // Calculate summary stats from real data
   const totalIJ = hotSpots.reduce((sum, h) => sum + h.ijCount, 0);
@@ -1754,10 +1748,10 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
         <div className="regional-title-section">
           <h4 className="regional-title">
             <Flame size={20} />
-            {stateName} Regional Activity
+            {isNationalView ? 'National Survey Hot Spots' : `${stateName} Regional Activity`}
           </h4>
           <p className="regional-subtitle">
-            Survey hot spots by {level === 'cbsa' ? 'CBSA' : 'county'}
+            {isNationalView ? `Top ${level === 'cbsa' ? 'CBSAs' : 'counties'} by deficiency count` : `Survey hot spots by ${level === 'cbsa' ? 'CBSA' : 'county'}`}
             {dataAsOf && (
               <span className="data-freshness-badge" title="Most recent survey data">
                 Data as of {new Date(dataAsOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -1785,12 +1779,12 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
 
       <div className="regional-summary-stats">
         <div className="summary-stat">
-          <span className="stat-value">{stateTotal?.surveys?.toLocaleString() || 0}</span>
-          <span className="stat-label">Total Surveys</span>
+          <span className="stat-value">{totals?.surveys?.toLocaleString() || 0}</span>
+          <span className="stat-label">{isNationalView ? 'National Surveys' : 'Total Surveys'}</span>
         </div>
         <div className="summary-stat">
-          <span className="stat-value">{stateTotal?.deficiencies?.toLocaleString() || 0}</span>
-          <span className="stat-label">Total Deficiencies</span>
+          <span className="stat-value">{totals?.deficiencies?.toLocaleString() || 0}</span>
+          <span className="stat-label">{isNationalView ? 'National Deficiencies' : 'Total Deficiencies'}</span>
         </div>
         <div className="summary-stat">
           <span className="stat-value ij-highlight">{totalIJ.toLocaleString()}</span>
@@ -1816,21 +1810,23 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
                 <tr>
                   <th className="rank-col">#</th>
                   <th className="region-col">{level === 'cbsa' ? 'CBSA' : 'County'}</th>
+                  {isNationalView && <th className="state-col">State</th>}
                   <th className="text-end">Surveys</th>
                   <th className="text-end">Deficiencies</th>
                   <th className="text-end">Facilities</th>
                   <th className="text-end">Avg/Survey</th>
                   <th className="text-end">IJ</th>
-                  <th className="text-end">% of State</th>
+                  <th className="text-end">{isNationalView ? '% of National' : '% of State'}</th>
                 </tr>
               </thead>
               <tbody>
                 {hotSpots.map((spot, idx) => (
-                  <tr key={spot.code || spot.name} className={idx < 3 ? 'top-region' : ''}>
+                  <tr key={spot.code || `${spot.name}-${spot.state}`} className={idx < 3 ? 'top-region' : ''}>
                     <td className="rank-col">{idx + 1}</td>
                     <td className="region-col">
                       <span className="region-name">{spot.name}</span>
                     </td>
+                    {isNationalView && <td className="state-col">{spot.state}</td>}
                     <td className="text-end">{spot.surveys.toLocaleString()}</td>
                     <td className="text-end">{spot.deficiencies.toLocaleString()}</td>
                     <td className="text-end">{spot.facilities}</td>
@@ -1843,7 +1839,7 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
                       )}
                     </td>
                     <td className="text-end">
-                      <span className="pct-badge">{spot.pctOfState}%</span>
+                      <span className="pct-badge">{isNationalView ? spot.pctOfNational : spot.pctOfState}%</span>
                     </td>
                   </tr>
                 ))}
@@ -2811,6 +2807,334 @@ const RatingThresholdsTab = ({ selectedState, onStateChange }) => {
   );
 };
 
+/**
+ * Survey Patterns Tab
+ * Shows how states handle standard vs complaint surveys - combined or separately
+ */
+const SurveyPatternsTab = ({ selectedState, onStateChange }) => {
+  const [loading, setLoading] = useState(true);
+  const [stateData, setStateData] = useState(null);
+  const [trendsData, setTrendsData] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('12months');
+  const [selectedTrendState, setSelectedTrendState] = useState('ALL');
+  const [viewMode, setViewMode] = useState('comparison'); // 'comparison' | 'trends'
+
+  // Fetch state comparison data
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await getSurveyPatternsByState(selectedPeriod);
+        if (response.success) {
+          setStateData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching survey patterns:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [selectedPeriod]);
+
+  // Fetch trends data when state changes
+  useEffect(() => {
+    const fetchTrends = async () => {
+      try {
+        const response = await getSurveyPatternTrends(selectedTrendState, 'year');
+        if (response.success) {
+          setTrendsData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching survey pattern trends:', error);
+      }
+    };
+    if (viewMode === 'trends') {
+      fetchTrends();
+    }
+  }, [selectedTrendState, viewMode]);
+
+  // Sync with parent state selection
+  useEffect(() => {
+    if (selectedState && selectedState !== 'ALL') {
+      setSelectedTrendState(selectedState);
+    }
+  }, [selectedState]);
+
+  const handleStateClick = (stateCode) => {
+    setSelectedTrendState(stateCode);
+    setViewMode('trends');
+    if (onStateChange) onStateChange(stateCode);
+  };
+
+  if (loading) {
+    return (
+      <div className="tab-content-area loading-container">
+        <Loader2 className="spinner" size={32} />
+        <p>Loading survey patterns...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tab-content-area survey-patterns-tab">
+      {/* Header with explanation */}
+      <div className="patterns-header mb-4">
+        <div className="d-flex justify-content-between align-items-start">
+          <div>
+            <h5 className="mb-2">
+              <Layers size={20} className="me-2" />
+              Survey Type Patterns by State
+            </h5>
+            <p className="text-muted mb-0">
+              Reveals how states handle CMS enforcement - do they combine complaint investigations
+              with standard surveys, or conduct them separately? Higher combined rates may indicate
+              efficiency or resource constraints.
+            </p>
+          </div>
+          <div className="d-flex gap-2">
+            <Form.Select
+              size="sm"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              style={{ width: 'auto' }}
+            >
+              <option value="12months">Last 12 Months</option>
+              <option value="24months">Last 24 Months</option>
+              <option value="all">All Time</option>
+            </Form.Select>
+            <div className="btn-group">
+              <button
+                className={`btn btn-sm ${viewMode === 'comparison' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setViewMode('comparison')}
+              >
+                State Comparison
+              </button>
+              <button
+                className={`btn btn-sm ${viewMode === 'trends' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setViewMode('trends')}
+              >
+                Trends Over Time
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* National Summary */}
+      {stateData?.national && (
+        <Row className="mb-4">
+          <Col md={3}>
+            <Card className="stat-card">
+              <Card.Body className="text-center">
+                <div className="stat-value">{stateData.national.total_surveys.toLocaleString()}</div>
+                <div className="stat-label">Total Surveys</div>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={3}>
+            <Card className="stat-card">
+              <Card.Body className="text-center">
+                <div className="stat-value text-primary">{stateData.national.combined_pct}%</div>
+                <div className="stat-label">Combined (Both Types)</div>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={3}>
+            <Card className="stat-card">
+              <Card.Body className="text-center">
+                <div className="stat-value text-success">{stateData.national.standard_only_pct}%</div>
+                <div className="stat-label">Standard Only</div>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={3}>
+            <Card className="stat-card">
+              <Card.Body className="text-center">
+                <div className="stat-value text-warning">{stateData.national.complaint_only_pct}%</div>
+                <div className="stat-label">Complaint Only</div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {viewMode === 'comparison' ? (
+        /* State Comparison Table */
+        <Card>
+          <Card.Header>
+            <strong>State Comparison</strong>
+            <span className="text-muted ms-2">- Click a state to see trends</span>
+          </Card.Header>
+          <Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
+            <Table hover size="sm" className="patterns-table">
+              <thead className="sticky-top bg-white">
+                <tr>
+                  <th>State</th>
+                  <th className="text-end">Surveys</th>
+                  <th className="text-end">Combined %</th>
+                  <th className="text-end">Standard Only %</th>
+                  <th className="text-end">Complaint Only %</th>
+                  <th className="text-end">% Standard w/ Complaint</th>
+                  <th>Distribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stateData?.states?.map((state) => (
+                  <tr
+                    key={state.state}
+                    onClick={() => handleStateClick(state.state)}
+                    style={{ cursor: 'pointer' }}
+                    className={selectedTrendState === state.state ? 'table-active' : ''}
+                  >
+                    <td><strong>{state.state}</strong></td>
+                    <td className="text-end">{state.totalSurveys.toLocaleString()}</td>
+                    <td className="text-end">
+                      <span className={state.combinedPct > stateData.national.combined_pct ? 'text-danger fw-bold' : ''}>
+                        {state.combinedPct}%
+                      </span>
+                    </td>
+                    <td className="text-end">{state.standardOnlyPct}%</td>
+                    <td className="text-end">{state.complaintOnlyPct}%</td>
+                    <td className="text-end">{state.pctStandardWithComplaint}%</td>
+                    <td style={{ width: '200px' }}>
+                      <div className="d-flex" style={{ height: '20px' }}>
+                        <div
+                          style={{
+                            width: `${state.combinedPct}%`,
+                            backgroundColor: '#0d6efd',
+                            height: '100%'
+                          }}
+                          title={`Combined: ${state.combinedPct}%`}
+                        />
+                        <div
+                          style={{
+                            width: `${state.standardOnlyPct}%`,
+                            backgroundColor: '#198754',
+                            height: '100%'
+                          }}
+                          title={`Standard: ${state.standardOnlyPct}%`}
+                        />
+                        <div
+                          style={{
+                            width: `${state.complaintOnlyPct}%`,
+                            backgroundColor: '#ffc107',
+                            height: '100%'
+                          }}
+                          title={`Complaint: ${state.complaintOnlyPct}%`}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card.Body>
+          <Card.Footer className="text-muted small">
+            <div className="d-flex gap-3">
+              <span><span style={{display: 'inline-block', width: 12, height: 12, backgroundColor: '#0d6efd', marginRight: 4}}></span> Combined</span>
+              <span><span style={{display: 'inline-block', width: 12, height: 12, backgroundColor: '#198754', marginRight: 4}}></span> Standard Only</span>
+              <span><span style={{display: 'inline-block', width: 12, height: 12, backgroundColor: '#ffc107', marginRight: 4}}></span> Complaint Only</span>
+            </div>
+          </Card.Footer>
+        </Card>
+      ) : (
+        /* Trends View */
+        <Card>
+          <Card.Header className="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>Survey Pattern Trends</strong>
+              <span className="text-muted ms-2">- {trendsData?.state || 'National'}</span>
+            </div>
+            <Form.Select
+              size="sm"
+              value={selectedTrendState}
+              onChange={(e) => setSelectedTrendState(e.target.value)}
+              style={{ width: 'auto' }}
+            >
+              <option value="ALL">National (All States)</option>
+              {stateData?.states?.map(s => (
+                <option key={s.state} value={s.state}>{s.state}</option>
+              ))}
+            </Form.Select>
+          </Card.Header>
+          <Card.Body>
+            {trendsData?.trends?.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={trendsData.trends}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="period" />
+                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                    <RechartsTooltip
+                      formatter={(value, name) => [`${value}%`, name]}
+                      labelFormatter={(label) => `Year: ${label}`}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="combinedPct"
+                      stroke="#0d6efd"
+                      strokeWidth={2}
+                      name="Combined %"
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+                <Table hover size="sm" className="mt-3">
+                  <thead>
+                    <tr>
+                      <th>Year</th>
+                      <th className="text-end">Total Surveys</th>
+                      <th className="text-end">Combined</th>
+                      <th className="text-end">Standard Only</th>
+                      <th className="text-end">Complaint Only</th>
+                      <th className="text-end">Combined %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trendsData.trends.map((row) => (
+                      <tr key={row.period}>
+                        <td><strong>{row.period}</strong></td>
+                        <td className="text-end">{row.totalSurveys.toLocaleString()}</td>
+                        <td className="text-end">{row.combined.toLocaleString()}</td>
+                        <td className="text-end">{row.standardOnly.toLocaleString()}</td>
+                        <td className="text-end">{row.complaintOnly.toLocaleString()}</td>
+                        <td className="text-end fw-bold">{row.combinedPct}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </>
+            ) : (
+              <div className="text-center text-muted py-4">
+                <Loader2 className="spinner mb-2" size={24} />
+                <p>Loading trends...</p>
+              </div>
+            )}
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* Insights */}
+      <Card className="mt-4">
+        <Card.Header>
+          <Lightbulb size={16} className="me-2" />
+          <strong>Key Insights</strong>
+        </Card.Header>
+        <Card.Body>
+          <ul className="mb-0">
+            <li><strong>Combined surveys</strong> happen when CMS investigates complaints during scheduled standard inspections</li>
+            <li>States with <strong>high combined rates</strong> may be batching complaints for efficiency or have limited surveyor resources</li>
+            <li>States with <strong>high complaint-only rates</strong> are responding to complaints with dedicated visits</li>
+            <li>A <strong>shift from separate to combined</strong> surveys (like Idaho 2022-2024) may indicate operational changes</li>
+          </ul>
+        </Card.Body>
+      </Card>
+    </div>
+  );
+};
+
 const ComplaintInsightsTab = () => {
   // Mock aggregate data we "have" from snf_facilities
   const previewStats = {
@@ -3279,6 +3603,12 @@ const SurveyAnalytics = () => {
                 </Nav.Link>
               </Nav.Item>
               <Nav.Item role="presentation">
+                <Nav.Link eventKey="patterns" role="tab" aria-selected={activeTab === 'patterns'}>
+                  <Layers size={16} aria-hidden="true" />
+                  Survey Patterns
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item role="presentation">
                 <Nav.Link eventKey="complaints" className="v2-tab" role="tab" aria-selected={activeTab === 'complaints'}>
                   <MessageSquare size={16} aria-hidden="true" />
                   Complaint Insights
@@ -3324,6 +3654,12 @@ const SurveyAnalytics = () => {
               </Tab.Pane>
               <Tab.Pane eventKey="thresholds">
                 <RatingThresholdsTab
+                  selectedState={selectedState}
+                  onStateChange={setSelectedState}
+                />
+              </Tab.Pane>
+              <Tab.Pane eventKey="patterns">
+                <SurveyPatternsTab
                   selectedState={selectedState}
                   onStateChange={setSelectedState}
                 />

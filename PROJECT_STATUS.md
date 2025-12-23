@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix deficiency type filtering in Survey Analytics
 - **2025-12-22** - Enable deficiency type filtering in Survey Analytics
 - **2025-12-22** - Add state selector to Rating Thresholds State Trends view
 - **2025-12-22** - Enhance Survey Analytics and Ownership Profile pages
@@ -41,7 +42,6 @@
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
 - **2025-12-22** - Add App Help chatbot with floating widget UI
 - **2025-12-22** - Fix: Use persistent disk for file uploads on Render
-- **2025-12-22** - Make EditUser form fields optional except name, email, role
 
 
 ### Areas Modified (Last 20 Commits)

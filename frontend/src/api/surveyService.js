@@ -95,6 +95,18 @@ export const getRegionalHotSpots = async (stateCode, period = '90days', level = 
 };
 
 /**
+ * Get national-level regional hot spots (top counties/CBSAs across all states)
+ * @param {string} period - Time period: '30days', '90days', '12months'
+ * @param {string} level - Geographic level: 'county' or 'cbsa'
+ * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
+ * @returns {Promise<Object>} National hot spots data with state info
+ */
+export const getNationalHotSpots = async (period = '90days', level = 'county', deficiencyType = 'all') => {
+  const response = await apiService.get(`${SURVEY_BASE}/regional-hotspots/national`, { period, level, deficiencyType });
+  return response.data;
+};
+
+/**
  * Get comprehensive facility intelligence data for Survey Intelligence tab
  * @param {string} ccn - CMS Certification Number
  * @returns {Promise<Object>} Full survey intelligence data including risk level,
@@ -189,5 +201,27 @@ export const getCutpointComparison = async (month = null) => {
  */
 export const getCutpointHeatmap = async () => {
   const response = await apiService.get(`${SURVEY_BASE}/cutpoints/heatmap`);
+  return response.data;
+};
+
+/**
+ * Get survey type patterns by state (combined/standard-only/complaint-only)
+ * Reveals how different states approach CMS enforcement
+ * @param {string} period - '12months' | '24months' | 'all'
+ * @returns {Promise<Object>} State breakdown of survey patterns
+ */
+export const getSurveyPatternsByState = async (period = '12months') => {
+  const response = await apiService.get(`${SURVEY_BASE}/patterns/by-state`, { period });
+  return response.data;
+};
+
+/**
+ * Get survey pattern trends over time for a state
+ * @param {string} state - State code or 'ALL' for national
+ * @param {string} granularity - 'year' | 'quarter'
+ * @returns {Promise<Object>} Survey pattern trends by period
+ */
+export const getSurveyPatternTrends = async (state = 'ALL', granularity = 'year') => {
+  const response = await apiService.get(`${SURVEY_BASE}/patterns/trends`, { state, granularity });
   return response.data;
 };
