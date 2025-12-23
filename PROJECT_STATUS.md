@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-23** - Add database migration reminder system
 - **2025-12-23** - Add automatic migration runner on app startup
 - **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
 - **2025-12-22** - Add backend-level sorting for national regional hotspots
@@ -41,13 +42,12 @@
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
 - **2025-12-22** - Fix survey.js column name: provider_name → facility_name
 - **2025-12-22** - Fix SQL errors in facilities endpoints
-- **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     12 files
+Backend:     13 files
 Frontend:    30 files
 Routes:      3 files
 Services:    2 files

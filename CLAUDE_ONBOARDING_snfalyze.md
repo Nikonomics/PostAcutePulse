@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-23 09:24:51
+> Last updated: 2025-12-23 09:36:09
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1556,6 +1556,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1762,6 +1763,7 @@ backend/migrations/add-cms-facility-saved-items.js
 
 ### Last 7 Days
 
+- **2025-12-23** - Add database migration reminder system
 - **2025-12-23** - Add automatic migration runner on app startup
 - **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
 - **2025-12-22** - Add backend-level sorting for national regional hotspots
@@ -1791,13 +1793,12 @@ backend/migrations/add-cms-facility-saved-items.js
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
 - **2025-12-22** - Fix survey.js column name: provider_name → facility_name
 - **2025-12-22** - Fix SQL errors in facilities endpoints
-- **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     12 files
+Backend:     13 files
 Frontend:    30 files
 Routes:      3 files
 Services:    2 files

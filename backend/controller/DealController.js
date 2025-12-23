@@ -949,6 +949,29 @@ module.exports = {
               extraction_data: dealExtractionData,
             });
 
+            // Log deal creation for audit trail
+            try {
+              await DealChangeLogs.create({
+                deal_id: dealCreated.id,
+                user_id: requiredData.user_id,
+                change_type: 'created',
+                field_name: null,
+                field_label: null,
+                old_value: null,
+                new_value: null,
+                metadata: JSON.stringify({
+                  deal_name: dealCreated.deal_name,
+                  facility_name: dealCreated.facility_name,
+                  purchase_price: dealCreated.purchase_price,
+                  deal_status: dealCreated.deal_status,
+                  state: dealCreated.state,
+                  city: dealCreated.city
+                })
+              });
+            } catch (logError) {
+              console.error('[createDeal] Error logging deal creation:', logError);
+            }
+
             // Set match_status based on facility_matches in extraction data
             // Check if this deal has pending facility matches that need user review
             let matchStatus = 'no_match_needed';
@@ -1714,6 +1737,35 @@ module.exports = {
       });
 
       for (const deal of deals) {
+        // Log deal deletion for audit trail BEFORE deleting
+        try {
+          const dealSnapshot = deal.toJSON();
+          delete dealSnapshot.extraction_data;
+
+          await DealChangeLogs.create({
+            deal_id: deal.id,
+            user_id: req.user?.id || 1,
+            change_type: 'deleted',
+            field_name: null,
+            field_label: null,
+            old_value: JSON.stringify(dealSnapshot),
+            new_value: null,
+            metadata: JSON.stringify({
+              deal_name: deal.deal_name,
+              facility_name: deal.facility_name,
+              deal_status: deal.deal_status,
+              purchase_price: deal.purchase_price,
+              deleted_by_user_id: req.user?.id,
+              deleted_at: new Date().toISOString(),
+              master_deal_delete: true,
+              master_deal_id: requiredData.id
+            })
+          });
+          console.log(`[deleteMasterDeal] Logged deletion of deal ${deal.id} (${deal.deal_name})`);
+        } catch (logError) {
+          console.error('[deleteMasterDeal] Error logging deal deletion:', logError);
+        }
+
         // delete deal comments:
         await DealComments.destroy({
           where: {
@@ -1729,6 +1781,8 @@ module.exports = {
 
         // delete deal external advisors:
         await DealExternalAdvisors.destroy({ where: { deal_id: deal.id } });
+
+        // NOTE: We intentionally DO NOT delete deal_change_logs - they are audit records
 
         // finally delete deal itself
         await deal.destroy();
@@ -2461,6 +2515,36 @@ module.exports = {
         return helper.error(res, "Deal not found");
       }
 
+      // Log deal deletion for audit trail BEFORE deleting
+      // This preserves who deleted what, even after the deal is gone
+      try {
+        const dealSnapshot = deal.toJSON();
+        // Remove large fields to keep log manageable
+        delete dealSnapshot.extraction_data;
+
+        await DealChangeLogs.create({
+          deal_id: deal.id,
+          user_id: req.user?.id || 1, // Use authenticated user or fallback to admin
+          change_type: 'deleted',
+          field_name: null,
+          field_label: null,
+          old_value: JSON.stringify(dealSnapshot),
+          new_value: null,
+          metadata: JSON.stringify({
+            deal_name: deal.deal_name,
+            facility_name: deal.facility_name,
+            deal_status: deal.deal_status,
+            purchase_price: deal.purchase_price,
+            deleted_by_user_id: req.user?.id,
+            deleted_at: new Date().toISOString()
+          })
+        });
+        console.log(`[deleteDeal] Logged deletion of deal ${deal.id} (${deal.deal_name})`);
+      } catch (logError) {
+        console.error('[deleteDeal] Error logging deal deletion:', logError);
+        // Continue with deletion even if logging fails
+      }
+
       // delete the deal comments:
       await DealComments.destroy({
         where: {
@@ -2538,6 +2622,34 @@ module.exports = {
             continue;
           }
 
+          // Log deal deletion for audit trail BEFORE deleting
+          try {
+            const dealSnapshot = deal.toJSON();
+            delete dealSnapshot.extraction_data; // Remove large fields
+
+            await DealChangeLogs.create({
+              deal_id: deal.id,
+              user_id: req.user?.id || 1,
+              change_type: 'deleted',
+              field_name: null,
+              field_label: null,
+              old_value: JSON.stringify(dealSnapshot),
+              new_value: null,
+              metadata: JSON.stringify({
+                deal_name: deal.deal_name,
+                facility_name: deal.facility_name,
+                deal_status: deal.deal_status,
+                purchase_price: deal.purchase_price,
+                deleted_by_user_id: req.user?.id,
+                deleted_at: new Date().toISOString(),
+                bulk_delete: true
+              })
+            });
+            console.log(`[bulkDeleteDeals] Logged deletion of deal ${deal.id} (${deal.deal_name})`);
+          } catch (logError) {
+            console.error('[bulkDeleteDeals] Error logging deal deletion:', logError);
+          }
+
           // Delete all related records
           await DealComments.destroy({
             where: {
@@ -2566,10 +2678,10 @@ module.exports = {
             await db.deal_extracted_text.destroy({ where: { deal_id: id } });
           }
 
-          // Delete change logs and user views if they exist
-          if (db.deal_change_logs) {
-            await db.deal_change_logs.destroy({ where: { deal_id: id } });
-          }
+          // NOTE: We intentionally DO NOT delete deal_change_logs
+          // These are audit records that should persist even after deal deletion
+
+          // Delete user views (not needed for audit)
           if (db.deal_user_views) {
             await db.deal_user_views.destroy({ where: { deal_id: id } });
           }
