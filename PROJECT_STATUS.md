@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Fix survey routes to use cms_facility_deficiencies table
 - **2025-12-22** - Add period filtering to company survey analytics endpoint
 - **2025-12-22** - Add Survey Analytics tab styles for OwnershipProfile
 - **2025-12-22** - Add Survey Analytics tab to OwnershipProfile
@@ -41,17 +42,16 @@
 - **2025-12-22** - Add user invitation system with role-based access control
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
 - **2025-12-22** - Start VBP metrics sections collapsed by default
-- **2025-12-22** - Migrate VBP endpoints to use Market DB
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     6 files
-Frontend:    29 files
+Frontend:    28 files
 Routes:      3 files
 Services:    2 files
-Components:  14 files
+Components:  13 files
 Migrations:  0
 0 files
 ```

@@ -23,9 +23,11 @@ const SEVERITY_COLUMN = 'scope_severity';
 
 /**
  * Get the appropriate database pool for survey queries
+ * Uses Market DB which has the full CMS deficiency dataset (417k+ rows)
+ * and separates analytics queries from transactional operations
  */
 const getSurveyPool = () => {
-  return getMainPool();
+  return getMarketPool();
 };
 
 /**
