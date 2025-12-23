@@ -137,9 +137,57 @@ export const getDeficiencyDetails = async (tag) => {
 /**
  * Get aggregated survey analytics for a company/chain
  * @param {string} parentOrg - Parent organization name
- * @returns {Promise<Object>} Company survey analytics including summary, trends, facility breakdown
+ * @param {string} period - Time period: '30days', '90days', '12months', 'all'
+ * @returns {Promise<Object>} Company survey analytics including summary, trends, facility breakdown, insights
  */
-export const getCompanySurveyAnalytics = async (parentOrg) => {
-  const response = await apiService.get(`${SURVEY_BASE}/company/${encodeURIComponent(parentOrg)}`);
+export const getCompanySurveyAnalytics = async (parentOrg, period = '12months') => {
+  const response = await apiService.get(`${SURVEY_BASE}/company/${encodeURIComponent(parentOrg)}`, { period });
+  return response.data;
+};
+
+/**
+ * Get historical health inspection star rating cutpoints
+ * @param {string} state - State code (optional, returns all states if not specified)
+ * @param {string} startMonth - Start month YYYY-MM (optional)
+ * @param {string} endMonth - End month YYYY-MM (optional)
+ * @returns {Promise<Object>} Historical cutpoints data
+ */
+export const getCutpoints = async (state = null, startMonth = null, endMonth = null) => {
+  const params = {};
+  if (state) params.state = state;
+  if (startMonth) params.startMonth = startMonth;
+  if (endMonth) params.endMonth = endMonth;
+  const response = await apiService.get(`${SURVEY_BASE}/cutpoints`, params);
+  return response.data;
+};
+
+/**
+ * Get cutpoint trends for a specific state
+ * Shows how thresholds have changed and calculates trend direction
+ * @param {string} state - State code (required)
+ * @returns {Promise<Object>} Cutpoint trends with interpretation
+ */
+export const getCutpointTrends = async (state) => {
+  const response = await apiService.get(`${SURVEY_BASE}/cutpoints/trends`, { state });
+  return response.data;
+};
+
+/**
+ * Compare cutpoints across all states for a specific month
+ * @param {string} month - Month in YYYY-MM format (optional, defaults to latest)
+ * @returns {Promise<Object>} State comparison data with national averages
+ */
+export const getCutpointComparison = async (month = null) => {
+  const params = month ? { month } : {};
+  const response = await apiService.get(`${SURVEY_BASE}/cutpoints/compare`, params);
+  return response.data;
+};
+
+/**
+ * Get heat map data for 5-star thresholds with deficiency averages
+ * @returns {Promise<Object>} State data with thresholds and avg deficiencies per survey
+ */
+export const getCutpointHeatmap = async () => {
+  const response = await apiService.get(`${SURVEY_BASE}/cutpoints/heatmap`);
   return response.data;
 };

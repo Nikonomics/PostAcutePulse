@@ -26,7 +26,7 @@ import { getOwnerHistory } from '../api/maAnalyticsService';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { getCompanySurveyAnalytics } from '../api/surveyService';
+import { getCompanySurveyAnalytics, getDeficiencyDetails } from '../api/surveyService';
 import {
   saveOwnershipGroup,
   checkSavedItems,
@@ -50,6 +50,8 @@ function OwnershipProfile() {
   const [activity, setActivity] = useState([]);
   const [surveyData, setSurveyData] = useState(null);
   const [surveyLoading, setSurveyLoading] = useState(false);
+  const [surveyPeriod, setSurveyPeriod] = useState('12months');
+  const [ftagModal, setFtagModal] = useState({ open: false, loading: false, data: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -168,15 +170,14 @@ function OwnershipProfile() {
     }
   }, [activeTab, loadComments, loadActivity]);
 
-  // Load survey analytics when surveys tab is active
+  // Load survey analytics when surveys tab is active or period changes
   useEffect(() => {
     const loadSurveyData = async () => {
       if (activeTab !== 'surveys' || !profile?.parent_organization) return;
-      if (surveyData) return; // Already loaded
 
       setSurveyLoading(true);
       try {
-        const result = await getCompanySurveyAnalytics(profile.parent_organization);
+        const result = await getCompanySurveyAnalytics(profile.parent_organization, surveyPeriod);
         if (result.success) {
           setSurveyData(result.data);
         }
@@ -187,7 +188,23 @@ function OwnershipProfile() {
       }
     };
     loadSurveyData();
-  }, [activeTab, profile?.parent_organization, surveyData]);
+  }, [activeTab, profile?.parent_organization, surveyPeriod]);
+
+  // Handle F-tag click to show modal with description
+  const handleFTagClick = async (ftagCode) => {
+    setFtagModal({ open: true, loading: true, data: null });
+    try {
+      const result = await getDeficiencyDetails(ftagCode);
+      if (result.success) {
+        setFtagModal({ open: true, loading: false, data: result.data });
+      } else {
+        setFtagModal({ open: true, loading: false, data: { tag: ftagCode, description: 'No description available', category: 'Unknown' } });
+      }
+    } catch (err) {
+      console.error('Error loading F-tag details:', err);
+      setFtagModal({ open: true, loading: false, data: { tag: ftagCode, description: 'Failed to load description', category: 'Unknown' } });
+    }
+  };
 
   // Check if profile is saved when it loads
   useEffect(() => {
@@ -1414,6 +1431,30 @@ function OwnershipProfile() {
         {/* Survey Analytics Tab */}
         {activeTab === 'surveys' && (
           <div className="survey-analytics-section">
+            {/* Period Selector */}
+            <div className="survey-controls">
+              <div className="period-selector">
+                <span className="period-label">Time Period:</span>
+                <div className="period-buttons">
+                  {[
+                    { value: '30days', label: '30 Days' },
+                    { value: '90days', label: '90 Days' },
+                    { value: '12months', label: '12 Months' },
+                    { value: 'all', label: 'All Time' }
+                  ].map(option => (
+                    <button
+                      key={option.value}
+                      className={`period-btn ${surveyPeriod === option.value ? 'active' : ''}`}
+                      onClick={() => setSurveyPeriod(option.value)}
+                      disabled={surveyLoading}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {surveyLoading ? (
               <div className="loading-container">
                 <Loader className="spin" size={32} />
@@ -1421,6 +1462,25 @@ function OwnershipProfile() {
               </div>
             ) : surveyData ? (
               <>
+                {/* Insights Section */}
+                {surveyData.insights?.length > 0 && (
+                  <div className="survey-insights">
+                    {surveyData.insights.map((insight, idx) => (
+                      <div key={idx} className={`insight-card ${insight.type}`}>
+                        <div className="insight-icon">
+                          {insight.icon === 'alert' && <AlertCircle size={16} />}
+                          {insight.icon === 'trending-up' && <TrendingUp size={16} />}
+                          {insight.icon === 'trending-down' && <TrendingDown size={16} />}
+                          {insight.icon === 'warning' && <AlertCircle size={16} />}
+                          {insight.icon === 'clock' && <Clock size={16} />}
+                          {insight.icon === 'info' && <Activity size={16} />}
+                        </div>
+                        <span className="insight-text">{insight.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Summary Metrics */}
                 <div className="survey-metrics-grid">
                   <div className="survey-metric-card">
@@ -1429,7 +1489,7 @@ function OwnershipProfile() {
                     </div>
                     <div className="survey-metric-content">
                       <span className="survey-metric-value">{surveyData.summary?.totalSurveys || 0}</span>
-                      <span className="survey-metric-label">Surveys (12 mo)</span>
+                      <span className="survey-metric-label">Surveys</span>
                     </div>
                   </div>
                   <div className="survey-metric-card">
@@ -1536,15 +1596,31 @@ function OwnershipProfile() {
                             <th>F-Tag</th>
                             <th>Description</th>
                             <th>Count</th>
+                            <th>Change</th>
                             <th>Trend</th>
                           </tr>
                         </thead>
                         <tbody>
                           {surveyData.topFTags.map((ftag, idx) => (
                             <tr key={idx}>
-                              <td><span className="ftag-code">{ftag.code}</span></td>
+                              <td>
+                                <span
+                                  className="ftag-code clickable"
+                                  onClick={() => handleFTagClick(ftag.code)}
+                                  title="Click for details"
+                                >
+                                  {ftag.code}
+                                </span>
+                              </td>
                               <td className="ftag-name">{ftag.name?.substring(0, 50)}{ftag.name?.length > 50 ? '...' : ''}</td>
                               <td>{ftag.count}</td>
+                              <td>
+                                {ftag.changePct !== 0 && (
+                                  <span className={`change-pct ${ftag.changePct > 0 ? 'up' : 'down'}`}>
+                                    {ftag.changePct > 0 ? '+' : ''}{ftag.changePct}%
+                                  </span>
+                                )}
+                              </td>
                               <td>
                                 <span className={`trend-badge ${ftag.trend.toLowerCase()}`}>
                                   {ftag.trend === 'UP' && <TrendingUp size={12} />}
@@ -1754,6 +1830,41 @@ function OwnershipProfile() {
               >
                 {editingContact ? 'Update Contact' : 'Add Contact'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* F-Tag Details Modal */}
+      {ftagModal.open && (
+        <div className="contact-form-overlay" onClick={() => setFtagModal({ open: false, loading: false, data: null })}>
+          <div className="ftag-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ftag-modal-header">
+              <h3>{ftagModal.data?.tag || 'Loading...'}</h3>
+              <button className="btn btn-ghost" onClick={() => setFtagModal({ open: false, loading: false, data: null })}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="ftag-modal-body">
+              {ftagModal.loading ? (
+                <div className="loading-container">
+                  <Loader className="spin" size={24} />
+                  <p>Loading deficiency details...</p>
+                </div>
+              ) : ftagModal.data ? (
+                <>
+                  <div className="ftag-category">
+                    <span className="category-label">Category:</span>
+                    <span className="category-value">{ftagModal.data.category}</span>
+                  </div>
+                  <div className="ftag-description">
+                    <span className="description-label">Description:</span>
+                    <p className="description-value">{ftagModal.data.description}</p>
+                  </div>
+                </>
+              ) : (
+                <p>No details available</p>
+              )}
             </div>
           </div>
         </div>

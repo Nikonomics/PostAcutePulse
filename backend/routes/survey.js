@@ -270,23 +270,17 @@ router.get('/state/:stateCode', async (req, res) => {
     const days = periodToDays(period);
 
     // Get state comparison stats (using maxDate instead of CURRENT_DATE)
+    // Calculate avg defs as total_deficiencies / unique_surveys (correct method)
     const comparisonResult = await pool.query(`
       WITH state_stats AS (
         SELECT
           COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
           COUNT(*) as total_defs,
-          ROUND(AVG(def_count)::numeric, 1) as avg_defs,
+          ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT d.federal_provider_number || d.survey_date::text), 0), 1) as avg_defs,
           ROUND((SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
                  NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
         FROM cms_facility_deficiencies d
         JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
-        CROSS JOIN LATERAL (
-          SELECT COUNT(*) as def_count
-          FROM cms_facility_deficiencies d2
-          WHERE d2.federal_provider_number = d.federal_provider_number
-            AND d2.survey_date = d.survey_date
-            ${typeFilter}
-        ) dc
         WHERE f.state = $1
           AND d.survey_date >= $2::date - INTERVAL '${days} days'
           ${typeFilter}
@@ -295,17 +289,10 @@ router.get('/state/:stateCode', async (req, res) => {
         SELECT
           COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
           COUNT(*) as total_defs,
-          ROUND(AVG(def_count)::numeric, 1) as avg_defs,
+          ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT federal_provider_number || survey_date::text), 0), 1) as avg_defs,
           ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
                  NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
         FROM cms_facility_deficiencies d
-        CROSS JOIN LATERAL (
-          SELECT COUNT(*) as def_count
-          FROM cms_facility_deficiencies d2
-          WHERE d2.federal_provider_number = d.federal_provider_number
-            AND d2.survey_date = d.survey_date
-            ${typeFilter}
-        ) dc
         WHERE d.survey_date >= $2::date - INTERVAL '${days} days'
           ${typeFilter}
       )
@@ -1895,6 +1882,370 @@ router.get('/company/:parentOrg', async (req, res) => {
 
   } catch (error) {
     console.error('[Survey API] Company survey analytics error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/cutpoints
+ * Get historical health inspection star rating cutpoints by state
+ *
+ * Query params:
+ * - state: State code (e.g., "CA") - optional, returns all states if not specified
+ * - startMonth: Start month (YYYY-MM format) - optional
+ * - endMonth: End month (YYYY-MM format) - optional
+ */
+router.get('/cutpoints', async (req, res) => {
+  const { state, startMonth, endMonth } = req.query;
+  const pool = getMainPool();
+
+  try {
+    let query = `
+      SELECT
+        month,
+        state,
+        five_star_max,
+        four_star_max,
+        three_star_max,
+        two_star_max,
+        one_star_min
+      FROM health_inspection_cutpoints
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIdx = 1;
+
+    if (state) {
+      query += ` AND state = $${paramIdx++}`;
+      params.push(state.toUpperCase());
+    }
+
+    if (startMonth) {
+      query += ` AND month >= $${paramIdx++}`;
+      params.push(startMonth);
+    }
+
+    if (endMonth) {
+      query += ` AND month <= $${paramIdx++}`;
+      params.push(endMonth);
+    }
+
+    query += ` ORDER BY month, state`;
+
+    const result = await pool.query(query, params);
+
+    // Get available date range
+    const rangeResult = await pool.query(`
+      SELECT MIN(month) as min_month, MAX(month) as max_month, COUNT(DISTINCT month) as month_count
+      FROM health_inspection_cutpoints
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        cutpoints: result.rows.map(r => ({
+          month: r.month,
+          state: r.state,
+          fiveStarMax: parseFloat(r.five_star_max),
+          fourStarMax: parseFloat(r.four_star_max),
+          threeStarMax: parseFloat(r.three_star_max),
+          twoStarMax: parseFloat(r.two_star_max),
+          oneStarMin: parseFloat(r.one_star_min)
+        })),
+        dateRange: {
+          min: rangeResult.rows[0].min_month,
+          max: rangeResult.rows[0].max_month,
+          monthCount: parseInt(rangeResult.rows[0].month_count)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[Survey API] Cutpoints error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/cutpoints/trends
+ * Get cutpoint trends over time for a specific state
+ * Shows how thresholds have changed and calculates trend direction
+ */
+router.get('/cutpoints/trends', async (req, res) => {
+  const { state } = req.query;
+  const pool = getMainPool();
+
+  if (!state) {
+    return res.status(400).json({
+      success: false,
+      error: 'State parameter is required'
+    });
+  }
+
+  try {
+    // Get all cutpoints for this state
+    const cutpointsResult = await pool.query(`
+      SELECT
+        month,
+        five_star_max,
+        four_star_max,
+        three_star_max,
+        two_star_max,
+        one_star_min
+      FROM health_inspection_cutpoints
+      WHERE state = $1
+      ORDER BY month
+    `, [state.toUpperCase()]);
+
+    if (cutpointsResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: { state, cutpoints: [], trends: null }
+      });
+    }
+
+    const cutpoints = cutpointsResult.rows;
+    const first = cutpoints[0];
+    const last = cutpoints[cutpoints.length - 1];
+
+    // Calculate trends
+    const trends = {
+      fiveStar: {
+        start: parseFloat(first.five_star_max),
+        end: parseFloat(last.five_star_max),
+        change: parseFloat(last.five_star_max) - parseFloat(first.five_star_max),
+        changePct: ((parseFloat(last.five_star_max) - parseFloat(first.five_star_max)) / parseFloat(first.five_star_max) * 100).toFixed(1)
+      },
+      fourStar: {
+        start: parseFloat(first.four_star_max),
+        end: parseFloat(last.four_star_max),
+        change: parseFloat(last.four_star_max) - parseFloat(first.four_star_max),
+        changePct: ((parseFloat(last.four_star_max) - parseFloat(first.four_star_max)) / parseFloat(first.four_star_max) * 100).toFixed(1)
+      },
+      threeStar: {
+        start: parseFloat(first.three_star_max),
+        end: parseFloat(last.three_star_max),
+        change: parseFloat(last.three_star_max) - parseFloat(first.three_star_max),
+        changePct: ((parseFloat(last.three_star_max) - parseFloat(first.three_star_max)) / parseFloat(first.three_star_max) * 100).toFixed(1)
+      }
+    };
+
+    // Determine if thresholds are getting stricter or more lenient
+    const interpretation = parseFloat(trends.fiveStar.changePct) > 5
+      ? 'MORE_LENIENT' // Higher threshold = easier to get 5 stars
+      : parseFloat(trends.fiveStar.changePct) < -5
+        ? 'STRICTER'
+        : 'STABLE';
+
+    res.json({
+      success: true,
+      data: {
+        state: state.toUpperCase(),
+        dateRange: {
+          start: first.month,
+          end: last.month
+        },
+        cutpoints: cutpoints.map(r => ({
+          month: r.month,
+          fiveStarMax: parseFloat(r.five_star_max),
+          fourStarMax: parseFloat(r.four_star_max),
+          threeStarMax: parseFloat(r.three_star_max),
+          twoStarMax: parseFloat(r.two_star_max),
+          oneStarMin: parseFloat(r.one_star_min)
+        })),
+        trends,
+        interpretation,
+        insight: interpretation === 'MORE_LENIENT'
+          ? `${state} cutpoints have increased ${trends.fiveStar.changePct}% since ${first.month}, meaning it's easier to achieve 5 stars now.`
+          : interpretation === 'STRICTER'
+            ? `${state} cutpoints have decreased ${Math.abs(trends.fiveStar.changePct)}% since ${first.month}, meaning 5-star ratings are harder to achieve.`
+            : `${state} cutpoints have remained relatively stable since ${first.month}.`
+      }
+    });
+  } catch (error) {
+    console.error('[Survey API] Cutpoints trends error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/cutpoints/compare
+ * Compare cutpoints across states for a specific month
+ */
+router.get('/cutpoints/compare', async (req, res) => {
+  const { month } = req.query;
+  const pool = getMainPool();
+
+  try {
+    // Default to latest month if not specified
+    let targetMonth = month;
+    if (!targetMonth) {
+      const latestResult = await pool.query('SELECT MAX(month) as max_month FROM health_inspection_cutpoints');
+      targetMonth = latestResult.rows[0].max_month;
+    }
+
+    const result = await pool.query(`
+      SELECT
+        state,
+        five_star_max,
+        four_star_max,
+        three_star_max,
+        two_star_max,
+        one_star_min
+      FROM health_inspection_cutpoints
+      WHERE month = $1
+      ORDER BY five_star_max DESC
+    `, [targetMonth]);
+
+    // Calculate national averages
+    const avgResult = await pool.query(`
+      SELECT
+        ROUND(AVG(five_star_max)::numeric, 2) as avg_five_star,
+        ROUND(AVG(four_star_max)::numeric, 2) as avg_four_star,
+        ROUND(AVG(three_star_max)::numeric, 2) as avg_three_star
+      FROM health_inspection_cutpoints
+      WHERE month = $1
+    `, [targetMonth]);
+
+    const avg = avgResult.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        month: targetMonth,
+        states: result.rows.map(r => ({
+          state: r.state,
+          fiveStarMax: parseFloat(r.five_star_max),
+          fourStarMax: parseFloat(r.four_star_max),
+          threeStarMax: parseFloat(r.three_star_max),
+          twoStarMax: parseFloat(r.two_star_max),
+          oneStarMin: parseFloat(r.one_star_min),
+          // Relative to national average
+          vsNationalAvg: ((parseFloat(r.five_star_max) - parseFloat(avg.avg_five_star)) / parseFloat(avg.avg_five_star) * 100).toFixed(1)
+        })),
+        nationalAverages: {
+          fiveStarMax: parseFloat(avg.avg_five_star),
+          fourStarMax: parseFloat(avg.avg_four_star),
+          threeStarMax: parseFloat(avg.avg_three_star)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[Survey API] Cutpoints compare error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/cutpoints/heatmap
+ * Get state data for heat map visualization
+ * Includes 5-star thresholds and average deficiencies per survey (TTM)
+ */
+router.get('/cutpoints/heatmap', async (req, res) => {
+  const mainPool = getMainPool();
+  const marketPool = getMarketPool();
+
+  try {
+    // Get latest cutpoints month
+    const latestResult = await mainPool.query('SELECT MAX(month) as max_month FROM health_inspection_cutpoints');
+    const latestMonth = latestResult.rows[0].max_month;
+
+    // Get 5-star thresholds for all states
+    const cutpointsResult = await mainPool.query(`
+      SELECT state, five_star_max
+      FROM health_inspection_cutpoints
+      WHERE month = $1
+    `, [latestMonth]);
+
+    // Get most recent survey data date
+    const maxDateResult = await marketPool.query('SELECT MAX(survey_date) as max_date FROM cms_facility_deficiencies');
+    const maxDate = maxDateResult.rows[0]?.max_date || new Date();
+
+    // Get average deficiencies per survey by state for TTM (trailing 12 months)
+    // Join with snf_facilities to get state, count unique surveys and total deficiencies per state
+    const stateDefsResult = await marketPool.query(`
+      WITH survey_counts AS (
+        SELECT
+          f.state,
+          COUNT(DISTINCT CONCAT(d.federal_provider_number, '-', d.survey_date)) as survey_count,
+          COUNT(*) as deficiency_count
+        FROM cms_facility_deficiencies d
+        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+        WHERE d.survey_date >= $1::date - INTERVAL '365 days'
+          AND f.state IS NOT NULL
+        GROUP BY f.state
+      )
+      SELECT
+        state,
+        survey_count,
+        deficiency_count,
+        ROUND(deficiency_count::numeric / NULLIF(survey_count, 0), 2) as avg_defs_per_survey
+      FROM survey_counts
+      ORDER BY state
+    `, [maxDate]);
+
+    // Calculate national average
+    const nationalResult = await marketPool.query(`
+      WITH national_counts AS (
+        SELECT
+          COUNT(DISTINCT CONCAT(federal_provider_number, '-', survey_date)) as survey_count,
+          COUNT(*) as deficiency_count
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $1::date - INTERVAL '365 days'
+      )
+      SELECT
+        survey_count,
+        deficiency_count,
+        ROUND(deficiency_count::numeric / NULLIF(survey_count, 0), 2) as avg_defs_per_survey
+      FROM national_counts
+    `, [maxDate]);
+
+    const nationalAvg = parseFloat(nationalResult.rows[0]?.avg_defs_per_survey) || 0;
+
+    // Merge cutpoints with deficiency data
+    const cutpointsMap = {};
+    cutpointsResult.rows.forEach(r => {
+      cutpointsMap[r.state] = parseFloat(r.five_star_max);
+    });
+
+    const stateData = stateDefsResult.rows.map(r => ({
+      state: r.state,
+      fiveStarMax: cutpointsMap[r.state] || null,
+      surveyCount: parseInt(r.survey_count),
+      avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey)
+    }));
+
+    // Find min/max 5-star thresholds for color scale
+    const thresholds = stateData.filter(s => s.fiveStarMax !== null).map(s => s.fiveStarMax);
+    const minThreshold = Math.min(...thresholds);
+    const maxThreshold = Math.max(...thresholds);
+
+    res.json({
+      success: true,
+      data: {
+        month: latestMonth,
+        dataAsOf: maxDate,
+        states: stateData,
+        nationalAvgDefsPerSurvey: nationalAvg,
+        thresholdRange: {
+          min: minThreshold,
+          max: maxThreshold
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[Survey API] Cutpoints heatmap error:', error);
     res.status(500).json({
       success: false,
       error: error.message

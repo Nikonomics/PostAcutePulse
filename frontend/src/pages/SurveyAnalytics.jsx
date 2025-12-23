@@ -63,7 +63,8 @@ import {
   X,
 } from 'lucide-react';
 import './SurveyAnalytics.css';
-import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots, getStateFacilities, getDeficiencyDetails, DEFICIENCY_TYPES } from '../api/surveyService';
+import { getNationalOverview, getStateData, getFTagTrends, getRegionalHotSpots, getStateFacilities, getDeficiencyDetails, getCutpointTrends, getCutpointComparison, getCutpointHeatmap, DEFICIENCY_TYPES } from '../api/surveyService';
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 
 // Deficiency type options for the filter
 const DEFICIENCY_TYPE_OPTIONS = [
@@ -2087,6 +2088,439 @@ const FTagTrendsTab = ({ data, selectedState, selectedPeriod, selectedDeficiency
 /**
  * Complaint Insights Tab Content (V2 Placeholder)
  */
+// ==========================================
+// RATING THRESHOLDS TAB
+// ==========================================
+// US States GeoJSON URL
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
+
+// State FIPS code to abbreviation mapping
+const FIPS_TO_STATE = {
+  '01': 'AL', '02': 'AK', '04': 'AZ', '05': 'AR', '06': 'CA', '08': 'CO', '09': 'CT',
+  '10': 'DE', '11': 'DC', '12': 'FL', '13': 'GA', '15': 'HI', '16': 'ID', '17': 'IL',
+  '18': 'IN', '19': 'IA', '20': 'KS', '21': 'KY', '22': 'LA', '23': 'ME', '24': 'MD',
+  '25': 'MA', '26': 'MI', '27': 'MN', '28': 'MS', '29': 'MO', '30': 'MT', '31': 'NE',
+  '32': 'NV', '33': 'NH', '34': 'NJ', '35': 'NM', '36': 'NY', '37': 'NC', '38': 'ND',
+  '39': 'OH', '40': 'OK', '41': 'OR', '42': 'PA', '44': 'RI', '45': 'SC', '46': 'SD',
+  '47': 'TN', '48': 'TX', '49': 'UT', '50': 'VT', '51': 'VA', '53': 'WA', '54': 'WV',
+  '55': 'WI', '56': 'WY', '72': 'PR', '78': 'VI', '66': 'GU'
+};
+
+const RatingThresholdsTab = ({ selectedState }) => {
+  const [trendsData, setTrendsData] = useState(null);
+  const [comparisonData, setComparisonData] = useState(null);
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('heatmap'); // 'heatmap', 'trends', or 'compare'
+  const [hoveredState, setHoveredState] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  // Use CA as default if no state selected or ALL selected
+  const effectiveState = selectedState && selectedState !== 'ALL' ? selectedState : 'CA';
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [trendsResponse, compareResponse, heatmapResponse] = await Promise.all([
+          getCutpointTrends(effectiveState),
+          getCutpointComparison(),
+          getCutpointHeatmap()
+        ]);
+
+        if (trendsResponse.success) {
+          setTrendsData(trendsResponse.data);
+        }
+        if (compareResponse.success) {
+          setComparisonData(compareResponse.data);
+        }
+        if (heatmapResponse.success) {
+          setHeatmapData(heatmapResponse.data);
+        }
+      } catch (error) {
+        console.error('Error fetching cutpoint data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [effectiveState]);
+
+  // Get color for state based on 5-star threshold
+  const getStateColor = (stateCode) => {
+    if (!heatmapData?.states) return '#e5e7eb';
+    const stateData = heatmapData.states.find(s => s.state === stateCode);
+    if (!stateData?.fiveStarMax) return '#e5e7eb';
+
+    const { min, max } = heatmapData.thresholdRange;
+    const range = max - min;
+    const normalized = (stateData.fiveStarMax - min) / range;
+
+    // Color scale from light red to dark red (higher = darker = tougher surveyors)
+    const lightness = 92 - (normalized * 47); // 92% to 45%
+    return `hsl(0, 70%, ${lightness}%)`;
+  };
+
+  // Get state data for tooltip
+  const getStateInfo = (stateCode) => {
+    if (!heatmapData?.states) return null;
+    return heatmapData.states.find(s => s.state === stateCode);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="tab-content-area">
+        <div className="overview-loading">
+          <Loader2 size={32} className="spin" />
+          <p>Loading rating threshold data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Color palette for star ratings
+  const starColors = {
+    fiveStar: '#22c55e',
+    fourStar: '#84cc16',
+    threeStar: '#eab308',
+    twoStar: '#f97316',
+    oneStar: '#ef4444'
+  };
+
+  return (
+    <div className="tab-content-area rating-thresholds">
+      <div className="thresholds-header">
+        <div className="thresholds-title-section">
+          <h4 className="thresholds-title">
+            <Target size={20} />
+            Health Inspection Star Rating Cutpoints
+          </h4>
+          <p className="thresholds-subtitle">
+            CMS calculates weighted deficiency scores and uses state-specific percentile cutoffs to assign star ratings.
+            Higher thresholds mean it's easier to achieve that rating in the state.
+          </p>
+        </div>
+        <div className="view-toggle">
+          <button
+            className={`toggle-btn ${viewMode === 'heatmap' ? 'active' : ''}`}
+            onClick={() => setViewMode('heatmap')}
+          >
+            <Map size={16} /> Heat Map
+          </button>
+          <button
+            className={`toggle-btn ${viewMode === 'trends' ? 'active' : ''}`}
+            onClick={() => setViewMode('trends')}
+          >
+            <TrendingUp size={16} /> State Trends
+          </button>
+          <button
+            className={`toggle-btn ${viewMode === 'compare' ? 'active' : ''}`}
+            onClick={() => setViewMode('compare')}
+          >
+            <BarChart3 size={16} /> Compare States
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'heatmap' && heatmapData && (
+        <div className="heatmap-container">
+          {/* Legend */}
+          <div className="heatmap-legend">
+            <span className="legend-title">5-Star Threshold</span>
+            <div className="legend-scale">
+              <span className="legend-min">{heatmapData.thresholdRange?.min?.toFixed(0)} (Lenient)</span>
+              <div className="legend-gradient" />
+              <span className="legend-max">{heatmapData.thresholdRange?.max?.toFixed(0)} (Tough)</span>
+            </div>
+          </div>
+
+          {/* Map */}
+          <div className="us-map-wrapper">
+            <ComposableMap
+              projection="geoAlbersUsa"
+              projectionConfig={{ scale: 1000 }}
+              style={{ width: '100%', height: 'auto' }}
+            >
+              <Geographies geography={GEO_URL}>
+                {({ geographies }) =>
+                  geographies.map((geo) => {
+                    const stateCode = FIPS_TO_STATE[geo.id];
+                    const stateInfo = getStateInfo(stateCode);
+                    return (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        fill={getStateColor(stateCode)}
+                        stroke="#ffffff"
+                        strokeWidth={0.5}
+                        style={{
+                          default: { outline: 'none' },
+                          hover: { outline: 'none', fill: '#1e40af', cursor: 'pointer' },
+                          pressed: { outline: 'none' }
+                        }}
+                        onMouseEnter={(e) => {
+                          setHoveredState(stateCode);
+                          setTooltipPosition({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseMove={(e) => {
+                          setTooltipPosition({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredState(null);
+                        }}
+                      />
+                    );
+                  })
+                }
+              </Geographies>
+            </ComposableMap>
+
+            {/* Tooltip */}
+            {hoveredState && (
+              <div
+                className="map-tooltip"
+                style={{
+                  position: 'fixed',
+                  left: tooltipPosition.x + 10,
+                  top: tooltipPosition.y - 10,
+                  pointerEvents: 'none'
+                }}
+              >
+                {(() => {
+                  const info = getStateInfo(hoveredState);
+                  const stateName = US_STATES.find(s => s.code === hoveredState)?.name || hoveredState;
+                  return (
+                    <>
+                      <div className="tooltip-header">{stateName}</div>
+                      <div className="tooltip-body">
+                        <div className="tooltip-row">
+                          <span className="tooltip-label">5-Star Cutoff:</span>
+                          <span className="tooltip-value">{info?.fiveStarMax?.toFixed(1) || 'N/A'}</span>
+                        </div>
+                        <div className="tooltip-row">
+                          <span className="tooltip-label">Avg Defs/Survey:</span>
+                          <span className="tooltip-value">{info?.avgDefsPerSurvey?.toFixed(1) || 'N/A'}</span>
+                        </div>
+                        <div className="tooltip-row national">
+                          <span className="tooltip-label">National Avg:</span>
+                          <span className="tooltip-value">{heatmapData.nationalAvgDefsPerSurvey?.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Data freshness */}
+          <div className="heatmap-footer">
+            <span className="data-date">
+              Threshold data: {heatmapData.month} | Deficiency data through: {new Date(heatmapData.dataAsOf).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'trends' && trendsData && (
+        <>
+          {/* Insight Card */}
+          <div className={`threshold-insight-card ${trendsData.interpretation?.toLowerCase()}`}>
+            <div className="insight-icon">
+              {trendsData.interpretation === 'MORE_LENIENT' && <TrendingUp size={24} />}
+              {trendsData.interpretation === 'STRICTER' && <TrendingDown size={24} />}
+              {trendsData.interpretation === 'STABLE' && <Minus size={24} />}
+            </div>
+            <div className="insight-content">
+              <h5>{trendsData.state} Rating Thresholds: {trendsData.interpretation?.replace('_', ' ')}</h5>
+              <p>{trendsData.insight}</p>
+            </div>
+          </div>
+
+          {/* Trend Summary Cards */}
+          <Row className="g-3 mb-4">
+            <Col xs={12} md={4}>
+              <Card className="threshold-stat-card five-star">
+                <Card.Body>
+                  <div className="stat-header">
+                    <span className="star-badge">5 Stars</span>
+                    <span className={`change-badge ${parseFloat(trendsData.trends?.fiveStar?.changePct) > 0 ? 'up' : 'down'}`}>
+                      {parseFloat(trendsData.trends?.fiveStar?.changePct) > 0 ? '+' : ''}{trendsData.trends?.fiveStar?.changePct}%
+                    </span>
+                  </div>
+                  <div className="stat-values">
+                    <div className="stat-item">
+                      <span className="stat-label">{trendsData.dateRange?.start}</span>
+                      <span className="stat-value">≤ {trendsData.trends?.fiveStar?.start}</span>
+                    </div>
+                    <ChevronRight size={20} className="stat-arrow" />
+                    <div className="stat-item">
+                      <span className="stat-label">{trendsData.dateRange?.end}</span>
+                      <span className="stat-value">≤ {trendsData.trends?.fiveStar?.end}</span>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col xs={12} md={4}>
+              <Card className="threshold-stat-card four-star">
+                <Card.Body>
+                  <div className="stat-header">
+                    <span className="star-badge">4 Stars</span>
+                    <span className={`change-badge ${parseFloat(trendsData.trends?.fourStar?.changePct) > 0 ? 'up' : 'down'}`}>
+                      {parseFloat(trendsData.trends?.fourStar?.changePct) > 0 ? '+' : ''}{trendsData.trends?.fourStar?.changePct}%
+                    </span>
+                  </div>
+                  <div className="stat-values">
+                    <div className="stat-item">
+                      <span className="stat-label">{trendsData.dateRange?.start}</span>
+                      <span className="stat-value">≤ {trendsData.trends?.fourStar?.start}</span>
+                    </div>
+                    <ChevronRight size={20} className="stat-arrow" />
+                    <div className="stat-item">
+                      <span className="stat-label">{trendsData.dateRange?.end}</span>
+                      <span className="stat-value">≤ {trendsData.trends?.fourStar?.end}</span>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col xs={12} md={4}>
+              <Card className="threshold-stat-card three-star">
+                <Card.Body>
+                  <div className="stat-header">
+                    <span className="star-badge">3 Stars</span>
+                    <span className={`change-badge ${parseFloat(trendsData.trends?.threeStar?.changePct) > 0 ? 'up' : 'down'}`}>
+                      {parseFloat(trendsData.trends?.threeStar?.changePct) > 0 ? '+' : ''}{trendsData.trends?.threeStar?.changePct}%
+                    </span>
+                  </div>
+                  <div className="stat-values">
+                    <div className="stat-item">
+                      <span className="stat-label">{trendsData.dateRange?.start}</span>
+                      <span className="stat-value">≤ {trendsData.trends?.threeStar?.start}</span>
+                    </div>
+                    <ChevronRight size={20} className="stat-arrow" />
+                    <div className="stat-item">
+                      <span className="stat-label">{trendsData.dateRange?.end}</span>
+                      <span className="stat-value">≤ {trendsData.trends?.threeStar?.end}</span>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Trend Chart */}
+          <Card className="threshold-chart-card">
+            <Card.Header>
+              <h5><Activity size={18} /> {trendsData.state} Cutpoint History (Jan 2020 - Present)</h5>
+            </Card.Header>
+            <Card.Body>
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart data={trendsData.cutpoints} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(val) => {
+                      const [year, month] = val.split('-');
+                      return `${month}/${year.slice(2)}`;
+                    }}
+                    interval={5}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    label={{ value: 'Score Points', angle: -90, position: 'insideLeft', fontSize: 12 }}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value, name) => [value?.toFixed(1), name]}
+                    labelFormatter={(label) => `Month: ${label}`}
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="fiveStarMax" name="5-Star Max" stroke={starColors.fiveStar} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="fourStarMax" name="4-Star Max" stroke={starColors.fourStar} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="threeStarMax" name="3-Star Max" stroke={starColors.threeStar} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card.Body>
+          </Card>
+        </>
+      )}
+
+      {viewMode === 'compare' && comparisonData && (
+        <>
+          {/* National Averages */}
+          <Row className="g-3 mb-4">
+            <Col xs={12}>
+              <Card className="national-avg-card">
+                <Card.Body>
+                  <h5><Flag size={18} /> National Averages ({comparisonData.month})</h5>
+                  <div className="avg-values">
+                    <div className="avg-item">
+                      <span className="avg-label">5-Star Threshold</span>
+                      <span className="avg-value">{comparisonData.nationalAverages?.fiveStarMax?.toFixed(1)}</span>
+                    </div>
+                    <div className="avg-item">
+                      <span className="avg-label">4-Star Threshold</span>
+                      <span className="avg-value">{comparisonData.nationalAverages?.fourStarMax?.toFixed(1)}</span>
+                    </div>
+                    <div className="avg-item">
+                      <span className="avg-label">3-Star Threshold</span>
+                      <span className="avg-value">{comparisonData.nationalAverages?.threeStarMax?.toFixed(1)}</span>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* State Comparison Table */}
+          <Card className="comparison-table-card">
+            <Card.Header>
+              <h5><Layers size={18} /> State Comparison - Sorted by 5-Star Threshold (Highest to Lowest)</h5>
+              <p className="table-subtitle">Higher thresholds = easier to achieve 5 stars. States with high thresholds may have lower overall quality or more lenient surveys.</p>
+            </Card.Header>
+            <Card.Body>
+              <div className="comparison-table-wrapper">
+                <Table hover className="comparison-table">
+                  <thead>
+                    <tr>
+                      <th>State</th>
+                      <th className="text-end">5-Star Max</th>
+                      <th className="text-end">4-Star Max</th>
+                      <th className="text-end">3-Star Max</th>
+                      <th className="text-end">vs National Avg</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisonData.states?.map((state, idx) => (
+                      <tr key={state.state} className={state.state === effectiveState ? 'highlighted-row' : ''}>
+                        <td>
+                          <span className="rank-badge">{idx + 1}</span>
+                          <span className="state-code">{state.state}</span>
+                        </td>
+                        <td className="text-end">{state.fiveStarMax?.toFixed(1)}</td>
+                        <td className="text-end">{state.fourStarMax?.toFixed(1)}</td>
+                        <td className="text-end">{state.threeStarMax?.toFixed(1)}</td>
+                        <td className="text-end">
+                          <span className={`vs-avg ${parseFloat(state.vsNationalAvg) > 0 ? 'above' : 'below'}`}>
+                            {parseFloat(state.vsNationalAvg) > 0 ? '+' : ''}{state.vsNationalAvg}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            </Card.Body>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+};
+
 const ComplaintInsightsTab = () => {
   // Mock aggregate data we "have" from snf_facilities
   const previewStats = {
@@ -2549,6 +2983,12 @@ const SurveyAnalytics = () => {
                 </Nav.Link>
               </Nav.Item>
               <Nav.Item role="presentation">
+                <Nav.Link eventKey="thresholds" role="tab" aria-selected={activeTab === 'thresholds'}>
+                  <Target size={16} aria-hidden="true" />
+                  5-Star Cutoffs
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item role="presentation">
                 <Nav.Link eventKey="complaints" className="v2-tab" role="tab" aria-selected={activeTab === 'complaints'}>
                   <MessageSquare size={16} aria-hidden="true" />
                   Complaint Insights
@@ -2590,6 +3030,11 @@ const SurveyAnalytics = () => {
                   selectedState={selectedState}
                   selectedPeriod={selectedPeriod}
                   selectedDeficiencyType={selectedDeficiencyType}
+                />
+              </Tab.Pane>
+              <Tab.Pane eventKey="thresholds">
+                <RatingThresholdsTab
+                  selectedState={selectedState}
                 />
               </Tab.Pane>
               <Tab.Pane eventKey="complaints">
