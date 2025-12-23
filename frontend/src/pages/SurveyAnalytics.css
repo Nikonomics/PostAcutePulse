@@ -2012,6 +2012,45 @@
   border-radius: 0.25rem;
 }
 
+.hotspots-table .state-col {
+  font-weight: 500;
+  color: #6b7280;
+  width: 50px;
+}
+
+/* Sortable Table Styles */
+.sort-hint {
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.sortable-table thead th.sortable-col {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.sortable-table thead th.sortable-col:hover {
+  background-color: #e5e7eb;
+}
+
+.sortable-table thead th.sortable-col .sort-icon {
+  margin-left: 0.25rem;
+  vertical-align: middle;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.sortable-table thead th.sortable-col .sort-icon.active {
+  opacity: 1;
+  color: #2563eb;
+}
+
+.sortable-table thead th.sortable-col:hover .sort-icon {
+  opacity: 0.7;
+}
+
 /* Regional Sidebar */
 .regional-sidebar {
   display: flex;

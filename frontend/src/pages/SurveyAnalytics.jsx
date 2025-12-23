@@ -59,6 +59,8 @@ import {
   Layers,
   Home,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   FileQuestion,
   X,
 } from 'lucide-react';
@@ -1682,7 +1684,21 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
   const [hotSpotsData, setHotSpotsData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [level, setLevel] = useState('county'); // 'county' or 'cbsa'
+  const [sortColumn, setSortColumn] = useState('deficiencies'); // 'surveys', 'deficiencies', 'avgDefsPerSurvey'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
   const isNationalView = selectedState === 'ALL';
+
+  // Handle column sort
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+    } else {
+      // New column, default to descending
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1739,8 +1755,24 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
   const totals = isNationalView ? nationalTotal : stateTotal;
   const stateName = isNationalView ? 'National' : (US_STATES.find(s => s.code === selectedState)?.name || selectedState);
 
+  // Sort hotSpots based on current sort column and direction
+  const sortedHotSpots = [...hotSpots].sort((a, b) => {
+    const aVal = a[sortColumn];
+    const bVal = b[sortColumn];
+    const multiplier = sortDirection === 'desc' ? -1 : 1;
+    return (aVal - bVal) * multiplier;
+  });
+
   // Calculate summary stats from real data
   const totalIJ = hotSpots.reduce((sum, h) => sum + h.ijCount, 0);
+
+  // Sort indicator component
+  const SortIndicator = ({ column }) => {
+    if (sortColumn !== column) return <ChevronDown size={14} className="sort-icon inactive" />;
+    return sortDirection === 'desc'
+      ? <ChevronDown size={14} className="sort-icon active" />
+      : <ChevronUp size={14} className="sort-icon active" />;
+  };
 
   return (
     <div className="tab-content-area regional-hot-spots">
@@ -1802,26 +1834,35 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
           <h6 className="hotspots-title">
             Top {level === 'cbsa' ? 'CBSAs' : 'Counties'} by Survey Activity
           </h6>
+          <span className="sort-hint">Click column headers to sort</span>
         </Card.Header>
         <Card.Body className="hotspots-body p-0">
           <div className="table-responsive">
-            <table className="hotspots-table">
+            <table className="hotspots-table sortable-table">
               <thead>
                 <tr>
                   <th className="rank-col">#</th>
                   <th className="region-col">{level === 'cbsa' ? 'CBSA' : 'County'}</th>
                   {isNationalView && <th className="state-col">State</th>}
-                  <th className="text-end">Surveys</th>
-                  <th className="text-end">Deficiencies</th>
+                  <th className="text-end sortable-col" onClick={() => handleSort('surveys')}>
+                    Surveys <SortIndicator column="surveys" />
+                  </th>
+                  <th className="text-end sortable-col" onClick={() => handleSort('deficiencies')}>
+                    Deficiencies <SortIndicator column="deficiencies" />
+                  </th>
                   <th className="text-end">Facilities</th>
-                  <th className="text-end">Avg/Survey</th>
-                  <th className="text-end">IJ</th>
+                  <th className="text-end sortable-col" onClick={() => handleSort('avgDefsPerSurvey')}>
+                    Avg/Survey <SortIndicator column="avgDefsPerSurvey" />
+                  </th>
+                  <th className="text-end sortable-col" onClick={() => handleSort('ijCount')}>
+                    IJ <SortIndicator column="ijCount" />
+                  </th>
                   <th className="text-end">{isNationalView ? '% of National' : '% of State'}</th>
                 </tr>
               </thead>
               <tbody>
-                {hotSpots.map((spot, idx) => (
-                  <tr key={spot.code || `${spot.name}-${spot.state}`} className={idx < 3 ? 'top-region' : ''}>
+                {sortedHotSpots.map((spot, idx) => (
+                  <tr key={spot.code || `${spot.name}-${spot.state}`}>
                     <td className="rank-col">{idx + 1}</td>
                     <td className="region-col">
                       <span className="region-name">{spot.name}</span>

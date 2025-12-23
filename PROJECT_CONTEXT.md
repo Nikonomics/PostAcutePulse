@@ -1195,6 +1195,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1322,6 +1323,7 @@ ui
 benchmark_configurations
 cascadia_facility
 comment_mentions
+custom_reports
 deal_change_logs
 deal_comments
 deal_documents
@@ -1361,6 +1363,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/add-custom-reports-table.js
 backend/migrations/add-user-invitations-table.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-facility-comments-tables.js
@@ -1370,7 +1373,6 @@ backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/add-deals-position-column.js
 backend/migrations/add-cms-facility-saved-items.js
-backend/migrations/create-cms-data-definitions.js
 ```
 
 ---

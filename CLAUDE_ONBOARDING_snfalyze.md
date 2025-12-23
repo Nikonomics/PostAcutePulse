@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 21:41:24
+> Last updated: 2025-12-22 21:56:35
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1519,6 +1519,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1646,6 +1647,7 @@ ui
 benchmark_configurations
 cascadia_facility
 comment_mentions
+custom_reports
 deal_change_logs
 deal_comments
 deal_documents
@@ -1685,6 +1687,7 @@ users
 
 ### Recent Migrations
 ```
+backend/migrations/add-custom-reports-table.js
 backend/migrations/add-user-invitations-table.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-facility-comments-tables.js
@@ -1694,7 +1697,6 @@ backend/migrations/20241218-create-vbp-rankings-table.js
 backend/migrations/20241218-add-ccn-to-deal-facilities.js
 backend/migrations/add-deals-position-column.js
 backend/migrations/add-cms-facility-saved-items.js
-backend/migrations/create-cms-data-definitions.js
 ```
 
 ---
@@ -1719,6 +1721,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add Survey Patterns tab to Survey Analytics
 - **2025-12-22** - Fix deficiency type filtering in Survey Analytics
 - **2025-12-22** - Enable deficiency type filtering in Survey Analytics
 - **2025-12-22** - Add state selector to Rating Thresholds State Trends view
@@ -1748,7 +1751,6 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
 - **2025-12-22** - Add App Help chatbot with floating widget UI
-- **2025-12-22** - Fix: Use persistent disk for file uploads on Render
 
 
 ### Areas Modified (Last 20 Commits)
