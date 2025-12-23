@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add sortable columns and national view to Regional Hot Spots tab
 - **2025-12-22** - Add Survey Patterns tab to Survey Analytics
 - **2025-12-22** - Fix deficiency type filtering in Survey Analytics
 - **2025-12-22** - Enable deficiency type filtering in Survey Analytics
@@ -41,14 +42,13 @@
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
-- **2025-12-22** - Add App Help chatbot with floating widget UI
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     6 files
-Frontend:    24 files
+Frontend:    26 files
 Routes:      2 files
 Services:    1 files
 Components:  11 files

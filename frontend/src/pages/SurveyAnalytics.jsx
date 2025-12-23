@@ -1706,10 +1706,11 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
       try {
         let response;
         if (isNationalView) {
-          // Fetch national-level hot spots
-          response = await getNationalHotSpots(selectedPeriod, level, selectedDeficiencyType);
+          // Fetch national-level hot spots with backend sorting
+          // Pass sortColumn to get top 25 by that metric (e.g., avgDefsPerSurvey shows Boise)
+          response = await getNationalHotSpots(selectedPeriod, level, selectedDeficiencyType, sortColumn);
         } else {
-          // Fetch state-specific hot spots
+          // Fetch state-specific hot spots (frontend sorting only)
           response = await getRegionalHotSpots(selectedState, selectedPeriod, level, selectedDeficiencyType);
         }
         if (response.success) {
@@ -1725,7 +1726,7 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
       }
     };
     fetchData();
-  }, [selectedState, selectedPeriod, level, selectedDeficiencyType, isNationalView]);
+  }, [selectedState, selectedPeriod, level, selectedDeficiencyType, isNationalView, sortColumn]);
 
   // Show loading state
   if (isLoading) {
@@ -1783,7 +1784,7 @@ const RegionalHotSpotsTab = ({ data, selectedState, selectedPeriod, selectedDefi
             {isNationalView ? 'National Survey Hot Spots' : `${stateName} Regional Activity`}
           </h4>
           <p className="regional-subtitle">
-            {isNationalView ? `Top ${level === 'cbsa' ? 'CBSAs' : 'counties'} by deficiency count` : `Survey hot spots by ${level === 'cbsa' ? 'CBSA' : 'county'}`}
+            {isNationalView ? `Top ${level === 'cbsa' ? 'CBSAs' : 'counties'} by ${sortColumn === 'surveys' ? 'survey count' : sortColumn === 'avgDefsPerSurvey' ? 'avg deficiencies per survey' : 'deficiency count'}` : `Survey hot spots by ${level === 'cbsa' ? 'CBSA' : 'county'}`}
             {dataAsOf && (
               <span className="data-freshness-badge" title="Most recent survey data">
                 Data as of {new Date(dataAsOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

@@ -99,10 +99,11 @@ export const getRegionalHotSpots = async (stateCode, period = '90days', level = 
  * @param {string} period - Time period: '30days', '90days', '12months'
  * @param {string} level - Geographic level: 'county' or 'cbsa'
  * @param {string} deficiencyType - Filter: 'all', 'standard', 'complaint', 'infection'
+ * @param {string} sortBy - Sort by: 'deficiencies', 'surveys', 'avgDefsPerSurvey'
  * @returns {Promise<Object>} National hot spots data with state info
  */
-export const getNationalHotSpots = async (period = '90days', level = 'county', deficiencyType = 'all') => {
-  const response = await apiService.get(`${SURVEY_BASE}/regional-hotspots/national`, { period, level, deficiencyType });
+export const getNationalHotSpots = async (period = '90days', level = 'county', deficiencyType = 'all', sortBy = 'deficiencies') => {
+  const response = await apiService.get(`${SURVEY_BASE}/regional-hotspots/national`, { period, level, deficiencyType, sortBy });
   return response.data;
 };
 

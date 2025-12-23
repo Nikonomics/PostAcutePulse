@@ -838,11 +838,23 @@ router.get('/deficiency/:tag', async (req, res) => {
  * - period: '30days' | '90days' | '12months' | 'all' (default: '90days')
  * - level: 'county' | 'cbsa' (default: 'county')
  * - deficiencyType: 'all' | 'standard' | 'complaint' | 'infection' (default: 'all')
+ * - sortBy: 'deficiencies' | 'surveys' | 'avgDefsPerSurvey' (default: 'deficiencies')
  */
 router.get('/regional-hotspots/national', async (req, res) => {
-  const { period = '90days', level = 'county', deficiencyType = 'all' } = req.query;
+  const { period = '90days', level = 'county', deficiencyType = 'all', sortBy = 'deficiencies' } = req.query;
   const pool = getSurveyPool();
   const typeFilter = buildDeficiencyTypeFilter(deficiencyType);
+
+  // Map sortBy to SQL column names
+  const sortColumnMap = {
+    'deficiencies': 'deficiencies DESC',
+    'surveys': 'surveys DESC',
+    'avgDefsPerSurvey': 'avg_defs_per_survey DESC'
+  };
+  const orderByClause = sortColumnMap[sortBy] || 'deficiencies DESC';
+
+  // Minimum surveys threshold when sorting by rate (to avoid tiny samples with skewed averages)
+  const minSurveys = sortBy === 'avgDefsPerSurvey' ? 10 : 1;
 
   try {
     // Get the most recent data date
@@ -882,7 +894,8 @@ router.get('/regional-hotspots/national', async (req, res) => {
           ij_count,
           ROUND((ij_count::numeric / NULLIF(deficiencies, 0)) * 100, 1) as ij_pct
         FROM cbsa_stats
-        ORDER BY deficiencies DESC
+        WHERE surveys >= ${minSurveys}
+        ORDER BY ${orderByClause}
         LIMIT 25
       `, [maxDate]);
 
@@ -950,7 +963,8 @@ router.get('/regional-hotspots/national', async (req, res) => {
           ij_count,
           ROUND((ij_count::numeric / NULLIF(deficiencies, 0)) * 100, 1) as ij_pct
         FROM county_stats
-        ORDER BY deficiencies DESC
+        WHERE surveys >= ${minSurveys}
+        ORDER BY ${orderByClause}
         LIMIT 25
       `, [maxDate]);
 

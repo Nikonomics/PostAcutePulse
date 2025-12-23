@@ -1196,6 +1196,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1206,6 +1207,7 @@ backend/routes/apiUsers.js
 backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
+backend/routes/customReports.js
 backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
@@ -1249,6 +1251,7 @@ backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
 backend/services/ratioCalculator.js
+backend/services/reportQueryEngine.js
 ```
 
 ### Backend Controllers
@@ -1268,6 +1271,7 @@ frontend/src/pages/CombinedDealForm.jsx
 frontend/src/pages/CreateDeal.jsx
 frontend/src/pages/CreateDealChoice.jsx
 frontend/src/pages/CreateUser.jsx
+frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
 frontend/src/pages/DealDetail.jsx
 frontend/src/pages/Deals.jsx
@@ -1300,6 +1304,7 @@ No pages found
 ActivityHistory
 AppHelpPanel
 common
+CustomReportBuilder
 DataDictionaryTab
 DealExtractionViewer
 DealRegulatoryRisk

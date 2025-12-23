@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 21:56:35
+> Last updated: 2025-12-22 22:06:24
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1520,6 +1520,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1530,6 +1531,7 @@ backend/routes/apiUsers.js
 backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
+backend/routes/customReports.js
 backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
@@ -1573,6 +1575,7 @@ backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
 backend/services/ratioCalculator.js
+backend/services/reportQueryEngine.js
 ```
 
 ### Backend Controllers
@@ -1592,6 +1595,7 @@ frontend/src/pages/CombinedDealForm.jsx
 frontend/src/pages/CreateDeal.jsx
 frontend/src/pages/CreateDealChoice.jsx
 frontend/src/pages/CreateUser.jsx
+frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
 frontend/src/pages/DealDetail.jsx
 frontend/src/pages/Deals.jsx
@@ -1624,6 +1628,7 @@ No pages found
 ActivityHistory
 AppHelpPanel
 common
+CustomReportBuilder
 DataDictionaryTab
 DealExtractionViewer
 DealRegulatoryRisk
@@ -1721,6 +1726,7 @@ backend/migrations/add-cms-facility-saved-items.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add sortable columns and national view to Regional Hot Spots tab
 - **2025-12-22** - Add Survey Patterns tab to Survey Analytics
 - **2025-12-22** - Fix deficiency type filtering in Survey Analytics
 - **2025-12-22** - Enable deficiency type filtering in Survey Analytics
@@ -1750,14 +1756,13 @@ backend/migrations/add-cms-facility-saved-items.js
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 - **2025-12-22** - Fix ownership API database connections for dual-DB architecture
-- **2025-12-22** - Add App Help chatbot with floating widget UI
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     6 files
-Frontend:    24 files
+Frontend:    26 files
 Routes:      2 files
 Services:    1 files
 Components:  11 files
@@ -4308,6 +4313,9 @@ Solve for IRR using Newton-Raphson method
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hookform/resolvers": "^5.1.1",
@@ -4402,6 +4410,7 @@ backend/routes/apiUsers.js
 backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
+backend/routes/customReports.js
 backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
@@ -4443,6 +4452,7 @@ backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
 backend/services/ratioCalculator.js
+backend/services/reportQueryEngine.js
 
 Frontend Pages:
 frontend/src/pages/AcceptInvite.jsx
@@ -4452,6 +4462,7 @@ frontend/src/pages/CombinedDealForm.jsx
 frontend/src/pages/CreateDeal.jsx
 frontend/src/pages/CreateDealChoice.jsx
 frontend/src/pages/CreateUser.jsx
+frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
 frontend/src/pages/DealDetail.jsx
 frontend/src/pages/Deals.jsx
