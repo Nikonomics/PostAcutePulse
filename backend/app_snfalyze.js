@@ -60,22 +60,12 @@ const EventMatches = db.event_matches;
 db.sequelize.sync().then(async () => {
   console.log('Database synced successfully');
 
-  // Run migrations for missing columns
+  // Run any pending migrations automatically
   try {
-    const [results] = await db.sequelize.query(`
-      SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'deal_facilities' AND column_name = 'county'
-    `);
-
-    if (results.length === 0) {
-      console.log('Adding missing county column to deal_facilities...');
-      await db.sequelize.query(`
-        ALTER TABLE deal_facilities ADD COLUMN IF NOT EXISTS county VARCHAR(255)
-      `);
-      console.log('Added county column to deal_facilities');
-    }
+    const { runPendingMigrations } = require('./services/migrationRunner');
+    await runPendingMigrations(db.sequelize);
   } catch (migrationErr) {
-    console.error('Migration check error:', migrationErr.message);
+    console.error('Migration runner error:', migrationErr.message);
   }
 
   // Ensure default admin user exists

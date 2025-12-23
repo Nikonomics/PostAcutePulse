@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 22:44:03
+> Last updated: 2025-12-23 09:17:52
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1522,6 +1522,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1569,6 +1570,7 @@ backend/services/extractionValidator.js
 backend/services/facilityMatcher.js
 backend/services/fileStorage.js
 backend/services/marketService.js
+backend/services/migrationRunner.js
 backend/services/normalizationService.js
 backend/services/notificationService.js
 backend/services/parallelExtractor.js
@@ -1715,7 +1717,7 @@ backend/migrations/add-cms-facility-saved-items.js
 ```markdown
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 22, 2025
+**Last Updated:** December 23, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -1727,6 +1729,7 @@ backend/migrations/add-cms-facility-saved-items.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
 - **2025-12-22** - Add backend-level sorting for national regional hotspots
 - **2025-12-22** - Add sortable columns and national view to Regional Hot Spots tab
 - **2025-12-22** - Add Survey Patterns tab to Survey Analytics
@@ -1756,17 +1759,16 @@ backend/migrations/add-cms-facility-saved-items.js
 - **2025-12-22** - Fix SQL errors in facilities endpoints
 - **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
-- **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     10 files
-Frontend:    35 files
+Backend:     11 files
+Frontend:    30 files
 Routes:      3 files
 Services:    2 files
-Components:  17 files
+Components:  13 files
 Migrations:  1 files
 ```
 
@@ -1778,6 +1780,7 @@ backend/models/custom_reports.js
 backend/routes/customReports.js
 backend/routes/facilityRisk.js
 backend/scripts/import-cutpoints.js
+backend/services/migrationRunner.js
 backend/services/reportQueryEngine.js
 docs/Deal_Metrics_Explainer.md
 frontend/src/api/customReportsService.js
@@ -1787,7 +1790,6 @@ frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
 frontend/src/components/CustomReportBuilder/ResultsTable.jsx
 frontend/src/components/CustomReportBuilder/index.js
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
-frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.jsx
 ```
 
 ---
@@ -4450,6 +4452,7 @@ backend/services/extractionValidator.js
 backend/services/facilityMatcher.js
 backend/services/fileStorage.js
 backend/services/marketService.js
+backend/services/migrationRunner.js
 backend/services/normalizationService.js
 backend/services/notificationService.js
 backend/services/parallelExtractor.js

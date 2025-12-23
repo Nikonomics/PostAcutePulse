@@ -1198,6 +1198,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1245,6 +1246,7 @@ backend/services/extractionValidator.js
 backend/services/facilityMatcher.js
 backend/services/fileStorage.js
 backend/services/marketService.js
+backend/services/migrationRunner.js
 backend/services/normalizationService.js
 backend/services/notificationService.js
 backend/services/parallelExtractor.js
