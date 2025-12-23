@@ -170,6 +170,7 @@ var userRouter = require('./routes/user');
 var surveyIntelligenceRouter = require('./routes/surveyIntelligence');
 var surveyRouter = require('./routes/survey');
 var facilityRiskRouter = require('./routes/facilityRisk');
+var customReportsRouter = require('./routes/customReports');
 
 app.use(fileUpload());
 
@@ -238,6 +239,9 @@ app.use('/api/v1/saved-items', savedItemsRouter);
 
 // User API routes (activity feed, associated deals)
 app.use('/api/v1/user', userRouter);
+
+// Custom Reports API routes (report builder)
+app.use('/api/v1/custom-reports', customReportsRouter);
 
 // File serving route for uploaded documents
 app.get('/api/v1/files/*', DealController.serveFile);

@@ -36,6 +36,7 @@ import SurveyAnalytics from "./pages/SurveyAnalytics";
 import SavedItems from "./pages/SavedItems";
 import DataDictionaryTab from "./components/DataDictionaryTab/DataDictionaryTab";
 import MAIntelligence from "./pages/MAIntelligence";
+import CustomReportBuilder from "./pages/CustomReportBuilder";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePageTracking } from "./analytics";
 
@@ -329,6 +330,15 @@ function App() {
           element={
             <ProtectedRoute>
               <DataDictionaryTab />
+            </ProtectedRoute>
+          }
+        />
+        {/* Custom Report Builder route */}
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <CustomReportBuilder />
             </ProtectedRoute>
           }
         />

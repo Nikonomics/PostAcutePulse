@@ -16,6 +16,7 @@ import {
   ClipboardList,
   BookOpen,
   ArrowLeftRight,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -31,6 +32,7 @@ const Sidebar = ({ isOpen }) => {
     { path: '/ma-intelligence', icon: ArrowLeftRight, label: 'M&A Intelligence' },
     { path: '/facility-metrics', icon: Activity, label: 'Facility Metrics' },
     { path: '/survey-analytics', icon: ClipboardList, label: 'Survey Analytics' },
+    { path: '/reports', icon: LayoutDashboard, label: 'Report Builder' },
     { path: '/data-dictionary', icon: BookOpen, label: 'Data Dictionary' },
     { path: '/saved-items', icon: Bookmark, label: 'My Saved Items' },
     { path: '/user-management', icon: User, label: 'User Management' },
@@ -42,9 +44,9 @@ const Sidebar = ({ isOpen }) => {
   if (user?.role === 'admin') {
     menuItems = allMenuItems;
   } else {
-    // Only show dashboard, deals, market analysis, ownership research, ma-intelligence, facility metrics, survey analytics, data dictionary, saved items, ai tabs for non-admins
+    // Only show dashboard, deals, market analysis, ownership research, ma-intelligence, facility metrics, survey analytics, reports, data dictionary, saved items, ai tabs for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/ma-intelligence', '/facility-metrics', '/survey-analytics', '/data-dictionary', '/saved-items', '/ai-deals'].includes(item.path)
+      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/ma-intelligence', '/facility-metrics', '/survey-analytics', '/reports', '/data-dictionary', '/saved-items', '/ai-deals'].includes(item.path)
     );
   }
 

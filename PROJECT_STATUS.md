@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add backend-level sorting for national regional hotspots
 - **2025-12-22** - Add sortable columns and national view to Regional Hot Spots tab
 - **2025-12-22** - Add Survey Patterns tab to Survey Analytics
 - **2025-12-22** - Fix deficiency type filtering in Survey Analytics
@@ -41,34 +42,37 @@
 - **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
 - **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 - **2025-12-22** - Connect Survey Analytics tab to real CMS deficiency data
-- **2025-12-22** - Fix ownership API database connections for dual-DB architecture
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     6 files
-Frontend:    26 files
-Routes:      2 files
-Services:    1 files
-Components:  11 files
-Migrations:  0
-0 files
+Backend:     10 files
+Frontend:    35 files
+Routes:      3 files
+Services:    2 files
+Components:  17 files
+Migrations:  1 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
+backend/migrations/add-custom-reports-table.js
+backend/models/custom_reports.js
+backend/routes/customReports.js
 backend/routes/facilityRisk.js
 backend/scripts/import-cutpoints.js
+backend/services/reportQueryEngine.js
 docs/Deal_Metrics_Explainer.md
+frontend/src/api/customReportsService.js
+frontend/src/components/CustomReportBuilder/CustomReportBuilder.css
+frontend/src/components/CustomReportBuilder/FieldPalette.jsx
+frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
+frontend/src/components/CustomReportBuilder/ResultsTable.jsx
+frontend/src/components/CustomReportBuilder/index.js
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.jsx
-frontend/src/components/DealRegulatoryRisk/index.js
-frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.css
-frontend/src/components/RegulatoryRiskCard/RegulatoryRiskCard.jsx
-frontend/src/components/RegulatoryRiskCard/index.js
-frontend/src/components/SNFalyzePanel/SNFalyzePanel.css
 ```
 
 ---
