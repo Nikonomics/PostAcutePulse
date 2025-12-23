@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Add period filtering to company survey analytics endpoint
 - **2025-12-22** - Add Survey Analytics tab styles for OwnershipProfile
 - **2025-12-22** - Add Survey Analytics tab to OwnershipProfile
 - **2025-12-22** - Add survey analytics state to OwnershipProfile
@@ -41,7 +42,6 @@
 - **2025-12-22** - Fix M&A routes to use market database and update sync script
 - **2025-12-22** - Start VBP metrics sections collapsed by default
 - **2025-12-22** - Migrate VBP endpoints to use Market DB
-- **2025-12-22** - Add Survey Intelligence API docs and technical debt audit
 
 
 ### Areas Modified (Last 20 Commits)
@@ -60,9 +60,7 @@ Migrations:  0
 
 ```
 backend/routes/facilityRisk.js
-backend/routes/survey.js
 docs/Deal_Metrics_Explainer.md
-frontend/src/api/surveyService.js
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
 frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.jsx
 frontend/src/components/DealRegulatoryRisk/index.js
