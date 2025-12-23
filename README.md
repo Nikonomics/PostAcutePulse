@@ -286,6 +286,38 @@ See **[backend/scripts/README.md](backend/scripts/README.md)** for:
 
 ---
 
+## Database Migrations (IMPORTANT!)
+
+When you change database schema (add/remove columns, create tables), you need **both**:
+1. Update the Sequelize model file (`backend/models/`)
+2. Create a migration file (`backend/migrations/`)
+
+### Why?
+- **Code** (models, routes) deploys via GitHub → Render
+- **Database schema** requires explicit SQL commands
+- Migrations run automatically on app startup
+
+### Quick Example
+Adding a new column? Create `backend/migrations/20241223-add-my-column.js`:
+
+```javascript
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.addColumn('my_table', 'my_column', {
+      type: Sequelize.STRING(255),
+      allowNull: true
+    });
+  }
+};
+```
+
+### Automatic Reminder
+The pre-commit hook will warn you when model files change without a migration.
+
+See **[backend/DATABASE_MIGRATIONS.md](backend/DATABASE_MIGRATIONS.md)** for the full guide.
+
+---
+
 ## Troubleshooting
 
 **"Cannot find module 'sqlite3'"**

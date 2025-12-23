@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-23** - Add automatic migration runner on app startup
 - **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
 - **2025-12-22** - Add backend-level sorting for national regional hotspots
 - **2025-12-22** - Add sortable columns and national view to Regional Hot Spots tab
@@ -41,13 +42,12 @@
 - **2025-12-22** - Fix survey.js column name: provider_name → facility_name
 - **2025-12-22** - Fix SQL errors in facilities endpoints
 - **2025-12-22** - Fix facilities endpoints to use correct Market DB tables
-- **2025-12-22** - Connect Survey Intelligence tab to real CMS deficiency data
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     11 files
+Backend:     12 files
 Frontend:    30 files
 Routes:      3 files
 Services:    2 files
@@ -58,6 +58,7 @@ Migrations:  1 files
 ### New Files Added (Last 20 Commits)
 
 ```
+backend/DATABASE_MIGRATIONS.md
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
 backend/routes/customReports.js
@@ -72,7 +73,6 @@ frontend/src/components/CustomReportBuilder/FieldPalette.jsx
 frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
 frontend/src/components/CustomReportBuilder/ResultsTable.jsx
 frontend/src/components/CustomReportBuilder/index.js
-frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
 ```
 
 ---
