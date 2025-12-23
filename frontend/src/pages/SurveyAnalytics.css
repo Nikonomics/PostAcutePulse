@@ -1051,9 +1051,71 @@
    State Deep Dive Tab Styles
    ======================================== */
 
-/* State Header */
-.state-deep-dive .state-header {
+/* State Header Row with View Toggle */
+.state-deep-dive .state-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.state-deep-dive .state-header {
+  margin-bottom: 0;
+}
+
+/* State Trends View */
+.state-trends-view {
+  margin-top: 1rem;
+}
+
+.state-trends-view .trend-chart-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.state-trends-view .trend-chart-card .card-header {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem 1.25rem;
+}
+
+.state-trends-view .trend-chart-card .card-header h5 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.state-trends-view .trend-chart-card .chart-subtitle {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.state-trends-view .trend-chart-card .card-body {
+  padding: 1.25rem;
+}
+
+.state-trends-view .no-trend-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.state-trends-view .no-trend-data p {
+  margin: 1rem 0 0 0;
+  font-size: 0.9375rem;
 }
 
 .state-deep-dive .state-title {
@@ -3501,6 +3563,63 @@
   .coming-soon-footer {
     display: none;
   }
+}
+
+/* ============================================================================
+   NATIONAL TAB STYLES
+   ============================================================================ */
+
+.national-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.national-header .overview-intro {
+  margin-bottom: 0;
+}
+
+.national-header .overview-intro p {
+  margin: 0;
+}
+
+/* National Trends View */
+.national-trends-view {
+  margin-top: 1rem;
+}
+
+.trend-chart-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.trend-chart-card .card-header {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem 1.25rem;
+}
+
+.trend-chart-card .card-header h5 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.trend-chart-card .chart-subtitle {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.trend-chart-card .card-body {
+  padding: 1rem;
 }
 
 /* ============================================================================

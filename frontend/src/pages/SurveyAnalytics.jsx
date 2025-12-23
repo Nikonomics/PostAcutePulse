@@ -491,11 +491,12 @@ const SurveyVolumeChart = ({ data }) => {
 };
 
 /**
- * National Overview Tab Content
+ * National Tab Content - with Overview and Trends views
  */
 const NationalOverviewTab = ({ data, selectedState, selectedPeriod, selectedDeficiencyType }) => {
   const [overviewData, setOverviewData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('overview'); // 'overview' or 'trends'
 
   useEffect(() => {
     const fetchData = async () => {
@@ -523,7 +524,7 @@ const NationalOverviewTab = ({ data, selectedState, selectedPeriod, selectedDefi
       <div className="tab-content-area">
         <div className="overview-loading">
           <Loader2 size={32} className="spin" />
-          <p>Loading national overview data...</p>
+          <p>Loading national data...</p>
         </div>
       </div>
     );
@@ -544,30 +545,138 @@ const NationalOverviewTab = ({ data, selectedState, selectedPeriod, selectedDefi
 
   return (
     <div className="tab-content-area national-overview">
-      <div className="overview-intro">
-        <p>
-          Showing {selectedState === 'ALL' ? 'national' : selectedState} survey trends
-          for the <strong>{periodLabel.toLowerCase()}</strong>.
-        </p>
+      {/* View Toggle */}
+      <div className="national-header">
+        <div className="overview-intro">
+          <p>
+            Showing {selectedState === 'ALL' ? 'national' : selectedState} survey data
+            for the <strong>{periodLabel.toLowerCase()}</strong>.
+          </p>
+        </div>
+        <div className="view-toggle">
+          <button
+            className={`toggle-btn ${viewMode === 'overview' ? 'active' : ''}`}
+            onClick={() => setViewMode('overview')}
+          >
+            <BarChart3 size={16} /> Overview
+          </button>
+          <button
+            className={`toggle-btn ${viewMode === 'trends' ? 'active' : ''}`}
+            onClick={() => setViewMode('trends')}
+          >
+            <TrendingUp size={16} /> Trends
+          </button>
+        </div>
       </div>
 
-      {/* Key Insights - prominent at top */}
-      <KeyInsightsBox insights={overviewData.insights} />
+      {viewMode === 'overview' && (
+        <>
+          {/* Key Insights - prominent at top */}
+          <KeyInsightsBox insights={overviewData.insights} />
 
-      {/* Charts Row */}
-      <Row className="g-4 mt-2">
-        <Col xs={12} lg={6}>
-          <TopFTagsChart data={overviewData.topFTags} />
-        </Col>
-        <Col xs={12} lg={6}>
-          <SurveyVolumeChart data={overviewData.monthlyVolume} />
-        </Col>
-      </Row>
+          {/* Charts Row */}
+          <Row className="g-4 mt-2">
+            <Col xs={12} lg={6}>
+              <TopFTagsChart data={overviewData.topFTags} />
+            </Col>
+            <Col xs={12} lg={6}>
+              <SurveyVolumeChart data={overviewData.monthlyVolume} />
+            </Col>
+          </Row>
 
-      {/* F-Tag Trend Table */}
-      <div className="mt-4">
-        <FTagTrendTable data={overviewData.topFTags} />
-      </div>
+          {/* F-Tag Trend Table */}
+          <div className="mt-4">
+            <FTagTrendTable data={overviewData.topFTags} />
+          </div>
+        </>
+      )}
+
+      {viewMode === 'trends' && (
+        <div className="national-trends-view">
+          {/* IJ Rate Trend Chart */}
+          <Card className="trend-chart-card mb-4">
+            <Card.Header>
+              <h5><AlertTriangle size={18} /> IJ Rate Trend (% of Deficiencies)</h5>
+              <p className="chart-subtitle">Immediate Jeopardy citations as percentage of all deficiencies</p>
+            </Card.Header>
+            <Card.Body>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={overviewData.monthlyVolume} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(val) => {
+                      const [year, month] = val.split('-');
+                      return `${month}/${year.slice(2)}`;
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(val) => `${val}%`}
+                    domain={[0, 'auto']}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value) => [`${value?.toFixed(2)}%`, 'IJ Rate']}
+                    labelFormatter={(label) => `Month: ${label}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ijRatePct"
+                    name="IJ Rate %"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    dot={{ fill: '#dc2626', r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card.Body>
+          </Card>
+
+          {/* Avg Deficiencies per Survey Trend Chart */}
+          <Card className="trend-chart-card">
+            <Card.Header>
+              <h5><ClipboardList size={18} /> Deficiencies per Survey Trend</h5>
+              <p className="chart-subtitle">Average number of deficiencies cited per survey</p>
+            </Card.Header>
+            <Card.Body>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={overviewData.monthlyVolume} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(val) => {
+                      const [year, month] = val.split('-');
+                      return `${month}/${year.slice(2)}`;
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    domain={[0, 'auto']}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value) => [value?.toFixed(1), 'Avg Defs/Survey']}
+                    labelFormatter={(label) => `Month: ${label}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="avgDefsPerSurvey"
+                    name="Avg Defs/Survey"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    dot={{ fill: '#2563eb', r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card.Body>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
@@ -829,6 +938,7 @@ const StateInsightsBox = ({ insights, stateName }) => {
 const StateDeepDiveTab = ({ data, selectedState, selectedPeriod, selectedDeficiencyType }) => {
   const [stateData, setStateData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('overview'); // 'overview' or 'trends'
 
   // Facilities list state
   const [facilitiesData, setFacilitiesData] = useState(null);
@@ -942,20 +1052,38 @@ const StateDeepDiveTab = ({ data, selectedState, selectedPeriod, selectedDeficie
     );
   }
 
-  const { comparison, ftagPriorities, dayOfWeekDistribution, insights, stateName, peakDay, peakDayPct, nationalPeakPct } = stateData;
+  const { comparison, ftagPriorities, dayOfWeekDistribution, insights, stateName, peakDay, peakDayPct, nationalPeakPct, monthlyTrends } = stateData;
 
   return (
     <div className="tab-content-area state-deep-dive">
-      <div className="state-header">
-        <h4 className="state-title">
-          <MapPin size={20} />
-          {stateName} Survey Analytics
-        </h4>
-        <p className="state-subtitle">
-          Detailed metrics compared to national averages
-        </p>
+      <div className="state-header-row">
+        <div className="state-header">
+          <h4 className="state-title">
+            <MapPin size={20} />
+            {stateName} Survey Analytics
+          </h4>
+          <p className="state-subtitle">
+            Detailed metrics compared to national averages
+          </p>
+        </div>
+        <div className="view-toggle">
+          <button
+            className={`toggle-btn ${viewMode === 'overview' ? 'active' : ''}`}
+            onClick={() => setViewMode('overview')}
+          >
+            <BarChart3 size={16} /> Overview
+          </button>
+          <button
+            className={`toggle-btn ${viewMode === 'trends' ? 'active' : ''}`}
+            onClick={() => setViewMode('trends')}
+          >
+            <TrendingUp size={16} /> Trends
+          </button>
+        </div>
       </div>
 
+      {viewMode === 'overview' && (
+      <>
       {/* Comparison Cards Row */}
       <Row className="g-2 mb-3">
         <Col xs={4}>
@@ -1124,6 +1252,114 @@ const StateDeepDiveTab = ({ data, selectedState, selectedPeriod, selectedDeficie
           )}
         </Card.Body>
       </Card>
+      </>
+      )}
+
+      {viewMode === 'trends' && (
+        <div className="state-trends-view">
+          {/* Deficiencies per Survey Trend Chart */}
+          <Card className="trend-chart-card mb-4">
+            <Card.Header>
+              <h5><ClipboardList size={18} /> Deficiencies per Survey</h5>
+              <p className="chart-subtitle">Average number of deficiencies cited per survey</p>
+            </Card.Header>
+            <Card.Body>
+              {monthlyTrends && monthlyTrends.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={monthlyTrends} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(val) => {
+                        const [year, month] = val.split('-');
+                        return `${month}/${year.slice(2)}`;
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      domain={[0, 'auto']}
+                    />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                      formatter={(value) => [value?.toFixed(1), 'Avg Deficiencies']}
+                      labelFormatter={(label) => `Month: ${label}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="avgDefsPerSurvey"
+                      name="Avg Defs/Survey"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      dot={{ fill: '#2563eb', r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="no-trend-data">
+                  <TrendingUp size={32} strokeWidth={1.5} />
+                  <p>No monthly trend data available for this period</p>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+
+          {/* Complaint Surveys per Facility Trend Chart */}
+          <Card className="trend-chart-card">
+            <Card.Header>
+              <h5><MessageSquare size={18} /> Complaint Surveys per Facility</h5>
+              <p className="chart-subtitle">Ratio of complaint surveys to total facilities in {stateName}</p>
+            </Card.Header>
+            <Card.Body>
+              {monthlyTrends && monthlyTrends.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={monthlyTrends} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(val) => {
+                        const [year, month] = val.split('-');
+                        return `${month}/${year.slice(2)}`;
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      domain={[0, 'auto']}
+                    />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                      formatter={(value, name, props) => {
+                        const { payload } = props;
+                        return [
+                          `${value?.toFixed(2)} (${payload.complaintSurveys} surveys / ${payload.facilityCount} facilities)`,
+                          'Complaints/Facility'
+                        ];
+                      }}
+                      labelFormatter={(label) => `Month: ${label}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="complaintSurveysPerFacility"
+                      name="Complaints/Facility"
+                      stroke="#dc2626"
+                      strokeWidth={2}
+                      dot={{ fill: '#dc2626', r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="no-trend-data">
+                  <TrendingUp size={32} strokeWidth={1.5} />
+                  <p>No monthly trend data available for this period</p>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </div>
+      )}
 
       {/* Deficiency Details Modal */}
       {selectedDeficiency && (
@@ -3015,7 +3251,7 @@ const SurveyAnalytics = () => {
               <Nav.Item role="presentation">
                 <Nav.Link eventKey="national" role="tab" aria-selected={activeTab === 'national'}>
                   <BarChart3 size={16} aria-hidden="true" />
-                  National Overview
+                  National
                 </Nav.Link>
               </Nav.Item>
               <Nav.Item role="presentation">

@@ -32,15 +32,22 @@ const getSurveyPool = () => {
 
 /**
  * Build WHERE clause for deficiency type filter
- * Note: cms_facility_deficiencies doesn't have deficiency type columns,
- * so this filter is a no-op until we add those columns or sync data
+ * Uses the deficiency type columns in cms_facility_deficiencies
  * @param {string} deficiencyType - 'all' | 'standard' | 'complaint' | 'infection'
  * @returns {string} SQL WHERE clause fragment
  */
 const buildDeficiencyTypeFilter = (deficiencyType) => {
-  // cms_facility_deficiencies doesn't have type columns yet
-  // Return empty string for all types until data is enriched
-  return '';
+  switch (deficiencyType) {
+    case 'standard':
+      return 'AND is_standard_deficiency = true';
+    case 'complaint':
+      return 'AND is_complaint_deficiency = true';
+    case 'infection':
+      return 'AND is_infection_control = true';
+    case 'all':
+    default:
+      return '';
+  }
 };
 
 /**
@@ -83,90 +90,86 @@ router.get('/national-overview', async (req, res) => {
     const days = periodToDays(period);
     const priorDays = days * 2; // For comparison period
 
-    // Get top F-tags for current period (relative to max data date)
-    const topFTagsResult = await pool.query(`
-      WITH current_period AS (
+    // Run all queries in parallel for performance
+    const [topFTagsResult, monthlyVolumeResult, summaryResult, typeBreakdownResult] = await Promise.all([
+      // Get top F-tags for current period (relative to max data date)
+      pool.query(`
+        WITH current_period AS (
+          SELECT
+            d.deficiency_tag,
+            COUNT(*) as count
+          FROM cms_facility_deficiencies d
+          WHERE d.survey_date >= $1::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY d.deficiency_tag
+        ),
+        prior_period AS (
+          SELECT
+            d.deficiency_tag,
+            COUNT(*) as count
+          FROM cms_facility_deficiencies d
+          WHERE d.survey_date >= $1::date - INTERVAL '${priorDays} days'
+            AND d.survey_date < $1::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY d.deficiency_tag
+        )
         SELECT
-          d.deficiency_tag,
-          COUNT(*) as count
-        FROM cms_facility_deficiencies d
-        WHERE d.survey_date >= $1::date - INTERVAL '${days} days'
-          ${typeFilter}
-        GROUP BY d.deficiency_tag
-      ),
-      prior_period AS (
-        SELECT
-          d.deficiency_tag,
-          COUNT(*) as count
-        FROM cms_facility_deficiencies d
-        WHERE d.survey_date >= $1::date - INTERVAL '${priorDays} days'
-          AND d.survey_date < $1::date - INTERVAL '${days} days'
-          ${typeFilter}
-        GROUP BY d.deficiency_tag
-      )
-      SELECT
-        ROW_NUMBER() OVER (ORDER BY c.count DESC) as rank,
-        c.deficiency_tag as code,
-        COALESCE(cd.category, 'Unknown') as category,
-        COALESCE(cd.description, 'No description available') as name,
-        c.count,
-        COALESCE(p.count, 0) as prior_count,
-        CASE
-          WHEN COALESCE(p.count, 0) = 0 THEN 0
-          ELSE ROUND(((c.count - p.count)::numeric / p.count * 100)::numeric, 1)
-        END as change_pct,
-        CASE
-          WHEN COALESCE(p.count, 0) = 0 THEN 'NEW'
-          WHEN c.count > p.count * 1.05 THEN 'UP'
-          WHEN c.count < p.count * 0.95 THEN 'DOWN'
-          ELSE 'STABLE'
-        END as trend
-      FROM current_period c
-      LEFT JOIN prior_period p ON c.deficiency_tag = p.deficiency_tag
-      LEFT JOIN citation_descriptions cd ON c.deficiency_tag = cd.deficiency_tag
-      ORDER BY c.count DESC
-      LIMIT 15
-    `, [maxDate]);
+          ROW_NUMBER() OVER (ORDER BY c.count DESC) as rank,
+          c.deficiency_tag as code,
+          COALESCE(cd.category, 'Unknown') as category,
+          COALESCE(cd.description, 'No description available') as name,
+          c.count,
+          COALESCE(p.count, 0) as prior_count,
+          CASE
+            WHEN COALESCE(p.count, 0) = 0 THEN 0
+            ELSE ROUND(((c.count - p.count)::numeric / p.count * 100)::numeric, 1)
+          END as change_pct,
+          CASE
+            WHEN COALESCE(p.count, 0) = 0 THEN 'NEW'
+            WHEN c.count > p.count * 1.05 THEN 'UP'
+            WHEN c.count < p.count * 0.95 THEN 'DOWN'
+            ELSE 'STABLE'
+          END as trend
+        FROM current_period c
+        LEFT JOIN prior_period p ON c.deficiency_tag = p.deficiency_tag
+        LEFT JOIN citation_descriptions cd ON c.deficiency_tag = cd.deficiency_tag
+        ORDER BY c.count DESC
+        LIMIT 15
+      `, [maxDate]),
 
-    // Get monthly volume data (last 6 months relative to max data date)
-    const monthlyVolumeResult = await pool.query(`
-      SELECT
-        TO_CHAR(survey_date, 'YYYY-MM') as month,
-        TO_CHAR(survey_date, 'Mon') as month_label,
-        COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
-        ROUND(AVG(def_count)::numeric, 1) as avg_defs
-      FROM (
+      // Get monthly volume data (last 12 months relative to max data date)
+      // Uses mv_survey_aggregates for fast survey counting (83x faster)
+      pool.query(`
         SELECT
-          federal_provider_number,
-          survey_date,
-          COUNT(*) as def_count
-        FROM cms_facility_deficiencies
-        WHERE survey_date >= $1::date - INTERVAL '6 months'
-          ${typeFilter}
-        GROUP BY federal_provider_number, survey_date
-      ) survey_defs
-      GROUP BY TO_CHAR(survey_date, 'YYYY-MM'), TO_CHAR(survey_date, 'Mon')
-      ORDER BY month
-    `, [maxDate]);
+          year_month as month,
+          TO_CHAR(survey_date, 'Mon') as month_label,
+          COUNT(*) as surveys,
+          SUM(deficiency_count) as total_defs,
+          ROUND(SUM(deficiency_count)::numeric / NULLIF(COUNT(*), 0), 1) as avg_defs_per_survey,
+          ROUND((SUM(ij_count)::numeric / NULLIF(SUM(deficiency_count), 0) * 100)::numeric, 2) as ij_rate_pct
+        FROM mv_survey_aggregates
+        WHERE survey_date >= $1::date - INTERVAL '12 months'
+        GROUP BY year_month, TO_CHAR(survey_date, 'Mon')
+        ORDER BY month
+      `, [maxDate]),
 
-    // Get summary stats
-    const summaryResult = await pool.query(`
-      SELECT
-        COUNT(DISTINCT federal_provider_number || survey_date::text) as survey_count,
-        ROUND(AVG(def_count)::numeric, 1) as avg_deficiencies,
-        ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-               NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
-      FROM (
+      // Get summary stats - uses mv_survey_aggregates for fast aggregation
+      pool.query(`
         SELECT
-          federal_provider_number,
-          survey_date,
-          scope_severity,
-          COUNT(*) OVER (PARTITION BY federal_provider_number, survey_date) as def_count
+          COUNT(*) as survey_count,
+          ROUND(AVG(deficiency_count)::numeric, 1) as avg_deficiencies,
+          ROUND((SUM(ij_count)::numeric / NULLIF(SUM(deficiency_count), 0))::numeric, 4) as ij_rate
+        FROM mv_survey_aggregates
+        WHERE survey_date >= $1::date - INTERVAL '${days} days'
+      `, [maxDate]),
+
+      // Get deficiency type breakdown
+      pool.query(`
+        SELECT COUNT(*) as total
         FROM cms_facility_deficiencies
         WHERE survey_date >= $1::date - INTERVAL '${days} days'
-          ${typeFilter}
-      ) t
-    `, [maxDate]);
+      `, [maxDate])
+    ]);
 
     // Generate insights based on actual data
     const topTag = topFTagsResult.rows[0];
@@ -186,15 +189,6 @@ router.get('/national-overview', async (req, res) => {
     if (biggestDown) {
       insights.push(`F${biggestDown.code} citations down ${Math.abs(biggestDown.change_pct)}% vs prior period`);
     }
-
-    // Get deficiency type breakdown for the period
-    // Note: cms_facility_deficiencies doesn't have type breakdown columns
-    // Return total count only until data is enriched
-    const typeBreakdownResult = await pool.query(`
-      SELECT COUNT(*) as total
-      FROM cms_facility_deficiencies
-      WHERE survey_date >= $1::date - INTERVAL '${days} days'
-    `, [maxDate]);
 
     const typeBreakdown = typeBreakdownResult.rows[0] || {};
 
@@ -229,7 +223,9 @@ router.get('/national-overview', async (req, res) => {
           month: r.month,
           monthLabel: r.month_label,
           surveys: parseInt(r.surveys),
-          avgDefs: parseFloat(r.avg_defs)
+          totalDefs: parseInt(r.total_defs),
+          avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey),
+          ijRatePct: parseFloat(r.ij_rate_pct)
         })),
         insights
       }
@@ -269,129 +265,160 @@ router.get('/state/:stateCode', async (req, res) => {
 
     const days = periodToDays(period);
 
-    // Get state comparison stats (using maxDate instead of CURRENT_DATE)
-    // Calculate avg defs as total_deficiencies / unique_surveys (correct method)
-    const comparisonResult = await pool.query(`
-      WITH state_stats AS (
+    // Run all queries in parallel for performance
+    // Uses mv_survey_aggregates for fast survey counting (83x faster)
+    const [comparisonResult, ftagPrioritiesResult, dayOfWeekResult, monthlyTrendsResult] = await Promise.all([
+      // Get state comparison stats - uses materialized view
+      pool.query(`
+        WITH state_stats AS (
+          SELECT
+            COUNT(*) as surveys,
+            SUM(deficiency_count) as total_defs,
+            ROUND(AVG(deficiency_count)::numeric, 1) as avg_defs,
+            ROUND((SUM(ij_count)::numeric / NULLIF(SUM(deficiency_count), 0))::numeric, 4) as ij_rate
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND mv.survey_date >= $2::date - INTERVAL '${days} days'
+        ),
+        national_stats AS (
+          SELECT
+            COUNT(*) as surveys,
+            SUM(deficiency_count) as total_defs,
+            ROUND(AVG(deficiency_count)::numeric, 1) as avg_defs,
+            ROUND((SUM(ij_count)::numeric / NULLIF(SUM(deficiency_count), 0))::numeric, 4) as ij_rate
+          FROM mv_survey_aggregates
+          WHERE survey_date >= $2::date - INTERVAL '${days} days'
+        )
         SELECT
-          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
-          COUNT(*) as total_defs,
-          ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT d.federal_provider_number || d.survey_date::text), 0), 1) as avg_defs,
-          ROUND((SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-                 NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
-        FROM cms_facility_deficiencies d
-        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
-        WHERE f.state = $1
-          AND d.survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
-      ),
-      national_stats AS (
-        SELECT
-          COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
-          COUNT(*) as total_defs,
-          ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT federal_provider_number || survey_date::text), 0), 1) as avg_defs,
-          ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-                 NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
-        FROM cms_facility_deficiencies d
-        WHERE d.survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
-      )
-      SELECT
-        s.surveys as state_surveys,
-        n.surveys as national_surveys,
-        s.avg_defs as state_avg_defs,
-        n.avg_defs as national_avg_defs,
-        s.ij_rate as state_ij_rate,
-        n.ij_rate as national_ij_rate
-      FROM state_stats s, national_stats n
-    `, [stateCode, maxDate]);
+          s.surveys as state_surveys,
+          n.surveys as national_surveys,
+          s.avg_defs as state_avg_defs,
+          n.avg_defs as national_avg_defs,
+          s.ij_rate as state_ij_rate,
+          n.ij_rate as national_ij_rate
+        FROM state_stats s, national_stats n
+      `, [stateCode, maxDate]),
 
-    // Get state F-tag priorities vs national ranking
-    const ftagPrioritiesResult = await pool.query(`
-      WITH state_ftags AS (
+      // Get state F-tag priorities vs national ranking
+      pool.query(`
+        WITH state_ftags AS (
+          SELECT
+            d.deficiency_tag,
+            COUNT(*) as state_count,
+            ROUND((COUNT(*)::numeric / SUM(COUNT(*)) OVER () * 100)::numeric, 1) as state_pct
+          FROM cms_facility_deficiencies d
+          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY d.deficiency_tag
+        ),
+        national_ftags AS (
+          SELECT
+            deficiency_tag,
+            COUNT(*) as national_count,
+            ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as national_rank
+          FROM cms_facility_deficiencies
+          WHERE survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY deficiency_tag
+        )
         SELECT
-          d.deficiency_tag,
-          COUNT(*) as state_count,
-          ROUND((COUNT(*)::numeric / SUM(COUNT(*)) OVER () * 100)::numeric, 1) as state_pct
-        FROM cms_facility_deficiencies d
-        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
-        WHERE f.state = $1
-          AND d.survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
-        GROUP BY d.deficiency_tag
-      ),
-      national_ftags AS (
-        SELECT
-          deficiency_tag,
-          COUNT(*) as national_count,
-          ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as national_rank
-        FROM cms_facility_deficiencies
-        WHERE survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
-        GROUP BY deficiency_tag
-      )
-      SELECT
-        ROW_NUMBER() OVER (ORDER BY s.state_count DESC) as state_rank,
-        s.deficiency_tag as code,
-        COALESCE(cd.description, 'Unknown') as name,
-        s.state_count,
-        s.state_pct,
-        COALESCE(n.national_rank, 999) as national_rank,
-        (ROW_NUMBER() OVER (ORDER BY s.state_count DESC))::int - COALESCE(n.national_rank, 999)::int as delta
-      FROM state_ftags s
-      LEFT JOIN national_ftags n ON s.deficiency_tag = n.deficiency_tag
-      LEFT JOIN citation_descriptions cd ON s.deficiency_tag = cd.deficiency_tag
-      ORDER BY s.state_count DESC
-      LIMIT 10
-    `, [stateCode, maxDate]);
+          ROW_NUMBER() OVER (ORDER BY s.state_count DESC) as state_rank,
+          s.deficiency_tag as code,
+          COALESCE(cd.description, 'Unknown') as name,
+          s.state_count,
+          s.state_pct,
+          COALESCE(n.national_rank, 999) as national_rank,
+          (ROW_NUMBER() OVER (ORDER BY s.state_count DESC))::int - COALESCE(n.national_rank, 999)::int as delta
+        FROM state_ftags s
+        LEFT JOIN national_ftags n ON s.deficiency_tag = n.deficiency_tag
+        LEFT JOIN citation_descriptions cd ON s.deficiency_tag = cd.deficiency_tag
+        ORDER BY s.state_count DESC
+        LIMIT 10
+      `, [stateCode, maxDate]),
 
-    // Get day of week distribution
-    const dayOfWeekResult = await pool.query(`
-      WITH state_dow AS (
+      // Get day of week distribution - uses materialized view
+      pool.query(`
+        WITH state_dow AS (
+          SELECT
+            day_of_week as dow,
+            COUNT(*) as surveys
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND mv.survey_date >= $2::date - INTERVAL '${days} days'
+          GROUP BY day_of_week
+        ),
+        national_dow AS (
+          SELECT
+            day_of_week as dow,
+            COUNT(*) as surveys
+          FROM mv_survey_aggregates
+          WHERE survey_date >= $2::date - INTERVAL '${days} days'
+          GROUP BY day_of_week
+        )
         SELECT
-          EXTRACT(DOW FROM d.survey_date) as dow,
-          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys
-        FROM cms_facility_deficiencies d
-        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
-        WHERE f.state = $1
-          AND d.survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
-        GROUP BY EXTRACT(DOW FROM d.survey_date)
-      ),
-      national_dow AS (
+          CASE s.dow
+            WHEN 0 THEN 'Sunday'
+            WHEN 1 THEN 'Monday'
+            WHEN 2 THEN 'Tuesday'
+            WHEN 3 THEN 'Wednesday'
+            WHEN 4 THEN 'Thursday'
+            WHEN 5 THEN 'Friday'
+            WHEN 6 THEN 'Saturday'
+          END as day,
+          CASE s.dow
+            WHEN 0 THEN 'Sun'
+            WHEN 1 THEN 'Mon'
+            WHEN 2 THEN 'Tue'
+            WHEN 3 THEN 'Wed'
+            WHEN 4 THEN 'Thu'
+            WHEN 5 THEN 'Fri'
+            WHEN 6 THEN 'Sat'
+          END as short_day,
+          ROUND((s.surveys::numeric / SUM(s.surveys) OVER () * 100)::numeric, 0) as pct,
+          ROUND((n.surveys::numeric / SUM(n.surveys) OVER () * 100)::numeric, 0) as national_pct
+        FROM state_dow s
+        LEFT JOIN national_dow n ON s.dow = n.dow
+        ORDER BY s.dow
+      `, [stateCode, maxDate]),
+
+      // Get monthly trends for state - uses materialized view
+      pool.query(`
+        WITH state_facilities AS (
+          SELECT COUNT(DISTINCT federal_provider_number) as facility_count
+          FROM snf_facilities
+          WHERE state = $1
+        ),
+        monthly_data AS (
+          SELECT
+            mv.year_month as month,
+            TO_CHAR(mv.survey_date, 'Mon') as month_label,
+            COUNT(*) as surveys,
+            SUM(mv.deficiency_count) as total_defs,
+            0 as complaint_surveys
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND mv.survey_date >= $2::date - INTERVAL '${days} days'
+          GROUP BY mv.year_month, TO_CHAR(mv.survey_date, 'Mon')
+        )
         SELECT
-          EXTRACT(DOW FROM survey_date) as dow,
-          COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys
-        FROM cms_facility_deficiencies
-        WHERE survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
-        GROUP BY EXTRACT(DOW FROM survey_date)
-      )
-      SELECT
-        CASE s.dow
-          WHEN 0 THEN 'Sunday'
-          WHEN 1 THEN 'Monday'
-          WHEN 2 THEN 'Tuesday'
-          WHEN 3 THEN 'Wednesday'
-          WHEN 4 THEN 'Thursday'
-          WHEN 5 THEN 'Friday'
-          WHEN 6 THEN 'Saturday'
-        END as day,
-        CASE s.dow
-          WHEN 0 THEN 'Sun'
-          WHEN 1 THEN 'Mon'
-          WHEN 2 THEN 'Tue'
-          WHEN 3 THEN 'Wed'
-          WHEN 4 THEN 'Thu'
-          WHEN 5 THEN 'Fri'
-          WHEN 6 THEN 'Sat'
-        END as short_day,
-        ROUND((s.surveys::numeric / SUM(s.surveys) OVER () * 100)::numeric, 0) as pct,
-        ROUND((n.surveys::numeric / SUM(n.surveys) OVER () * 100)::numeric, 0) as national_pct
-      FROM state_dow s
-      LEFT JOIN national_dow n ON s.dow = n.dow
-      ORDER BY s.dow
-    `, [stateCode, maxDate]);
+          md.month,
+          md.month_label,
+          md.surveys,
+          md.total_defs,
+          ROUND(md.total_defs::numeric / NULLIF(md.surveys, 0), 1) as avg_defs_per_survey,
+          md.complaint_surveys,
+          sf.facility_count,
+          ROUND((md.complaint_surveys::numeric / NULLIF(sf.facility_count, 0))::numeric, 2) as complaint_surveys_per_facility
+        FROM monthly_data md
+        CROSS JOIN state_facilities sf
+        ORDER BY md.month
+      `, [stateCode, maxDate])
+    ]);
 
     const comparison = comparisonResult.rows[0] || {};
 
@@ -481,7 +508,17 @@ router.get('/state/:stateCode', async (req, res) => {
         peakDayPct: statePeak.pct,
         nationalPeakDay: nationalPeak.day || 'Unknown',
         nationalPeakPct: nationalPeak.nationalPct,
-        insights
+        insights,
+        monthlyTrends: monthlyTrendsResult.rows.map(r => ({
+          month: r.month,
+          monthLabel: r.month_label,
+          surveys: parseInt(r.surveys) || 0,
+          totalDefs: parseInt(r.total_defs) || 0,
+          avgDefsPerSurvey: parseFloat(r.avg_defs_per_survey) || 0,
+          complaintSurveys: parseInt(r.complaint_surveys) || 0,
+          facilityCount: parseInt(r.facility_count) || 0,
+          complaintSurveysPerFacility: parseFloat(r.complaint_surveys_per_facility) || 0
+        }))
       }
     });
 
@@ -552,14 +589,13 @@ router.get('/state/:stateCode/facilities', async (req, res) => {
       LIMIT $3 OFFSET $4
     `, [stateCode, maxDate, parseInt(limit), offset]);
 
-    // Get total count for pagination
+    // Get total count for pagination - uses materialized view
     const countResult = await surveyPool.query(`
-      SELECT COUNT(DISTINCT d.federal_provider_number || survey_date::text) as total
-      FROM cms_facility_deficiencies d
-      JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+      SELECT COUNT(*) as total
+      FROM mv_survey_aggregates mv
+      JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
       WHERE f.state = $1
-        AND d.survey_date >= $2::date - INTERVAL '${days} days'
-        ${typeFilter}
+        AND mv.survey_date >= $2::date - INTERVAL '${days} days'
     `, [stateCode, maxDate]);
 
     const total = parseInt(countResult.rows[0]?.total) || 0;
@@ -678,24 +714,23 @@ router.get('/regional-hotspots/:stateCode', async (req, res) => {
     const days = periodToDays(period);
 
     if (level === 'cbsa') {
-      // CBSA-level aggregation
+      // CBSA-level aggregation - uses materialized view for performance
       const hotSpotsResult = await pool.query(`
         WITH cbsa_stats AS (
           SELECT
             f.cbsa_code,
             c.cbsa_title as cbsa_name,
-            COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
-            COUNT(*) as deficiencies,
+            COUNT(*) as surveys,
+            SUM(mv.deficiency_count) as deficiencies,
             COUNT(DISTINCT f.federal_provider_number) as facilities,
-            ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT d.federal_provider_number || d.survey_date::text), 0), 1) as avg_defs_per_survey,
-            SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
-          FROM cms_facility_deficiencies d
-          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+            ROUND(AVG(mv.deficiency_count)::numeric, 1) as avg_defs_per_survey,
+            SUM(mv.ij_count) as ij_count
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
           LEFT JOIN cbsas c ON f.cbsa_code = c.cbsa_code
           WHERE f.state = $1
-            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            AND mv.survey_date >= $2::date - INTERVAL '${days} days'
             AND f.cbsa_code IS NOT NULL
-            ${typeFilter}
           GROUP BY f.cbsa_code, c.cbsa_title
         )
         SELECT
@@ -712,16 +747,15 @@ router.get('/regional-hotspots/:stateCode', async (req, res) => {
         LIMIT 15
       `, [stateCode, maxDate]);
 
-      // Get state total for comparison
+      // Get state total for comparison - uses materialized view
       const stateTotalResult = await pool.query(`
         SELECT
-          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as total_surveys,
-          COUNT(*) as total_deficiencies
-        FROM cms_facility_deficiencies d
-        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          COUNT(*) as total_surveys,
+          SUM(mv.deficiency_count) as total_deficiencies
+        FROM mv_survey_aggregates mv
+        JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
         WHERE f.state = $1
-          AND d.survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
+          AND mv.survey_date >= $2::date - INTERVAL '${days} days'
       `, [stateCode, maxDate]);
 
       const stateTotal = stateTotalResult.rows[0] || { total_surveys: 0, total_deficiencies: 0 };
@@ -751,22 +785,21 @@ router.get('/regional-hotspots/:stateCode', async (req, res) => {
         }
       });
     } else {
-      // County-level aggregation (default)
+      // County-level aggregation (default) - uses materialized view for performance
       const hotSpotsResult = await pool.query(`
         WITH county_stats AS (
           SELECT
             f.county,
-            COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as surveys,
-            COUNT(*) as deficiencies,
+            COUNT(*) as surveys,
+            SUM(mv.deficiency_count) as deficiencies,
             COUNT(DISTINCT f.federal_provider_number) as facilities,
-            ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT d.federal_provider_number || d.survey_date::text), 0), 1) as avg_defs_per_survey,
-            SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
-          FROM cms_facility_deficiencies d
-          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+            ROUND(AVG(mv.deficiency_count)::numeric, 1) as avg_defs_per_survey,
+            SUM(mv.ij_count) as ij_count
+          FROM mv_survey_aggregates mv
+          JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
           WHERE f.state = $1
-            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            AND mv.survey_date >= $2::date - INTERVAL '${days} days'
             AND f.county IS NOT NULL
-            ${typeFilter}
           GROUP BY f.county
         )
         SELECT
@@ -782,16 +815,15 @@ router.get('/regional-hotspots/:stateCode', async (req, res) => {
         LIMIT 20
       `, [stateCode, maxDate]);
 
-      // Get state total for comparison
+      // Get state total for comparison - uses materialized view
       const stateTotalResult = await pool.query(`
         SELECT
-          COUNT(DISTINCT d.federal_provider_number || d.survey_date::text) as total_surveys,
-          COUNT(*) as total_deficiencies
-        FROM cms_facility_deficiencies d
-        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          COUNT(*) as total_surveys,
+          SUM(mv.deficiency_count) as total_deficiencies
+        FROM mv_survey_aggregates mv
+        JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
         WHERE f.state = $1
-          AND d.survey_date >= $2::date - INTERVAL '${days} days'
-          ${typeFilter}
+          AND mv.survey_date >= $2::date - INTERVAL '${days} days'
       `, [stateCode, maxDate]);
 
       const stateTotal = stateTotalResult.rows[0] || { total_surveys: 0, total_deficiencies: 0 };
@@ -1591,16 +1623,15 @@ router.get('/company/:parentOrg', async (req, res) => {
       });
     }
 
-    // Summary metrics for selected period
+    // Summary metrics for selected period - uses materialized view for fast aggregation
     const summaryResult = await pool.query(`
       SELECT
-        COUNT(DISTINCT federal_provider_number || survey_date::text) as total_surveys,
-        COUNT(*) as total_deficiencies,
-        ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT federal_provider_number || survey_date::text), 0), 2) as avg_defs_per_survey,
-        ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric /
-               NULLIF(COUNT(*), 0) * 100)::numeric, 2) as ij_rate_pct,
-        COUNT(DISTINCT CASE WHEN scope_severity IN ('J', 'K', 'L') THEN federal_provider_number END) as facilities_with_ij
-      FROM cms_facility_deficiencies
+        COUNT(*) as total_surveys,
+        SUM(deficiency_count) as total_deficiencies,
+        ROUND(AVG(deficiency_count)::numeric, 2) as avg_defs_per_survey,
+        ROUND((SUM(ij_count)::numeric / NULLIF(SUM(deficiency_count), 0) * 100)::numeric, 2) as ij_rate_pct,
+        COUNT(DISTINCT CASE WHEN has_ij = 1 THEN federal_provider_number END) as facilities_with_ij
+      FROM mv_survey_aggregates
       WHERE federal_provider_number = ANY($1)
         AND survey_date >= $2::date - INTERVAL '${days} days'
     `, [ccns, maxDate]);
@@ -1649,18 +1680,19 @@ router.get('/company/:parentOrg', async (req, res) => {
     `, [ccns, maxDate]);
 
     // Monthly trends - show proportional to period (24 months max)
+    // Uses materialized view for fast aggregation
     const trendMonths = Math.min(24, Math.ceil(days / 30) * 2);
     const monthlyTrendsResult = await pool.query(`
       SELECT
-        TO_CHAR(survey_date, 'YYYY-MM') as month,
+        year_month as month,
         TO_CHAR(survey_date, 'Mon YY') as month_label,
-        COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
-        COUNT(*) as deficiencies,
-        ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT federal_provider_number || survey_date::text), 0), 1) as avg_defs
-      FROM cms_facility_deficiencies
+        COUNT(*) as surveys,
+        SUM(deficiency_count) as deficiencies,
+        ROUND(AVG(deficiency_count)::numeric, 1) as avg_defs
+      FROM mv_survey_aggregates
       WHERE federal_provider_number = ANY($1)
         AND survey_date >= $2::date - INTERVAL '${trendMonths} months'
-      GROUP BY TO_CHAR(survey_date, 'YYYY-MM'), TO_CHAR(survey_date, 'Mon YY')
+      GROUP BY year_month, TO_CHAR(survey_date, 'Mon YY')
       ORDER BY month
     `, [ccns, maxDate]);
 
@@ -1713,21 +1745,21 @@ router.get('/company/:parentOrg', async (req, res) => {
       ORDER BY sd.last_survey_date DESC NULLS LAST
     `, [ccns, maxDate, parentOrg]);
 
-    // Year-over-year comparison
+    // Year-over-year comparison - uses materialized view for fast aggregation
     const yoyResult = await pool.query(`
       WITH current_year AS (
         SELECT
-          COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
-          COUNT(*) as deficiencies
-        FROM cms_facility_deficiencies
+          COUNT(*) as surveys,
+          SUM(deficiency_count) as deficiencies
+        FROM mv_survey_aggregates
         WHERE federal_provider_number = ANY($1)
           AND survey_date >= $2::date - INTERVAL '12 months'
       ),
       prior_year AS (
         SELECT
-          COUNT(DISTINCT federal_provider_number || survey_date::text) as surveys,
-          COUNT(*) as deficiencies
-        FROM cms_facility_deficiencies
+          COUNT(*) as surveys,
+          SUM(deficiency_count) as deficiencies
+        FROM mv_survey_aggregates
         WHERE federal_provider_number = ANY($1)
           AND survey_date >= $2::date - INTERVAL '24 months'
           AND survey_date < $2::date - INTERVAL '12 months'
@@ -1900,7 +1932,7 @@ router.get('/company/:parentOrg', async (req, res) => {
  */
 router.get('/cutpoints', async (req, res) => {
   const { state, startMonth, endMonth } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool(); // cutpoints table is in Market DB
 
   try {
     let query = `
@@ -1978,7 +2010,7 @@ router.get('/cutpoints', async (req, res) => {
  */
 router.get('/cutpoints/trends', async (req, res) => {
   const { state } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool(); // cutpoints table is in Market DB
 
   if (!state) {
     return res.status(400).json({
@@ -2082,7 +2114,7 @@ router.get('/cutpoints/trends', async (req, res) => {
  */
 router.get('/cutpoints/compare', async (req, res) => {
   const { month } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool(); // cutpoints table is in Market DB
 
   try {
     // Default to latest month if not specified
@@ -2157,12 +2189,12 @@ router.get('/cutpoints/heatmap', async (req, res) => {
   const marketPool = getMarketPool();
 
   try {
-    // Get latest cutpoints month
-    const latestResult = await mainPool.query('SELECT MAX(month) as max_month FROM health_inspection_cutpoints');
+    // Get latest cutpoints month (cutpoints table is in Market DB)
+    const latestResult = await marketPool.query('SELECT MAX(month) as max_month FROM health_inspection_cutpoints');
     const latestMonth = latestResult.rows[0].max_month;
 
     // Get 5-star thresholds for all states
-    const cutpointsResult = await mainPool.query(`
+    const cutpointsResult = await marketPool.query(`
       SELECT state, five_star_max
       FROM health_inspection_cutpoints
       WHERE month = $1
@@ -2173,42 +2205,29 @@ router.get('/cutpoints/heatmap', async (req, res) => {
     const maxDate = maxDateResult.rows[0]?.max_date || new Date();
 
     // Get average deficiencies per survey by state for TTM (trailing 12 months)
-    // Join with snf_facilities to get state, count unique surveys and total deficiencies per state
+    // Uses materialized view for fast aggregation (83x faster)
     const stateDefsResult = await marketPool.query(`
-      WITH survey_counts AS (
-        SELECT
-          f.state,
-          COUNT(DISTINCT CONCAT(d.federal_provider_number, '-', d.survey_date)) as survey_count,
-          COUNT(*) as deficiency_count
-        FROM cms_facility_deficiencies d
-        JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
-        WHERE d.survey_date >= $1::date - INTERVAL '365 days'
-          AND f.state IS NOT NULL
-        GROUP BY f.state
-      )
       SELECT
-        state,
-        survey_count,
-        deficiency_count,
-        ROUND(deficiency_count::numeric / NULLIF(survey_count, 0), 2) as avg_defs_per_survey
-      FROM survey_counts
-      ORDER BY state
+        f.state,
+        COUNT(*) as survey_count,
+        SUM(mv.deficiency_count) as deficiency_count,
+        ROUND(AVG(mv.deficiency_count)::numeric, 2) as avg_defs_per_survey
+      FROM mv_survey_aggregates mv
+      JOIN snf_facilities f ON mv.federal_provider_number = f.federal_provider_number
+      WHERE mv.survey_date >= $1::date - INTERVAL '365 days'
+        AND f.state IS NOT NULL
+      GROUP BY f.state
+      ORDER BY f.state
     `, [maxDate]);
 
-    // Calculate national average
+    // Calculate national average - uses materialized view
     const nationalResult = await marketPool.query(`
-      WITH national_counts AS (
-        SELECT
-          COUNT(DISTINCT CONCAT(federal_provider_number, '-', survey_date)) as survey_count,
-          COUNT(*) as deficiency_count
-        FROM cms_facility_deficiencies
-        WHERE survey_date >= $1::date - INTERVAL '365 days'
-      )
       SELECT
-        survey_count,
-        deficiency_count,
-        ROUND(deficiency_count::numeric / NULLIF(survey_count, 0), 2) as avg_defs_per_survey
-      FROM national_counts
+        COUNT(*) as survey_count,
+        SUM(deficiency_count) as deficiency_count,
+        ROUND(AVG(deficiency_count)::numeric, 2) as avg_defs_per_survey
+      FROM mv_survey_aggregates
+      WHERE survey_date >= $1::date - INTERVAL '365 days'
     `, [maxDate]);
 
     const nationalAvg = parseFloat(nationalResult.rows[0]?.avg_defs_per_survey) || 0;

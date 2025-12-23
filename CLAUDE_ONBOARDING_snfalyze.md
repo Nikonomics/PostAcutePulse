@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-22 19:51:25
+> Last updated: 2025-12-22 20:43:50
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1516,6 +1516,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1716,6 +1717,7 @@ backend/migrations/create-cms-data-definitions.js
 
 ### Last 7 Days
 
+- **2025-12-22** - Add state selector to Rating Thresholds State Trends view
 - **2025-12-22** - Enhance Survey Analytics and Ownership Profile pages
 - **2025-12-22** - Switch survey queries to Market DB for full deficiency dataset
 - **2025-12-22** - Fix survey routes to use cms_facility_deficiencies table
@@ -1745,7 +1747,6 @@ backend/migrations/create-cms-data-definitions.js
 - **2025-12-22** - Fix: Use persistent disk for file uploads on Render
 - **2025-12-22** - Make EditUser form fields optional except name, email, role
 - **2025-12-22** - Add update-user endpoint for admin user management
-- **2025-12-22** - Add user invitation system with role-based access control
 
 
 ### Areas Modified (Last 20 Commits)
