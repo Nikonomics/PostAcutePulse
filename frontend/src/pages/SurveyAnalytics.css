@@ -4072,3 +4072,57 @@
     gap: 1rem;
   }
 }
+
+/* State Trends Selector */
+.trends-state-selector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+}
+
+.state-selector-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #0369a1;
+  white-space: nowrap;
+}
+
+.trends-state-selector .state-dropdown {
+  max-width: 250px;
+}
+
+/* Select State Prompt */
+.select-state-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: #6b7280;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 2px dashed #d1d5db;
+}
+
+.select-state-prompt svg {
+  color: #9ca3af;
+  margin-bottom: 1rem;
+}
+
+.select-state-prompt h5 {
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.select-state-prompt p {
+  max-width: 400px;
+  margin: 0;
+  font-size: 0.875rem;
+}

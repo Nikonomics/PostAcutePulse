@@ -2106,7 +2106,7 @@ const FIPS_TO_STATE = {
   '55': 'WI', '56': 'WY', '72': 'PR', '78': 'VI', '66': 'GU'
 };
 
-const RatingThresholdsTab = ({ selectedState }) => {
+const RatingThresholdsTab = ({ selectedState, onStateChange }) => {
   const [trendsData, setTrendsData] = useState(null);
   const [comparisonData, setComparisonData] = useState(null);
   const [heatmapData, setHeatmapData] = useState(null);
@@ -2114,28 +2114,45 @@ const RatingThresholdsTab = ({ selectedState }) => {
   const [viewMode, setViewMode] = useState('heatmap'); // 'heatmap', 'trends', or 'compare'
   const [hoveredState, setHoveredState] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [localSelectedState, setLocalSelectedState] = useState(
+    selectedState && selectedState !== 'ALL' ? selectedState : ''
+  );
 
-  // Use CA as default if no state selected or ALL selected
-  const effectiveState = selectedState && selectedState !== 'ALL' ? selectedState : 'CA';
+  // Update local state when parent state changes
+  useEffect(() => {
+    if (selectedState && selectedState !== 'ALL') {
+      setLocalSelectedState(selectedState);
+    }
+  }, [selectedState]);
+
+  // Use the local selected state for trends, or empty if none selected
+  const effectiveState = localSelectedState || 'CA'; // Default to CA for API calls only
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [trendsResponse, compareResponse, heatmapResponse] = await Promise.all([
-          getCutpointTrends(effectiveState),
+        // Always fetch heatmap and comparison data
+        const [compareResponse, heatmapResponse] = await Promise.all([
           getCutpointComparison(),
           getCutpointHeatmap()
         ]);
 
-        if (trendsResponse.success) {
-          setTrendsData(trendsResponse.data);
-        }
         if (compareResponse.success) {
           setComparisonData(compareResponse.data);
         }
         if (heatmapResponse.success) {
           setHeatmapData(heatmapResponse.data);
+        }
+
+        // Only fetch trends if a state is selected
+        if (localSelectedState) {
+          const trendsResponse = await getCutpointTrends(localSelectedState);
+          if (trendsResponse.success) {
+            setTrendsData(trendsResponse.data);
+          }
+        } else {
+          setTrendsData(null);
         }
       } catch (error) {
         console.error('Error fetching cutpoint data:', error);
@@ -2144,7 +2161,7 @@ const RatingThresholdsTab = ({ selectedState }) => {
       }
     };
     fetchData();
-  }, [effectiveState]);
+  }, [localSelectedState]);
 
   // Get color for state based on 5-star threshold
   const getStateColor = (stateCode) => {
@@ -2322,8 +2339,38 @@ const RatingThresholdsTab = ({ selectedState }) => {
         </div>
       )}
 
-      {viewMode === 'trends' && trendsData && (
+      {viewMode === 'trends' && (
         <>
+          {/* State Selector for Trends */}
+          <div className="trends-state-selector mb-4">
+            <label className="state-selector-label">
+              <Map size={16} /> Select State to View Trends:
+            </label>
+            <Form.Select
+              value={localSelectedState}
+              onChange={(e) => {
+                setLocalSelectedState(e.target.value);
+                if (onStateChange) onStateChange(e.target.value);
+              }}
+              className="state-dropdown"
+            >
+              <option value="">-- Select a State --</option>
+              {US_STATES.filter(s => s.code !== 'ALL').map(state => (
+                <option key={state.code} value={state.code}>
+                  {state.name}
+                </option>
+              ))}
+            </Form.Select>
+          </div>
+
+          {!localSelectedState ? (
+            <div className="select-state-prompt">
+              <Map size={48} />
+              <h5>Select a State</h5>
+              <p>Choose a state from the dropdown above to view rating threshold trends over time.</p>
+            </div>
+          ) : trendsData ? (
+          <>
           {/* Insight Card */}
           <div className={`threshold-insight-card ${trendsData.interpretation?.toLowerCase()}`}>
             <div className="insight-icon">
@@ -2445,6 +2492,13 @@ const RatingThresholdsTab = ({ selectedState }) => {
               </ResponsiveContainer>
             </Card.Body>
           </Card>
+          </>
+          ) : (
+            <div className="overview-loading">
+              <Loader2 size={32} className="spin" />
+              <p>Loading {localSelectedState} threshold data...</p>
+            </div>
+          )}
         </>
       )}
 
@@ -3035,6 +3089,7 @@ const SurveyAnalytics = () => {
               <Tab.Pane eventKey="thresholds">
                 <RatingThresholdsTab
                   selectedState={selectedState}
+                  onStateChange={setSelectedState}
                 />
               </Tab.Pane>
               <Tab.Pane eventKey="complaints">

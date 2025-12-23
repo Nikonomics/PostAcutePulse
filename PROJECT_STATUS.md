@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-22** - Enhance Survey Analytics and Ownership Profile pages
 - **2025-12-22** - Switch survey queries to Market DB for full deficiency dataset
 - **2025-12-22** - Fix survey routes to use cms_facility_deficiencies table
 - **2025-12-22** - Add period filtering to company survey analytics endpoint
@@ -41,15 +42,14 @@
 - **2025-12-22** - Make EditUser form fields optional except name, email, role
 - **2025-12-22** - Add update-user endpoint for admin user management
 - **2025-12-22** - Add user invitation system with role-based access control
-- **2025-12-22** - Fix M&A routes to use market database and update sync script
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     7 files
+Backend:     6 files
 Frontend:    28 files
-Routes:      3 files
+Routes:      2 files
 Services:    2 files
 Components:  13 files
 Migrations:  0
