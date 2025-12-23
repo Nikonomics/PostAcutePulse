@@ -90,6 +90,9 @@ router.get('/national-overview', async (req, res) => {
     const days = periodToDays(period);
     const priorDays = days * 2; // For comparison period
 
+    // When filtering by deficiency type, we must query raw data (MV doesn't have type columns)
+    const useRawData = deficiencyType !== 'all';
+
     // Run all queries in parallel for performance
     const [topFTagsResult, monthlyVolumeResult, summaryResult, typeBreakdownResult] = await Promise.all([
       // Get top F-tags for current period (relative to max data date)
@@ -138,8 +141,21 @@ router.get('/national-overview', async (req, res) => {
       `, [maxDate]),
 
       // Get monthly volume data (last 12 months relative to max data date)
-      // Uses mv_survey_aggregates for fast survey counting (83x faster)
-      pool.query(`
+      // Uses raw table with type filter, or MV for 'all' types
+      useRawData ? pool.query(`
+        SELECT
+          TO_CHAR(survey_date, 'YYYY-MM') as month,
+          TO_CHAR(survey_date, 'Mon') as month_label,
+          COUNT(DISTINCT (federal_provider_number, survey_date)) as surveys,
+          COUNT(*) as total_defs,
+          ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT (federal_provider_number, survey_date)), 0), 1) as avg_defs_per_survey,
+          ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100)::numeric, 2) as ij_rate_pct
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $1::date - INTERVAL '12 months'
+          ${typeFilter}
+        GROUP BY TO_CHAR(survey_date, 'YYYY-MM'), TO_CHAR(survey_date, 'Mon')
+        ORDER BY month
+      `, [maxDate]) : pool.query(`
         SELECT
           year_month as month,
           TO_CHAR(survey_date, 'Mon') as month_label,
@@ -153,8 +169,17 @@ router.get('/national-overview', async (req, res) => {
         ORDER BY month
       `, [maxDate]),
 
-      // Get summary stats - uses mv_survey_aggregates for fast aggregation
-      pool.query(`
+      // Get summary stats
+      // Uses raw table with type filter, or MV for 'all' types
+      useRawData ? pool.query(`
+        SELECT
+          COUNT(DISTINCT (federal_provider_number, survey_date)) as survey_count,
+          ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT (federal_provider_number, survey_date)), 0), 1) as avg_deficiencies,
+          ROUND((SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0))::numeric, 4) as ij_rate
+        FROM cms_facility_deficiencies
+        WHERE survey_date >= $1::date - INTERVAL '${days} days'
+          ${typeFilter}
+      `, [maxDate]) : pool.query(`
         SELECT
           COUNT(*) as survey_count,
           ROUND(AVG(deficiency_count)::numeric, 1) as avg_deficiencies,
@@ -168,6 +193,7 @@ router.get('/national-overview', async (req, res) => {
         SELECT COUNT(*) as total
         FROM cms_facility_deficiencies
         WHERE survey_date >= $1::date - INTERVAL '${days} days'
+          ${typeFilter}
       `, [maxDate])
     ]);
 
@@ -266,10 +292,44 @@ router.get('/state/:stateCode', async (req, res) => {
     const days = periodToDays(period);
 
     // Run all queries in parallel for performance
-    // Uses mv_survey_aggregates for fast survey counting (83x faster)
+    // When filtering by deficiency type, we must query raw data (MV doesn't have type columns)
+    const useRawData = deficiencyType !== 'all';
+
     const [comparisonResult, ftagPrioritiesResult, dayOfWeekResult, monthlyTrendsResult] = await Promise.all([
-      // Get state comparison stats - uses materialized view
-      pool.query(`
+      // Get state comparison stats
+      // Uses raw table with type filter, or MV for 'all' types
+      useRawData ? pool.query(`
+        WITH state_stats AS (
+          SELECT
+            COUNT(DISTINCT (d.federal_provider_number, d.survey_date)) as surveys,
+            COUNT(*) as total_defs,
+            ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT (d.federal_provider_number, d.survey_date)), 0), 1) as avg_defs,
+            ROUND(SUM(CASE WHEN d.scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0), 4) as ij_rate
+          FROM cms_facility_deficiencies d
+          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+        ),
+        national_stats AS (
+          SELECT
+            COUNT(DISTINCT (federal_provider_number, survey_date)) as surveys,
+            COUNT(*) as total_defs,
+            ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT (federal_provider_number, survey_date)), 0), 1) as avg_defs,
+            ROUND(SUM(CASE WHEN scope_severity IN ('J', 'K', 'L') THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0), 4) as ij_rate
+          FROM cms_facility_deficiencies
+          WHERE survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+        )
+        SELECT
+          s.surveys as state_surveys,
+          n.surveys as national_surveys,
+          s.avg_defs as state_avg_defs,
+          n.avg_defs as national_avg_defs,
+          s.ij_rate as state_ij_rate,
+          n.ij_rate as national_ij_rate
+        FROM state_stats s, national_stats n
+      `, [stateCode, maxDate]) : pool.query(`
         WITH state_stats AS (
           SELECT
             COUNT(*) as surveys,
@@ -339,8 +399,54 @@ router.get('/state/:stateCode', async (req, res) => {
         LIMIT 10
       `, [stateCode, maxDate]),
 
-      // Get day of week distribution - uses materialized view
-      pool.query(`
+      // Get day of week distribution
+      // Uses raw table with type filter, or MV for 'all' types
+      useRawData ? pool.query(`
+        WITH state_dow AS (
+          SELECT
+            EXTRACT(DOW FROM d.survey_date) as dow,
+            COUNT(DISTINCT (d.federal_provider_number, d.survey_date)) as surveys
+          FROM cms_facility_deficiencies d
+          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY EXTRACT(DOW FROM d.survey_date)
+        ),
+        national_dow AS (
+          SELECT
+            EXTRACT(DOW FROM survey_date) as dow,
+            COUNT(DISTINCT (federal_provider_number, survey_date)) as surveys
+          FROM cms_facility_deficiencies
+          WHERE survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY EXTRACT(DOW FROM survey_date)
+        )
+        SELECT
+          CASE s.dow
+            WHEN 0 THEN 'Sunday'
+            WHEN 1 THEN 'Monday'
+            WHEN 2 THEN 'Tuesday'
+            WHEN 3 THEN 'Wednesday'
+            WHEN 4 THEN 'Thursday'
+            WHEN 5 THEN 'Friday'
+            WHEN 6 THEN 'Saturday'
+          END as day,
+          CASE s.dow
+            WHEN 0 THEN 'Sun'
+            WHEN 1 THEN 'Mon'
+            WHEN 2 THEN 'Tue'
+            WHEN 3 THEN 'Wed'
+            WHEN 4 THEN 'Thu'
+            WHEN 5 THEN 'Fri'
+            WHEN 6 THEN 'Sat'
+          END as short_day,
+          ROUND((s.surveys::numeric / SUM(s.surveys) OVER () * 100)::numeric, 0) as pct,
+          ROUND((n.surveys::numeric / SUM(n.surveys) OVER () * 100)::numeric, 0) as national_pct
+        FROM state_dow s
+        LEFT JOIN national_dow n ON s.dow = n.dow
+        ORDER BY s.dow
+      `, [stateCode, maxDate]) : pool.query(`
         WITH state_dow AS (
           SELECT
             day_of_week as dow,
@@ -385,8 +491,41 @@ router.get('/state/:stateCode', async (req, res) => {
         ORDER BY s.dow
       `, [stateCode, maxDate]),
 
-      // Get monthly trends for state - uses materialized view
-      pool.query(`
+      // Get monthly trends for state
+      // Uses raw table with type filter, or MV for 'all' types
+      useRawData ? pool.query(`
+        WITH state_facilities AS (
+          SELECT COUNT(DISTINCT federal_provider_number) as facility_count
+          FROM snf_facilities
+          WHERE state = $1
+        ),
+        monthly_data AS (
+          SELECT
+            TO_CHAR(d.survey_date, 'YYYY-MM') as month,
+            TO_CHAR(d.survey_date, 'Mon') as month_label,
+            COUNT(DISTINCT (d.federal_provider_number, d.survey_date)) as surveys,
+            COUNT(*) as total_defs,
+            SUM(CASE WHEN is_complaint_deficiency THEN 1 ELSE 0 END) as complaint_defs
+          FROM cms_facility_deficiencies d
+          JOIN snf_facilities f ON d.federal_provider_number = f.federal_provider_number
+          WHERE f.state = $1
+            AND d.survey_date >= $2::date - INTERVAL '${days} days'
+            ${typeFilter}
+          GROUP BY TO_CHAR(d.survey_date, 'YYYY-MM'), TO_CHAR(d.survey_date, 'Mon')
+        )
+        SELECT
+          md.month,
+          md.month_label,
+          md.surveys,
+          md.total_defs,
+          ROUND(md.total_defs::numeric / NULLIF(md.surveys, 0), 1) as avg_defs_per_survey,
+          md.complaint_defs as complaint_surveys,
+          sf.facility_count,
+          ROUND((md.complaint_defs::numeric / NULLIF(sf.facility_count, 0))::numeric, 2) as complaint_surveys_per_facility
+        FROM monthly_data md
+        CROSS JOIN state_facilities sf
+        ORDER BY md.month
+      `, [stateCode, maxDate]) : pool.query(`
         WITH state_facilities AS (
           SELECT COUNT(DISTINCT federal_provider_number) as facility_count
           FROM snf_facilities
