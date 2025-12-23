@@ -1,7 +1,7 @@
 # SNFalyze Deal Creation Flow - Complete Reference
 
 > **Purpose:** Single source of truth for the upload-to-deal-profile pipeline.
-> **Last Updated:** December 19, 2025
+> **Last Updated:** December 23, 2025
 
 ---
 
@@ -190,24 +190,45 @@ The **same combined text** is sent to Claude 6 times with different prompts:
 | 6 | Overview | `OVERVIEW_PROMPT` | Deal summary, red flags, strengths, diligence items |
 
 **Execution:**
-- **Phase 1:** Extractions 1-5 run in parallel (`Promise.allSettled`)
+- **Phase 1:** Extractions 1-5 run in parallel using `Promise.allSettled`
 - **Phase 2:** Extraction 6 (Overview) runs after, using condensed Phase 1 results
 
-### Step 6c: Portfolio Deal Overview (NEW)
+### Graceful Failure Handling
+
+The system uses `Promise.allSettled` instead of `Promise.all` for Phase 1 extractions. This means:
+- If one extraction fails (e.g., expenses runs out of memory), the others still complete
+- Partial results are preserved and returned
+- The extraction doesn't crash entirely due to a single failure
+- Failed extractions are logged in `metadata.phaseResults` with error details
+
+**Example:** If expenses extraction times out but facility, financials, census, and rates succeed, the deal is still created with the available data.
+
+### Step 6c: CIM Extraction (PRIORITY - Single Source of Truth)
+
+**Important:** When a CIM/Offering Memorandum is detected, it becomes the **primary data source** for Deal Overview metrics, taking priority over Excel/PDF extraction.
+
+CIM detection happens by checking filenames and content for:
+- "CIM", "Offering Memorandum", "OM", "Investment Summary"
+- Broker/seller-provided financial summaries
+
+**CIM Extraction returns:**
+- Per-facility data from CIM (`cim_extraction.cim_facilities[]`)
+- NOI bridge (broker-provided vs. calculated)
+- Value-add thesis and executive summary
+- Market analysis and comp data
+
+**Data Priority:** When both CIM and Excel data exist:
+1. CIM data is used for Deal Overview metrics (revenue, NOI, beds)
+2. Excel data is used for monthly time-series (T12 detail)
+3. Conflicts are flagged for user review
+
+### Step 6d: Portfolio Deal Overview
 
 For portfolio deals, a 7th extraction (`DEAL_OVERVIEW_PROMPT`) runs:
 - Uses pre-extracted per-facility data
 - Generates portfolio-level investment thesis
 - Identifies synergy opportunities
 - Ranks facilities and identifies concentration risks
-
-### Step 6d: CIM Extraction (NEW)
-
-If a CIM/Offering Memorandum is detected:
-- Extracts NOI bridge (broker-provided vs. calculated)
-- Extracts value-add thesis
-- Extracts executive summary, market analysis
-- Returns per-facility data from CIM
 
 ---
 
@@ -507,6 +528,18 @@ POST /api/v1/deal/create-deals
 │  │  • "new_deal_created"                                        │
 │  │  • "added_to_deal"                                           │
 │  └────────────────────┘                                         │
+│              │                                                   │
+│              ▼                                                   │
+│  STEP 9: Audit Log (NEW - Dec 2025)                              │
+│  ┌────────────────────┐                                         │
+│  │ deal_change_logs   │  ← Full audit trail                     │
+│  │  • deal_id         │                                         │
+│  │  • action (CREATE) │                                         │
+│  │  • changed_by      │  ← User who made change                 │
+│  │  • changes JSON    │  ← Full snapshot of created data        │
+│  │  • ip_address      │                                         │
+│  │  • user_agent      │                                         │
+│  └────────────────────┘                                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -732,54 +765,148 @@ Selected Match Data + Resolved Conflicts
 
 ---
 
-## Portfolio Deal Flow (NEW)
+## Single Facility vs Portfolio Extraction - Detailed Comparison
 
-For multi-facility deals, the flow has additional steps:
+### Single Facility Flow (`runFullExtraction`)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                       PORTFOLIO EXTRACTION FLOW                          │
+│                    SINGLE FACILITY EXTRACTION                            │
+│                    Total: 6 Claude API calls                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  1. FACILITY DETECTION                                                   │
+│  1. PROCESS FILES                                                        │
+│     └─ Extract text from all uploaded documents                          │
+│     └─ Check combined text size (max ~500K chars)                        │
+│                              │                                           │
+│                              ▼                                           │
+│  2. PHASE 1: PARALLEL EXTRACTIONS (5 simultaneous calls)                 │
 │     ┌─────────────────────────────────────────────────────────────────┐ │
-│     │ detectFacilitiesFromText() → ["Facility A", "Facility B", ...]  │ │
-│     │ User confirms facilities in FacilityConfirmationList            │ │
+│     │  Promise.allSettled([                                           │ │
+│     │    facility extraction,                                         │ │
+│     │    financials extraction,                                       │ │
+│     │    expenses extraction,                                         │ │
+│     │    census extraction,                                           │ │
+│     │    rates extraction                                             │ │
+│     │  ])                                                             │ │
+│     │  → Partial failures allowed (graceful degradation)              │ │
 │     └─────────────────────────────────────────────────────────────────┘ │
 │                              │                                           │
 │                              ▼                                           │
-│  2. PER-FACILITY EXTRACTION                                              │
+│  3. RECONCILE RESULTS                                                    │
+│     └─ Merge all extraction outputs into unified JSON                    │
+│     └─ Calculate expense ratios and benchmarks                           │
+│                              │                                           │
+│                              ▼                                           │
+│  4. PHASE 2: OVERVIEW EXTRACTION (1 call)                                │
+│     └─ Uses condensed Phase 1 results as input                           │
+│     └─ Generates screening summary, red flags, strengths                 │
+│                              │                                           │
+│                              ▼                                           │
+│  5. VALIDATE & RETURN                                                    │
+│     └─ Run data quality validation                                       │
+│     └─ Return unified extraction result                                  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Portfolio Flow (`runPortfolioExtraction`)
+
+**Key Difference:** Portfolio extraction runs N+1 extraction cycles (1 portfolio-level + N per-facility).
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       PORTFOLIO EXTRACTION                               │
+│                       Total: 6 + (N × facility-specific) Claude calls    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  1. PROCESS FILES                                                        │
+│     └─ Extract text from all uploaded documents                          │
+│                              │                                           │
+│                              ▼                                           │
+│  2. CIM DETECTION (FIRST - takes priority)                               │
 │     ┌─────────────────────────────────────────────────────────────────┐ │
-│     │ For each confirmed facility:                                    │ │
-│     │   runFacilityExtraction(docs, facilityInfo)                     │ │
+│     │ detectCIMDocument(successfulFiles)                              │ │
+│     │   → Check for "CIM", "Offering Memorandum", "OM"                │ │
+│     │                                                                 │ │
+│     │ IF CIM FOUND:                                                   │ │
+│     │   runCIMExtraction(cimText)                                     │ │
+│     │   → Extract per-facility data from CIM                          │ │
+│     │   → NOI bridge, value-add thesis, market analysis               │ │
+│     │   → CIM DATA BECOMES PRIMARY SOURCE for Deal Overview           │ │
+│     └─────────────────────────────────────────────────────────────────┘ │
+│                              │                                           │
+│                              ▼                                           │
+│  3. PORTFOLIO-LEVEL EXTRACTION                                           │
+│     ┌─────────────────────────────────────────────────────────────────┐ │
+│     │ runFullExtraction(files)  ← Same as single facility!            │ │
+│     │   → Gets portfolio TOTALS (combined revenue, beds, etc.)        │ │
+│     │   → 6 Claude API calls for aggregate numbers                    │ │
+│     └─────────────────────────────────────────────────────────────────┘ │
+│                              │                                           │
+│                              ▼                                           │
+│  4. ANALYZE DOCUMENT STRUCTURE                                           │
+│     └─ Identify which docs contain which facility's data                 │
+│     └─ Build source hints for per-facility extraction                    │
+│                              │                                           │
+│                              ▼                                           │
+│  5. PER-FACILITY EXTRACTIONS (loop)                                      │
+│     ┌─────────────────────────────────────────────────────────────────┐ │
+│     │ for (facility of confirmedFacilities) {                         │ │
+│     │                                                                 │ │
+│     │   // Guide Claude to focus on THIS facility                     │ │
+│     │   const facilityContext = `                                     │ │
+│     │     Extract data ONLY for: ${facility.name}                     │ │
+│     │     Location: ${facility.city}, ${facility.state}               │ │
+│     │     Beds: ${facility.beds}                                      │ │
+│     │   `;                                                            │ │
+│     │                                                                 │ │
+│     │   runFacilityExtraction(docs, facilityContext)                  │ │
 │     │   → Individual financials, census, expenses, rates              │ │
+│     │                                                                 │ │
+│     │ }  // Extractions run sequentially, not parallel                │ │
 │     └─────────────────────────────────────────────────────────────────┘ │
 │                              │                                           │
 │                              ▼                                           │
-│  3. PORTFOLIO AGGREGATION                                                │
+│  6. COMBINE & VALIDATE                                                   │
 │     ┌─────────────────────────────────────────────────────────────────┐ │
-│     │ Combine facility data into portfolio_summary:                   │ │
-│     │   total_revenue, total_beds, weighted_occupancy, etc.           │ │
-│     └─────────────────────────────────────────────────────────────────┘ │
-│                              │                                           │
-│                              ▼                                           │
-│  4. PORTFOLIO DEAL OVERVIEW                                              │
-│     ┌─────────────────────────────────────────────────────────────────┐ │
-│     │ runFocusedExtraction(DEAL_OVERVIEW_PROMPT)                      │ │
-│     │   → Investment thesis, synergies, facility rankings             │ │
-│     │   → Concentration risks, diligence priorities                   │ │
-│     └─────────────────────────────────────────────────────────────────┘ │
-│                              │                                           │
-│                              ▼                                           │
-│  5. PORTFOLIO VALIDATION                                                 │
-│     ┌─────────────────────────────────────────────────────────────────┐ │
-│     │ validatePortfolioConsistency(portfolioData, facilities)         │ │
-│     │   → Portfolio totals vs facility sum                            │ │
-│     │   → Per-facility validation                                     │ │
+│     │ Final output structure:                                         │ │
+│     │                                                                 │ │
+│     │ {                                                               │ │
+│     │   cim_extraction: { ... },        // CIM data (if found)        │ │
+│     │   portfolio_totals: { ... },      // From step 3                │ │
+│     │   facilities: [                   // From step 5                │ │
+│     │     { name: "Facility A", financials: {...}, census: {...} },   │ │
+│     │     { name: "Facility B", financials: {...}, census: {...} },   │ │
+│     │   ],                                                            │ │
+│     │   deal_overview: { ... }          // Portfolio-level summary    │ │
+│     │ }                                                               │ │
 │     └─────────────────────────────────────────────────────────────────┘ │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+### API Calls Comparison
+
+| Scenario | Single Facility | Portfolio (3 facilities) |
+|----------|-----------------|--------------------------|
+| Phase 1 (parallel) | 5 calls | 5 calls (portfolio totals) |
+| Phase 2 (overview) | 1 call | 1 call |
+| CIM extraction | 0-1 call | 0-1 call |
+| Per-facility | N/A | 3 × facility extractions |
+| **Total** | **6 calls** | **~9-12 calls** |
+
+### Data Source Priority (Portfolio with CIM)
+
+When both CIM and extracted data exist:
+
+| Data Type | Primary Source | Fallback |
+|-----------|---------------|----------|
+| Per-facility NOI | CIM `cim_facilities[]` | Excel extraction |
+| Per-facility beds | CIM `cim_facilities[]` | Excel extraction |
+| Monthly T12 detail | Excel/PDF extraction | N/A |
+| Deal Overview metrics | CIM summary | Calculated from facilities |
+| Red flags/strengths | AI-generated | N/A |
 
 ---
 
@@ -836,7 +963,8 @@ All extraction prompts are in `backend/services/parallelExtractor.js`:
 | `deal_monthly_expenses` | 12+ × 8 depts | AI extraction |
 | `deal_rate_schedules` | 1+ per payer | AI extraction |
 | `deal_expense_ratios` | 1 | Calculated |
-| `extraction_history` | 1+ | Audit trail (NEW) |
+| `extraction_history` | 1+ | Audit trail |
+| `deal_change_logs` | 1+ | Full audit log (CREATE/UPDATE/DELETE) |
 | `recent_activity` | 1+ | Auto-generated |
 
 ### Pre-Populated Reference Tables
@@ -937,6 +1065,39 @@ The system extracts expenses across 8 standard departments:
 | Audit Trail | None | extraction_history |
 | CIM Extraction | None | Full support |
 | Expense Departments | Limited | 8 categories |
+
+---
+
+## Keeping This Document Updated
+
+### Check for Staleness
+
+Run this script to check if this doc needs updating:
+
+```bash
+./scripts/check-extraction-docs.sh
+```
+
+### Files That Should Trigger Updates
+
+When any of these files change significantly, this doc should be reviewed:
+
+| File | What to Update |
+|------|----------------|
+| `backend/services/extractionOrchestrator.js` | Stage 4-6, Portfolio Flow |
+| `backend/services/parallelExtractor.js` | Stage 6, Prompts section |
+| `backend/services/extractionValidator.js` | Stage 8 |
+| `backend/services/periodAnalyzer.js` | Stage 5 |
+| `backend/services/facilityMatcher.js` | Stage 2, 9 |
+| `backend/controller/DealController.js` | Stage 11, Database Tables |
+| `backend/routes/deal.js` | API Endpoints Reference |
+
+### Update Checklist
+
+When updating this doc:
+1. Update the "Last Updated" date at the top
+2. Run `./scripts/check-extraction-docs.sh` to verify
+3. Commit with message referencing what changed
 
 ---
 

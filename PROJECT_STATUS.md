@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-23** - Fix: Change occupancy >100% and ADC>beds from errors to warnings
 - **2025-12-23** - Add missing columns from schema audit
 - **2025-12-23** - Add comprehensive audit logging for deal operations
 - **2025-12-23** - Add database migration reminder system
@@ -41,17 +42,16 @@
 - **2025-12-22** - Redesign summary cards and remove unused mock data
 - **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
 - **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
-- **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     14 files
-Frontend:    27 files
+Frontend:    22 files
 Routes:      2 files
 Services:    3 files
-Components:  12 files
+Components:  10 files
 Migrations:  3 files
 ```
 
