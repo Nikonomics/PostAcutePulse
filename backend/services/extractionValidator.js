@@ -369,10 +369,12 @@ class ExtractionDataValidator {
             message: `${field.label} (${value}%) cannot be negative${facilityContext}`
           });
         }
+        // Occupancy can exceed 100% (swing beds, overflow, different counting methods)
+        // Other percentages exceeding 100% are just warnings
         if (value > 100) {
-          errors.push({
+          warnings.push({
             field: field.key,
-            message: `${field.label} (${value}%) exceeds 100%${facilityContext}`
+            message: `${field.label} (${value}%) exceeds 100% - verify this is correct${facilityContext}`
           });
         }
       }
@@ -514,11 +516,11 @@ class ExtractionDataValidator {
       }
     }
 
-    // ADC cannot exceed bed count
+    // ADC exceeding bed count is unusual but possible (swing beds, overflow, counting methods)
     if (adc > 0 && bedCount > 0 && adc > bedCount) {
-      errors.push({
+      warnings.push({
         field: 'average_daily_census',
-        message: `Average daily census (${adc}) exceeds bed count (${bedCount})${facilityContext}`
+        message: `Average daily census (${adc}) exceeds bed count (${bedCount}) - verify this is correct${facilityContext}`
       });
     }
 
@@ -621,19 +623,25 @@ class ExtractionDataValidator {
 
     if (dataType === 'census') {
       for (const record of monthlyData) {
-        // Occupancy should be 0-100
+        // Occupancy below 0 is invalid, but above 100 is possible (swing beds, overflow)
         if (record.occupancy_percentage !== undefined) {
-          if (record.occupancy_percentage < 0 || record.occupancy_percentage > 100) {
+          if (record.occupancy_percentage < 0) {
             errors.push({
+              field: 'occupancy_percentage',
+              message: `Invalid occupancy in ${record.month}: ${record.occupancy_percentage}%`
+            });
+          }
+          if (record.occupancy_percentage > 100) {
+            warnings.push({
               field: 'occupancy_percentage',
               message: `Invalid occupancy in ${record.month}: ${record.occupancy_percentage}%`
             });
           }
         }
 
-        // ADC cannot exceed total beds
+        // ADC exceeding beds is unusual but possible (swing beds, overflow, counting methods)
         if (record.average_daily_census > record.total_beds && record.total_beds > 0) {
-          errors.push({
+          warnings.push({
             field: 'average_daily_census',
             message: `ADC (${record.average_daily_census}) exceeds beds (${record.total_beds}) in ${record.month}`
           });

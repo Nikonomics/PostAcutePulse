@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-23 09:42:01
+> Last updated: 2025-12-23 09:58:49
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1558,6 +1558,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1764,6 +1765,7 @@ backend/migrations/add-deals-position-column.js
 
 ### Last 7 Days
 
+- **2025-12-23** - Add missing columns from schema audit
 - **2025-12-23** - Add comprehensive audit logging for deal operations
 - **2025-12-23** - Add database migration reminder system
 - **2025-12-23** - Add automatic migration runner on app startup
@@ -1793,7 +1795,6 @@ backend/migrations/add-deals-position-column.js
 - **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
 - **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
 - **2025-12-22** - Frontend improvements: facilities section, deal detail, and styling
-- **2025-12-22** - Fix survey.js column name: provider_name → facility_name
 
 
 ### Areas Modified (Last 20 Commits)
@@ -1801,8 +1802,8 @@ backend/migrations/add-deals-position-column.js
 ```
 Backend:     14 files
 Frontend:    27 files
-Routes:      3 files
-Services:    2 files
+Routes:      2 files
+Services:    3 files
 Components:  12 files
 Migrations:  3 files
 ```
@@ -1815,7 +1816,6 @@ backend/migrations/20241223-add-missing-columns.js
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
 backend/routes/customReports.js
-backend/routes/facilityRisk.js
 backend/scripts/import-cutpoints.js
 backend/services/migrationRunner.js
 backend/services/reportQueryEngine.js
@@ -1825,6 +1825,7 @@ frontend/src/components/CustomReportBuilder/FieldPalette.jsx
 frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
 frontend/src/components/CustomReportBuilder/ResultsTable.jsx
 frontend/src/components/CustomReportBuilder/index.js
+frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
 ```
 
 ---
