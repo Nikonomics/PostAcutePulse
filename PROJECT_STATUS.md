@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 - **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
 - **2025-12-23** - Fix: Change occupancy >100% and ADC>beds from errors to warnings
 - **2025-12-23** - Add missing columns from schema audit
@@ -41,7 +42,6 @@
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 - **2025-12-22** - Make summary cards ultra-compact single-row design
 - **2025-12-22** - Redesign summary cards and remove unused mock data
-- **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
 
 
 ### Areas Modified (Last 20 Commits)

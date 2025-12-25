@@ -150,10 +150,6 @@ async function importHealthCitations() {
 
     console.log(`Extract date: ${extractDate}`);
 
-    // Create extract record
-    const extract = await getOrCreateExtract(extractDate);
-    console.log(`Extract ID: ${extract.extract_id}`);
-
     // Clear existing health citations and re-import
     // This ensures we have the latest 3-year window of data
     console.log('\nClearing existing health citations...');
@@ -177,7 +173,7 @@ async function importHealthCitations() {
 
         await client.query(
           `INSERT INTO health_citations (
-            extract_id, ccn, survey_date, survey_type,
+            ccn, survey_date, survey_type,
             deficiency_prefix, deficiency_category, deficiency_tag,
             deficiency_description, scope_severity_code,
             deficiency_corrected, correction_date, inspection_cycle,
@@ -185,9 +181,8 @@ async function importHealthCitations() {
             is_infection_control, is_under_idr,
             cms_processing_date
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
           [
-            extract.extract_id,
             parsed.ccn,
             parsed.survey_date,
             parsed.survey_type,
@@ -221,16 +216,6 @@ async function importHealthCitations() {
     }
 
     await client.query('COMMIT');
-
-    // Update extract status
-    await client.query(
-      `UPDATE cms_extracts
-       SET import_status = 'completed',
-           record_count = $2,
-           import_completed_at = NOW()
-       WHERE extract_id = $1`,
-      [extract.extract_id, importedCount]
-    );
 
     console.log('\n' + '='.repeat(60));
     console.log(`Import completed!`);
