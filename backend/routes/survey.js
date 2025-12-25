@@ -2780,4 +2780,293 @@ router.get('/patterns/trends', async (req, res) => {
   }
 });
 
+// ============================================================================
+// FIRE SAFETY ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/survey/fire-safety/overview
+ * Get fire safety deficiency overview statistics
+ *
+ * Query params:
+ * - period: '30days' | '90days' | '12months' | 'all' (default: '12months')
+ * - state: two-letter state code or 'ALL' (default: 'ALL')
+ */
+router.get('/fire-safety/overview', async (req, res) => {
+  const { period = '12months', state = 'ALL' } = req.query;
+  const pool = getMainPool();
+  const days = periodToDays(period);
+
+  try {
+    const stateFilter = state !== 'ALL' ? `AND f.state = '${state}'` : '';
+
+    const [summaryResult, topCategoriesResult, trendsResult, severityResult] = await Promise.all([
+      // Summary statistics
+      pool.query(`
+        SELECT
+          COUNT(*) as total_citations,
+          COUNT(DISTINCT fs.ccn) as facilities_cited,
+          COUNT(DISTINCT fs.survey_date) as total_surveys,
+          SUM(CASE WHEN fs.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count,
+          ROUND(AVG(citations_per_survey.cnt), 1) as avg_per_survey
+        FROM fire_safety_citations fs
+        JOIN snf_facilities f ON fs.ccn = f.federal_provider_number
+        LEFT JOIN (
+          SELECT ccn, survey_date, COUNT(*) as cnt
+          FROM fire_safety_citations
+          WHERE survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+          GROUP BY ccn, survey_date
+        ) citations_per_survey ON fs.ccn = citations_per_survey.ccn AND fs.survey_date = citations_per_survey.survey_date
+        WHERE fs.survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+        ${stateFilter}
+      `),
+
+      // Top citation categories
+      pool.query(`
+        SELECT
+          fs.deficiency_category,
+          COUNT(*) as count,
+          COUNT(DISTINCT fs.ccn) as facilities,
+          SUM(CASE WHEN fs.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
+        FROM fire_safety_citations fs
+        JOIN snf_facilities f ON fs.ccn = f.federal_provider_number
+        WHERE fs.survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+          AND fs.deficiency_category IS NOT NULL
+          ${stateFilter}
+        GROUP BY fs.deficiency_category
+        ORDER BY count DESC
+        LIMIT 10
+      `),
+
+      // Monthly trends
+      pool.query(`
+        SELECT
+          TO_CHAR(fs.survey_date, 'YYYY-MM') as month,
+          COUNT(*) as citations,
+          COUNT(DISTINCT fs.ccn) as facilities,
+          SUM(CASE WHEN fs.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
+        FROM fire_safety_citations fs
+        JOIN snf_facilities f ON fs.ccn = f.federal_provider_number
+        WHERE fs.survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+          ${stateFilter}
+        GROUP BY TO_CHAR(fs.survey_date, 'YYYY-MM')
+        ORDER BY month
+      `),
+
+      // Severity distribution
+      pool.query(`
+        SELECT
+          fs.scope_severity_code as severity,
+          COUNT(*) as count
+        FROM fire_safety_citations fs
+        JOIN snf_facilities f ON fs.ccn = f.federal_provider_number
+        WHERE fs.survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+          AND fs.scope_severity_code IS NOT NULL
+          ${stateFilter}
+        GROUP BY fs.scope_severity_code
+        ORDER BY severity
+      `)
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        state: state === 'ALL' ? 'National' : state,
+        summary: summaryResult.rows[0],
+        topCategories: topCategoriesResult.rows,
+        monthlyTrends: trendsResult.rows,
+        severityDistribution: severityResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Fire safety overview error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/fire-safety/facility/:ccn
+ * Get fire safety citations for a specific facility
+ */
+router.get('/fire-safety/facility/:ccn', async (req, res) => {
+  const { ccn } = req.params;
+  const { period = 'all' } = req.query;
+  const pool = getMainPool();
+  const days = periodToDays(period);
+
+  try {
+    const [citationsResult, summaryResult] = await Promise.all([
+      // Get all citations
+      pool.query(`
+        SELECT
+          survey_date,
+          deficiency_category,
+          deficiency_tag,
+          deficiency_description,
+          scope_severity_code,
+          deficiency_corrected,
+          correction_date,
+          is_standard_deficiency,
+          is_complaint_deficiency
+        FROM fire_safety_citations
+        WHERE ccn = $1
+          AND survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY survey_date DESC, deficiency_tag
+      `, [ccn]),
+
+      // Get summary by survey
+      pool.query(`
+        SELECT
+          survey_date,
+          COUNT(*) as citation_count,
+          SUM(CASE WHEN scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count,
+          STRING_AGG(DISTINCT deficiency_category, ', ') as categories
+        FROM fire_safety_citations
+        WHERE ccn = $1
+          AND survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+        GROUP BY survey_date
+        ORDER BY survey_date DESC
+      `, [ccn])
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        ccn,
+        period,
+        citations: citationsResult.rows,
+        surveyHistory: summaryResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Fire safety facility error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/fire-safety/top-tags
+ * Get top fire safety K-tags nationally or by state
+ */
+router.get('/fire-safety/top-tags', async (req, res) => {
+  const { period = '12months', state = 'ALL', limit = 20 } = req.query;
+  const pool = getMainPool();
+  const days = periodToDays(period);
+
+  try {
+    const stateFilter = state !== 'ALL' ? `AND f.state = '${state}'` : '';
+
+    const result = await pool.query(`
+      SELECT
+        fs.deficiency_tag as tag,
+        fs.deficiency_description as description,
+        fs.deficiency_category as category,
+        COUNT(*) as count,
+        COUNT(DISTINCT fs.ccn) as facilities,
+        SUM(CASE WHEN fs.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count,
+        ROUND(SUM(CASE WHEN fs.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as ij_pct
+      FROM fire_safety_citations fs
+      JOIN snf_facilities f ON fs.ccn = f.federal_provider_number
+      WHERE fs.survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+        ${stateFilter}
+      GROUP BY fs.deficiency_tag, fs.deficiency_description, fs.deficiency_category
+      ORDER BY count DESC
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        state: state === 'ALL' ? 'National' : state,
+        topTags: result.rows.map((r, idx) => ({
+          rank: idx + 1,
+          tag: 'K' + r.tag,
+          description: r.description,
+          category: r.category,
+          count: parseInt(r.count),
+          facilities: parseInt(r.facilities),
+          ijCount: parseInt(r.ij_count),
+          ijPct: parseFloat(r.ij_pct || 0)
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Fire safety top tags error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/survey/fire-safety/state-comparison
+ * Compare fire safety performance across states
+ */
+router.get('/fire-safety/state-comparison', async (req, res) => {
+  const { period = '12months' } = req.query;
+  const pool = getMainPool();
+  const days = periodToDays(period);
+
+  try {
+    const result = await pool.query(`
+      WITH state_stats AS (
+        SELECT
+          f.state,
+          COUNT(*) as citations,
+          COUNT(DISTINCT fs.ccn) as facilities_cited,
+          SUM(CASE WHEN fs.scope_severity_code IN ('J', 'K', 'L') THEN 1 ELSE 0 END) as ij_count
+        FROM fire_safety_citations fs
+        JOIN snf_facilities f ON fs.ccn = f.federal_provider_number
+        WHERE fs.survey_date >= CURRENT_DATE - INTERVAL '${days} days'
+        GROUP BY f.state
+      ),
+      state_facilities AS (
+        SELECT state, COUNT(*) as total_facilities
+        FROM snf_facilities
+        WHERE active = true
+        GROUP BY state
+      )
+      SELECT
+        ss.state,
+        ss.citations,
+        ss.facilities_cited,
+        sf.total_facilities,
+        ROUND(ss.facilities_cited * 100.0 / NULLIF(sf.total_facilities, 0), 1) as pct_facilities_cited,
+        ROUND(ss.citations * 1.0 / NULLIF(ss.facilities_cited, 0), 2) as avg_per_facility,
+        ss.ij_count,
+        ROUND(ss.ij_count * 100.0 / NULLIF(ss.citations, 0), 1) as ij_pct
+      FROM state_stats ss
+      LEFT JOIN state_facilities sf ON ss.state = sf.state
+      ORDER BY ss.citations DESC
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        states: result.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[Survey API] Fire safety state comparison error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

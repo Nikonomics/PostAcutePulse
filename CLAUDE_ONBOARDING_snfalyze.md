@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-23 11:53:03
+> Last updated: 2025-12-25 15:55:11
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1560,6 +1560,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1754,7 +1755,7 @@ backend/migrations/add-deals-position-column.js
 ```markdown
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 23, 2025
+**Last Updated:** December 25, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -1766,6 +1767,7 @@ backend/migrations/add-deals-position-column.js
 
 ### Last 7 Days
 
+- **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
 - **2025-12-23** - Fix: Change occupancy >100% and ADC>beds from errors to warnings
 - **2025-12-23** - Add missing columns from schema audit
 - **2025-12-23** - Add comprehensive audit logging for deal operations
@@ -1795,17 +1797,16 @@ backend/migrations/add-deals-position-column.js
 - **2025-12-22** - Make summary cards ultra-compact single-row design
 - **2025-12-22** - Redesign summary cards and remove unused mock data
 - **2025-12-22** - Replace mock summary cards with real API data on Survey Analytics
-- **2025-12-22** - Fix IJ rate calculation: return decimal instead of percentage
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     14 files
-Frontend:    22 files
+Backend:     16 files
+Frontend:    18 files
 Routes:      2 files
 Services:    3 files
-Components:  10 files
+Components:  7 files
 Migrations:  3 files
 ```
 
@@ -1818,6 +1819,8 @@ backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
 backend/routes/customReports.js
 backend/scripts/import-cutpoints.js
+backend/server/collectors/cms-fire-safety-collector.js
+backend/server/collectors/cms-health-citations-collector.js
 backend/services/migrationRunner.js
 backend/services/reportQueryEngine.js
 frontend/src/api/customReportsService.js
@@ -1825,8 +1828,6 @@ frontend/src/components/CustomReportBuilder/CustomReportBuilder.css
 frontend/src/components/CustomReportBuilder/FieldPalette.jsx
 frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
 frontend/src/components/CustomReportBuilder/ResultsTable.jsx
-frontend/src/components/CustomReportBuilder/index.js
-frontend/src/components/DealRegulatoryRisk/DealRegulatoryRisk.css
 ```
 
 ---
