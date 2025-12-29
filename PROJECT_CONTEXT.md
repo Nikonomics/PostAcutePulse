@@ -1209,6 +1209,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1224,6 +1225,7 @@ backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/facilityRisk.js
 backend/routes/hh-market.js
+backend/routes/hha-ma-analytics.js
 backend/routes/index.js
 backend/routes/ma-analytics.js
 backend/routes/market.js

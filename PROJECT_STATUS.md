@@ -1,6 +1,6 @@
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 28, 2025
+**Last Updated:** December 29, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-28** - Fix provider metadata lookup from ownership analysis
 - **2025-12-28** - Add state metrics, SPA routing, and View Profile navigation
 - **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
 - **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
@@ -41,15 +42,14 @@
 - **2025-12-22** - Add facility regulatory risk assessment API endpoint
 - **2025-12-22** - Fix duplicate deal creation and add persistent logging
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
-- **2025-12-22** - Redesign comparison cards to compact two-row layout
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     66 files
+Backend:     69 files
 Frontend:    107 files
-Routes:      6 files
+Routes:      7 files
 Services:    10 files
 Components:  51 files
 Migrations:  17 files
@@ -69,10 +69,10 @@ backend/models/watchlist.js
 backend/models/watchlist_item.js
 backend/routes/customReports.js
 backend/routes/hh-market.js
+backend/routes/hha-ma-analytics.js
 backend/routes/watchlist.js
 backend/scripts/debug-search.js
 backend/scripts/import-cutpoints.js
-backend/scripts/reset-admin.js
 ```
 
 ---

@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { useGoogleMaps } from '../context/GoogleMapsContext';
 import {
@@ -407,7 +406,6 @@ const geocodeSearch = async (query) => {
 // COMPONENT
 // ============================================================================
 const MarketAnalysis = () => {
-  const navigate = useNavigate();
   const { isLoaded, loadError } = useGoogleMaps();
 
   // State
@@ -617,12 +615,13 @@ const MarketAnalysis = () => {
     }
   }, [searchQuery, getTypes, getSearchRadius, reverseGeocode]);
 
-  // Navigation
-  const handleViewProfile = useCallback((facility) => {
-    if (!facility) return;
-    if (facility.type === 'SNF') navigate(`/facility-metrics/${facility.ccn}`);
-    else if (facility.type === 'HHA') navigate(`/home-health/${facility.ccn}`);
-  }, [navigate]);
+  // Navigation - get profile URL for a facility
+  const getProfileUrl = useCallback((facility) => {
+    if (!facility) return null;
+    if (facility.type === 'SNF') return `/facility-metrics/${facility.ccn}`;
+    if (facility.type === 'HHA') return `/home-health/${facility.ccn}`;
+    return null;
+  }, []);
 
   // Map handlers
   const onMapLoad = useCallback((mapInstance) => setMap(mapInstance), []);
@@ -875,10 +874,15 @@ const MarketAnalysis = () => {
                     <div style={{ fontWeight: 600, fontSize: '0.8125rem', marginBottom: '2px' }}>{selectedFacility.name}</div>
                     <div style={{ fontSize: '0.6875rem', color: '#666', marginBottom: '4px' }}>{selectedFacility.city}, {selectedFacility.state}</div>
                     <span style={{ ...styles.typeBadge, ...getBadgeStyle(selectedFacility.type), fontSize: '0.625rem' }}>{selectedFacility.type}</span>
-                    {selectedFacility.type !== 'ALF' && (
-                      <button onClick={() => handleViewProfile(selectedFacility)} style={{ display: 'block', marginTop: '6px', color: '#2563eb', fontSize: '0.6875rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    {selectedFacility.type !== 'ALF' && getProfileUrl(selectedFacility) && (
+                      <a
+                        href={getProfileUrl(selectedFacility)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'block', marginTop: '6px', color: '#2563eb', fontSize: '0.6875rem', textDecoration: 'none' }}
+                      >
                         View Profile →
-                      </button>
+                      </a>
                     )}
                   </div>
                 </InfoWindow>
@@ -967,10 +971,12 @@ const MarketAnalysis = () => {
                       >
                         <td style={styles.td}>
                           <div style={styles.nameCell}>
-                            {facility.type !== 'ALF' ? (
+                            {facility.type !== 'ALF' && getProfileUrl(facility) ? (
                               <a
-                                href="#"
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleViewProfile(facility); }}
+                                href={getProfileUrl(facility)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
                                 style={styles.nameLink}
                                 title={facility.name}
                               >

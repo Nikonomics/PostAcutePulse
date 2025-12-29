@@ -153,6 +153,7 @@ var wagesRouter = require('./routes/wages');
 var marketsRouter = require('./routes/markets');
 var ownershipRouter = require('./routes/ownership');
 var maAnalyticsRouter = require('./routes/ma-analytics');
+var hhaMaAnalyticsRouter = require('./routes/hha-ma-analytics');
 var savedItemsRouter = require('./routes/savedItems');
 var userRouter = require('./routes/user');
 var surveyIntelligenceRouter = require('./routes/surveyIntelligence');
@@ -215,6 +216,10 @@ app.use('/api/v1/ownership', ownershipRouter);
 // M&A Analytics API routes
 app.use('/api/ma-analytics', maAnalyticsRouter);
 app.use('/api/v1/ma-analytics', maAnalyticsRouter);
+
+// HHA M&A Analytics API routes (Home Health ownership changes)
+app.use('/api/hha-ma', hhaMaAnalyticsRouter);
+app.use('/api/v1/hha-ma', hhaMaAnalyticsRouter);
 
 // Survey Intelligence API routes
 app.use('/api/v1/survey-intelligence', surveyIntelligenceRouter);
