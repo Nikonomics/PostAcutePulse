@@ -86,8 +86,10 @@ const COMPARISON_MODES = [
   { id: 'custom', label: 'Custom Group' },
 ];
 
-const FacilityMetricsTab = () => {
+const FacilityMetricsTab = ({ ccn: propCcn, hideHeader = false }) => {
   const { ccn: urlCcn } = useParams();
+  // Prefer prop CCN over URL CCN (allows embedding in other pages)
+  const ccn = propCcn || urlCcn;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -100,7 +102,7 @@ const FacilityMetricsTab = () => {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [benchmarks, setBenchmarks] = useState(null);
   const [comparisonMode, setComparisonMode] = useState('state');
-  const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(!!urlCcn);
+  const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(!!ccn);
   const [showComparison, setShowComparison] = useState(false);
   const compareCcn = searchParams.get('compare');
 
@@ -121,7 +123,7 @@ const FacilityMetricsTab = () => {
       // No tab in URL means default to snapshot
       setActiveTab('snapshot');
     }
-  }, [searchParams, urlCcn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, ccn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get contextual back button label based on 'from' value
   const getBackLabel = () => {
@@ -229,15 +231,15 @@ const FacilityMetricsTab = () => {
     }
   };
 
-  // Load facility from URL on mount or when URL CCN changes
+  // Load facility from CCN (prop or URL) on mount or when CCN changes
   useEffect(() => {
-    // Only load if URL has CCN and it's different from current facility (or no facility loaded)
+    // Only load if CCN exists and it's different from current facility (or no facility loaded)
     const currentCcn = selectedFacility?.ccn || selectedFacility?.federal_provider_number;
-    const shouldLoad = urlCcn && (!currentCcn || urlCcn !== currentCcn);
+    const shouldLoad = ccn && (!currentCcn || ccn !== currentCcn);
 
     if (shouldLoad) {
       setIsLoadingFromUrl(true);
-      getFacilityProfile(urlCcn)
+      getFacilityProfile(ccn)
         .then((response) => {
           if (response.success && response.facility) {
             const normalizedFacility = normalizeFacilityData(response.facility);
@@ -253,13 +255,13 @@ const FacilityMetricsTab = () => {
           }
         })
         .catch((error) => {
-          console.error('Error loading facility from URL:', error);
+          console.error('Error loading facility from CCN:', error);
         })
         .finally(() => {
           setIsLoadingFromUrl(false);
         });
     }
-  }, [urlCcn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ccn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update URL when tab changes
   const handleTabChange = useCallback((tab) => {
@@ -378,9 +380,9 @@ const FacilityMetricsTab = () => {
   };
 
   return (
-    <div className="facility-metrics">
+    <div className={`facility-metrics ${hideHeader ? 'embedded' : ''}`}>
       {/* Top Navigation Bar - Back, Facility Info, Save */}
-      {selectedFacility && (
+      {!hideHeader && selectedFacility && (
         <div className="facility-metrics-nav">
           {/* Left: Back Button */}
           <button className="back-button" onClick={handleBack}>
@@ -427,40 +429,42 @@ const FacilityMetricsTab = () => {
         </div>
       )}
 
-      {/* Facility Selector */}
-      <div className="facility-metrics-header">
-        <FacilitySelector
-          selectedFacility={selectedFacility}
-          onSelect={handleFacilitySelect}
-        />
+      {/* Facility Selector - hide when embedded */}
+      {!hideHeader && (
+        <div className="facility-metrics-header">
+          <FacilitySelector
+            selectedFacility={selectedFacility}
+            onSelect={handleFacilitySelect}
+          />
 
-        {/* Comparison Mode Toggle */}
-        <div className="comparison-toggle">
-          <span className="comparison-label">Compare to:</span>
-          <div className="comparison-buttons">
-            {COMPARISON_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                className={`comparison-btn ${comparisonMode === mode.id ? 'active' : ''}`}
-                onClick={() => handleComparisonChange(mode.id)}
-              >
-                {mode.label}
-              </button>
-            ))}
+          {/* Comparison Mode Toggle */}
+          <div className="comparison-toggle">
+            <span className="comparison-label">Compare to:</span>
+            <div className="comparison-buttons">
+              {COMPARISON_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  className={`comparison-btn ${comparisonMode === mode.id ? 'active' : ''}`}
+                  onClick={() => handleComparisonChange(mode.id)}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Compare Button - show when facility is selected */}
-        {selectedFacility && (
-          <button
-            className={`compare-btn ${showComparison ? 'active' : ''}`}
-            onClick={handleToggleComparison}
-          >
-            <ArrowLeftRight size={16} />
-            Compare
-          </button>
-        )}
-      </div>
+          {/* Compare Button - show when facility is selected */}
+          {selectedFacility && (
+            <button
+              className={`compare-btn ${showComparison ? 'active' : ''}`}
+              onClick={handleToggleComparison}
+            >
+              <ArrowLeftRight size={16} />
+              Compare
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Sub-navigation Tabs */}
       <div className="facility-metrics-tabs">

@@ -1,595 +1,576 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Download, MapPin } from "lucide-react";
 import {
-  getDashboardData,
-  getRecentActivity,
-  updateDealStatus,
-  updateDealPositions,
-  getSampleLocations,
-  getMapFilterOptions
-} from "../api/DealService";
-import { formatDistanceToNow } from "date-fns";
-import { toast } from "react-toastify";
-import GoogleMapComponent from "../components/ui/GoogleMap";
-import DealLocationsMap from "../components/ui/DealLocationsMap";
-
-// Helper to map API response to deals with facilities format
-const mapLocationsToDeals = (locations) => {
-  if (!Array.isArray(locations)) return [];
-
-  return locations.map(location => {
-    // Filter facilities with valid coordinates
-    const validFacilities = (location.deal_facility || [])
-      .filter(facility =>
-        typeof facility.latitude === "number" &&
-        typeof facility.longitude === "number" &&
-        !isNaN(facility.latitude) &&
-        !isNaN(facility.longitude) &&
-        facility.latitude !== 0 &&
-        facility.longitude !== 0
-      )
-      .map(facility => ({
-        id: facility.id,
-        facility_name: facility.facility_name || `Facility ${facility.id}`,
-        address: facility.address || "",
-        city: facility.city || "",
-        state: facility.state || "",
-        latitude: facility.latitude,
-        longitude: facility.longitude,
-        type: facility.type || "SNF",
-        company: facility.company,
-        team: facility.team,
-        beds: facility.beds
-      }));
-
-    return {
-      id: location.id,
-      deal_name: location.deal_name || `Location ${location.id}`,
-      deal_status: location.deal_status,
-      source: location.source,
-      deal_facility: validFacilities
-    };
-  }).filter(location => location.deal_facility.length > 0);
-};
+  Search,
+  Building2,
+  Star,
+  MapPin,
+  Plus,
+  ChevronRight,
+  Clock,
+  TrendingUp,
+  Activity,
+  Loader2,
+  X,
+  Home
+} from "lucide-react";
+import * as marketService from "../api/marketService";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dashboardData, setDashboardData] = useState(null);
-  // Drag and Drop state
-  const [draggedDeal, setDraggedDeal] = useState(null);
-  const [dragOverStatus, setDragOverStatus] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState(null);
+  const searchInputRef = useRef(null);
 
-  // fetch recent activity data:
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [dealsWithFacilities, setDealsWithFacilities] = useState([]);
-  const [mapFilters, setMapFilters] = useState({ status: [], serviceLine: [], company: [], team: [] });
-  const [filterOptions, setFilterOptions] = useState(null);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
+  // Watchlist state
+  const [watchlists, setWatchlists] = useState([]);
+  const [loadingWatchlists, setLoadingWatchlists] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newWatchlistName, setNewWatchlistName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Fetch watchlists on mount
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-
-      try {
-        // Run all API calls in parallel
-        const [dashboardRes, activityRes, filterOptionsRes] = await Promise.all([
-          getDashboardData(),
-          getRecentActivity(),
-          getMapFilterOptions()
-        ]);
-
-        if (dashboardRes.code === 200) {
-          setDashboardData(dashboardRes.body);
-        } else {
-          setError(dashboardRes.message || "Failed to fetch dashboard data");
-        }
-
-        if (activityRes.code === 200) {
-          setRecentActivity(activityRes.body);
-        } else {
-          setError(activityRes.message || "Failed to fetch recent activity");
-        }
-
-        if (filterOptionsRes.code === 200) {
-          setFilterOptions(filterOptionsRes.body);
-        }
-      } catch (err) {
-        setError("Failed to fetch dashboard or activity data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    fetchWatchlists();
   }, []);
 
-  // Fetch locations when filters change
+  const fetchWatchlists = async () => {
+    try {
+      setLoadingWatchlists(true);
+      const response = await marketService.getWatchlists();
+      setWatchlists(response.watchlists || []);
+    } catch (err) {
+      console.error("Failed to fetch watchlists:", err);
+    } finally {
+      setLoadingWatchlists(false);
+    }
+  };
+
+  // Debounced search - uses same API as Facility Metrics
   useEffect(() => {
-    const fetchLocations = async () => {
-      try {
-        const hasFilters = Object.values(mapFilters).some(arr => arr.length > 0);
-        console.log('Fetching locations with filters:', mapFilters);
-
-        const res = await getSampleLocations(hasFilters ? mapFilters : {});
-
-        // New API response format: { locations: [], filterOptions: {} }
-        const locations = res.body?.locations || res.body || [];
-
-        if (!Array.isArray(locations)) {
-          console.error('Invalid API response structure:', res);
-          setDealsWithFacilities([]);
-          return;
-        }
-
-        const mappedLocations = mapLocationsToDeals(locations);
-        setDealsWithFacilities(mappedLocations);
-
-        // Update filter options if provided
-        if (res.body?.filterOptions) {
-          setFilterOptions(res.body.filterOptions);
-        }
-      } catch (error) {
-        console.error('Error fetching locations:', error);
-        setDealsWithFacilities([]);
-      }
-    };
-    fetchLocations();
-  }, [mapFilters]);
-
-  const handleFiltersChange = (newFilters) => {
-    setMapFilters(newFilters);
-  };
-
-  // console.log('dealsWithFacilities', dealsWithFacilities);
-
-  const handleNewDeal = () => {
-    navigate("/deals/new");
-  };
-
-  const handleExport = () => {
-    console.log("Export dashboard data");
-  };
-
-  // Drag and Drop functions
-  const handleDragStart = (e, deal, currentStatus, index) => {
-    setDraggedDeal({ ...deal, currentStatus });
-    setDraggedIndex(index);
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = "move";
-
-    // Add dragging class to body for global cursor changes
-    document.body.classList.add("dragging");
-
-    // Create a clean drag image without any transforms
-    const dragImage = e.target.cloneNode(true);
-    dragImage.style.opacity = "0.8";
-    dragImage.style.width = e.target.offsetWidth + "px";
-    dragImage.style.height = e.target.offsetHeight + "px";
-    dragImage.style.transform = "none";
-    dragImage.style.margin = "0";
-    dragImage.style.padding = "0";
-    document.body.appendChild(dragImage);
-    e.dataTransfer.setDragImage(dragImage, 0, 0);
-
-    // Remove the temporary element after a short delay
-    setTimeout(() => {
-      if (document.body.contains(dragImage)) {
-        document.body.removeChild(dragImage);
-      }
-    }, 100);
-  };
-
-  const handleDragOver = (e, status) => {
-    e.preventDefault();
-    setDragOverStatus(status);
-  };
-
-  const handleDragEnter = (e, status, index) => {
-    if (!draggedDeal || draggedDeal.currentStatus !== status) return;
-
-    const updatedDeals = { ...dashboardData };
-
-    const dealsArray = [...updatedDeals[`${status}Deals`]];
-    const draggedItem = dealsArray[draggedIndex];
-
-    // Remove dragged item
-    dealsArray.splice(draggedIndex, 1);
-    // Insert at new position
-    dealsArray.splice(index, 0, draggedItem);
-
-    updatedDeals[`${status}Deals`] = dealsArray;
-
-    setDashboardData(updatedDeals);
-    setDraggedIndex(index);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverStatus(null);
-  };
-
-  const handleDrop = async (e, targetStatus) => {
-    e.preventDefault();
-
-    if (!draggedDeal) {
-      setDraggedDeal(null);
-      setIsDragging(false);
-      setDragOverStatus(null);
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
       return;
     }
 
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        // Use marketService.searchFacilities (searches both SNF and HHA)
+        const response = await marketService.searchFacilities(searchQuery, 20);
+        const facilities = response.data || [];
+        setSearchResults(Array.isArray(facilities) ? facilities : []);
+        setShowResults(true);
+      } catch (err) {
+        console.error("Search failed:", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Handle clicking outside search results
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchInputRef.current && !searchInputRef.current.contains(e.target)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectFacility = (facility) => {
+    setShowResults(false);
+    setSearchQuery("");
+    // Navigate to unified operator profile page with CCN
+    navigate(`/operator/${facility.ccn}`);
+  };
+
+  const handleCreateWatchlist = async () => {
+    if (!newWatchlistName.trim()) return;
+
     try {
-      // ✅ Reorder within the same status column
-      if (draggedDeal.currentStatus === targetStatus) {
-        const currentDeals = [...dashboardData[`${targetStatus}Deals`]];
-        const draggedItem = currentDeals[draggedIndex];
-
-        // Remove from old index
-        currentDeals.splice(draggedIndex, 1);
-
-        // Calculate new drop position
-        const dropPosition = calculateDropPosition(e, targetStatus);
-
-        // Insert at new index
-        currentDeals.splice(dropPosition, 0, draggedItem);
-
-        // Build new positions for ALL deals in this column
-        const reorderedDeals = currentDeals.map((deal, index) => ({
-          id: deal.id,
-          position: index + 1,
-        }));
-
-        // 🔹 Call API with full reordered list
-        const response = await updateDealPositions(reorderedDeals);
-
-        if (response.success === true) {
-          toast.success(`Deals reordered in ${targetStatus}`);
-
-          // Optimistically update UI
-          setDashboardData({
-            ...dashboardData,
-            [`${targetStatus}Deals`]: currentDeals,
-          });
-        } else {
-          toast.error(response.message || "Failed to update deal positions");
-        }
-      }
-      // ✅ Move deal to another status column
-      else {
-        const statusPayload = {
-          id: draggedDeal.id,
-          deal_status: targetStatus,
-        };
-
-        const response = await updateDealStatus(statusPayload);
-
-        if (response.success === true) {
-          toast.success(`Deal moved to ${targetStatus}`);
-
-          // Refetch dashboard data to ensure UI is in sync with backend
-          try {
-            const dashboardRes = await getDashboardData();
-            if (dashboardRes.code === 200) {
-              setDashboardData(dashboardRes.body);
-              console.log("Dashboard data refreshed after status update");
-            }
-          } catch (refreshError) {
-            console.warn("Failed to refresh dashboard data:", refreshError);
-          }
-        } else {
-          toast.error(response.message || "Failed to update deal status");
-        }
-      }
-    } catch (error) {
-      console.error("Error updating deal:", error);
-      toast.error("Failed to update deal");
+      setCreating(true);
+      await marketService.createWatchlist(newWatchlistName.trim());
+      setNewWatchlistName("");
+      setShowCreateModal(false);
+      fetchWatchlists();
+    } catch (err) {
+      console.error("Failed to create watchlist:", err);
     } finally {
-      setDraggedDeal(null);
-      setIsDragging(false);
-      setDragOverStatus(null);
+      setCreating(false);
     }
   };
 
-  // Calculate the actual drop position based on mouse coordinates
-  const calculateDropPosition = (e, status) => {
-    const columnElement = e.currentTarget;
-    const dealsContainer = columnElement.querySelector(".space-y-3");
-    const dealCards = dealsContainer.querySelectorAll(".deal-card");
-
-    if (dealCards.length === 0) return 0;
-
-    const rect = dealsContainer.getBoundingClientRect();
-    const mouseY = e.clientY;
-
-    // Find the position where the deal should be inserted
-    for (let i = 0; i < dealCards.length; i++) {
-      const cardRect = dealCards[i].getBoundingClientRect();
-      const cardMiddle = cardRect.top + cardRect.height / 2;
-
-      if (mouseY < cardMiddle) {
-        return i;
-      }
-    }
-
-    // If dropped at the bottom, return the last position
-    return dealCards.length;
+  const getRatingColor = (rating) => {
+    if (!rating) return "#9ca3af";
+    if (rating >= 4) return "#22c55e";
+    if (rating >= 3) return "#eab308";
+    if (rating >= 2) return "#f97316";
+    return "#ef4444";
   };
-
-  // Clean up drag styles when drag ends
-  const handleDragEnd = () => {
-    // Reset any inline styles that might have been applied
-    const draggedElements = document.querySelectorAll(".deal-card");
-    draggedElements.forEach((el) => {
-      el.style.opacity = "";
-      el.style.transform = "";
-      el.style.zIndex = "";
-    });
-
-    setDraggedDeal(null);
-    setIsDragging(false);
-    setDragOverStatus(null);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <span
-          className="spinner-border spinner-border-sm"
-          role="status"
-          aria-hidden="true"
-        ></span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <span className="text-red-500 text-lg">{error}</span>
-      </div>
-    );
-  }
-
-  // Helper: Format number to 1 decimal if needed
-  const formatNumber = (num, decimals = 1) => {
-    if (typeof num !== "number") return num;
-    return num % 1 === 0 ? num : num.toFixed(decimals);
-  };
-
-  const renderColumn = (status, color, label) => (
-    <div
-      className={`pipeline-column h-[180px] p-3 rounded-lg border border-gray-200 transition-all duration-300 ease-out ${dragOverStatus === status ? "drag-over" : "bg-gray-50"
-        }`}
-      data-status={status}
-      onDragOver={(e) => handleDragOver(e, status)}
-      onDragLeave={handleDragLeave}
-      onDrop={(e) => handleDrop(e, status)}
-    >
-      <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide border-b border-gray-200 pb-2">
-        {label.toUpperCase()} ({dashboardData[`${status}Deals`]?.length || 0})
-      </h3>
-      <div className="space-y-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
-        {dashboardData[`${status}Deals`]?.map((deal, index) => (
-          <div
-            key={deal.id}
-            draggable
-            onDragStart={(e) => handleDragStart(e, deal, status, index)}
-            onDragEnter={(e) => handleDragEnter(e, status, index)}
-            onDragEnd={handleDragEnd}
-            className={`deal-card bg-${color}-100 border border-${color}-200 text-${color}-800 p-2 rounded-lg text-sm font-medium relative transition-all duration-200 ease-out ${draggedDeal?.id === deal.id ? "dragging" : ""
-              }`}
-            onClick={() => navigate(`/deals/deal-detail/${deal.id}`)}
-          >
-            <div className="flex items-center justify-between">
-              <span className="truncate flex-1 mr-2">{deal.deal_name}</span>
-              <span
-                className={`position-badge text-xs bg-${color}-100 text-${color}-700 px-2 py-1 rounded-full font-medium flex-shrink-0`}
-              >
-                #{index + 1}
-              </span>
-            </div>
-          </div>
-        ))}
-        {(!dashboardData[`${status}Deals`] ||
-          dashboardData[`${status}Deals`].length === 0) && (
-            <div className="text-gray-400 text-sm text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
-              Drop deals here
-            </div>
-          )}
-      </div>
-    </div>
-  );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="row align-items-center">
-          <div className="col-md-5">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-            <p className="text-gray-600 mb-0">
-              Overview of all deals and key metrics
-            </p>
-          </div>
-          <div className="col-md-7 mt-3 mt-md-0">
-            <div className="flex gap-3 justify-content-end">
-              {/* <button
-                onClick={handleExport}
-                className="flex items-center gap-2 px-3 px-md-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Download size={16} />
-                Export
-              </button> */}
+    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb" }}>
+      {/* Hero Section */}
+      <div style={{
+        background: "linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)",
+        padding: "60px 24px",
+        color: "white",
+        textAlign: "center"
+      }}>
+        <h1 style={{
+          fontSize: "36px",
+          fontWeight: "700",
+          marginBottom: "12px"
+        }}>
+          Market Intelligence Platform
+        </h1>
+        <p style={{
+          fontSize: "18px",
+          opacity: 0.9,
+          marginBottom: "32px",
+          maxWidth: "600px",
+          margin: "0 auto 32px"
+        }}>
+          Search and analyze skilled nursing facilities across the nation
+        </p>
+
+        {/* Search Bar */}
+        <div
+          ref={searchInputRef}
+          style={{
+            maxWidth: "640px",
+            margin: "0 auto",
+            position: "relative"
+          }}
+        >
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            backgroundColor: "white",
+            borderRadius: "12px",
+            padding: "4px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)"
+          }}>
+            <Search size={20} color="#6b7280" style={{ marginLeft: "16px" }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search facilities by name, city, or state..."
+              style={{
+                flex: 1,
+                border: "none",
+                outline: "none",
+                padding: "16px",
+                fontSize: "16px",
+                backgroundColor: "transparent",
+                color: "#1f2937"
+              }}
+            />
+            {isSearching && (
+              <Loader2 size={20} color="#6b7280" style={{ marginRight: "16px", animation: "spin 1s linear infinite" }} />
+            )}
+            {searchQuery && !isSearching && (
               <button
-                onClick={handleNewDeal}
-                className="flex items-center gap-2 px-3 px-md-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                onClick={() => {
+                  setSearchQuery("");
+                  setShowResults(false);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "8px",
+                  marginRight: "8px"
+                }}
               >
-                <Plus size={16} />
-                New Deal
+                <X size={18} color="#6b7280" />
               </button>
-              {/* <button
-                onClick={() => navigate("/combined-deal-form")}
-                className="flex items-center gap-2 px-3 px-md-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
+            )}
+          </div>
+
+          {/* Search Results Dropdown */}
+          {showResults && searchResults.length > 0 && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              backgroundColor: "white",
+              borderRadius: "12px",
+              marginTop: "8px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              maxHeight: "400px",
+              overflowY: "auto",
+              zIndex: 50,
+              textAlign: "left"
+            }}>
+              {searchResults.map((facility, idx) => (
+                <div
+                  key={facility.ccn || idx}
+                  onClick={() => handleSelectFacility(facility)}
+                  style={{
+                    padding: "16px",
+                    cursor: "pointer",
+                    borderBottom: idx < searchResults.length - 1 ? "1px solid #e5e7eb" : "none",
+                    transition: "background-color 0.15s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                        <span style={{ fontWeight: "600", color: "#1f2937" }}>
+                          {facility.provider_name || facility.facility_name || facility.name}
+                        </span>
+                        {/* Type Badge */}
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 8px",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          borderRadius: "12px",
+                          backgroundColor: facility.type === 'HHA' ? "#d1fae5" : "#dbeafe",
+                          color: facility.type === 'HHA' ? "#065f46" : "#1e40af"
+                        }}>
+                          {facility.type === 'HHA' ? <Home size={10} /> : <Building2 size={10} />}
+                          {facility.type === 'HHA' ? 'Home Health' : 'SNF'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "14px", color: "#6b7280", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <MapPin size={14} />
+                        {facility.city}, {facility.state}
+                        {facility.certified_beds && (
+                          <>
+                            <span style={{ margin: "0 4px" }}>•</span>
+                            <Building2 size={14} />
+                            {facility.certified_beds} beds
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {facility.overall_rating && (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "4px 8px",
+                        backgroundColor: `${getRatingColor(facility.overall_rating)}15`,
+                        borderRadius: "6px"
+                      }}>
+                        <Star size={14} color={getRatingColor(facility.overall_rating)} fill={getRatingColor(facility.overall_rating)} />
+                        <span style={{ fontSize: "14px", fontWeight: "600", color: getRatingColor(facility.overall_rating) }}>
+                          {facility.overall_rating}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+
+          {/* Watchlists Section */}
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "12px",
+            padding: "24px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Building2 size={22} color="#2563eb" />
+                <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#1f2937", margin: 0 }}>
+                  My Watchlists
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 12px",
+                  backgroundColor: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500"
+                }}
               >
                 <Plus size={16} />
-                Combined Deal Form
-              </button> */}
+                New
+              </button>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {/* Active Deals */}
-        {/* <div className="bg-white rounded-lg border border-gray-200 p-6 border-l-4 border-l-blue-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                ACTIVE DEALS
-              </p>
-              <p className="text-3xl font-bold text-blue-600 mt-2">
-                {dashboardData.total_deals}
-              </p>
-              <p className="text-sm text-gray-500 mt-1 mb-0">
-                +{dashboardData.weekly_deals} this week
-              </p>
-            </div>
-          </div>
-        </div> */}
-
-        {/* Pipeline Value */}
-        {/* <div className="bg-white rounded-lg border border-gray-200 p-6 border-l-4 border-l-green-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                PIPELINE VALUE
-              </p>
-              <p className="text-3xl font-bold text-green-600 mt-2">
-                {formatNumber(dashboardData?.total_pipeline_revenue || 0)}M
-              </p>
-              <p className="text-sm text-gray-500 mt-1 mb-0">
-                +{formatNumber(dashboardData?.total_pipeline_revenue || 0)}M
-                this week
-              </p>
-            </div>
-          </div>
-        </div> */}
-
-        {/* Due Diligence */}
-        {/* <div className="bg-white rounded-lg border border-gray-200 p-6 border-l-4 border-l-red-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                DUE DILIGENCE
-              </p>
-              <p className="text-3xl font-bold text-red-600 mt-2">
-                {dashboardData.due_diligence_deals}
-              </p>
-              <p className="text-sm text-gray-500 mt-1 mb-0">Deals in review</p>
-            </div>
-          </div>
-        </div> */}
-
-        {/* Avg Close Time */}
-        {/* <div className="bg-white rounded-lg border border-gray-200 p-6 border-l-4 border-l-orange-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-                AVG. CLOSE TIME
-              </p>
-              <p className="text-3xl font-bold text-orange-600 mt-2">
-                {dashboardData.average_deal_close_date}d
-              </p>
-              <p className="text-sm text-gray-500 mt-1 mb-0">
-                {dashboardData.average_deal_close_date_difference} days this
-                week
-              </p>
-            </div>
-          </div>
-        </div> */}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Deal Pipeline Status */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">
-            Deal Pipeline Status
-          </h3>
-
-          {/* Equal-width 5 columns */}
-          <div className="flex gap-6 w-full">
-            <div className="flex-1">
-              {renderColumn("pipeline", "yellow", "Pipeline")}
-            </div>
-            <div className="flex-1">
-              {renderColumn("due_diligence", "blue", "Due Diligence")}
-            </div>
-            {/* <div className="flex-1">
-              {renderColumn("final_review", "red", "Final Review")}
-            </div> */}
-            <div className="flex-1">
-              {renderColumn("closed", "green", "CURRENT OPERATIONS")}
-            </div>
-            <div className="flex-1">
-              {renderColumn("hold", "gray", "On Hold")}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        {/* 
-  <div className="bg-white rounded-lg border border-gray-200 p-6">
-    <h3 className="text-lg font-semibold text-gray-900 mb-6">
-      Recent Activity
-    </h3>
-    <div className="space-y-4">
-      {loading ? (
-        <div className="text-gray-500 text-sm">Loading...</div>
-      ) : recentActivity && recentActivity.length > 0 ? (
-        <div className="space-y-4">
-          {recentActivity.map((activity, index) => (
-            <div key={index} className="text-sm text-gray-700">
-              <div dangerouslySetInnerHTML={{ __html: activity.message }} />
-              <div className="text-xs text-gray-400">
-                {formatDistanceToNow(new Date(activity.createdAt), {
-                  addSuffix: true,
-                })}
+            {loadingWatchlists ? (
+              <div style={{ textAlign: "center", padding: "40px", color: "#6b7280" }}>
+                <Loader2 size={24} style={{ animation: "spin 1s linear infinite" }} />
+                <p style={{ marginTop: "12px" }}>Loading watchlists...</p>
               </div>
+            ) : watchlists.length === 0 ? (
+              <div style={{
+                textAlign: "center",
+                padding: "40px 20px",
+                backgroundColor: "#f9fafb",
+                borderRadius: "8px"
+              }}>
+                <Building2 size={40} color="#d1d5db" style={{ marginBottom: "12px" }} />
+                <p style={{ color: "#6b7280", marginBottom: "16px" }}>
+                  No watchlists yet. Create one to start tracking facilities.
+                </p>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontWeight: "500"
+                  }}
+                >
+                  Create Your First Watchlist
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {watchlists.map((watchlist) => (
+                  <div
+                    key={watchlist.id}
+                    onClick={() => navigate(`/watchlist/${watchlist.id}`)}
+                    style={{
+                      padding: "16px",
+                      backgroundColor: "#f9fafb",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      transition: "all 0.15s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      e.currentTarget.style.transform = "translateX(4px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f9fafb";
+                      e.currentTarget.style.transform = "translateX(0)";
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: "600", color: "#1f2937", marginBottom: "4px" }}>
+                        {watchlist.name}
+                        {watchlist.is_primary && (
+                          <span style={{
+                            marginLeft: "8px",
+                            fontSize: "11px",
+                            padding: "2px 6px",
+                            backgroundColor: "#dbeafe",
+                            color: "#2563eb",
+                            borderRadius: "4px"
+                          }}>
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#6b7280" }}>
+                        {watchlist.items?.length || 0} facilities
+                      </div>
+                    </div>
+                    <ChevronRight size={18} color="#9ca3af" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Activity Section */}
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "12px",
+            padding: "24px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+              <Clock size={22} color="#7c3aed" />
+              <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#1f2937", margin: 0 }}>
+                Recent Activity
+              </h2>
             </div>
-          ))}
+
+            <div style={{
+              textAlign: "center",
+              padding: "40px 20px",
+              backgroundColor: "#f9fafb",
+              borderRadius: "8px"
+            }}>
+              <Activity size={40} color="#d1d5db" style={{ marginBottom: "12px" }} />
+              <p style={{ color: "#6b7280" }}>
+                Your recent facility views and searches will appear here.
+              </p>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="text-gray-400 text-sm">No recent activity</div>
-      )}
-    </div>
-  </div>
-  */}
+
+        {/* Quick Links */}
+        <div style={{ marginTop: "32px" }}>
+          <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#1f2937", marginBottom: "16px" }}>
+            Quick Access
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+            {[
+              { title: "Market Analysis", path: "/market-analysis", icon: MapPin, color: "#2563eb" },
+              { title: "Survey Analytics", path: "/survey-analytics", icon: TrendingUp, color: "#7c3aed" },
+              { title: "Ownership Research", path: "/ownership-research", icon: Building2, color: "#059669" }
+            ].map((link) => (
+              <div
+                key={link.path}
+                onClick={() => navigate(link.path)}
+                style={{
+                  padding: "20px",
+                  backgroundColor: "white",
+                  borderRadius: "12px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <div style={{
+                  padding: "10px",
+                  backgroundColor: `${link.color}15`,
+                  borderRadius: "10px"
+                }}>
+                  <link.icon size={22} color={link.color} />
+                </div>
+                <span style={{ fontWeight: "600", color: "#1f2937" }}>{link.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Google Maps Section */}
-      <div className="mb-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <DealLocationsMap
-            deals={dealsWithFacilities}
-            height="600px"
-            showInfoWindows={true}
-            filterOptions={filterOptions}
-            onFiltersChange={handleFiltersChange}
-            onMarkerClick={(marker, location) => {
-              // Navigate to deal detail for deal facilities
-              if (location.source !== 'cascadia' && location.dealId) {
-                const numericDealId = String(location.dealId).replace('deal-', '');
-                navigate(`/deals/deal-detail/${numericDealId}`);
-              }
+      {/* Create Watchlist Modal */}
+      {showCreateModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100
+        }}
+        onClick={() => setShowCreateModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "400px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.2)"
             }}
-          />
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "16px" }}>
+              Create New Watchlist
+            </h3>
+            <input
+              type="text"
+              value={newWatchlistName}
+              onChange={(e) => setNewWatchlistName(e.target.value)}
+              placeholder="Watchlist name..."
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                fontSize: "14px",
+                marginBottom: "16px",
+                boxSizing: "border-box"
+              }}
+              onKeyPress={(e) => e.key === "Enter" && handleCreateWatchlist()}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#f3f4f6",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateWatchlist}
+                disabled={creating || !newWatchlistName.trim()}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: creating || !newWatchlistName.trim() ? "#93c5fd" : "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: creating || !newWatchlistName.trim() ? "not-allowed" : "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                {creating ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

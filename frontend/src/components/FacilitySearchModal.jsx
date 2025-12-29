@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Modal, Button, Form, Table, Spinner, Badge, InputGroup } from 'react-bootstrap';
 import { Search, MapPin, Building2, X, Bookmark, BookmarkCheck } from 'lucide-react';
-import { searchFacilities } from '../api/DealService';
+import { searchFacilities } from '../api/marketService';
 import { saveMarketFacility } from '../api/savedItemsService';
 import { toast } from 'react-toastify';
 

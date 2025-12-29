@@ -64,8 +64,8 @@ const Signup = () => {
       <div className="login-container">
         <div className="login-card">
           <div className="login-header">
-            <h1>SNFalyze.ai</h1>
-            <p>M&A Deal Analysis Platform</p>
+            <h1>PostAcutePulse</h1>
+            <p>Market Intelligence Platform</p>
             <span className="admin-badge">CREATE ACCOUNT</span>
           </div>
 

@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getUsers, getUserStats, deleteUser } from "../api/userService";
-import { getRecentActivity } from "../api/DealService";
 import { getPendingUsers, approveUser, rejectUser, getInvitations, cancelInvitation, resendInvitation } from "../api/authService";
 import { toast } from "react-toastify";
 import { Modal, Button, Badge } from "react-bootstrap";
@@ -155,24 +154,21 @@ const UserManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [usersData, recentActivityData] = await Promise.all([
-        getUsers(
-          currentPage,
-          pageSize,
-          searchTerm,
-          "name",
-          roleFilter,
-          statusFilter,
-          departmentFilter
-        ),
-        getRecentActivity()
-      ]);
+      const usersData = await getUsers(
+        currentPage,
+        pageSize,
+        searchTerm,
+        "name",
+        roleFilter,
+        statusFilter,
+        departmentFilter
+      );
       const statsData = await getUserStats();
       setUsers(usersData.body);
       setTotalPages(usersData?.body?.pagination.totalPages);
       setTotalItems(usersData?.body?.pagination.total);
       setUserStats(statsData.body);
-      setRecentActivity(recentActivityData.body);
+      setRecentActivity([]); // Activity feed removed - was deal-related
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {

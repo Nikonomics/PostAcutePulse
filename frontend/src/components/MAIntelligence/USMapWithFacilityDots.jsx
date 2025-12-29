@@ -111,7 +111,7 @@ const USMapWithFacilityDots = ({
 
   // Handle click on facility dot
   const handleFacilityClick = (facility) => {
-    navigate(`/facility-metrics/${facility.ccn}`);
+    navigate(`/operator/${facility.ccn}`);
   };
 
   // Filter to only valid coordinates

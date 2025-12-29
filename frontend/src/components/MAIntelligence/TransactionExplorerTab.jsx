@@ -492,7 +492,7 @@ const TransactionExplorerTab = () => {
 
   // Navigate to facility detail
   const handleFacilityClick = (ccn) => {
-    navigate(`/facility-metrics/${ccn}`);
+    navigate(`/operator/${ccn}`);
   };
 
   // Navigate to owner profile (placeholder - adjust route as needed)

@@ -948,7 +948,7 @@ const FacilityList = ({
                         title={facility.facilityName}
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/facility-metrics/${facility.federalProviderNumber}?from=market`);
+                          navigate(`/operator/${facility.federalProviderNumber}?from=market`);
                         }}
                         onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
                         onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}

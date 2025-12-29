@@ -25,6 +25,41 @@ const {
   getDataDefinitions
 } = require('../services/marketService');
 const { getMarketPool } = require('../config/database');
+const MarketController = require('../controller/MarketController');
+
+// ============================================================================
+// MARKET CONTROLLER ENDPOINTS (Facility Search & Filters)
+// ============================================================================
+
+/**
+ * GET /api/market/filters
+ * Get available filter options for the map (statuses, serviceLines, companies, teams)
+ */
+router.get('/filters', MarketController.getMapFilterOptions);
+
+/**
+ * GET /api/market/search
+ * Search facilities by name
+ * Query params: searchTerm, facilityType (SNF|ALF|both), state (optional)
+ */
+router.get('/search', MarketController.searchFacilities);
+
+/**
+ * GET /api/market/facility/:ccn
+ * Get full facility details by CCN (CMS Certification Number)
+ */
+router.get('/facility/:ccn', MarketController.getFacilityByCCN);
+
+/**
+ * GET /api/market/provider/:ccn/metadata
+ * Get provider metadata by CCN (unified SNF/HHA lookup)
+ * Returns provider type and basic info
+ */
+router.get('/provider/:ccn/metadata', MarketController.getProviderMetadata);
+
+// ============================================================================
+// MARKET SERVICE ENDPOINTS (Market Dynamics Data)
+// ============================================================================
 
 /**
  * GET /api/market/demographics/:state/:county
@@ -136,6 +171,383 @@ router.get('/competitors', async (req, res) => {
 
   } catch (error) {
     console.error('[Market Routes] getCompetitors error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// GEO-SEARCH ENDPOINTS (Map-based facility search)
+// ============================================================================
+
+/**
+ * GET /api/market/map
+ * Get facilities within a radius of a point (for map view)
+ *
+ * Query Params:
+ * - lat: Center latitude (required)
+ * - lng: Center longitude (required)
+ * - radius: Search radius in miles (default: 25)
+ * - types: Comma-separated list of provider types (default: 'SNF')
+ *          Supported: SNF, HHA
+ *
+ * Returns array of facilities with coordinates
+ */
+router.get('/map', async (req, res) => {
+  try {
+    const { lat, lng, radius = 25, types = 'SNF' } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        error: 'Latitude (lat) and longitude (lng) are required'
+      });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const radiusMiles = parseFloat(radius);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid latitude or longitude values'
+      });
+    }
+
+    // Parse types
+    const typeList = types.split(',').map(t => t.trim().toUpperCase());
+    const includeSNF = typeList.includes('SNF');
+    const includeHHA = typeList.includes('HHA');
+    const includeALF = typeList.includes('ALF');
+
+    const pool = getMarketPool();
+    const results = [];
+    const errors = [];
+
+    // Query SNF facilities if requested (with try/catch so one failure doesn't crash the whole map)
+    // Uses exact column names from Data Dictionary: facility_name, federal_provider_number, county, certified_beds
+    if (includeSNF) {
+      try {
+        const snfQuery = `
+          SELECT
+            federal_provider_number as ccn,
+            facility_name as name,
+            city,
+            state,
+            county as county_name,
+            overall_rating,
+            certified_beds as total_beds,
+            latitude,
+            longitude,
+            'SNF' as type,
+            (
+              3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+              )
+            ) as distance_miles
+          FROM snf_facilities
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND (
+              3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+              )
+            ) <= $3
+          ORDER BY distance_miles
+          LIMIT 200
+        `;
+        const snfResult = await pool.query(snfQuery, [latitude, longitude, radiusMiles]);
+        results.push(...snfResult.rows);
+        console.log(`[Market Map] SNF query returned ${snfResult.rows.length} results`);
+      } catch (snfErr) {
+        console.warn(`[Market Map] SNF query failed: ${snfErr.message}`);
+        errors.push({ type: 'SNF', error: snfErr.message });
+      }
+    }
+
+    // Query HHA facilities if requested
+    // Uses: ccn, provider_name, city, state, county_name, quality_star_rating
+    if (includeHHA) {
+      try {
+        const hhaQuery = `
+          SELECT DISTINCT ON (ccn)
+            ccn,
+            provider_name as name,
+            city,
+            state,
+            county_name,
+            quality_star_rating as overall_rating,
+            NULL as total_beds,
+            latitude,
+            longitude,
+            'HHA' as type,
+            (
+              3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+              )
+            ) as distance_miles
+          FROM hh_provider_snapshots
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND (
+              3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+              )
+            ) <= $3
+          ORDER BY ccn, extract_id DESC
+          LIMIT 200
+        `;
+        const hhaResult = await pool.query(hhaQuery, [latitude, longitude, radiusMiles]);
+        results.push(...hhaResult.rows);
+        console.log(`[Market Map] HHA query returned ${hhaResult.rows.length} results`);
+      } catch (hhaErr) {
+        console.warn(`[Market Map] HHA query failed: ${hhaErr.message}`);
+        errors.push({ type: 'HHA', error: hhaErr.message });
+      }
+    }
+
+    // Query ALF facilities if requested
+    // Uses exact column names from Data Dictionary: facility_name, county, capacity
+    if (includeALF) {
+      try {
+        const alfQuery = `
+          SELECT
+            CAST(id AS TEXT) as ccn,
+            facility_name as name,
+            city,
+            state,
+            county as county_name,
+            NULL as overall_rating,
+            capacity as total_beds,
+            latitude,
+            longitude,
+            'ALF' as type,
+            (
+              3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+              )
+            ) as distance_miles
+          FROM alf_facilities
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND (
+              3959 * acos(
+                cos(radians($1)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians($2)) +
+                sin(radians($1)) * sin(radians(latitude))
+              )
+            ) <= $3
+          ORDER BY distance_miles
+          LIMIT 200
+        `;
+        const alfResult = await pool.query(alfQuery, [latitude, longitude, radiusMiles]);
+        results.push(...alfResult.rows);
+        console.log(`[Market Map] ALF query returned ${alfResult.rows.length} results`);
+      } catch (alfErr) {
+        console.warn(`[Market Map] ALF query failed: ${alfErr.message}`);
+        errors.push({ type: 'ALF', error: alfErr.message });
+      }
+    }
+
+    // Sort combined results by distance
+    results.sort((a, b) => (a.distance_miles || 0) - (b.distance_miles || 0));
+
+    console.log(`[Market Map] Found ${results.length} total facilities within ${radiusMiles} miles of (${latitude}, ${longitude})`);
+
+    res.json({
+      success: true,
+      searchParams: {
+        latitude,
+        longitude,
+        radiusMiles,
+        types: typeList
+      },
+      count: results.length,
+      data: results,
+      ...(errors.length > 0 && { warnings: errors })
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getMarketMap error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/map/bounds
+ * Get facilities within map viewport bounds
+ *
+ * Query Params:
+ * - north: Northern boundary latitude (required)
+ * - south: Southern boundary latitude (required)
+ * - east: Eastern boundary longitude (required)
+ * - west: Western boundary longitude (required)
+ * - types: Comma-separated list of provider types (default: 'SNF')
+ *          Supported: SNF, HHA, ALF
+ *
+ * Returns array of facilities within bounds
+ */
+router.get('/map/bounds', async (req, res) => {
+  try {
+    const { north, south, east, west, types = 'SNF' } = req.query;
+
+    if (!north || !south || !east || !west) {
+      return res.status(400).json({
+        success: false,
+        error: 'All bounds (north, south, east, west) are required'
+      });
+    }
+
+    const northLat = parseFloat(north);
+    const southLat = parseFloat(south);
+    const eastLng = parseFloat(east);
+    const westLng = parseFloat(west);
+
+    if (isNaN(northLat) || isNaN(southLat) || isNaN(eastLng) || isNaN(westLng)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid bounds values'
+      });
+    }
+
+    // Parse types
+    const typeList = types.split(',').map(t => t.trim().toUpperCase());
+    const includeSNF = typeList.includes('SNF');
+    const includeHHA = typeList.includes('HHA');
+    const includeALF = typeList.includes('ALF');
+
+    const pool = getMarketPool();
+    const results = [];
+    const errors = [];
+
+    // Query SNF facilities if requested (with try/catch)
+    // Uses exact column names from Data Dictionary: facility_name, federal_provider_number, county, certified_beds
+    if (includeSNF) {
+      try {
+        const snfQuery = `
+          SELECT
+            federal_provider_number as ccn,
+            facility_name as name,
+            city,
+            state,
+            county as county_name,
+            overall_rating,
+            certified_beds as total_beds,
+            latitude,
+            longitude,
+            'SNF' as type
+          FROM snf_facilities
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND latitude BETWEEN $1 AND $2
+            AND longitude BETWEEN $3 AND $4
+          LIMIT 500
+        `;
+        const snfResult = await pool.query(snfQuery, [southLat, northLat, westLng, eastLng]);
+        results.push(...snfResult.rows);
+      } catch (snfErr) {
+        console.warn(`[Market Map Bounds] SNF query failed: ${snfErr.message}`);
+        errors.push({ type: 'SNF', error: snfErr.message });
+      }
+    }
+
+    // Query HHA facilities if requested
+    // Uses: ccn, provider_name, city, state, county_name, quality_star_rating
+    if (includeHHA) {
+      try {
+        const hhaQuery = `
+          SELECT DISTINCT ON (ccn)
+            ccn,
+            provider_name as name,
+            city,
+            state,
+            county_name,
+            quality_star_rating as overall_rating,
+            NULL as total_beds,
+            latitude,
+            longitude,
+            'HHA' as type
+          FROM hh_provider_snapshots
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND latitude BETWEEN $1 AND $2
+            AND longitude BETWEEN $3 AND $4
+          ORDER BY ccn, extract_id DESC
+          LIMIT 500
+        `;
+        const hhaResult = await pool.query(hhaQuery, [southLat, northLat, westLng, eastLng]);
+        results.push(...hhaResult.rows);
+      } catch (hhaErr) {
+        console.warn(`[Market Map Bounds] HHA query failed: ${hhaErr.message}`);
+        errors.push({ type: 'HHA', error: hhaErr.message });
+      }
+    }
+
+    // Query ALF facilities if requested
+    // Uses exact column names from Data Dictionary: facility_name, county, capacity
+    if (includeALF) {
+      try {
+        const alfQuery = `
+          SELECT
+            CAST(id AS TEXT) as ccn,
+            facility_name as name,
+            city,
+            state,
+            county as county_name,
+            NULL as overall_rating,
+            capacity as total_beds,
+            latitude,
+            longitude,
+            'ALF' as type
+          FROM alf_facilities
+          WHERE latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            AND latitude BETWEEN $1 AND $2
+            AND longitude BETWEEN $3 AND $4
+          LIMIT 500
+        `;
+        const alfResult = await pool.query(alfQuery, [southLat, northLat, westLng, eastLng]);
+        results.push(...alfResult.rows);
+      } catch (alfErr) {
+        console.warn(`[Market Map Bounds] ALF query failed: ${alfErr.message}`);
+        errors.push({ type: 'ALF', error: alfErr.message });
+      }
+    }
+
+    console.log(`[Market Map Bounds] Found ${results.length} facilities in bounds`);
+
+    res.json({
+      success: true,
+      bounds: {
+        north: northLat,
+        south: southLat,
+        east: eastLng,
+        west: westLng
+      },
+      types: typeList,
+      count: results.length,
+      data: results,
+      ...(errors.length > 0 && { warnings: errors })
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getMarketMapBounds error:', error);
     res.status(500).json({
       success: false,
       error: error.message

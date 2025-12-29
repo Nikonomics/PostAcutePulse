@@ -2,21 +2,16 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   BarChart3,
-  Handshake,
-  TrendingUp,
-  FileText,
-  FileBarChart,
-  Settings,
   Bot,
   User,
   MapPin,
   Building2,
   Bookmark,
-  Activity,
   ClipboardList,
   BookOpen,
   ArrowLeftRight,
   LayoutDashboard,
+  Search,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -26,27 +21,26 @@ const Sidebar = ({ isOpen }) => {
   // Define all menu items
   const allMenuItems = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
-    { path: '/deals', icon: Handshake, label: 'Deals' },
+    { path: '/provider-search', icon: Search, label: 'Provider Lookup' },
     { path: '/market-analysis', icon: MapPin, label: 'Market Analysis' },
     { path: '/ownership-research', icon: Building2, label: 'Ownership Research' },
     { path: '/ma-intelligence', icon: ArrowLeftRight, label: 'M&A Intelligence' },
-    { path: '/facility-metrics', icon: Activity, label: 'Facility Metrics' },
     { path: '/survey-analytics', icon: ClipboardList, label: 'Survey Analytics' },
     { path: '/reports', icon: LayoutDashboard, label: 'Report Builder' },
     { path: '/data-dictionary', icon: BookOpen, label: 'Data Dictionary' },
     { path: '/saved-items', icon: Bookmark, label: 'My Saved Items' },
     { path: '/user-management', icon: User, label: 'User Management' },
-    { path: '/ai-deals', icon: Bot, label: 'AI Assistant' },
+    { path: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
   ];
 
-  // If admin, show all menu items. If not admin, show only dashboard, deals, market analysis, ownership research, saved items, ai tabs.
+  // If admin, show all menu items. If not admin, filter out admin-only items.
   let menuItems = [];
   if (user?.role === 'admin') {
     menuItems = allMenuItems;
   } else {
-    // Only show dashboard, deals, market analysis, ownership research, ma-intelligence, facility metrics, survey analytics, reports, data dictionary, saved items, ai tabs for non-admins
+    // Show all items except user management for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/deals', '/market-analysis', '/ownership-research', '/ma-intelligence', '/facility-metrics', '/survey-analytics', '/reports', '/data-dictionary', '/saved-items', '/ai-deals'].includes(item.path)
+      ['/dashboard', '/provider-search', '/market-analysis', '/ownership-research', '/ma-intelligence', '/survey-analytics', '/reports', '/data-dictionary', '/saved-items', '/ai-assistant'].includes(item.path)
     );
   }
 

@@ -1,6 +1,15 @@
-# SNFalyze Local Development Environment
+# PACadvocate - Market Intelligence Platform
 
-A local copy of the SNFalyze AI platform for exploration and development.
+A Market Intelligence platform for skilled nursing facilities, forked from SNFalyze.
+
+## Port Configuration
+
+This project uses unique ports to run simultaneously with other projects:
+
+| Service  | Port | URL                         |
+|----------|------|-----------------------------|
+| Frontend | 2026 | http://localhost:2026       |
+| Backend  | 5002 | http://localhost:5002       |
 
 ## Quick Start
 
@@ -33,7 +42,7 @@ Reviewer:     emily@snfalyze.com / password123
 npm start
 ```
 
-Backend runs on http://localhost:5001
+Backend runs on http://localhost:5002
 
 ### 4. Install Frontend Dependencies (new terminal)
 
@@ -50,7 +59,7 @@ npm install --legacy-peer-deps
 npm start
 ```
 
-Frontend runs on http://localhost:3000
+Frontend runs on http://localhost:2026
 
 ---
 
@@ -325,9 +334,9 @@ See **[backend/DATABASE_MIGRATIONS.md](backend/DATABASE_MIGRATIONS.md)** for the
 cd backend && npm install sqlite3 --save
 ```
 
-**"Port 5001 already in use"**
+**"Port 5002 already in use"**
 ```bash
-lsof -ti:5001 | xargs kill -9
+lsof -ti:5002 | xargs kill -9
 ```
 
 **"CORS error"**

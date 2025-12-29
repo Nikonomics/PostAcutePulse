@@ -102,7 +102,7 @@ const CompetitionTab = ({ facility }) => {
 
   // Navigate to competitor's facility metrics page (snapshot tab)
   const handleCompetitorClick = (competitor) => {
-    navigate(`/facility-metrics/${competitor.ccn}?tab=snapshot&from=competition`);
+    navigate(`/operator/${competitor.ccn}?tab=snapshot&from=competition`);
   };
 
   // Show placeholder when no facility selected

@@ -77,7 +77,7 @@ const AcceptInvite = () => {
 
       if (response.success) {
         loginUser(response.body.user, response.body.token);
-        toast.success("Account created successfully! Welcome to SNFalyze.");
+        toast.success("Account created successfully! Welcome to PostAcutePulse.");
         navigate('/dashboard');
       } else {
         toast.error(response.message || "Failed to create account");
@@ -105,8 +105,8 @@ const AcceptInvite = () => {
         <div className="login-container">
           <div className="login-card">
             <div className="login-header">
-              <h1>SNFalyze.ai</h1>
-              <p>M&A Deal Analysis Platform</p>
+              <h1>PostAcutePulse</h1>
+              <p>Market Intelligence Platform</p>
             </div>
             <div className="login-form-container" style={{ textAlign: 'center', padding: '60px 20px' }}>
               <Loader size={48} style={{ animation: 'spin 1s linear infinite', color: '#6366f1' }} />
@@ -125,8 +125,8 @@ const AcceptInvite = () => {
         <div className="login-container">
           <div className="login-card">
             <div className="login-header">
-              <h1>SNFalyze.ai</h1>
-              <p>M&A Deal Analysis Platform</p>
+              <h1>PostAcutePulse</h1>
+              <p>Market Intelligence Platform</p>
             </div>
             <div className="login-form-container" style={{ textAlign: 'center', padding: '40px 20px' }}>
               <XCircle size={64} style={{ color: '#ef4444', marginBottom: '20px' }} />
@@ -159,8 +159,8 @@ const AcceptInvite = () => {
       <div className="login-container">
         <div className="login-card">
           <div className="login-header">
-            <h1>SNFalyze.ai</h1>
-            <p>M&A Deal Analysis Platform</p>
+            <h1>PostAcutePulse</h1>
+            <p>Market Intelligence Platform</p>
             <span className="admin-badge">INVITATION</span>
           </div>
 

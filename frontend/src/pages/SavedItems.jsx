@@ -362,7 +362,7 @@ const SavedItems = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(`/facility-metrics/${item.ccn}`)}
+              onClick={() => navigate(`/operator/${item.ccn}`)}
               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="View Facility"
             >

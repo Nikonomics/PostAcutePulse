@@ -3382,13 +3382,13 @@ const SurveyAnalytics = () => {
   // Update document title when state changes
   useEffect(() => {
     const title = selectedState === 'ALL'
-      ? 'Survey Analytics - SNFalyze'
-      : `${currentStateName} Survey Analytics - SNFalyze`;
+      ? 'Survey Analytics - PostAcutePulse'
+      : `${currentStateName} Survey Analytics - PostAcutePulse`;
     document.title = title;
 
     // Cleanup: restore default title on unmount
     return () => {
-      document.title = 'SNFalyze';
+      document.title = 'PostAcutePulse';
     };
   }, [selectedState, currentStateName]);
 

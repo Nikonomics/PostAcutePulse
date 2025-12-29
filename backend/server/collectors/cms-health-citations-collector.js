@@ -11,6 +11,7 @@
  * Usage:
  *   node cms-health-citations-collector.js           # Import all health citations
  *   node cms-health-citations-collector.js --count   # Just show record count
+ *   node cms-health-citations-collector.js --resume  # Resume from where we left off (don't truncate)
  */
 
 const axios = require('axios');
@@ -29,8 +30,6 @@ const CMS_HEALTH_DEFICIENCIES_URL = 'https://data.cms.gov/provider-data/api/1/da
  * Fetch health deficiency data from CMS API
  */
 async function fetchHealthDeficiencyData(limit = 1000, offset = 0) {
-  console.log(`Fetching health deficiency data (offset: ${offset}, limit: ${limit})...`);
-
   try {
     const response = await axios.post(CMS_HEALTH_DEFICIENCIES_URL, {
       limit: limit,
@@ -39,7 +38,7 @@ async function fetchHealthDeficiencyData(limit = 1000, offset = 0) {
       headers: {
         'Content-Type': 'application/json'
       },
-      timeout: 300000 // 5 minute timeout
+      timeout: 60000 // 1 minute timeout per request
     });
 
     return {
@@ -47,7 +46,7 @@ async function fetchHealthDeficiencyData(limit = 1000, offset = 0) {
       totalCount: response.data.count || 0
     };
   } catch (error) {
-    console.error('Error fetching CMS health deficiency data:', error.message);
+    console.error(`Error fetching at offset ${offset}:`, error.message);
     throw error;
   }
 }
@@ -77,97 +76,22 @@ function parseRow(row) {
 }
 
 /**
- * Get or create extract record for tracking imports
+ * Insert a batch of records and commit
  */
-async function getOrCreateExtract(extractDate) {
+async function insertBatch(records) {
   const client = await pool.connect();
-  try {
-    // Check if extract exists
-    const existing = await client.query(
-      "SELECT extract_id, import_status FROM cms_extracts WHERE extract_date = $1 AND source_file = 'health_citations'",
-      [extractDate]
-    );
-
-    if (existing.rows.length > 0) {
-      return existing.rows[0];
-    }
-
-    // Create new extract record
-    const result = await client.query(
-      `INSERT INTO cms_extracts (extract_date, source_file, import_status)
-       VALUES ($1, 'health_citations', 'pending')
-       RETURNING extract_id, import_status`,
-      [extractDate]
-    );
-
-    return result.rows[0];
-  } finally {
-    client.release();
-  }
-}
-
-/**
- * Import health citations into the database
- */
-async function importHealthCitations() {
-  const client = await pool.connect();
+  let inserted = 0;
+  let errors = 0;
 
   try {
-    console.log('Starting health citations import...');
-    console.log('='.repeat(60));
-
-    // Fetch all data
-    let allData = [];
-    let offset = 0;
-    const limit = 1000; // CMS API max is ~1000
-    let totalCount = 0;
-
-    while (true) {
-      const { results, totalCount: count } = await fetchHealthDeficiencyData(limit, offset);
-      totalCount = count;
-
-      if (results.length === 0) break;
-
-      allData = allData.concat(results);
-      console.log(`Fetched ${allData.length} / ${totalCount} records...`);
-
-      if (results.length < limit) break;
-      offset += limit;
-    }
-
-    if (allData.length === 0) {
-      console.log('No health deficiency data fetched from CMS API');
-      return { success: false, count: 0 };
-    }
-
-    console.log(`\nTotal records to import: ${allData.length}`);
-
-    // Determine extract date from processing date
-    const firstRow = allData[0];
-    const extractDate = firstRow.processing_date
-      ? new Date(firstRow.processing_date).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
-
-    console.log(`Extract date: ${extractDate}`);
-
-    // Clear existing health citations and re-import
-    // This ensures we have the latest 3-year window of data
-    console.log('\nClearing existing health citations...');
-    await client.query('TRUNCATE health_citations RESTART IDENTITY');
-
-    // Import in batches
-    console.log('Importing health citations...');
     await client.query('BEGIN');
 
-    let importedCount = 0;
-    let errorCount = 0;
-
-    for (const row of allData) {
+    for (const row of records) {
       try {
         const parsed = parseRow(row);
 
         if (!parsed.ccn || !parsed.survey_date) {
-          errorCount++;
+          errors++;
           continue;
         }
 
@@ -202,35 +126,94 @@ async function importHealthCitations() {
           ]
         );
 
-        importedCount++;
-
-        if (importedCount % 10000 === 0) {
-          console.log(`  Imported ${importedCount} citations...`);
-        }
+        inserted++;
       } catch (err) {
-        errorCount++;
-        if (errorCount <= 5) {
-          console.error(`  Error importing row: ${err.message}`);
-        }
+        errors++;
       }
     }
 
     await client.query('COMMIT');
-
-    console.log('\n' + '='.repeat(60));
-    console.log(`Import completed!`);
-    console.log(`  Total imported: ${importedCount}`);
-    console.log(`  Errors/skipped: ${errorCount}`);
-
-    return { success: true, count: importedCount };
-
+    return { inserted, errors };
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Import failed:', error.message);
     throw error;
   } finally {
     client.release();
   }
+}
+
+/**
+ * Import health citations - fetches and inserts in batches
+ */
+async function importHealthCitations(resume = false) {
+  console.log('CMS Health Citations Collector');
+  console.log('='.repeat(60));
+  console.log('Starting health citations import...');
+  console.log('Mode:', resume ? 'RESUME (keeping existing data)' : 'FULL REFRESH');
+  console.log('='.repeat(60));
+
+  // Get initial count from API
+  const { totalCount } = await fetchHealthDeficiencyData(1, 0);
+  console.log(`\nTotal records available from CMS: ${totalCount.toLocaleString()}`);
+
+  // Clear table if not resuming
+  if (!resume) {
+    console.log('\nClearing existing health citations...');
+    const client = await pool.connect();
+    try {
+      await client.query('TRUNCATE health_citations RESTART IDENTITY');
+    } finally {
+      client.release();
+    }
+  }
+
+  // Fetch and insert in batches
+  const batchSize = 1000;
+  let offset = 0;
+  let totalImported = 0;
+  let totalErrors = 0;
+
+  console.log(`\nFetching and importing in batches of ${batchSize}...`);
+  console.log('Each batch is committed immediately (crash-safe).\n');
+
+  while (offset < totalCount) {
+    try {
+      // Fetch batch
+      process.stdout.write(`Batch ${Math.floor(offset/batchSize) + 1}: Fetching offset ${offset}...`);
+      const { results } = await fetchHealthDeficiencyData(batchSize, offset);
+
+      if (results.length === 0) {
+        console.log(' No more records.');
+        break;
+      }
+
+      // Insert and commit this batch
+      const { inserted, errors } = await insertBatch(results);
+      totalImported += inserted;
+      totalErrors += errors;
+
+      console.log(` Inserted ${inserted}, Total: ${totalImported.toLocaleString()}/${totalCount.toLocaleString()} (${Math.round(totalImported/totalCount*100)}%)`);
+
+      offset += batchSize;
+
+      // Small delay to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+    } catch (error) {
+      console.error(`\n\nError at offset ${offset}: ${error.message}`);
+      console.log(`\nPartial import saved: ${totalImported.toLocaleString()} records`);
+      console.log('Run with --resume to continue from here.');
+      throw error;
+    }
+  }
+
+  console.log('\n' + '='.repeat(60));
+  console.log('Import completed!');
+  console.log(`  Total imported: ${totalImported.toLocaleString()}`);
+  console.log(`  Errors/skipped: ${totalErrors.toLocaleString()}`);
+  console.log('='.repeat(60));
+
+  return { success: true, count: totalImported };
 }
 
 /**
@@ -287,14 +270,10 @@ async function getCitationsByCategory() {
 async function main() {
   const args = process.argv.slice(2);
 
-  console.log('CMS Health Citations Collector');
-  console.log('='.repeat(60));
-
   try {
     if (args.includes('--count')) {
-      // Just check record count from API
       const { totalCount } = await fetchHealthDeficiencyData(1, 0);
-      console.log(`Total records available: ${totalCount}`);
+      console.log(`Total records available from CMS: ${totalCount.toLocaleString()}`);
 
       const summary = await getSummary();
       console.log('\nCurrent database stats:');
@@ -313,8 +292,9 @@ async function main() {
       return;
     }
 
-    // Default: import all data
-    await importHealthCitations();
+    // Import with optional resume mode
+    const resume = args.includes('--resume');
+    await importHealthCitations(resume);
 
     // Show summary after import
     const summary = await getSummary();

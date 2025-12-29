@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-25 16:05:35
+> Last updated: 2025-12-28 20:33:08
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -10,9 +10,18 @@ This bundle contains all essential project context for onboarding new Claude Cod
 ## README.md
 
 ```markdown
-# SNFalyze Local Development Environment
+# PACadvocate - Market Intelligence Platform
 
-A local copy of the SNFalyze AI platform for exploration and development.
+A Market Intelligence platform for skilled nursing facilities, forked from SNFalyze.
+
+## Port Configuration
+
+This project uses unique ports to run simultaneously with other projects:
+
+| Service  | Port | URL                         |
+|----------|------|-----------------------------|
+| Frontend | 2026 | http://localhost:2026       |
+| Backend  | 5002 | http://localhost:5002       |
 
 ## Quick Start
 
@@ -45,7 +54,7 @@ Reviewer:     emily@snfalyze.com / password123
 npm start
 ```
 
-Backend runs on http://localhost:5001
+Backend runs on http://localhost:5002
 
 ### 4. Install Frontend Dependencies (new terminal)
 
@@ -62,7 +71,7 @@ npm install --legacy-peer-deps
 npm start
 ```
 
-Frontend runs on http://localhost:3000
+Frontend runs on http://localhost:2026
 
 ---
 
@@ -337,9 +346,9 @@ See **[backend/DATABASE_MIGRATIONS.md](backend/DATABASE_MIGRATIONS.md)** for the
 cd backend && npm install sqlite3 --save
 ```
 
-**"Port 5001 already in use"**
+**"Port 5002 already in use"**
 ```bash
-lsof -ti:5001 | xargs kill -9
+lsof -ti:5002 | xargs kill -9
 ```
 
 **"CORS error"**
@@ -1562,6 +1571,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1573,10 +1583,10 @@ backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
 backend/routes/customReports.js
-backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/facilityRisk.js
+backend/routes/hh-market.js
 backend/routes/index.js
 backend/routes/ma-analytics.js
 backend/routes/market.js
@@ -1590,17 +1600,16 @@ backend/routes/taxonomy.js
 backend/routes/user.js
 backend/routes/users.js
 backend/routes/wages.js
+backend/routes/watchlist.js
 ```
 
 ### Backend Services
 ```
 backend/services/aiExtractor.js
-backend/services/calculatorService.js
 backend/services/censusDataRefreshService.js
 backend/services/changeLogService.js
 backend/services/cimExtractor.js
 backend/services/cmsDataRefreshService.js
-backend/services/dealChangeTracker.js
 backend/services/extractionMerger.js
 backend/services/extractionOrchestrator.js
 backend/services/extractionPrompts.js
@@ -1623,33 +1632,31 @@ backend/services/reportQueryEngine.js
 ### Backend Controllers
 ```
 backend/controller/AuthenticationController.js
-backend/controller/DealController.js
+backend/controller/MarketController.js
 backend/controller/stateController.js
 backend/controller/SurveyIntelligenceController.js
+backend/controller/WatchlistController.js
 ```
 
 ### Frontend Pages
 ```
 frontend/src/pages/AcceptInvite.jsx
+frontend/src/pages/AgencyProfile.jsx
 frontend/src/pages/AIAssistant.jsx
 frontend/src/pages/ChatInterfaceAI.jsx
-frontend/src/pages/CombinedDealForm.jsx
-frontend/src/pages/CreateDeal.jsx
-frontend/src/pages/CreateDealChoice.jsx
 frontend/src/pages/CreateUser.jsx
 frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
-frontend/src/pages/DealDetail.jsx
-frontend/src/pages/Deals.jsx
-frontend/src/pages/EditCombinedDealForm.jsx
-frontend/src/pages/EditCombinedDeatlForm1.jsx
 frontend/src/pages/EditUser.jsx
 frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
+frontend/src/pages/HomeHealth.jsx
+frontend/src/pages/HomeHealthAgency.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx
 frontend/src/pages/MAIntelligence.jsx
 frontend/src/pages/MarketAnalysis.jsx
+frontend/src/pages/OperatorProfile.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
 frontend/src/pages/Profile.jsx
@@ -1660,20 +1667,16 @@ frontend/src/pages/renderStep4.jsx
 frontend/src/pages/SavedItems.jsx
 frontend/src/pages/Signup.jsx
 frontend/src/pages/SurveyAnalytics.jsx
-frontend/src/pages/UploadDeal.jsx
 frontend/src/pages/UserManagement.jsx
 No pages found
 ```
 
 ### Frontend Components (Top Level)
 ```
-ActivityHistory
 AppHelpPanel
 common
 CustomReportBuilder
 DataDictionaryTab
-DealExtractionViewer
-DealRegulatoryRisk
 FacilityCommentsSection
 FacilityMetrics
 MAIntelligence
@@ -1683,9 +1686,7 @@ MarketDynamicsTab
 MarketScorecard
 NotificationCenter
 OwnershipResearch
-ProFormaTab
 RegulatoryRiskCard
-SNFalyzePanel
 ui
 ```
 
@@ -1695,21 +1696,6 @@ benchmark_configurations
 cascadia_facility
 comment_mentions
 custom_reports
-deal_change_logs
-deal_comments
-deal_documents
-deal_expense_ratios
-deal_external_advisors
-deal_extracted_text
-deal_facilities
-deal_monthly_census
-deal_monthly_expenses
-deal_monthly_financials
-deal_proforma_scenarios
-deal_rate_schedules
-deal_team_members
-deal_user_views
-deals
 extraction_history
 facility_change_logs
 facility_comment_mentions
@@ -1718,7 +1704,6 @@ index
 init-models
 market_comment_mentions
 market_comments
-master_deals
 ownership_change_logs
 ownership_comment_mentions
 ownership_comments
@@ -1730,20 +1715,22 @@ user_invitations
 user_notifications
 user_saved_items
 users
+watchlist_item
+watchlist
 ```
 
 ### Recent Migrations
 ```
-backend/migrations/20241223-add-missing-columns.js
-backend/migrations/add-custom-reports-table.js
-backend/migrations/add-user-invitations-table.js
+backend/migrations/20250101-create-watchlist-tables.js
+backend/migrations/20250101-drop-deal-tables.js
+backend/migrations/add-cms-staffing-columns.js
+backend/migrations/20241218-create-vbp-rankings-table.js
+backend/migrations/create-snf-vbp-performance.js
 backend/migrations/add-market-comments-tables.js
 backend/migrations/add-facility-comments-tables.js
-backend/migrations/20241218-add-deal-match-status.js
+backend/migrations/add-user-approval-columns.js
+backend/migrations/add-custom-reports-table.js
 backend/migrations/20241218-add-cms-facility-to-saved-items.js
-backend/migrations/20241218-create-vbp-rankings-table.js
-backend/migrations/20241218-add-ccn-to-deal-facilities.js
-backend/migrations/add-deals-position-column.js
 ```
 
 ---
@@ -1756,7 +1743,7 @@ backend/migrations/add-deals-position-column.js
 ```markdown
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 25, 2025
+**Last Updated:** December 28, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -1768,6 +1755,7 @@ backend/migrations/add-deals-position-column.js
 
 ### Last 7 Days
 
+- **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 - **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
 - **2025-12-23** - Fix: Change occupancy >100% and ADC>beds from errors to warnings
@@ -1797,38 +1785,37 @@ backend/migrations/add-deals-position-column.js
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 - **2025-12-22** - Make summary cards ultra-compact single-row design
-- **2025-12-22** - Redesign summary cards and remove unused mock data
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     16 files
-Frontend:    18 files
-Routes:      2 files
-Services:    3 files
-Components:  7 files
-Migrations:  3 files
+Backend:     66 files
+Frontend:    106 files
+Routes:      6 files
+Services:    10 files
+Components:  50 files
+Migrations:  17 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
 backend/DATABASE_MIGRATIONS.md
-backend/migrations/20241223-add-missing-columns.js
+backend/controller/MarketController.js
+backend/controller/WatchlistController.js
+backend/migrations/20250101-create-watchlist-tables.js
+backend/migrations/20250101-drop-deal-tables.js
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
+backend/models/watchlist.js
+backend/models/watchlist_item.js
 backend/routes/customReports.js
+backend/routes/hh-market.js
+backend/routes/watchlist.js
+backend/scripts/debug-search.js
 backend/scripts/import-cutpoints.js
-backend/server/collectors/cms-fire-safety-collector.js
-backend/server/collectors/cms-health-citations-collector.js
-backend/services/migrationRunner.js
-backend/services/reportQueryEngine.js
-frontend/src/api/customReportsService.js
-frontend/src/components/CustomReportBuilder/CustomReportBuilder.css
-frontend/src/components/CustomReportBuilder/FieldPalette.jsx
-frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
-frontend/src/components/CustomReportBuilder/ResultsTable.jsx
+backend/scripts/reset-admin.js
 ```
 
 ---
@@ -4457,10 +4444,10 @@ backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
 backend/routes/customReports.js
-backend/routes/deal.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/facilityRisk.js
+backend/routes/hh-market.js
 backend/routes/index.js
 backend/routes/ma-analytics.js
 backend/routes/market.js
@@ -4474,15 +4461,14 @@ backend/routes/taxonomy.js
 backend/routes/user.js
 backend/routes/users.js
 backend/routes/wages.js
+backend/routes/watchlist.js
 
 Backend Services:
 backend/services/aiExtractor.js
-backend/services/calculatorService.js
 backend/services/censusDataRefreshService.js
 backend/services/changeLogService.js
 backend/services/cimExtractor.js
 backend/services/cmsDataRefreshService.js
-backend/services/dealChangeTracker.js
 backend/services/extractionMerger.js
 backend/services/extractionOrchestrator.js
 backend/services/extractionPrompts.js
@@ -4503,25 +4489,22 @@ backend/services/reportQueryEngine.js
 
 Frontend Pages:
 frontend/src/pages/AcceptInvite.jsx
+frontend/src/pages/AgencyProfile.jsx
 frontend/src/pages/AIAssistant.jsx
 frontend/src/pages/ChatInterfaceAI.jsx
-frontend/src/pages/CombinedDealForm.jsx
-frontend/src/pages/CreateDeal.jsx
-frontend/src/pages/CreateDealChoice.jsx
 frontend/src/pages/CreateUser.jsx
 frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
-frontend/src/pages/DealDetail.jsx
-frontend/src/pages/Deals.jsx
-frontend/src/pages/EditCombinedDealForm.jsx
-frontend/src/pages/EditCombinedDeatlForm1.jsx
 frontend/src/pages/EditUser.jsx
 frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
+frontend/src/pages/HomeHealth.jsx
+frontend/src/pages/HomeHealthAgency.jsx
 frontend/src/pages/LocationTest.jsx
 frontend/src/pages/Login.jsx
 frontend/src/pages/MAIntelligence.jsx
 frontend/src/pages/MarketAnalysis.jsx
+frontend/src/pages/OperatorProfile.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
 frontend/src/pages/Profile.jsx
@@ -4532,7 +4515,6 @@ frontend/src/pages/renderStep4.jsx
 frontend/src/pages/SavedItems.jsx
 frontend/src/pages/Signup.jsx
 frontend/src/pages/SurveyAnalytics.jsx
-frontend/src/pages/UploadDeal.jsx
 frontend/src/pages/UserManagement.jsx
 ```
 

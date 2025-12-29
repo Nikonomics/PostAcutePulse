@@ -6,6 +6,22 @@
  */
 
 import { apiService } from './apiService';
+import axios from 'axios';
+
+// Create a dedicated axios instance for market endpoints
+const apiClient = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL || '/api/v1',
+  timeout: 30000,
+});
+
+// Add auth interceptor
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 // Base path for market endpoints (relative to apiService base URL which is /api/v1)
 const MARKET_BASE = '/market';
@@ -34,23 +50,53 @@ export const getCounties = async (state, type = 'SNF') => {
 /**
  * Search facilities by name (for autocomplete)
  * @param {string} query - Search query
- * @param {string} type - 'SNF' or 'ALF'
  * @param {number} limit - Maximum results
- * @returns {Promise<Array>} Array of matching facilities
+ * @returns {Promise<Object>} Search results with data array
  */
-export const searchFacilities = async (query, type = 'SNF', limit = 20) => {
-  const response = await apiService.get(`${MARKET_BASE}/facilities/search`, { q: query, type, limit });
+export const searchFacilities = async (query, limit = 20) => {
+  const response = await apiService.get(`${MARKET_BASE}/search`, { searchTerm: query, limit });
+  return response.data;
+};
+
+/**
+ * Get full facility details by CCN
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Full facility details
+ */
+export const getFacilityDetails = async (ccn) => {
+  const response = await apiService.get(`${MARKET_BASE}/facility/${ccn}`);
   return response.data;
 };
 
 /**
  * Get state-level summary statistics
- * @param {string} state - State code
+ * @param {string} stateCode - State code (e.g., 'ID', 'WA')
  * @param {string} type - 'SNF' or 'ALF'
  * @returns {Promise<Object>} State summary statistics
  */
-export const getStateSummary = async (state, type = 'SNF') => {
-  const response = await apiService.get(`${MARKET_BASE}/state-summary/${state}`, { type });
+export const getStateSummary = async (stateCode, type = 'SNF') => {
+  try {
+    // Uses apiClient to ensure /api/v1 prefix is applied automatically
+    const response = await apiClient.get(`/market/state-summary/${stateCode}`, {
+      params: { type }
+    });
+    console.log('State Summary API Response:', response.data); // DEBUG
+    // The backend returns { success: true, data: { ... } }
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching state summary:', error);
+    return null;
+  }
+};
+
+/**
+ * Get state-level market metrics (demographics, supply, competition)
+ * @param {string} state - State code (e.g., 'ID', 'WA')
+ * @param {string} type - 'SNF' or 'ALF'
+ * @returns {Promise<Object>} State-level market metrics
+ */
+export const getStateMetrics = async (state, type = 'SNF') => {
+  const response = await apiService.get(`${MARKET_BASE}/state-metrics/${state}`, { type });
   return response.data;
 };
 
@@ -151,6 +197,48 @@ export const getRefreshHistory = async (limit = 10) => {
 };
 
 // ============================================================================
+// GEO-SEARCH API (Map-based facility search)
+// ============================================================================
+
+/**
+ * Get facilities within a radius of a point (for map view)
+ * @param {number} lat - Center latitude
+ * @param {number} lng - Center longitude
+ * @param {number} radius - Search radius in miles
+ * @param {string[]} types - Array of provider types (e.g., ['SNF', 'HHA'])
+ * @returns {Promise<Object>} Facilities within radius
+ */
+export const getMarketMap = async (lat, lng, radius, types = ['SNF']) => {
+  const response = await apiService.get(`${MARKET_BASE}/map`, {
+    lat,
+    lng,
+    radius,
+    types: types.join(',')
+  });
+  return response.data;
+};
+
+/**
+ * Get facilities within map bounds (for viewport-based loading)
+ * @param {number} north - Northern boundary latitude
+ * @param {number} south - Southern boundary latitude
+ * @param {number} east - Eastern boundary longitude
+ * @param {number} west - Western boundary longitude
+ * @param {string[]} types - Array of provider types (e.g., ['SNF', 'HHA'])
+ * @returns {Promise<Object>} Facilities within bounds
+ */
+export const getMarketMapBounds = async (north, south, east, west, types = ['SNF']) => {
+  const response = await apiService.get(`${MARKET_BASE}/map/bounds`, {
+    north,
+    south,
+    east,
+    west,
+    types: types.join(',')
+  });
+  return response.data;
+};
+
+// ============================================================================
 // MARKET COMMENTS API
 // ============================================================================
 
@@ -189,5 +277,99 @@ export const addMarketComment = async (state, county, commentData) => {
  */
 export const deleteMarketComment = async (state, county, commentId) => {
   const response = await apiService.delete(`${MARKET_BASE}/${state}/${encodeURIComponent(county)}/comments/${commentId}`);
+  return response.data;
+};
+
+// ============================================================================
+// WATCHLIST API
+// ============================================================================
+
+const WATCHLIST_BASE = '/watchlist';
+
+/**
+ * Get all watchlists for the current user
+ * @returns {Promise<Object>} Watchlists with items
+ */
+export const getWatchlists = async () => {
+  const response = await apiService.get(WATCHLIST_BASE);
+  return response.data;
+};
+
+/**
+ * Create a new watchlist
+ * @param {string} name - Watchlist name
+ * @returns {Promise<Object>} Created watchlist
+ */
+export const createWatchlist = async (name) => {
+  const response = await apiService.post(WATCHLIST_BASE, { name });
+  return response.data;
+};
+
+/**
+ * Get details of a specific watchlist
+ * @param {number} watchlistId - Watchlist ID
+ * @returns {Promise<Object>} Watchlist with all items
+ */
+export const getWatchlistDetails = async (watchlistId) => {
+  const response = await apiService.get(`${WATCHLIST_BASE}/${watchlistId}`);
+  return response.data;
+};
+
+/**
+ * Update a watchlist
+ * @param {number} watchlistId - Watchlist ID
+ * @param {Object} data - Update data { name?, is_primary? }
+ * @returns {Promise<Object>} Updated watchlist
+ */
+export const updateWatchlist = async (watchlistId, data) => {
+  const response = await apiService.put(`${WATCHLIST_BASE}/${watchlistId}`, data);
+  return response.data;
+};
+
+/**
+ * Delete a watchlist
+ * @param {number} watchlistId - Watchlist ID
+ * @returns {Promise<Object>} Deletion confirmation
+ */
+export const deleteWatchlist = async (watchlistId) => {
+  const response = await apiService.delete(`${WATCHLIST_BASE}/${watchlistId}`);
+  return response.data;
+};
+
+/**
+ * Add a facility to a watchlist
+ * @param {number} watchlistId - Watchlist ID
+ * @param {Object} facilityData - Facility data
+ * @param {string} facilityData.ccn - Facility CCN (federal provider number)
+ * @param {string} facilityData.provider_type - 'SNF', 'HHA', or 'HOSPICE'
+ * @param {string} facilityData.notes - Optional notes
+ * @returns {Promise<Object>} Created watchlist item
+ */
+export const addToWatchlist = async (watchlistId, facilityData) => {
+  const response = await apiService.post(`${WATCHLIST_BASE}/${watchlistId}/items`, facilityData);
+  return response.data;
+};
+
+/**
+ * Remove an item from a watchlist
+ * @param {number} itemId - Watchlist item ID
+ * @returns {Promise<Object>} Deletion confirmation
+ */
+export const removeFromWatchlist = async (itemId) => {
+  const response = await apiService.delete(`${WATCHLIST_BASE}/items/${itemId}`);
+  return response.data;
+};
+
+// ============================================================================
+// PROVIDER METADATA API (Unified SNF/HHA lookup)
+// ============================================================================
+
+/**
+ * Get provider metadata by CCN (unified SNF/HHA lookup)
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Provider metadata including type (SNF or HHA)
+ */
+export const getProviderMetadata = async (ccn) => {
+  const response = await apiService.get(`${MARKET_BASE}/provider/${ccn}/metadata`);
   return response.data;
 };

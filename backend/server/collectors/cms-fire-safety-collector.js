@@ -11,6 +11,7 @@
  * Usage:
  *   node cms-fire-safety-collector.js           # Import all fire safety data
  *   node cms-fire-safety-collector.js --count   # Just show record count
+ *   node cms-fire-safety-collector.js --resume  # Resume from where we left off (don't truncate)
  */
 
 const axios = require('axios');
@@ -25,12 +26,14 @@ const pool = new Pool({
 // CMS API endpoint for Fire Safety Deficiencies
 const CMS_FIRE_SAFETY_URL = 'https://data.cms.gov/provider-data/api/1/datastore/query/ifjz-ge4w/0';
 
+// Parallel fetch settings
+const PARALLEL_FETCHES = 3;
+const BATCH_SIZE = 1000;
+
 /**
  * Fetch fire safety data from CMS API
  */
 async function fetchFireSafetyData(limit = 1000, offset = 0) {
-  console.log(`Fetching fire safety data (offset: ${offset}, limit: ${limit})...`);
-
   try {
     const response = await axios.post(CMS_FIRE_SAFETY_URL, {
       limit: limit,
@@ -39,15 +42,16 @@ async function fetchFireSafetyData(limit = 1000, offset = 0) {
       headers: {
         'Content-Type': 'application/json'
       },
-      timeout: 300000 // 5 minute timeout
+      timeout: 60000 // 1 minute timeout per request
     });
 
     return {
       results: response.data.results || [],
-      totalCount: response.data.count || 0
+      totalCount: response.data.count || 0,
+      offset: offset
     };
   } catch (error) {
-    console.error('Error fetching CMS fire safety data:', error.message);
+    console.error(`Error fetching at offset ${offset}:`, error.message);
     throw error;
   }
 }
@@ -75,157 +79,179 @@ function parseRow(row) {
 }
 
 /**
- * Get or create extract record for tracking imports
+ * Escape a value for SQL (handles nulls, strings, booleans, numbers)
  */
-async function getOrCreateExtract(extractDate) {
-  const client = await pool.connect();
-  try {
-    // Check if extract exists
-    const existing = await client.query(
-      "SELECT extract_id, import_status FROM cms_extracts WHERE extract_date = $1 AND source_file = 'fire_safety'",
-      [extractDate]
-    );
-
-    if (existing.rows.length > 0) {
-      return existing.rows[0];
-    }
-
-    // Create new extract record
-    const result = await client.query(
-      `INSERT INTO cms_extracts (extract_date, source_file, import_status)
-       VALUES ($1, 'fire_safety', 'pending')
-       RETURNING extract_id, import_status`,
-      [extractDate]
-    );
-
-    return result.rows[0];
-  } finally {
-    client.release();
-  }
+function escapeSqlValue(val) {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  if (typeof val === 'number') return val.toString();
+  // Escape single quotes by doubling them
+  return `'${String(val).replace(/'/g, "''")}'`;
 }
 
 /**
- * Import fire safety citations into the database
+ * Insert a batch of records using bulk INSERT
  */
-async function importFireSafetyCitations() {
+async function insertBatchBulk(records) {
   const client = await pool.connect();
+  let inserted = 0;
+  let errors = 0;
+
+  // Parse and filter valid records
+  const validRows = [];
+  for (const row of records) {
+    const parsed = parseRow(row);
+    if (!parsed.ccn || !parsed.survey_date) {
+      errors++;
+      continue;
+    }
+    validRows.push(parsed);
+  }
+
+  if (validRows.length === 0) {
+    client.release();
+    return { inserted: 0, errors };
+  }
 
   try {
-    console.log('Starting fire safety citations import...');
-    console.log('='.repeat(60));
+    // Build bulk INSERT statement
+    const valueRows = validRows.map(p =>
+      `(${escapeSqlValue(p.ccn)}, ${escapeSqlValue(p.survey_date)}, ${escapeSqlValue(p.survey_type)}, ` +
+      `${escapeSqlValue(p.deficiency_prefix)}, ${escapeSqlValue(p.deficiency_category)}, ${escapeSqlValue(p.deficiency_tag)}, ` +
+      `${escapeSqlValue(p.deficiency_description)}, ${escapeSqlValue(p.scope_severity_code)}, ` +
+      `${escapeSqlValue(p.deficiency_corrected)}, ${escapeSqlValue(p.correction_date)}, ${escapeSqlValue(p.inspection_cycle)}, ` +
+      `${escapeSqlValue(p.is_standard_deficiency)}, ${escapeSqlValue(p.is_complaint_deficiency)}, ` +
+      `${escapeSqlValue(p.cms_processing_date)})`
+    );
 
-    // Fetch all data
-    let allData = [];
-    let offset = 0;
-    const limit = 1000; // CMS API max is ~1000
-    let totalCount = 0;
+    const sql = `INSERT INTO fire_safety_citations (
+      ccn, survey_date, survey_type,
+      deficiency_prefix, deficiency_category, deficiency_tag,
+      deficiency_description, scope_severity_code,
+      deficiency_corrected, correction_date, inspection_cycle,
+      is_standard_deficiency, is_complaint_deficiency,
+      cms_processing_date
+    ) VALUES ${valueRows.join(',\n')}`;
 
-    while (true) {
-      const { results, totalCount: count } = await fetchFireSafetyData(limit, offset);
-      totalCount = count;
-
-      if (results.length === 0) break;
-
-      allData = allData.concat(results);
-      console.log(`Fetched ${allData.length} / ${totalCount} records...`);
-
-      if (results.length < limit) break;
-      offset += limit;
-    }
-
-    if (allData.length === 0) {
-      console.log('No fire safety data fetched from CMS API');
-      return { success: false, count: 0 };
-    }
-
-    console.log(`\nTotal records to import: ${allData.length}`);
-
-    // Determine extract date from processing date
-    const firstRow = allData[0];
-    const extractDate = firstRow.processing_date
-      ? new Date(firstRow.processing_date).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
-
-    console.log(`Extract date: ${extractDate}`);
-
-    // Clear existing fire safety citations and re-import
-    // This ensures we have the latest 3-year window of data
-    console.log('\nClearing existing fire safety citations...');
-    await client.query('TRUNCATE fire_safety_citations RESTART IDENTITY');
-
-    // Import in batches
-    console.log('Importing fire safety citations...');
     await client.query('BEGIN');
-
-    let importedCount = 0;
-    let errorCount = 0;
-
-    for (const row of allData) {
-      try {
-        const parsed = parseRow(row);
-
-        if (!parsed.ccn || !parsed.survey_date) {
-          errorCount++;
-          continue;
-        }
-
-        await client.query(
-          `INSERT INTO fire_safety_citations (
-            ccn, survey_date, survey_type,
-            deficiency_prefix, deficiency_category, deficiency_tag,
-            deficiency_description, scope_severity_code,
-            deficiency_corrected, correction_date, inspection_cycle,
-            is_standard_deficiency, is_complaint_deficiency,
-            cms_processing_date
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          [
-            parsed.ccn,
-            parsed.survey_date,
-            parsed.survey_type,
-            parsed.deficiency_prefix,
-            parsed.deficiency_category,
-            parsed.deficiency_tag,
-            parsed.deficiency_description,
-            parsed.scope_severity_code,
-            parsed.deficiency_corrected,
-            parsed.correction_date,
-            parsed.inspection_cycle,
-            parsed.is_standard_deficiency,
-            parsed.is_complaint_deficiency,
-            parsed.cms_processing_date
-          ]
-        );
-
-        importedCount++;
-
-        if (importedCount % 10000 === 0) {
-          console.log(`  Imported ${importedCount} citations...`);
-        }
-      } catch (err) {
-        errorCount++;
-        if (errorCount <= 5) {
-          console.error(`  Error importing row: ${err.message}`);
-        }
-      }
-    }
-
+    await client.query(sql);
     await client.query('COMMIT');
 
-    console.log('\n' + '='.repeat(60));
-    console.log(`Import completed!`);
-    console.log(`  Total imported: ${importedCount}`);
-    console.log(`  Errors/skipped: ${errorCount}`);
-
-    return { success: true, count: importedCount };
-
+    inserted = validRows.length;
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Import failed:', error.message);
+    console.error('Bulk insert error:', error.message);
     throw error;
   } finally {
     client.release();
   }
+
+  return { inserted, errors };
+}
+
+/**
+ * Import fire safety citations - fetches in parallel and bulk inserts
+ */
+async function importFireSafetyCitations(resume = false) {
+  console.log('CMS Fire Safety Citations Collector (OPTIMIZED)');
+  console.log('='.repeat(60));
+  console.log('Starting fire safety citations import...');
+  console.log('Mode:', resume ? 'RESUME (keeping existing data)' : 'FULL REFRESH');
+  console.log(`Parallel fetches: ${PARALLEL_FETCHES}, Batch size: ${BATCH_SIZE}`);
+  console.log('='.repeat(60));
+
+  // Get initial count from API
+  const { totalCount } = await fetchFireSafetyData(1, 0);
+  console.log(`\nTotal records available from CMS: ${totalCount.toLocaleString()}`);
+
+  // Clear table if not resuming, or get current count to resume from
+  let offset = 0;
+  let totalImported = 0;
+
+  if (!resume) {
+    console.log('\nClearing existing fire safety citations...');
+    const client = await pool.connect();
+    try {
+      await client.query('TRUNCATE fire_safety_citations RESTART IDENTITY');
+    } finally {
+      client.release();
+    }
+  } else {
+    // Get current count to resume from
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT COUNT(*) as count FROM fire_safety_citations');
+      const currentCount = parseInt(result.rows[0].count, 10);
+      offset = currentCount;
+      totalImported = currentCount;
+      console.log(`\nResuming from offset ${offset} (${currentCount.toLocaleString()} records already imported)`);
+    } finally {
+      client.release();
+    }
+  }
+
+  let totalErrors = 0;
+  const startTime = Date.now();
+
+  console.log(`\nFetching ${PARALLEL_FETCHES} batches in parallel, bulk inserting...`);
+  console.log('Each batch is committed immediately (crash-safe).\n');
+
+  while (offset < totalCount) {
+    try {
+      // Fetch multiple batches in parallel
+      const fetchPromises = [];
+      for (let i = 0; i < PARALLEL_FETCHES && (offset + i * BATCH_SIZE) < totalCount; i++) {
+        const batchOffset = offset + i * BATCH_SIZE;
+        fetchPromises.push(fetchFireSafetyData(BATCH_SIZE, batchOffset));
+      }
+
+      const batchNum = Math.floor(offset / BATCH_SIZE) + 1;
+      process.stdout.write(`Batches ${batchNum}-${batchNum + fetchPromises.length - 1}: Fetching ${fetchPromises.length} batches...`);
+
+      const results = await Promise.all(fetchPromises);
+
+      // Insert each batch (in order to maintain crash-safety)
+      let batchInserted = 0;
+      let batchErrors = 0;
+
+      for (const result of results) {
+        if (result.results.length === 0) continue;
+        const { inserted, errors } = await insertBatchBulk(result.results);
+        batchInserted += inserted;
+        batchErrors += errors;
+      }
+
+      totalImported += batchInserted;
+      totalErrors += batchErrors;
+
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      const rate = Math.round(totalImported / (elapsed || 1) * 60);
+
+      console.log(` +${batchInserted}, Total: ${totalImported.toLocaleString()}/${totalCount.toLocaleString()} (${Math.round(totalImported/totalCount*100)}%) [${rate}/min]`);
+
+      offset += PARALLEL_FETCHES * BATCH_SIZE;
+
+      // Small delay between parallel batches
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+    } catch (error) {
+      console.error(`\n\nError at offset ${offset}: ${error.message}`);
+      console.log(`\nPartial import saved: ${totalImported.toLocaleString()} records`);
+      console.log('Run with --resume to continue from here.');
+      throw error;
+    }
+  }
+
+  const totalTime = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
+
+  console.log('\n' + '='.repeat(60));
+  console.log('Import completed!');
+  console.log(`  Total imported: ${totalImported.toLocaleString()}`);
+  console.log(`  Errors/skipped: ${totalErrors.toLocaleString()}`);
+  console.log(`  Time: ${totalTime} minutes`);
+  console.log('='.repeat(60));
+
+  return { success: true, count: totalImported };
 }
 
 /**
@@ -281,14 +307,10 @@ async function getCitationsByCategory() {
 async function main() {
   const args = process.argv.slice(2);
 
-  console.log('CMS Fire Safety Citations Collector');
-  console.log('='.repeat(60));
-
   try {
     if (args.includes('--count')) {
-      // Just check record count from API
       const { totalCount } = await fetchFireSafetyData(1, 0);
-      console.log(`Total records available: ${totalCount}`);
+      console.log(`Total records available from CMS: ${totalCount.toLocaleString()}`);
 
       const summary = await getSummary();
       console.log('\nCurrent database stats:');
@@ -307,8 +329,9 @@ async function main() {
       return;
     }
 
-    // Default: import all data
-    await importFireSafetyCitations();
+    // Import with optional resume mode
+    const resume = args.includes('--resume');
+    await importFireSafetyCitations(resume);
 
     // Show summary after import
     const summary = await getSummary();

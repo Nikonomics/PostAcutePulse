@@ -2794,7 +2794,7 @@ router.get('/patterns/trends', async (req, res) => {
  */
 router.get('/fire-safety/overview', async (req, res) => {
   const { period = '12months', state = 'ALL' } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool();
   const days = periodToDays(period);
 
   try {
@@ -2896,7 +2896,7 @@ router.get('/fire-safety/overview', async (req, res) => {
 router.get('/fire-safety/facility/:ccn', async (req, res) => {
   const { ccn } = req.params;
   const { period = 'all' } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool();
   const days = periodToDays(period);
 
   try {
@@ -2959,7 +2959,7 @@ router.get('/fire-safety/facility/:ccn', async (req, res) => {
  */
 router.get('/fire-safety/top-tags', async (req, res) => {
   const { period = '12months', state = 'ALL', limit = 20 } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool();
   const days = periodToDays(period);
 
   try {
@@ -3016,7 +3016,7 @@ router.get('/fire-safety/top-tags', async (req, res) => {
  */
 router.get('/fire-safety/state-comparison', async (req, res) => {
   const { period = '12months' } = req.query;
-  const pool = getMainPool();
+  const pool = getMarketPool();
   const days = periodToDays(period);
 
   try {

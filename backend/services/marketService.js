@@ -1089,29 +1089,32 @@ async function searchFacilities(query, facilityType = 'SNF', limit = 20) {
       const result = await pool.query(`
         SELECT
           id,
-          facility_name,
-          city,
-          state,
-          county,
+          federal_provider_number,
+          provider_name,
+          provider_city,
+          provider_state,
+          provider_county_name,
           latitude,
           longitude,
-          total_beds,
+          number_of_certified_beds,
           overall_rating
         FROM snf_facilities
-        WHERE LOWER(facility_name) LIKE LOWER($1)
-        ORDER BY facility_name
+        WHERE LOWER(provider_name) LIKE LOWER($1)
+           OR LOWER(provider_city) LIKE LOWER($1)
+        ORDER BY provider_name
         LIMIT $2
       `, [`%${query}%`, limit]);
 
       return result.rows.map(row => ({
         id: row.id,
-        facilityName: row.facility_name,
-        city: row.city,
-        state: row.state,
-        county: row.county,
+        federalProviderNumber: row.federal_provider_number,
+        facilityName: row.provider_name,
+        city: row.provider_city,
+        state: row.provider_state,
+        county: row.provider_county_name,
         latitude: row.latitude ? parseFloat(row.latitude) : null,
         longitude: row.longitude ? parseFloat(row.longitude) : null,
-        beds: row.total_beds,
+        beds: row.number_of_certified_beds,
         rating: row.overall_rating
       }));
     } else {

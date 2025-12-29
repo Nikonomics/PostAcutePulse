@@ -1,6 +1,6 @@
 # SNFalyze Pro Forma Feature - Project Status
 
-**Last Updated:** December 25, 2025
+**Last Updated:** December 28, 2025
 **Project:** Healthcare M&A Deal Management Platform (SNFalyze)
 **Feature:** AI-Powered Pro Forma Analysis with Benchmark Comparisons
 
@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 - **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
 - **2025-12-23** - Fix: Change occupancy >100% and ADC>beds from errors to warnings
@@ -41,38 +42,37 @@
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 - **2025-12-22** - Make summary cards ultra-compact single-row design
-- **2025-12-22** - Redesign summary cards and remove unused mock data
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     16 files
-Frontend:    18 files
-Routes:      2 files
-Services:    3 files
-Components:  7 files
-Migrations:  3 files
+Backend:     66 files
+Frontend:    106 files
+Routes:      6 files
+Services:    10 files
+Components:  50 files
+Migrations:  17 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
 backend/DATABASE_MIGRATIONS.md
-backend/migrations/20241223-add-missing-columns.js
+backend/controller/MarketController.js
+backend/controller/WatchlistController.js
+backend/migrations/20250101-create-watchlist-tables.js
+backend/migrations/20250101-drop-deal-tables.js
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
+backend/models/watchlist.js
+backend/models/watchlist_item.js
 backend/routes/customReports.js
+backend/routes/hh-market.js
+backend/routes/watchlist.js
+backend/scripts/debug-search.js
 backend/scripts/import-cutpoints.js
-backend/server/collectors/cms-fire-safety-collector.js
-backend/server/collectors/cms-health-citations-collector.js
-backend/services/migrationRunner.js
-backend/services/reportQueryEngine.js
-frontend/src/api/customReportsService.js
-frontend/src/components/CustomReportBuilder/CustomReportBuilder.css
-frontend/src/components/CustomReportBuilder/FieldPalette.jsx
-frontend/src/components/CustomReportBuilder/QueryBuilder.jsx
-frontend/src/components/CustomReportBuilder/ResultsTable.jsx
+backend/scripts/reset-admin.js
 ```
 
 ---

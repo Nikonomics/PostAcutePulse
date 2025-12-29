@@ -329,7 +329,7 @@ function OwnershipSearch({ initialSearch }) {
                       <div
                         key={index}
                         className="owner-card"
-                        onClick={() => loadOwnerDetails(owner.ownership_chain)}
+                        onClick={() => handleChainClick(owner)}
                       >
                         <div className="owner-header">
                           <div className="owner-title-row">

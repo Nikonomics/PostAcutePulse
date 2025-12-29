@@ -377,7 +377,7 @@ function FacilitySearch() {
           {facility.federal_provider_number && (
             <button
               className="view-profile-button"
-              onClick={() => navigate(`/facility-metrics/${facility.federal_provider_number}?from=search`)}
+              onClick={() => navigate(`/operator/${facility.federal_provider_number}?from=search`)}
             >
               <ExternalLink size={14} />
               View Profile

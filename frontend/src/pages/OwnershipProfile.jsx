@@ -987,7 +987,7 @@ function OwnershipProfile() {
                               <td>
                                 <span
                                   className="facility-link"
-                                  onClick={() => navigate(`/facility-metrics/${txn.ccn}?from=ownership`)}
+                                  onClick={() => navigate(`/operator/${txn.ccn}?from=ownership`)}
                                 >
                                   {txn.facilityName}
                                 </span>
@@ -1171,7 +1171,7 @@ function OwnershipProfile() {
                     <td>
                       <span
                         className="facility-name-link clickable"
-                        onClick={() => navigate(`/facility-metrics/${facility.federal_provider_number}?from=ownership`)}
+                        onClick={() => navigate(`/operator/${facility.federal_provider_number}?from=ownership`)}
                         title="View facility profile"
                       >
                         {facility.facility_name}
@@ -1658,7 +1658,7 @@ function OwnershipProfile() {
                             <tr
                               key={idx}
                               className="clickable-row"
-                              onClick={() => navigate(`/facility-metrics/${facility.ccn}`)}
+                              onClick={() => navigate(`/operator/${facility.ccn}`)}
                             >
                               <td>
                                 <div className="facility-name-cell">

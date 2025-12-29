@@ -60,80 +60,18 @@ Object.keys(db).forEach(modelName => {
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
-// Run migrations before and after sync
+// Run migrations before sync (currently none needed)
 const runMigrations = async () => {
-  try {
-    // Run no_of_beds type migration for PostgreSQL (before sync)
-    const { runMigration: runNoOfBedsMigration } = require('../migrations/fix-no-of-beds-type');
-    await runNoOfBedsMigration(sequelize);
-  } catch (err) {
-    console.log('Migration file not found or error:', err.message);
-  }
+  // Pre-sync migrations removed - deal tables no longer exist
 };
 
 const runPostSyncMigrations = async () => {
-  try {
-    // Run benchmark and proforma tables migration (after sync)
-    const { runMigration: runBenchmarkMigration } = require('../migrations/add-benchmark-and-proforma-tables');
-    await runBenchmarkMigration(sequelize);
-  } catch (err) {
-    console.log('Post-sync migration file not found or error:', err.message);
-  }
-
-  try {
-    // Fix deal_expense_ratios unique constraint issue
-    const { runMigration: runExpenseRatiosFix } = require('../migrations/fix-expense-ratios-unique-constraint');
-    await runExpenseRatiosFix(sequelize);
-  } catch (err) {
-    console.log('Expense ratios constraint fix migration error:', err.message);
-  }
-
   try {
     // Add user approval workflow columns
     const { runMigration: runUserApprovalMigration } = require('../migrations/add-user-approval-columns');
     await runUserApprovalMigration(sequelize);
   } catch (err) {
     console.log('User approval columns migration error:', err.message);
-  }
-
-  try {
-    // Add deal activity tracking columns and tables
-    const { runMigration: runDealActivityMigration } = require('../migrations/add-deal-activity-tracking');
-    await runDealActivityMigration(sequelize);
-  } catch (err) {
-    console.log('Deal activity tracking migration error:', err.message);
-  }
-
-  try {
-    // Add facility search indexes for performance
-    const { runMigration: runFacilityIndexesMigration } = require('../migrations/add-facility-search-indexes');
-    await runFacilityIndexesMigration(sequelize);
-  } catch (err) {
-    console.log('Facility search indexes migration error:', err.message);
-  }
-
-  try {
-    // Add extraction status tracking columns
-    const { runMigration: runExtractionStatusMigration } = require('../migrations/add-extraction-status-tracking');
-    await runExtractionStatusMigration(sequelize);
-  } catch (err) {
-    console.log('Extraction status tracking migration error:', err.message);
-  }
-
-  try {
-    // Standardize bed_count field name
-    const { runMigration: runBedCountMigration } = require('../migrations/standardize-bed-count-field');
-    await runBedCountMigration(sequelize);
-  } catch (err) {
-    console.log('Bed count standardization migration error:', err.message);
-  }
-
-  try {
-    // Add extraction history table for audit trail
-    const { runMigration: runExtractionHistoryMigration } = require('../migrations/add-extraction-history-table');
-    await runExtractionHistoryMigration(sequelize);
-  } catch (err) {
-    console.log('Extraction history table migration error:', err.message);
   }
 
   try {
@@ -166,14 +104,6 @@ const runPostSyncMigrations = async () => {
     await runDefinitionsMigration(sequelize);
   } catch (err) {
     console.log('CMS data definitions migration error:', err.message);
-  }
-
-  try {
-    // Add position column to deals table for Kanban reordering
-    const { runMigration: runDealsPositionMigration } = require('../migrations/add-deals-position-column');
-    await runDealsPositionMigration(sequelize);
-  } catch (err) {
-    console.log('Deals position column migration error:', err.message);
   }
 
   try {

@@ -139,9 +139,7 @@ app.use((req, res, next) => {
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var authRouter = require('./routes/authentication');
-var dealRouter = require('./routes/deal');
 var stateRouter = require('./routes/stateRouter');
-var DealController = require('./controller/DealController');
 
 // New routes for Cascadia Contract Management
 var apiAuthRouter = require('./routes/auth');
@@ -161,6 +159,8 @@ var surveyIntelligenceRouter = require('./routes/surveyIntelligence');
 var surveyRouter = require('./routes/survey');
 var facilityRiskRouter = require('./routes/facilityRisk');
 var customReportsRouter = require('./routes/customReports');
+var hhMarketRouter = require('./routes/hh-market');
+var watchlistRouter = require('./routes/watchlist');
 
 app.use(fileUpload());
 
@@ -179,7 +179,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/api/v1/auth', authRouter);
-app.use('/api/v1/deal', dealRouter);
 app.use('/api/v1/states', stateRouter);
 
 // Cascadia Contract Management API routes
@@ -233,8 +232,12 @@ app.use('/api/v1/user', userRouter);
 // Custom Reports API routes (report builder)
 app.use('/api/v1/custom-reports', customReportsRouter);
 
-// File serving route for uploaded documents
-app.get('/api/v1/files/*', DealController.serveFile);
+// Home Health Market Data API routes
+app.use('/api/hh-market', hhMarketRouter);
+app.use('/api/v1/hh-market', hhMarketRouter);
+
+// Watchlist API routes (save and organize facilities)
+app.use('/api/v1/watchlist', watchlistRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

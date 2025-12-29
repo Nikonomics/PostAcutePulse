@@ -5,10 +5,6 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import AcceptInvite from "./pages/AcceptInvite";
 import Dashboard from "./pages/Dashboard";
-import Deals from "./pages/Deals";
-import CreateDeal from "./pages/CreateDeal";
-import CombinedDealForm from "./pages/CombinedDealForm";
-import CreateDealWizard from "./pages/CreateDealWizard";
 import UserManagement from "./pages/UserManagement";
 import CreateUser from "./pages/CreateUser";
 import EditUser from "./pages/EditUser";
@@ -18,25 +14,21 @@ import { useAuth } from "./context/UserContext";
 import { GoogleMapsProvider } from "./context/GoogleMapsContext";
 import { SocketProvider } from "./context/SocketContext";
 import { PageContextProvider } from "./context/PageContext";
-import EditDeal from "./pages/EditDeal/EditDeal";
-import DealDetail from "./pages/DealDetail";
 import ChatInterfaceAI from "./pages/ChatInterfaceAI";
-import EditCombinedDealForm from "./pages/EditCombinedDealForm";
-import EditCombinedDeatlForm1 from "./pages/EditCombinedDeatlForm1";
 import LocationTest from "./pages/LocationTest";
-import CreateDealChoice from "./pages/CreateDealChoice";
-import UploadDeal from "./pages/UploadDeal";
 import Profile from "./pages/Profile";
 import MarketAnalysis from "./pages/MarketAnalysis";
 import OwnershipResearch from "./pages/OwnershipResearch";
 import OwnershipProfile from "./pages/OwnershipProfile";
-// FacilityProfile import removed - now redirects to FacilityMetrics
-import FacilityMetrics from "./pages/FacilityMetrics";
+// Legacy imports kept for reference but no longer directly routed:
+// - FacilityMetrics: now rendered inside OperatorProfile for SNF
+// - HomeHealth/HomeHealthAgency: now rendered inside OperatorProfile for HHA
 import SurveyAnalytics from "./pages/SurveyAnalytics";
 import SavedItems from "./pages/SavedItems";
 import DataDictionaryTab from "./components/DataDictionaryTab/DataDictionaryTab";
 import MAIntelligence from "./pages/MAIntelligence";
 import CustomReportBuilder from "./pages/CustomReportBuilder";
+import OperatorProfile from "./pages/OperatorProfile";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePageTracking } from "./analytics";
 
@@ -63,13 +55,13 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   return children;
 };
 
-// Redirect /facility/:ccn to /facility-metrics/:ccn (preserving query params)
-const FacilityRedirect = () => {
+// Redirect legacy facility routes to unified operator profile
+const OperatorRedirect = () => {
   const { ccn } = useParams();
   const location = useLocation();
   // Preserve any query parameters (e.g., ?from=deal&dealId=123)
   const queryString = location.search || '';
-  return <Navigate to={`/facility-metrics/${ccn}${queryString}`} replace />;
+  return <Navigate to={`/operator/${ccn}${queryString}`} replace />;
 };
 
 function App() {
@@ -113,63 +105,10 @@ function App() {
           }
         />
 
-        {/* Protected deals routes */}
-        <Route
-          path="/deals"
-          element={
-            <ProtectedRoute>
-              <Deals />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/create"
-          element={
-            <ProtectedRoute>
-              <CreateDealChoice />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/upload-deal"
-          element={
-            <ProtectedRoute>
-              <UploadDeal />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/combined-deal-form"
-          element={
-            <ProtectedRoute>
-              <CombinedDealForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/new"
-          element={
-            <ProtectedRoute>
-              <CreateDealWizard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/edit-combined-deal1/:id"
-          element={
-            <ProtectedRoute>
-              <EditCombinedDealForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/edit-combined-deal/:id"
-          element={
-            <ProtectedRoute>
-              <EditCombinedDeatlForm1 />
-            </ProtectedRoute>
-          }
-        />
+        {/* Provider Search - redirects to Dashboard (which has the unified search) */}
+        <Route path="/provider-search" element={<Navigate to="/dashboard" replace />} />
+
+        {/* User Management routes */}
         <Route
           path="/user-management"
           element={
@@ -195,7 +134,7 @@ function App() {
           }
         />
         <Route
-          path="/ai-deals"
+          path="/ai-assistant"
           element={
             <ProtectedRoute>
               <AIAssistant />
@@ -203,26 +142,10 @@ function App() {
           }
         />
         <Route
-          path="/ai-deals/chat-interface-ai"
+          path="/ai-assistant/chat"
           element={
             <ProtectedRoute>
               <ChatInterfaceAI />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/edit-deal/:id"
-          element={
-            <ProtectedRoute>
-              <EditDeal />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/deals/deal-detail/:id"
-          element={
-            <ProtectedRoute>
-              <DealDetail />
             </ProtectedRoute>
           }
         />
@@ -280,21 +203,12 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Facility Profile redirect - redirects to FacilityMetrics */}
+        {/* Legacy Facility routes - redirect to unified Operator Profile */}
         <Route
           path="/facility/:ccn"
           element={
             <ProtectedRoute>
-              <FacilityRedirect />
-            </ProtectedRoute>
-          }
-        />
-        {/* Facility Metrics routes - with optional CCN for deep linking */}
-        <Route
-          path="/facility-metrics"
-          element={
-            <ProtectedRoute>
-              <FacilityMetrics />
+              <OperatorRedirect />
             </ProtectedRoute>
           }
         />
@@ -302,9 +216,14 @@ function App() {
           path="/facility-metrics/:ccn"
           element={
             <ProtectedRoute>
-              <FacilityMetrics />
+              <OperatorRedirect />
             </ProtectedRoute>
           }
+        />
+        {/* Keep /facility-metrics without CCN for search UI if needed */}
+        <Route
+          path="/facility-metrics"
+          element={<Navigate to="/dashboard" replace />}
         />
         {/* Survey Analytics route */}
         <Route
@@ -339,6 +258,37 @@ function App() {
           element={
             <ProtectedRoute>
               <CustomReportBuilder />
+            </ProtectedRoute>
+          }
+        />
+        {/* Legacy Home Health routes - redirect to unified Operator Profile */}
+        <Route
+          path="/home-health"
+          element={<Navigate to="/dashboard" replace />}
+        />
+        <Route
+          path="/home-health/:ccn"
+          element={
+            <ProtectedRoute>
+              <OperatorRedirect />
+            </ProtectedRoute>
+          }
+        />
+        {/* Operator Profile route - Unified SNF/HHA profile */}
+        <Route
+          path="/operator/:ccn"
+          element={
+            <ProtectedRoute>
+              <OperatorProfile />
+            </ProtectedRoute>
+          }
+        />
+        {/* Legacy Agency Profile route - redirects to operator profile */}
+        <Route
+          path="/agency/:ccn"
+          element={
+            <ProtectedRoute>
+              <OperatorProfile />
             </ProtectedRoute>
           }
         />

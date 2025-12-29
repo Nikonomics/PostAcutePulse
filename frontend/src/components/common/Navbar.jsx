@@ -19,8 +19,8 @@ const Navbar = ({toggleSidebar }) => {
           <Menu size={20} />
         </button>
         <div className="navbar-brand">
-          <h1>SNFalyze.ai</h1>
-          <span>M&A Deal Analysis Platform</span>
+          <h1>PostAcutePulse</h1>
+          <span>Market Intelligence Platform</span>
         </div>
       </div>
 

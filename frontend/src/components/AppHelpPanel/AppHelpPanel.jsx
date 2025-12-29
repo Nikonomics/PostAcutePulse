@@ -174,7 +174,7 @@ const AppHelpPanel = ({
         <div className="help-panel-header">
           <h3>
             <HelpCircle size={16} />
-            SNFalyze Help
+            PostAcutePulse Help
           </h3>
           <div className="help-panel-header-actions">
             {messages.length > 0 && (
@@ -222,7 +222,7 @@ const AppHelpPanel = ({
           {messages.length === 0 && !isLoading ? (
             <div className="help-empty-state">
               <MessageSquare size={36} className="help-empty-icon" />
-              <p>Need help with SNFalyze?</p>
+              <p>Need help with PostAcutePulse?</p>
               <span>Ask questions about features, data sources, and calculations</span>
               <button
                 className="help-start-btn"
@@ -297,7 +297,7 @@ const AppHelpPanel = ({
               ref={inputRef}
               type="text"
               className="help-input"
-              placeholder="Ask a question about SNFalyze..."
+              placeholder="Ask a question about PostAcutePulse..."
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}

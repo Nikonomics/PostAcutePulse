@@ -1,843 +1,1013 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
+import { useGoogleMaps } from '../context/GoogleMapsContext';
 import {
-  MapPin,
+  Search,
   Building2,
+  Home,
+  Star,
   Loader2,
-  AlertTriangle,
-  RefreshCw,
-  Users,
   TrendingUp,
-  BarChart3,
+  Heart,
+  Activity,
+  Briefcase,
+  ExternalLink,
+  Users,
+  DollarSign,
 } from 'lucide-react';
-import { LocationSelector, StateSummary, MarketComparison, DataFreshness } from '../components/MarketAnalysis';
-import MarketMap from '../components/MarketDynamicsTab/MarketMap';
-import DemographicsPanel from '../components/MarketDynamicsTab/DemographicsPanel';
-import CompetitorTable from '../components/MarketDynamicsTab/CompetitorTable';
-import StateBenchmarkPanel from '../components/MarketDynamicsTab/StateBenchmarkPanel';
-import VBPPerformancePanel from '../components/MarketDynamicsTab/VBPPerformancePanel';
-import {
-  OverallGradeHeader,
-  CategoryScorecard,
-  OperatingMarginPanel,
-  RisksOpportunitiesPanel,
-} from '../components/MarketScorecard';
-import {
-  calculateScores,
-  calculateOverallGrade,
-  calculateImpliedMonthlyBudget,
-  calculateLaborCostPerBed,
-  generateRisksOpportunities,
-  calculateDataConfidence,
-} from '../utils/marketScoreCalculations';
-import {
-  getStateSummary,
-  getMarketMetrics,
-  getFacilitiesInCounty,
-  getNationalBenchmarks,
-} from '../api/marketService';
-import MarketCommentsSection from '../components/MarketCommentsSection';
+import { getMarketMap, getMarketMetrics, getStateMetrics, getStateSummary } from '../api/marketService';
+import StateAnalytics from '../components/MarketAnalysis/StateAnalytics';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-
+// ============================================================================
+// STYLES - High-Density Split Screen (65% Map / 35% Sidebar)
+// ============================================================================
 const styles = {
+  // Main container - flex row
   container: {
-    padding: '1.5rem',
-    backgroundColor: '#f8f9fa',
-    minHeight: 'calc(100vh - 60px)',
-  },
-  header: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '1.5rem',
-    flexWrap: 'wrap',
-    gap: '1rem',
-  },
-  titleSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  title: {
-    fontSize: '1.5rem',
-    fontWeight: 700,
-    color: '#111827',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  subtitle: {
-    fontSize: '0.875rem',
-    color: '#6b7280',
-  },
-  controls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  },
-  facilityTypeToggle: {
-    display: 'flex',
-    backgroundColor: '#e5e7eb',
-    borderRadius: '0.5rem',
-    padding: '0.25rem',
-  },
-  toggleButton: {
-    padding: '0.5rem 1rem',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    border: 'none',
-    borderRadius: '0.375rem',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  toggleButtonActive: {
-    backgroundColor: 'white',
-    color: '#111827',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-  },
-  toggleButtonInactive: {
-    backgroundColor: 'transparent',
-    color: '#6b7280',
-  },
-  refreshButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.5rem 1rem',
-    backgroundColor: 'white',
-    border: '1px solid #d1d5db',
-    borderRadius: '0.375rem',
-    cursor: 'pointer',
-    fontSize: '0.875rem',
-    color: '#374151',
-    transition: 'all 0.15s',
-  },
-  card: {
-    backgroundColor: 'white',
-    border: '1px solid #e5e7eb',
-    borderRadius: '0.5rem',
-    marginBottom: '1.5rem',
+    flexDirection: 'row',
+    height: 'calc(100vh - 60px)',
+    backgroundColor: '#0f172a',
     overflow: 'hidden',
   },
-  cardHeader: {
-    padding: '1rem',
-    borderBottom: '1px solid #e5e7eb',
-    backgroundColor: '#f9fafb',
+
+  // ========== LEFT COLUMN (Map) ==========
+  leftColumn: {
+    flex: '0 0 65%',
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
+    borderRight: '1px solid #334155',
   },
-  cardTitle: {
+  mapHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '0.5rem 0.75rem',
+    backgroundColor: '#1e293b',
+    borderBottom: '1px solid #334155',
+    flexShrink: 0,
+  },
+  stateSelect: {
+    padding: '0.5rem 0.625rem',
+    fontSize: '0.8125rem',
+    backgroundColor: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: '0.375rem',
+    color: '#f8fafc',
+    outline: 'none',
+    cursor: 'pointer',
+    minWidth: '90px',
+  },
+  searchContainer: {
+    position: 'relative',
+    flex: '0 0 280px',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '0.5rem 0.75rem 0.5rem 2.25rem',
+    fontSize: '0.8125rem',
+    backgroundColor: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: '0.375rem',
+    color: '#f8fafc',
+    outline: 'none',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '0.625rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#64748b',
+  },
+  filterGroup: {
+    display: 'flex',
+    gap: '0.75rem',
+    flex: 1,
+  },
+  filterLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    cursor: 'pointer',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    transition: 'opacity 0.15s',
+  },
+  filterCheckbox: {
+    width: '12px',
+    height: '12px',
+    cursor: 'pointer',
+  },
+  snfFilter: { color: '#60a5fa' },
+  hhaFilter: { color: '#34d399' },
+  alfFilter: { color: '#a78bfa' },
+  gradeBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.375rem 0.75rem',
+    backgroundColor: '#0f172a',
+    borderRadius: '0.375rem',
+    marginLeft: 'auto',
+  },
+  gradeCircle: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    color: 'white',
+  },
+  gradeText: {
+    fontSize: '0.75rem',
+    color: '#94a3b8',
+  },
+  gradeLabel: {
+    fontWeight: 600,
+    color: '#f8fafc',
+  },
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+
+  // ========== RIGHT COLUMN (Sidebar) ==========
+  rightColumn: {
+    flex: '0 0 35%',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+
+  // Vitals Section
+  vitalsSection: {
+    flexShrink: 0,
+    borderBottom: '1px solid #334155',
+  },
+  vitalsHeader: {
+    display: 'flex',
+    backgroundColor: '#0f172a',
+  },
+  vitalsTab: {
+    flex: 1,
+    padding: '0.5rem 0.5rem',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.03em',
+    textAlign: 'center',
+    cursor: 'pointer',
+    color: '#64748b',
+    borderBottom: '2px solid transparent',
+    transition: 'all 0.15s',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.25rem',
+  },
+  vitalsTabActive: {
+    color: '#f8fafc',
+    borderBottomColor: '#3b82f6',
+    backgroundColor: '#1e293b',
+  },
+  vitalsContent: {
+    padding: '0.625rem',
+    backgroundColor: '#1e293b',
+  },
+  vitalsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '0.5rem',
+  },
+  vitalItem: {
+    padding: '0.5rem',
+    backgroundColor: '#0f172a',
+    borderRadius: '0.25rem',
+  },
+  vitalLabel: {
+    fontSize: '0.625rem',
+    color: '#64748b',
+    marginBottom: '0.125rem',
+  },
+  vitalValue: {
     fontSize: '0.875rem',
     fontWeight: 600,
-    color: '#111827',
+    color: '#f8fafc',
+  },
+  vitalChange: {
+    fontSize: '0.625rem',
+    color: '#34d399',
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
+    gap: '2px',
   },
-  cardBody: {
-    padding: '1rem',
-  },
-  twoColumn: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '1.5rem',
-    marginBottom: '1.5rem',
-    alignItems: 'stretch',
-  },
-  loading: {
+
+  // Provider Grid Section
+  providerSection: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '3rem',
-    color: '#6b7280',
-    gap: '1rem',
+    overflow: 'hidden',
   },
-  error: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '1rem',
-    backgroundColor: '#fef2f2',
-    border: '1px solid #fecaca',
-    borderRadius: '0.375rem',
-    color: '#b91c1c',
-    marginBottom: '1.5rem',
+  providerList: {
+    flex: 1,
+    overflow: 'auto',
   },
-  noSelection: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '4rem',
-    color: '#9ca3af',
+  // Excel-style table
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '0.75rem',
+  },
+  th: {
+    padding: '0.375rem 0.5rem',
+    textAlign: 'left',
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: '0.03em',
+    backgroundColor: '#0f172a',
+    borderBottom: '1px solid #334155',
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+  },
+  thRight: {
+    textAlign: 'right',
+  },
+  thCenter: {
     textAlign: 'center',
-    gap: '1rem',
   },
-  noSelectionIcon: {
-    opacity: 0.3,
+  td: {
+    padding: '0.3rem 0.5rem',
+    borderBottom: '1px solid #1e293b',
+    color: '#e2e8f0',
+    verticalAlign: 'middle',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '150px',
   },
-  noSelectionText: {
-    fontSize: '1rem',
-    fontWeight: 500,
+  tdRight: {
+    textAlign: 'right',
   },
-  noSelectionHint: {
-    fontSize: '0.875rem',
+  tdCenter: {
+    textAlign: 'center',
   },
-  compareButton: {
+  tr: {
+    backgroundColor: '#1e293b',
+    cursor: 'pointer',
+    transition: 'background-color 0.1s',
+  },
+  trHover: {
+    backgroundColor: '#334155',
+  },
+  trSelected: {
+    backgroundColor: '#1e3a5f',
+  },
+  nameCell: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.375rem',
-    padding: '0.5rem 0.75rem',
-    backgroundColor: '#2563eb',
-    color: 'white',
-    border: 'none',
-    borderRadius: '0.375rem',
-    cursor: 'pointer',
-    fontSize: '0.75rem',
+  },
+  nameLink: {
+    color: '#60a5fa',
+    textDecoration: 'none',
     fontWeight: 500,
-    transition: 'all 0.15s',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
-  compareButtonDisabled: {
-    backgroundColor: '#9ca3af',
-    cursor: 'not-allowed',
-  },
-  badge: {
+  typeBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    padding: '0.25rem 0.75rem',
-    fontSize: '0.75rem',
-    fontWeight: 500,
+    padding: '0.0625rem 0.375rem',
+    fontSize: '0.5625rem',
+    fontWeight: 600,
     borderRadius: '9999px',
   },
-  snfBadge: {
-    backgroundColor: '#dbeafe',
-    color: '#1e40af',
-  },
-  alfBadge: {
-    backgroundColor: '#dcfce7',
-    color: '#166534',
-  },
-  currentMarketHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1rem',
-  },
-  currentMarketTitle: {
-    fontSize: '1rem',
-    fontWeight: 600,
-    color: '#111827',
+  snfBadge: { backgroundColor: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa' },
+  hhaBadge: { backgroundColor: 'rgba(52, 211, 153, 0.2)', color: '#34d399' },
+  alfBadge: { backgroundColor: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa' },
+  ratingCell: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
+    justifyContent: 'center',
+    gap: '0.125rem',
+    color: '#fbbf24',
   },
-  twoColumnUnequal: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
-    marginBottom: '16px',
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '2rem',
+    color: '#64748b',
+    textAlign: 'center',
+    fontSize: '0.8125rem',
   },
 };
 
-// County-Level Content Component with Scorecard
-const CountyLevelContent = ({
-  marketData,
-  facilityType,
-  selectedState,
-  selectedCounty,
-  facilities,
-  selectedFacility,
-  setSelectedFacility,
-  mapCenter,
-  isInComparison,
-  comparisonMarkets,
-  handleAddToComparison,
-  nationalBenchmarks,
-  stateSummary,
-  stateBenchmarks,
-  nationalCmsBenchmarks,
-}) => {
-  // Calculate scores using the market data
-  const laborData = useMemo(() => {
-    return {
-      state_cna_wage: marketData?.labor?.cnaWage || 15.50,
-      state_lpn_wage: marketData?.labor?.lpnWage || 23.00,
-      state_rn_wage: marketData?.labor?.rnWage || 36.00,
-      cbsa_wage_index: marketData?.labor?.wageIndex || 1.0,
-      healthcare_unemployment: marketData?.labor?.healthcareUnemployment || 3.0,
-    };
-  }, [marketData]);
+// Map styles
+const mapContainerStyle = { width: '100%', height: '100%' };
+const defaultCenter = { lat: 39.8283, lng: -98.5795 };
+const defaultZoom = 4;
 
-  // Pass marketData directly - the CategoryScorecard handles the nested structure
-  const preparedMarketData = useMemo(() => {
-    if (!marketData) return null;
-    // Return the marketData as-is since it already has the correct nested structure
-    // (demographics.population.age65Plus, demographics.economics.medianHouseholdIncome, etc.)
-    return marketData;
-  }, [marketData]);
+// Marker icons
+const createMarkerIcon = (color) => ({
+  path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+  fillColor: color,
+  fillOpacity: 1,
+  strokeColor: '#ffffff',
+  strokeWeight: 2,
+  scale: 1.5,
+  anchor: { x: 12, y: 24 },
+});
+const SNF_MARKER = createMarkerIcon('#3b82f6');
+const HHA_MARKER = createMarkerIcon('#10b981');
+const ALF_MARKER = createMarkerIcon('#8b5cf6');
 
-  const scores = useMemo(() => {
-    return calculateScores(preparedMarketData, facilityType, laborData);
-  }, [preparedMarketData, facilityType, laborData]);
-
-  const overallGrade = useMemo(() => {
-    return calculateOverallGrade(scores, facilityType);
-  }, [scores, facilityType]);
-
-  const dataConfidence = useMemo(() => {
-    return calculateDataConfidence(preparedMarketData);
-  }, [preparedMarketData]);
-
-  const risksOpportunities = useMemo(() => {
-    return generateRisksOpportunities(preparedMarketData, facilityType, scores, laborData);
-  }, [preparedMarketData, facilityType, scores, laborData]);
-
-  // Calculate market averages from facilities for benchmark comparison
-  const marketAverages = useMemo(() => {
-    if (!facilities || facilities.length === 0) return null;
-
-    const avg = (arr) => {
-      const valid = arr.filter(v => v != null && !isNaN(v));
-      return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
-    };
-
-    return {
-      // Staffing averages
-      avgRnHours: avg(facilities.map(f => f.staffing?.rnHours || f.rn_staffing_hours)),
-      avgLpnHours: avg(facilities.map(f => f.staffing?.lpnHours || f.lpn_staffing_hours)),
-      avgCnaHours: avg(facilities.map(f => f.staffing?.cnaHours || f.reported_cna_staffing_hours)),
-      avgTotalNurseHours: avg(facilities.map(f => f.staffing?.totalNurseHours || f.total_nurse_staffing_hours)),
-      // Turnover averages
-      avgTurnover: avg(facilities.map(f => f.turnover?.totalNursing || f.total_nursing_turnover)),
-      avgRnTurnover: avg(facilities.map(f => f.turnover?.rn || f.rn_turnover)),
-      // Quality averages
-      avgRating: avg(facilities.map(f => f.ratings?.overall || f.overall_rating)),
-      avgHealthRating: avg(facilities.map(f => f.ratings?.healthInspection || f.health_inspection_rating)),
-      avgQualityRating: avg(facilities.map(f => f.ratings?.qualityMeasure || f.quality_measure_rating)),
-      avgStaffingRating: avg(facilities.map(f => f.ratings?.staffing || f.staffing_rating)),
-    };
-  }, [facilities]);
-
-  const impliedRevenue = useMemo(() => {
-    const income = preparedMarketData?.demographics?.medianHouseholdIncome || 0;
-    return calculateImpliedMonthlyBudget(income);
-  }, [preparedMarketData]);
-
-  const laborCost = useMemo(() => {
-    return calculateLaborCostPerBed(laborData);
-  }, [laborData]);
-
-  return (
-    <>
-      {/* Overall Grade Header */}
-      <OverallGradeHeader
-        grade={overallGrade}
-        confidence={dataConfidence}
-        countyName={selectedCounty}
-        stateName={selectedState}
-        facilityType={facilityType}
-        onAddCompare={handleAddToComparison}
-        isInComparison={isInComparison}
-        comparisonFull={comparisonMarkets.length >= 3}
-      />
-
-      {/* Main Layout: Map on left (50%), Scorecards in 2 columns on right (50%) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '1rem',
-        marginBottom: '1rem',
-      }}>
-        {/* Left Column: Map */}
-        <div style={{ ...styles.card, display: 'flex', flexDirection: 'column', minHeight: '450px' }}>
-          <div style={styles.cardHeader}>
-            <span style={styles.cardTitle}>
-              <MapPin size={16} />
-              Facilities Map
-            </span>
-            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-              {facilities.length} facilities
-            </span>
-          </div>
-          <div style={{ ...styles.cardBody, padding: 0, flex: 1, minHeight: 0 }}>
-            {mapCenter ? (
-              <MarketMap
-                centerLat={mapCenter.lat}
-                centerLon={mapCenter.lon}
-                competitors={facilities}
-                facilityType={facilityType}
-                selectedCompetitor={selectedFacility}
-                onCompetitorSelect={setSelectedFacility}
-                facilityName={null}
-              />
-            ) : (
-              <div style={styles.noSelection}>
-                <MapPin size={32} style={styles.noSelectionIcon} />
-                <div>No facilities with coordinates</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Scorecards in 2 columns */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {/* Category Scorecards - 2 column grid */}
-          {scores && (
-            <CategoryScorecard
-              scores={scores}
-              marketData={preparedMarketData}
-              facilityType={facilityType}
-              laborData={laborData}
-            />
-          )}
-
-          {/* Operating Margin and Risks side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            <OperatingMarginPanel
-              impliedRevenue={impliedRevenue}
-              laborCost={laborCost}
-            />
-            <RisksOpportunitiesPanel
-              risks={risksOpportunities.risks}
-              opportunities={risksOpportunities.opportunities}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* State Benchmark Comparison - SNF only */}
-      {facilityType === 'SNF' && stateBenchmarks && marketAverages && (
-        <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
-          <div style={styles.cardHeader}>
-            <span style={styles.cardTitle}>
-              <BarChart3 size={16} />
-              County vs State Benchmarks ({selectedState})
-            </span>
-            <span style={{ fontSize: '0.625rem', color: '#6b7280' }}>
-              Comparing {facilities.length} facilities in {selectedCounty} County
-            </span>
-          </div>
-          <div style={styles.cardBody}>
-            <StateBenchmarkPanel
-              benchmarks={stateBenchmarks}
-              nationalBenchmarks={nationalCmsBenchmarks}
-              marketAverages={marketAverages}
-              stateCode={selectedState}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Facilities Table - Enhanced with Staffing/Turnover */}
-      <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
-        <div style={styles.cardHeader}>
-          <span style={styles.cardTitle}>
-            <Building2 size={16} />
-            Facilities ({facilities.length})
-          </span>
-          {selectedFacility && (
-            <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 500 }}>
-              Selected: {selectedFacility.facilityName || selectedFacility.facility_name}
-            </span>
-          )}
-        </div>
-        <div style={{ ...styles.cardBody, padding: 0 }}>
-          <CompetitorTable
-            competitors={facilities}
-            facilityType={facilityType}
-            selectedCompetitor={selectedFacility}
-            onCompetitorSelect={setSelectedFacility}
-          />
-        </div>
-
-        {/* VBP Performance Panel - shown when SNF facility selected */}
-        {facilityType === 'SNF' && selectedFacility && (
-          <div style={{ padding: '0 1rem 1rem 1rem' }}>
-            <VBPPerformancePanel
-              ccn={selectedFacility.federalProviderNumber || selectedFacility.federal_provider_number}
-              facilityName={selectedFacility.facilityName || selectedFacility.facility_name}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Demographics Panel */}
-      <div style={{ ...styles.card, marginBottom: '1.5rem' }}>
-        <div style={styles.cardHeader}>
-          <span style={styles.cardTitle}>
-            <Users size={16} />
-            Market Demographics
-          </span>
-        </div>
-        <div style={styles.cardBody}>
-          <DemographicsPanel demographics={marketData.demographics} />
-        </div>
-      </div>
-    </>
-  );
+// City coordinates
+const CITY_COORDINATES = {
+  'boise': { lat: 43.6150, lng: -116.2023 },
+  'boise, id': { lat: 43.6150, lng: -116.2023 },
+  'seattle': { lat: 47.6062, lng: -122.3321 },
+  'seattle, wa': { lat: 47.6062, lng: -122.3321 },
+  'portland': { lat: 45.5152, lng: -122.6784 },
+  'portland, or': { lat: 45.5152, lng: -122.6784 },
+  'denver': { lat: 39.7392, lng: -104.9903 },
+  'denver, co': { lat: 39.7392, lng: -104.9903 },
+  'phoenix': { lat: 33.4484, lng: -112.0740 },
+  'phoenix, az': { lat: 33.4484, lng: -112.0740 },
+  'los angeles': { lat: 34.0522, lng: -118.2437 },
+  'los angeles, ca': { lat: 34.0522, lng: -118.2437 },
+  'san francisco': { lat: 37.7749, lng: -122.4194 },
+  'san francisco, ca': { lat: 37.7749, lng: -122.4194 },
+  'new york': { lat: 40.7128, lng: -74.0060 },
+  'new york, ny': { lat: 40.7128, lng: -74.0060 },
+  'chicago': { lat: 41.8781, lng: -87.6298 },
+  'chicago, il': { lat: 41.8781, lng: -87.6298 },
 };
 
+// US States with coordinates and zoom levels
+const US_STATES = [
+  { code: '', name: 'Select State', lat: 39.8283, lng: -98.5795, zoom: 4 },
+  { code: 'AZ', name: 'Arizona', lat: 34.0489, lng: -111.0937, zoom: 6 },
+  { code: 'CA', name: 'California', lat: 36.7783, lng: -119.4179, zoom: 6 },
+  { code: 'CO', name: 'Colorado', lat: 39.5501, lng: -105.7821, zoom: 7 },
+  { code: 'ID', name: 'Idaho', lat: 44.0682, lng: -114.7420, zoom: 6 },
+  { code: 'MT', name: 'Montana', lat: 46.8797, lng: -110.3626, zoom: 6 },
+  { code: 'NV', name: 'Nevada', lat: 38.8026, lng: -116.4194, zoom: 6 },
+  { code: 'NM', name: 'New Mexico', lat: 34.5199, lng: -105.8701, zoom: 6 },
+  { code: 'OR', name: 'Oregon', lat: 43.8041, lng: -120.5542, zoom: 6 },
+  { code: 'TX', name: 'Texas', lat: 31.9686, lng: -99.9018, zoom: 5 },
+  { code: 'UT', name: 'Utah', lat: 39.3210, lng: -111.0937, zoom: 6 },
+  { code: 'WA', name: 'Washington', lat: 47.7511, lng: -120.7401, zoom: 7 },
+  { code: 'WY', name: 'Wyoming', lat: 43.0760, lng: -107.2903, zoom: 6 },
+];
+
+// Geocode helper
+const geocodeSearch = async (query) => {
+  const normalized = query.toLowerCase().trim();
+  if (CITY_COORDINATES[normalized]) return CITY_COORDINATES[normalized];
+  if (window.google?.maps?.Geocoder) {
+    return new Promise((resolve, reject) => {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ address: query }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const loc = results[0].geometry.location;
+          resolve({ lat: loc.lat(), lng: loc.lng() });
+        } else {
+          reject(new Error('Location not found'));
+        }
+      });
+    });
+  }
+  throw new Error('Geocoding not available');
+};
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 const MarketAnalysis = () => {
-  // Location state
-  const [selectedState, setSelectedState] = useState('');
-  const [selectedCounty, setSelectedCounty] = useState('');
-  const [facilityType, setFacilityType] = useState('SNF');
+  const navigate = useNavigate();
+  const { isLoaded, loadError } = useGoogleMaps();
 
-  // Data state
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [stateSummary, setStateSummary] = useState(null);
-  const [marketData, setMarketData] = useState(null);
+  // State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [center, setCenter] = useState(defaultCenter);
+  const [zoom, setZoom] = useState(defaultZoom);
   const [facilities, setFacilities] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [selectedFacility, setSelectedFacility] = useState(null);
+  const [hoveredRow, setHoveredRow] = useState(null);
+  const [filters, setFilters] = useState({ snf: true, hha: true, alf: true });
+  const [map, setMap] = useState(null);
+  const [marketMetrics, setMarketMetrics] = useState(null);
+  const [searchLocation, setSearchLocation] = useState(null);
+  const [activeTab, setActiveTab] = useState('demand');
+  const [selectedState, setSelectedState] = useState('');
+  const [viewMode, setViewMode] = useState('city'); // 'city' or 'state'
+  const [stateAnalytics, setStateAnalytics] = useState(null);
 
-  // Comparison state
-  const [comparisonMarkets, setComparisonMarkets] = useState([]);
+  // Helpers
+  const formatNumber = (num) => {
+    if (!num) return '--';
+    const n = parseInt(num);
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+    return n.toLocaleString();
+  };
 
-  // National benchmarks state
-  const [nationalBenchmarks, setNationalBenchmarks] = useState(null);
+  const formatCurrency = (num) => {
+    if (!num) return '--';
+    const n = parseInt(num);
+    if (n >= 1000) return `$${Math.round(n / 1000)}K`;
+    return `$${n}`;
+  };
 
-  // CMS State benchmarks for staffing/turnover comparison
-  const [stateBenchmarks, setStateBenchmarks] = useState(null);
-  // National benchmarks for comparison
-  const [nationalCmsBenchmarks, setNationalCmsBenchmarks] = useState(null);
+  // Compute grade
+  const computeGrade = useMemo(() => {
+    if (!marketMetrics) return { grade: '--', label: 'Search a market', color: '#64748b' };
+    const { metrics, demographics } = marketMetrics;
+    const growthRate = parseFloat(demographics?.projections?.growthRate65Plus) || 0;
+    const competition = metrics?.marketCompetition;
+    let score = 0;
+    if (growthRate > 20) score += 3;
+    else if (growthRate > 12) score += 2;
+    else if (growthRate > 5) score += 1;
+    if (competition === 'Low') score += 2;
+    else if (competition === 'Medium') score += 1;
+    if (score >= 4) return { grade: 'A', label: 'Strong Growth', color: '#10b981' };
+    if (score >= 3) return { grade: 'B+', label: 'Good Opportunity', color: '#22c55e' };
+    if (score >= 2) return { grade: 'B', label: 'Moderate Growth', color: '#059669' };
+    if (score >= 1) return { grade: 'C', label: 'Stable Market', color: '#eab308' };
+    return { grade: 'D', label: 'Challenging', color: '#f97316' };
+  }, [marketMetrics]);
 
-  // Fetch national benchmarks when facility type changes
-  useEffect(() => {
-    const fetchBenchmarks = async () => {
-      try {
-        const res = await getNationalBenchmarks(facilityType);
-        if (res.success) {
-          setNationalBenchmarks(res.data);
+  // Filter facilities
+  const filteredFacilities = useMemo(() => {
+    return facilities.filter(f => {
+      if (f.type === 'SNF' && !filters.snf) return false;
+      if (f.type === 'HHA' && !filters.hha) return false;
+      if (f.type === 'ALF' && !filters.alf) return false;
+      return true;
+    });
+  }, [facilities, filters]);
+
+  const getTypes = useCallback(() => {
+    const types = [];
+    if (filters.snf) types.push('SNF');
+    if (filters.hha) types.push('HHA');
+    if (filters.alf) types.push('ALF');
+    return types.length > 0 ? types : ['SNF'];
+  }, [filters]);
+
+  // Dynamic radius based on selected provider types
+  // HHA serves regional markets (50mi), SNF/ALF are local (20mi)
+  const getSearchRadius = useCallback(() => {
+    if (filters.hha) return 50; // HHA needs wider radius
+    return 20; // SNF/ALF are local
+  }, [filters]);
+
+  // Reverse geocode
+  const reverseGeocode = useCallback(async (lat, lng) => {
+    if (!window.google?.maps?.Geocoder) return null;
+    return new Promise((resolve) => {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          let state = null, county = null;
+          for (const c of results[0].address_components) {
+            if (c.types.includes('administrative_area_level_1')) state = c.short_name;
+            if (c.types.includes('administrative_area_level_2')) county = c.long_name.replace(' County', '');
+          }
+          resolve({ state, county });
+        } else {
+          resolve(null);
         }
-      } catch (err) {
-        console.error('Error fetching national benchmarks:', err);
-      }
-    };
-    fetchBenchmarks();
-  }, [facilityType]);
+      });
+    });
+  }, []);
 
-  // Fetch data when location changes
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!selectedState) {
-        setStateSummary(null);
-        setMarketData(null);
+  // Handle state selection (State Mode)
+  const handleStateChange = useCallback(async (e) => {
+    const stateCode = e.target.value;
+    setSelectedState(stateCode);
+
+    if (!stateCode) {
+      // Reset to default view
+      setViewMode('city');
+      setCenter(defaultCenter);
+      setZoom(defaultZoom);
+      setFacilities([]);
+      setMarketMetrics(null);
+      setSearchLocation(null);
+      setStateAnalytics(null);
+      return;
+    }
+
+    setLoading(true);
+    setSelectedFacility(null);
+    setSearchQuery(''); // Clear city search
+    setViewMode('state');
+    setStateAnalytics(null);
+
+    try {
+      const stateData = US_STATES.find(s => s.code === stateCode);
+      if (stateData) {
+        setCenter({ lat: stateData.lat, lng: stateData.lng });
+        setZoom(stateData.zoom);
+      }
+
+      const types = getTypes();
+      const [facilitiesResponse, metricsResponse, summaryData] = await Promise.all([
+        getMarketMap(stateData.lat, stateData.lng, 300, types), // 300-mile radius for state
+        getStateMetrics(stateCode),
+        getStateSummary(stateCode, 'SNF') // Fetch state analytics (rating dist, top counties, etc.)
+      ]);
+
+      console.log('State Summary Data:', summaryData); // DEBUG
+
+      if (facilitiesResponse.success) {
+        setFacilities(facilitiesResponse.data || []);
+      } else {
         setFacilities([]);
-        return;
       }
 
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Fetch CMS state and national benchmarks for SNF (staffing/turnover data)
-        if (facilityType === 'SNF' && selectedState) {
-          try {
-            // Fetch both state and national benchmarks in parallel
-            const [stateRes, nationalRes] = await Promise.all([
-              axios.get(`${API_BASE}/api/market/benchmarks/${selectedState}`),
-              axios.get(`${API_BASE}/api/market/benchmarks/NATION`)
-            ]);
-            if (stateRes.data.success) {
-              setStateBenchmarks(stateRes.data.data);
-            }
-            if (nationalRes.data.success) {
-              setNationalCmsBenchmarks(nationalRes.data.data);
-            }
-          } catch (benchmarkErr) {
-            console.warn('[MarketAnalysis] Failed to fetch benchmarks:', benchmarkErr.message);
-            setStateBenchmarks(null);
-            setNationalCmsBenchmarks(null);
-          }
-        } else {
-          setStateBenchmarks(null);
-          setNationalCmsBenchmarks(null);
-        }
-
-        if (selectedCounty) {
-          // Fetch county-level data AND state summary for benchmarking
-          const [metricsRes, facilitiesRes, stateSummaryRes] = await Promise.all([
-            getMarketMetrics(selectedState, selectedCounty, facilityType),
-            getFacilitiesInCounty(selectedState, selectedCounty, facilityType),
-            getStateSummary(selectedState, facilityType),
-          ]);
-
-          if (metricsRes.success) {
-            setMarketData(metricsRes.data);
-          }
-          if (facilitiesRes.success) {
-            setFacilities(facilitiesRes.data);
-          }
-          // Keep state summary for county-level benchmarking
-          if (stateSummaryRes.success) {
-            setStateSummary(stateSummaryRes.data);
-          }
-        } else {
-          // Fetch state-level summary only
-          const summaryRes = await getStateSummary(selectedState, facilityType);
-          if (summaryRes.success) {
-            setStateSummary(summaryRes.data);
-          }
-          setMarketData(null);
-          setFacilities([]);
-        }
-      } catch (err) {
-        console.error('Error fetching market data:', err);
-        setError(err.response?.data?.error || err.message || 'Failed to fetch market data');
+      if (metricsResponse.success && metricsResponse.data) {
+        setMarketMetrics(metricsResponse.data);
+        setSearchLocation({ state: stateCode, county: null });
       }
 
+      // Set state analytics - summaryData is already the data object (not wrapped)
+      if (summaryData) {
+        setStateAnalytics(summaryData);
+      }
+    } catch (err) {
+      console.error('State search error:', err);
+      setFacilities([]);
+    } finally {
       setLoading(false);
-    };
-
-    fetchData();
-  }, [selectedState, selectedCounty, facilityType]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    // Force re-fetch by toggling state
-    const state = selectedState;
-    const county = selectedCounty;
-    setSelectedState('');
-    setSelectedCounty('');
-    setTimeout(() => {
-      setSelectedState(state);
-      setSelectedCounty(county);
-    }, 0);
-  }, [selectedState, selectedCounty]);
-
-  // Handle facility selection from search
-  const handleFacilitySelect = useCallback((facility) => {
-    if (facility) {
-      setSelectedState(facility.state);
-      setSelectedCounty(facility.county);
     }
+  }, [getTypes]);
+
+  // Handle city search (City Mode)
+  const handleSearch = useCallback(async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setLoading(true);
+    setSelectedFacility(null);
+    setMarketMetrics(null);
+    setSearchLocation(null);
+    setSelectedState(''); // Reset state dropdown
+    setViewMode('city');
+    setStateAnalytics(null); // Clear state analytics
+
+    try {
+      const coords = await geocodeSearch(searchQuery);
+      setCenter(coords);
+      setZoom(10);
+
+      const types = getTypes();
+      const radius = getSearchRadius(); // Dynamic: 50mi for HHA, 20mi for SNF/ALF
+      const [response, locationInfo] = await Promise.all([
+        getMarketMap(coords.lat, coords.lng, radius, types),
+        reverseGeocode(coords.lat, coords.lng)
+      ]);
+
+      if (response.success) {
+        setFacilities(response.data || []);
+      } else {
+        setFacilities([]);
+      }
+
+      if (locationInfo?.state && locationInfo?.county) {
+        setSearchLocation(locationInfo);
+        try {
+          const metricsResponse = await getMarketMetrics(locationInfo.state, locationInfo.county);
+          if (metricsResponse.success && metricsResponse.data) {
+            setMarketMetrics(metricsResponse.data);
+          }
+        } catch (metricsErr) {
+          console.warn('Could not load market metrics:', metricsErr.message);
+        }
+      }
+    } catch (err) {
+      setFacilities([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, getTypes, getSearchRadius, reverseGeocode]);
+
+  // Navigation
+  const handleViewProfile = useCallback((facility) => {
+    if (!facility) return;
+    if (facility.type === 'SNF') navigate(`/facility-metrics/${facility.ccn}`);
+    else if (facility.type === 'HHA') navigate(`/home-health/${facility.ccn}`);
+  }, [navigate]);
+
+  // Map handlers
+  const onMapLoad = useCallback((mapInstance) => setMap(mapInstance), []);
+  const handleMarkerClick = useCallback((facility) => setSelectedFacility(facility), []);
+  const handleRowClick = useCallback((facility) => {
+    if (facility.latitude && facility.longitude) {
+      const lat = parseFloat(facility.latitude);
+      const lng = parseFloat(facility.longitude);
+      setCenter({ lat, lng });
+      setZoom(14);
+      setSelectedFacility(facility);
+      map?.panTo({ lat, lng });
+    }
+  }, [map]);
+
+  const getMarkerIcon = useCallback((type) => {
+    if (type === 'HHA') return HHA_MARKER;
+    if (type === 'ALF') return ALF_MARKER;
+    return SNF_MARKER;
   }, []);
 
-  // Handle facility type change
-  const handleFacilityTypeChange = useCallback((type) => {
-    setFacilityType(type);
-    // Clear comparison when changing facility type
-    setComparisonMarkets([]);
+  const getBadgeStyle = useCallback((type) => {
+    if (type === 'HHA') return styles.hhaBadge;
+    if (type === 'ALF') return styles.alfBadge;
+    return styles.snfBadge;
   }, []);
 
-  // Add market to comparison
-  const handleAddToComparison = useCallback(() => {
-    if (!selectedCounty || !marketData) return;
-    if (comparisonMarkets.length >= 3) {
-      alert('Maximum 3 markets can be compared');
-      return;
-    }
-
-    // Check if already in comparison
-    const exists = comparisonMarkets.some(
-      (m) => m.state === selectedState && m.county === selectedCounty
+  if (loadError) {
+    return (
+      <div style={styles.container}>
+        <div style={{ ...styles.loadingOverlay, position: 'relative', flex: 1 }}>
+          <div style={{ textAlign: 'center', color: '#ef4444' }}>Failed to load Google Maps</div>
+        </div>
+      </div>
     );
-    if (exists) {
-      alert('This market is already in comparison');
-      return;
+  }
+
+  // Vitals tab content
+  const renderVitalsContent = () => {
+    const demo = marketMetrics?.demographics;
+    const supply = marketMetrics?.supply;
+    const metrics = marketMetrics?.metrics;
+
+    if (activeTab === 'demand') {
+      return (
+        <div style={styles.vitalsGrid}>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Total Pop</div>
+            <div style={styles.vitalValue}>{formatNumber(demo?.population?.total)}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>65+ Pop</div>
+            <div style={styles.vitalValue}>{formatNumber(demo?.population?.age65Plus)}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Growth</div>
+            <div style={styles.vitalChange}>
+              <TrendingUp size={10} />
+              {demo?.projections?.growthRate65Plus || '--'}%
+            </div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>75+ Pop</div>
+            <div style={styles.vitalValue}>{formatNumber(demo?.population?.age75Plus)}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>85+ Pop</div>
+            <div style={styles.vitalValue}>{formatNumber(demo?.population?.age85Plus)}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Proj 2030</div>
+            <div style={styles.vitalValue}>{formatNumber(demo?.projections?.population65Plus2030)}</div>
+          </div>
+        </div>
+      );
     }
 
-    setComparisonMarkets((prev) => [
-      ...prev,
-      {
-        state: selectedState,
-        county: selectedCounty,
-        data: marketData,
-      },
-    ]);
-  }, [selectedState, selectedCounty, marketData, comparisonMarkets]);
+    if (activeTab === 'competition') {
+      return (
+        <div style={styles.vitalsGrid}>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Facilities</div>
+            <div style={styles.vitalValue}>{supply?.facilityCount || '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Total Beds</div>
+            <div style={styles.vitalValue}>{formatNumber(supply?.totalBeds)}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Avg Rating</div>
+            <div style={styles.vitalValue}>{supply?.avgRating || '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Beds/1K 65+</div>
+            <div style={styles.vitalValue}>{metrics?.bedsPerThousand65Plus || '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Operators</div>
+            <div style={styles.vitalValue}>{supply?.uniqueOperators || '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Competition</div>
+            <div style={styles.vitalValue}>{metrics?.marketCompetition || '--'}</div>
+          </div>
+        </div>
+      );
+    }
 
-  // Remove market from comparison
-  const handleRemoveFromComparison = useCallback((index) => {
-    setComparisonMarkets((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  // Clear all comparison markets
-  const handleClearComparison = useCallback(() => {
-    setComparisonMarkets([]);
-  }, []);
-
-  // Calculate map center from facilities
-  const mapCenter = useMemo(() => {
-    if (facilities.length === 0) return null;
-    const validFacilities = facilities.filter((f) => f.latitude && f.longitude);
-    if (validFacilities.length === 0) return null;
-
-    const avgLat = validFacilities.reduce((sum, f) => sum + f.latitude, 0) / validFacilities.length;
-    const avgLon = validFacilities.reduce((sum, f) => sum + f.longitude, 0) / validFacilities.length;
-
-    return { lat: avgLat, lon: avgLon };
-  }, [facilities]);
-
-  // Check if current market is in comparison
-  const isInComparison = useMemo(() => {
-    return comparisonMarkets.some(
-      (m) => m.state === selectedState && m.county === selectedCounty
-    );
-  }, [comparisonMarkets, selectedState, selectedCounty]);
+    if (activeTab === 'labor') {
+      return (
+        <div style={styles.vitalsGrid}>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Med Income</div>
+            <div style={styles.vitalValue}>{formatCurrency(demo?.economics?.medianHouseholdIncome)}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Avg Occupancy</div>
+            <div style={styles.vitalValue}>{supply?.avgOccupancy ? `${supply.avgOccupancy}%` : '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>For Profit</div>
+            <div style={styles.vitalValue}>{supply?.forProfitPct ? `${supply.forProfitPct}%` : '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Unemployment</div>
+            <div style={styles.vitalValue}>{demo?.economics?.unemploymentRate ? `${demo.economics.unemploymentRate}%` : '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Poverty Rate</div>
+            <div style={styles.vitalValue}>{demo?.economics?.povertyRate ? `${demo.economics.povertyRate}%` : '--'}</div>
+          </div>
+          <div style={styles.vitalItem}>
+            <div style={styles.vitalLabel}>Pop Density</div>
+            <div style={styles.vitalValue}>{demo?.density ? Math.round(demo.density) : '--'}/mi²</div>
+          </div>
+        </div>
+      );
+    }
+  };
 
   return (
     <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.titleSection}>
-          <h1 style={styles.title}>
-            <TrendingUp size={28} />
-            Market Analysis
-          </h1>
-          <p style={styles.subtitle}>
-            Explore market intelligence for skilled nursing and assisted living facilities across the US
-          </p>
-        </div>
+      {/* ================================================================== */}
+      {/* LEFT COLUMN - Map */}
+      {/* ================================================================== */}
+      <div style={styles.leftColumn}>
+        {/* Map Header */}
+        <div style={styles.mapHeader}>
+          {/* State Selector */}
+          <select
+            value={selectedState}
+            onChange={handleStateChange}
+            style={styles.stateSelect}
+          >
+            {US_STATES.map(state => (
+              <option key={state.code} value={state.code}>{state.code || 'State'}</option>
+            ))}
+          </select>
 
-        <div style={styles.controls}>
-          {/* Facility Type Toggle */}
-          <div style={styles.facilityTypeToggle}>
-            <button
-              style={{
-                ...styles.toggleButton,
-                ...(facilityType === 'SNF' ? styles.toggleButtonActive : styles.toggleButtonInactive),
-              }}
-              onClick={() => handleFacilityTypeChange('SNF')}
-            >
-              SNF
-            </button>
-            <button
-              style={{
-                ...styles.toggleButton,
-                ...(facilityType === 'ALF' ? styles.toggleButtonActive : styles.toggleButtonInactive),
-              }}
-              onClick={() => handleFacilityTypeChange('ALF')}
-            >
-              ALF
-            </button>
+          <form onSubmit={handleSearch} style={styles.searchContainer}>
+            <Search size={14} style={styles.searchIcon} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search city, zip, address..."
+              style={styles.searchInput}
+            />
+          </form>
+
+          <div style={styles.filterGroup}>
+            <label style={{ ...styles.filterLabel, ...styles.snfFilter, opacity: filters.snf ? 1 : 0.5 }}>
+              <input type="checkbox" checked={filters.snf} onChange={() => setFilters(p => ({ ...p, snf: !p.snf }))} style={styles.filterCheckbox} />
+              <Building2 size={12} /> SNF
+            </label>
+            <label style={{ ...styles.filterLabel, ...styles.hhaFilter, opacity: filters.hha ? 1 : 0.5 }}>
+              <input type="checkbox" checked={filters.hha} onChange={() => setFilters(p => ({ ...p, hha: !p.hha }))} style={styles.filterCheckbox} />
+              <Home size={12} /> HHA
+            </label>
+            <label style={{ ...styles.filterLabel, ...styles.alfFilter, opacity: filters.alf ? 1 : 0.5 }}>
+              <input type="checkbox" checked={filters.alf} onChange={() => setFilters(p => ({ ...p, alf: !p.alf }))} style={styles.filterCheckbox} />
+              <Heart size={12} /> ALF
+            </label>
           </div>
 
-          {/* Refresh Button */}
-          {selectedState && (
-            <button style={styles.refreshButton} onClick={handleRefresh}>
-              <RefreshCw size={16} />
-              Refresh
-            </button>
+          {/* Compact Grade Badge */}
+          <div style={styles.gradeBadge}>
+            <div style={{ ...styles.gradeCircle, backgroundColor: computeGrade.color }}>
+              {computeGrade.grade}
+            </div>
+            <div>
+              <div style={styles.gradeLabel}>
+                {viewMode === 'state' && selectedState
+                  ? US_STATES.find(s => s.code === selectedState)?.name || selectedState
+                  : searchLocation?.county
+                    ? `${searchLocation.county}, ${searchLocation.state}`
+                    : 'Grade'}
+              </div>
+              <div style={styles.gradeText}>{computeGrade.label}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Map */}
+        <div style={styles.mapContainer}>
+          {!isLoaded ? (
+            <div style={styles.loadingOverlay}>
+              <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#3b82f6' }} />
+            </div>
+          ) : (
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={center}
+              zoom={zoom}
+              onLoad={onMapLoad}
+              options={{
+                streetViewControl: false,
+                mapTypeControl: false,
+                fullscreenControl: true,
+                zoomControl: true,
+                styles: [
+                  { elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
+                  { elementType: 'labels.text.stroke', stylers: [{ color: '#1e293b' }] },
+                  { elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
+                  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#334155' }] },
+                  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
+                ],
+              }}
+            >
+              {filteredFacilities.map((facility) => {
+                const lat = parseFloat(facility.latitude);
+                const lng = parseFloat(facility.longitude);
+                if (isNaN(lat) || isNaN(lng)) return null;
+                return (
+                  <Marker
+                    key={facility.ccn}
+                    position={{ lat, lng }}
+                    icon={getMarkerIcon(facility.type)}
+                    onClick={() => handleMarkerClick(facility)}
+                  />
+                );
+              })}
+
+              {selectedFacility && !isNaN(parseFloat(selectedFacility.latitude)) && (
+                <InfoWindow
+                  position={{ lat: parseFloat(selectedFacility.latitude), lng: parseFloat(selectedFacility.longitude) }}
+                  onCloseClick={() => setSelectedFacility(null)}
+                >
+                  <div style={{ color: '#111', padding: '2px', minWidth: '160px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.8125rem', marginBottom: '2px' }}>{selectedFacility.name}</div>
+                    <div style={{ fontSize: '0.6875rem', color: '#666', marginBottom: '4px' }}>{selectedFacility.city}, {selectedFacility.state}</div>
+                    <span style={{ ...styles.typeBadge, ...getBadgeStyle(selectedFacility.type), fontSize: '0.625rem' }}>{selectedFacility.type}</span>
+                    {selectedFacility.type !== 'ALF' && (
+                      <button onClick={() => handleViewProfile(selectedFacility)} style={{ display: 'block', marginTop: '6px', color: '#2563eb', fontSize: '0.6875rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        View Profile →
+                      </button>
+                    )}
+                  </div>
+                </InfoWindow>
+              )}
+            </GoogleMap>
+          )}
+
+          {loading && (
+            <div style={styles.loadingOverlay}>
+              <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#3b82f6' }} />
+            </div>
           )}
         </div>
       </div>
 
-      {/* Data Freshness Status */}
-      <DataFreshness compact={true} showRefreshButton={false} />
-
-      {/* Location Selector */}
-      <div style={styles.card}>
-        <div style={styles.cardHeader}>
-          <span style={styles.cardTitle}>
-            <MapPin size={16} />
-            Select Market
-          </span>
-          <span style={{
-            ...styles.badge,
-            ...(facilityType === 'SNF' ? styles.snfBadge : styles.alfBadge),
-          }}>
-            {facilityType === 'SNF' ? 'Skilled Nursing' : 'Assisted Living'}
-          </span>
-        </div>
-        <div style={styles.cardBody}>
-          <LocationSelector
-            facilityType={facilityType}
-            selectedState={selectedState}
-            selectedCounty={selectedCounty}
-            onStateChange={setSelectedState}
-            onCountyChange={setSelectedCounty}
-            onFacilitySelect={handleFacilitySelect}
-          />
-        </div>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div style={styles.error}>
-          <AlertTriangle size={16} />
-          {error}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <div style={styles.loading}>
-          <Loader2 size={32} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-          <div>Loading market intelligence...</div>
-        </div>
-      )}
-
-      {/* No Selection State */}
-      {!loading && !selectedState && (
-        <div style={styles.card}>
-          <div style={styles.noSelection}>
-            <MapPin size={64} style={styles.noSelectionIcon} />
-            <div style={styles.noSelectionText}>Select a Market to Begin</div>
-            <div style={styles.noSelectionHint}>
-              Choose a state and county from the dropdowns above, or search by facility name
+      {/* ================================================================== */}
+      {/* RIGHT COLUMN - Sidebar */}
+      {/* ================================================================== */}
+      <div style={styles.rightColumn}>
+        {/* Vitals Tabs */}
+        <div style={styles.vitalsSection}>
+          <div style={styles.vitalsHeader}>
+            <div
+              style={{ ...styles.vitalsTab, ...(activeTab === 'demand' ? styles.vitalsTabActive : {}) }}
+              onClick={() => setActiveTab('demand')}
+            >
+              <TrendingUp size={10} /> Demand
+            </div>
+            <div
+              style={{ ...styles.vitalsTab, ...(activeTab === 'competition' ? styles.vitalsTabActive : {}) }}
+              onClick={() => setActiveTab('competition')}
+            >
+              <Activity size={10} /> Competition
+            </div>
+            <div
+              style={{ ...styles.vitalsTab, ...(activeTab === 'labor' ? styles.vitalsTabActive : {}) }}
+              onClick={() => setActiveTab('labor')}
+            >
+              <Briefcase size={10} /> Labor
             </div>
           </div>
-        </div>
-      )}
-
-      {/* State Summary (when state selected but no county) */}
-      {!loading && selectedState && !selectedCounty && stateSummary && (
-        <div style={styles.card}>
-          <div style={styles.cardBody}>
-            <StateSummary
-              data={stateSummary}
-              facilityType={facilityType}
-              nationalBenchmarks={nationalBenchmarks}
-            />
+          <div style={styles.vitalsContent}>
+            {renderVitalsContent()}
           </div>
         </div>
-      )}
 
-      {/* County-Level Content */}
-      {!loading && selectedCounty && marketData && (
-        <CountyLevelContent
-          marketData={marketData}
-          facilityType={facilityType}
-          selectedState={selectedState}
-          selectedCounty={selectedCounty}
-          facilities={facilities}
-          selectedFacility={selectedFacility}
-          setSelectedFacility={setSelectedFacility}
-          mapCenter={mapCenter}
-          isInComparison={isInComparison}
-          comparisonMarkets={comparisonMarkets}
-          handleAddToComparison={handleAddToComparison}
-          nationalBenchmarks={nationalBenchmarks}
-          stateSummary={stateSummary}
-          stateBenchmarks={stateBenchmarks}
-          nationalCmsBenchmarks={nationalCmsBenchmarks}
-        />
-      )}
-
-      {/* Market Comments Section */}
-      {!loading && selectedCounty && selectedState && (
-        <MarketCommentsSection
-          state={selectedState}
-          county={selectedCounty}
-        />
-      )}
-
-      {/* Market Comparison Panel */}
-      {comparisonMarkets.length > 0 && (
-        <div style={{ marginTop: '1.5rem' }}>
-          <MarketComparison
-            markets={comparisonMarkets}
-            facilityType={facilityType}
-            onRemoveMarket={handleRemoveFromComparison}
-            onClearAll={handleClearComparison}
-          />
+        {/* Provider Grid OR State Analytics */}
+        <div style={styles.providerSection}>
+          {viewMode === 'state' && stateAnalytics ? (
+            // State Mode: Show rich analytics
+            <StateAnalytics
+              stateData={stateAnalytics}
+              stateName={US_STATES.find(s => s.code === selectedState)?.name}
+            />
+          ) : (
+            // City Mode: Show provider table
+            <div style={styles.providerList}>
+              {facilities.length === 0 && !loading ? (
+                <div style={styles.emptyState}>
+                  <Search size={32} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
+                  <div>Search to view providers</div>
+                </div>
+              ) : (
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Provider ({filteredFacilities.length})</th>
+                      <th style={{ ...styles.th, ...styles.thCenter }}>Type</th>
+                      <th style={{ ...styles.th, ...styles.thRight }}>Beds</th>
+                      <th style={{ ...styles.th, ...styles.thCenter }}>★</th>
+                      <th style={{ ...styles.th, ...styles.thRight }}>Dist</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredFacilities.map((facility) => (
+                      <tr
+                        key={facility.ccn}
+                        style={{
+                          ...styles.tr,
+                          ...(hoveredRow === facility.ccn ? styles.trHover : {}),
+                          ...(selectedFacility?.ccn === facility.ccn ? styles.trSelected : {}),
+                        }}
+                        onClick={() => handleRowClick(facility)}
+                        onMouseEnter={() => setHoveredRow(facility.ccn)}
+                        onMouseLeave={() => setHoveredRow(null)}
+                      >
+                        <td style={styles.td}>
+                          <div style={styles.nameCell}>
+                            {facility.type !== 'ALF' ? (
+                              <a
+                                href="#"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleViewProfile(facility); }}
+                                style={styles.nameLink}
+                                title={facility.name}
+                              >
+                                {facility.name}
+                              </a>
+                            ) : (
+                              <span style={{ color: '#e2e8f0' }} title={facility.name}>{facility.name}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ ...styles.td, ...styles.tdCenter }}>
+                          <span style={{ ...styles.typeBadge, ...getBadgeStyle(facility.type) }}>
+                            {facility.type}
+                          </span>
+                        </td>
+                        <td style={{ ...styles.td, ...styles.tdRight, color: '#94a3b8' }}>{facility.total_beds || '--'}</td>
+                        <td style={{ ...styles.td, ...styles.tdCenter }}>
+                          {facility.overall_rating ? (
+                            <span style={styles.ratingCell}>
+                              {facility.overall_rating}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#475569' }}>--</span>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, ...styles.tdRight, color: '#64748b', fontSize: '0.6875rem' }}>
+                          {facility.distance_miles ? `${parseFloat(facility.distance_miles).toFixed(1)}` : '--'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

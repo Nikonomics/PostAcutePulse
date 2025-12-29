@@ -1,0 +1,321 @@
+/**
+ * OperatorProfile.css
+ * Styles for unified SNF/HHA operator profile page
+ */
+
+.operator-profile {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Loading State */
+.operator-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 24px;
+  color: #6b7280;
+}
+
+.operator-loading .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.operator-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 24px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.operator-error h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #374151;
+}
+
+.operator-error p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.operator-error .error-ccn {
+  font-family: monospace;
+  background: #f3f4f6;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+/* Empty State */
+.operator-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 24px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.operator-empty h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #374151;
+}
+
+.operator-empty p {
+  margin: 0;
+}
+
+/* Header */
+.operator-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.operator-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: #f3f4f6;
+  border-radius: 12px;
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.operator-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.operator-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.operator-header-title h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.operator-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.operator-type-badge.snf {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.operator-type-badge.hha {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.operator-header-location {
+  font-size: 1rem;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.operator-header-ccn {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  font-family: monospace;
+}
+
+.operator-header-rating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 24px;
+  background: #f9fafb;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.operator-header-rating .rating-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1;
+}
+
+.operator-header-rating .rating-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* Body */
+.operator-body {
+  min-height: 400px;
+}
+
+.provider-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.snf-content {
+  background: transparent;
+  border: none;
+}
+
+/* Remove padding from embedded FacilityMetrics */
+.snf-content .facility-metrics.embedded {
+  padding: 0;
+}
+
+.hha-content {
+  background: transparent;
+  border: none;
+}
+
+.content-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.snf-content .content-placeholder {
+  color: #1e40af;
+}
+
+.hha-content .content-placeholder {
+  color: #065f46;
+}
+
+.content-placeholder h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.content-placeholder p {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.metadata-item {
+  display: flex;
+  gap: 8px;
+  font-size: 0.875rem;
+  margin-top: 8px;
+}
+
+.metadata-item .label {
+  font-weight: 500;
+}
+
+.metadata-item .value {
+  opacity: 0.8;
+}
+
+/* Mini Map in Header */
+.operator-header-map {
+  width: 140px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+
+.operator-map-unavailable {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 8px;
+}
+
+.operator-map-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .operator-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .operator-header-icon {
+    align-self: flex-start;
+  }
+
+  .operator-header-rating {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 12px 16px;
+  }
+
+  .operator-header-rating .rating-label {
+    margin-top: 0;
+    margin-left: 8px;
+  }
+
+  .operator-header-title {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .operator-header-map {
+    width: 100%;
+    height: 120px;
+    order: -1;
+    margin-bottom: 12px;
+  }
+}

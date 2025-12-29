@@ -1,7 +1,7 @@
 /**
- * SNFalyze App Help Chat Service
+ * PostAcutePulse App Help Chat Service
  *
- * Provides a help chatbot that answers questions about SNFalyze features,
+ * Provides a help chatbot that answers questions about PostAcutePulse features,
  * data sources, and calculations.
  * Features:
  * - Gemini AI integration (same as deal chat)
@@ -20,7 +20,7 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 // =============================================================================
 // IndexedDB PERSISTENCE (separate from deal conversations)
 // =============================================================================
-const DB_NAME = 'SNFalyzeHelpDB';
+const DB_NAME = 'PostAcutePulseHelpDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'helpConversations';
 
@@ -480,7 +480,7 @@ export function generateQuickActionResponse(actionType, currentPage, currentTab)
       return response;
 
     case 'data_sources':
-      return `## Data Sources in SNFalyze
+      return `## Data Sources in PostAcutePulse
 
 **SNF Data (CMS Nursing Home Compare):**
 - Provider Information: 15,000+ facilities, updated **monthly**
@@ -665,8 +665,8 @@ export function getWelcomeMessage() {
   return {
     id: Date.now(),
     role: 'assistant',
-    title: 'SNFalyze Help',
-    content: `Hi! I'm here to help you understand SNFalyze's features and data.
+    title: 'PostAcutePulse Help',
+    content: `Hi! I'm here to help you understand PostAcutePulse's features and data.
 
 I can answer questions about:
 - **Page Features**: What each tab shows and how to use it
@@ -731,7 +731,7 @@ async function rateLimitedFetch(url, options, retries = 3) {
 }
 
 function getHelpSystemPrompt(pageContext) {
-  return `You are the SNFalyze Help Assistant, designed to help users understand the SNFalyze M&A Deal Analysis Platform.
+  return `You are the PostAcutePulse Help Assistant, designed to help users understand the PostAcutePulse Market Intelligence Platform.
 
 ${pageContext}
 
@@ -745,7 +745,7 @@ RESPONSE GUIDELINES:
 4. Reference specific UI elements when helpful
 5. If unsure, acknowledge limitations and suggest where to find more info
 6. Use markdown formatting: ## headers, bullet points, **bold** for emphasis
-7. Do NOT discuss specific deals or investment advice - redirect to the SNFalyze AI Assistant for that
+7. Do NOT discuss specific deals or investment advice - redirect to the PostAcutePulse AI Assistant for that
 
 TONE: Professional, helpful, educational
 
@@ -772,7 +772,7 @@ ${historyText}
 
 User's question: ${userMessage}
 
-Respond helpfully and specifically to the user's question. Use the knowledge base to provide accurate information about SNFalyze features, data sources, and calculations.`;
+Respond helpfully and specifically to the user's question. Use the knowledge base to provide accurate information about PostAcutePulse features, data sources, and calculations.`;
 
   const response = await rateLimitedFetch(
     `${GEMINI_URL}?key=${GEMINI_API_KEY}`,
