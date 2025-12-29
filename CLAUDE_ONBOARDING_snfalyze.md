@@ -1,7 +1,7 @@
 # SNFalyze - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-28 20:33:08
+> Last updated: 2025-12-28 20:47:42
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 
@@ -1572,6 +1572,7 @@ Investment Targets:
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -1755,6 +1756,7 @@ backend/migrations/20241218-add-cms-facility-to-saved-items.js
 
 ### Last 7 Days
 
+- **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
 - **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 - **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
@@ -1784,17 +1786,16 @@ backend/migrations/20241218-add-cms-facility-to-saved-items.js
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
 - **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
-- **2025-12-22** - Make summary cards ultra-compact single-row design
 
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     66 files
-Frontend:    106 files
+Frontend:    107 files
 Routes:      6 files
 Services:    10 files
-Components:  50 files
+Components:  51 files
 Migrations:  17 files
 ```
 

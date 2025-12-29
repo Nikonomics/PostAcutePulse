@@ -239,6 +239,32 @@ app.use('/api/v1/hh-market', hhMarketRouter);
 // Watchlist API routes (save and organize facilities)
 app.use('/api/v1/watchlist', watchlistRouter);
 
+// ============================================================================
+// REACT FRONTEND - Static files and catch-all route
+// ============================================================================
+
+// Serve React frontend static files (production build)
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Catch-all route: Send React's index.html for any non-API routes
+// This enables client-side routing (e.g., /facility-metrics/12345)
+// IMPORTANT: This must come AFTER all API routes but BEFORE the 404 handler
+app.get('*', (req, res, next) => {
+  // Skip API routes - let them fall through to 404 handler
+  if (req.path.startsWith('/api/') || req.path.startsWith('/users/')) {
+    return next();
+  }
+
+  // Check if the React build exists
+  const indexPath = path.join(__dirname, '../frontend/build', 'index.html');
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // If no frontend build, continue to 404 handler (for dev/API-only mode)
+    next();
+  }
+});
+
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
   next(createError(404));

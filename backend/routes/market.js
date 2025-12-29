@@ -13,6 +13,7 @@ const {
   getSupplySummary,
   getFacilityDetail,
   getMarketMetrics,
+  getStateMetrics,
   getStates,
   getCounties,
   searchFacilities,
@@ -691,6 +692,49 @@ router.get('/metrics', async (req, res) => {
 
   } catch (error) {
     console.error('[Market Routes] getMarketMetrics error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/market/metrics/state/:stateCode
+ * Get state-level market metrics (State Overview mode)
+ * Returns data in the SAME format as getMarketMetrics for component reuse
+ *
+ * URL Params:
+ * - stateCode: State code (e.g., 'ID', 'CA')
+ *
+ * Query Params:
+ * - type: Facility type - 'SNF' or 'ALF' (default: 'SNF')
+ *
+ * Returns state-wide aggregated demographics + supply + metrics
+ */
+router.get('/metrics/state/:stateCode', async (req, res) => {
+  try {
+    const { stateCode } = req.params;
+    const { type = 'SNF' } = req.query;
+
+    const facilityType = type.toUpperCase() === 'ALF' ? 'ALF' : 'SNF';
+    const metrics = await getStateMetrics(stateCode, facilityType);
+
+    if (!metrics) {
+      return res.status(404).json({
+        success: false,
+        error: `No data found for state: ${stateCode.toUpperCase()}`
+      });
+    }
+
+    res.json({
+      success: true,
+      facilityType,
+      data: metrics
+    });
+
+  } catch (error) {
+    console.error('[Market Routes] getStateMetrics error:', error);
     res.status(500).json({
       success: false,
       error: error.message

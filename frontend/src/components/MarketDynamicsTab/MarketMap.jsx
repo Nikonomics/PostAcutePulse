@@ -1,7 +1,25 @@
 import React, { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
-import { Star, MapPin, Building2 } from 'lucide-react';
+import { Star, MapPin, Building2, ExternalLink } from 'lucide-react';
 import { useGoogleMaps } from '../../context/GoogleMapsContext';
+
+/**
+ * Get the profile URL for a provider based on type
+ */
+const getProviderProfileUrl = (type, ccn) => {
+  if (!ccn) return null;
+  switch (type) {
+    case 'SNF':
+      return `/facility-metrics/${ccn}`;
+    case 'HHA':
+      return `/home-health/${ccn}`;
+    case 'ALF':
+      return null; // ALF profile page not yet implemented
+    default:
+      return null;
+  }
+};
 
 const containerStyle = {
   width: '100%',
@@ -63,6 +81,27 @@ const styles = {
     color: '#374151',
     marginTop: '0.5rem',
   },
+  profileButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.375rem 0.625rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: 'white',
+    backgroundColor: '#2563eb',
+    border: 'none',
+    borderRadius: '0.25rem',
+    cursor: 'pointer',
+    marginTop: '0.5rem',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  profileButtonDisabled: {
+    backgroundColor: '#d1d5db',
+    color: '#6b7280',
+    cursor: 'default',
+  },
   legend: {
     position: 'absolute',
     bottom: '10px',
@@ -110,7 +149,9 @@ const MarketMap = ({
   selectedCompetitor,
   onCompetitorSelect,
   facilityName,
+  radiusMiles,
 }) => {
+  const navigate = useNavigate();
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
   // Use shared Google Maps context
@@ -143,6 +184,16 @@ const MarketMap = ({
   const handleInfoClose = () => {
     onCompetitorSelect(null);
   };
+
+  // Handle navigation to provider profile
+  const handleViewProfile = useCallback((competitor) => {
+    // Get CCN from multiple possible field names
+    const ccn = competitor.federalProviderNumber || competitor.ccn || competitor.federal_provider_number;
+    const profileUrl = getProviderProfileUrl(competitor.type, ccn);
+    if (profileUrl) {
+      navigate(profileUrl);
+    }
+  }, [navigate]);
 
   // Render star rating
   const renderStars = (rating) => {
@@ -284,9 +335,34 @@ const MarketMap = ({
                 <span style={styles.infoValue}>{selectedCompetitor.city || selectedCompetitor.address?.split(',')[0] || 'N/A'}</span>
               </div>
 
-              <span style={styles.distanceBadge}>
-                {selectedCompetitor.distanceMiles} mi away
-              </span>
+              {(selectedCompetitor.distanceMiles || selectedCompetitor.distance_miles) && (
+                <span style={styles.distanceBadge}>
+                  {selectedCompetitor.distanceMiles || parseFloat(selectedCompetitor.distance_miles).toFixed(1)} mi away
+                </span>
+              )}
+
+              {/* View Profile Button */}
+              {(() => {
+                const ccn = selectedCompetitor.federalProviderNumber || selectedCompetitor.ccn || selectedCompetitor.federal_provider_number;
+                const profileUrl = getProviderProfileUrl(selectedCompetitor.type, ccn);
+                return profileUrl ? (
+                  <button
+                    style={styles.profileButton}
+                    onClick={() => handleViewProfile(selectedCompetitor)}
+                  >
+                    View Profile
+                    <ExternalLink size={12} />
+                  </button>
+                ) : selectedCompetitor.type === 'ALF' ? (
+                  <button
+                    style={{ ...styles.profileButton, ...styles.profileButtonDisabled }}
+                    disabled
+                    title="ALF profile page coming soon"
+                  >
+                    Profile Coming Soon
+                  </button>
+                ) : null;
+              })()}
             </div>
           </InfoWindow>
         )}

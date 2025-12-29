@@ -1883,6 +1883,216 @@ async function getDataDefinitions(category = null, fieldNames = null) {
 }
 
 /**
+ * Get state-level market metrics (State Overview mode)
+ * Returns data in the SAME format as getMarketMetrics for component reuse
+ * @param {string} stateCode - State code (e.g., 'ID', 'CA')
+ * @param {string} facilityType - 'SNF' or 'ALF'
+ * @returns {Promise<Object>} State metrics matching getMarketMetrics structure
+ */
+async function getStateMetrics(stateCode, facilityType = 'SNF') {
+  const pool = getPoolInstance();
+  const state = stateCode.toUpperCase();
+
+  try {
+    // =========================================================================
+    // 1. DEMOGRAPHICS - from state_demographics table
+    // =========================================================================
+    const demoResult = await pool.query(`
+      SELECT
+        state_code,
+        state_name,
+        total_population,
+        population_65_plus,
+        population_85_plus,
+        percent_65_plus,
+        percent_85_plus,
+        projected_65_plus_2030,
+        projected_85_plus_2030,
+        growth_rate_65_plus,
+        growth_rate_85_plus
+      FROM state_demographics
+      WHERE UPPER(state_code) = $1
+    `, [state]);
+
+    const demo = demoResult.rows[0];
+    if (!demo) {
+      return null; // State not found
+    }
+
+    // =========================================================================
+    // 2. ECONOMICS - aggregate from county_demographics
+    // =========================================================================
+    const econResult = await pool.query(`
+      SELECT
+        ROUND(AVG(median_household_income)) as median_household_income,
+        ROUND(AVG(median_home_value)) as median_home_value,
+        ROUND(AVG(poverty_rate)::numeric, 1) as poverty_rate,
+        ROUND(AVG(unemployment_rate)::numeric, 1) as unemployment_rate,
+        ROUND(AVG(college_rate)::numeric, 1) as college_rate,
+        ROUND(AVG(less_than_hs_rate)::numeric, 1) as less_than_hs_rate
+      FROM county_demographics
+      WHERE UPPER(state_code) = $1
+    `, [state]);
+
+    const econ = econResult.rows[0] || {};
+
+    // =========================================================================
+    // 3. SUPPLY / COMPETITION - aggregate facility stats
+    // =========================================================================
+    let supply;
+
+    if (facilityType === 'SNF') {
+      const supplyResult = await pool.query(`
+        SELECT
+          COUNT(*) as facility_count,
+          SUM(total_beds) as total_beds,
+          SUM(certified_beds) as certified_beds,
+          SUM(occupied_beds) as occupied_beds,
+          ROUND(AVG(occupancy_rate)::numeric, 1) as avg_occupancy,
+          ROUND(AVG(overall_rating)::numeric, 2) as avg_rating,
+          ROUND(AVG(average_daily_rate)::numeric, 2) as avg_daily_rate,
+          SUM(CASE WHEN special_focus_facility = true THEN 1 ELSE 0 END) as special_focus_count,
+          COUNT(DISTINCT parent_organization) as unique_operators,
+          COUNT(DISTINCT county) as county_count
+        FROM snf_facilities
+        WHERE UPPER(state) = $1
+      `, [state]);
+
+      const stats = supplyResult.rows[0];
+
+      // Get rating distribution
+      const ratingResult = await pool.query(`
+        SELECT overall_rating, COUNT(*) as count
+        FROM snf_facilities
+        WHERE UPPER(state) = $1 AND overall_rating IS NOT NULL
+        GROUP BY overall_rating
+        ORDER BY overall_rating
+      `, [state]);
+
+      const ratingDistribution = { star1: 0, star2: 0, star3: 0, star4: 0, star5: 0 };
+      ratingResult.rows.forEach(r => {
+        ratingDistribution[`star${r.overall_rating}`] = parseInt(r.count);
+      });
+
+      supply = {
+        facilityCount: parseInt(stats.facility_count) || 0,
+        countyCount: parseInt(stats.county_count) || 0,
+        beds: {
+          total: parseInt(stats.total_beds) || 0,
+          certified: parseInt(stats.certified_beds) || 0,
+          occupied: parseInt(stats.occupied_beds) || 0
+        },
+        avgOccupancy: stats.avg_occupancy ? parseFloat(stats.avg_occupancy) : null,
+        avgRating: stats.avg_rating ? parseFloat(stats.avg_rating) : null,
+        avgDailyRate: stats.avg_daily_rate ? parseFloat(stats.avg_daily_rate) : null,
+        specialFocusCount: parseInt(stats.special_focus_count) || 0,
+        uniqueOperators: parseInt(stats.unique_operators) || 0,
+        ratingDistribution
+      };
+    } else {
+      // ALF supply
+      const supplyResult = await pool.query(`
+        SELECT
+          COUNT(*) as facility_count,
+          SUM(capacity) as total_capacity,
+          ROUND(AVG(capacity)::numeric, 1) as avg_capacity,
+          COUNT(DISTINCT ownership_type) as ownership_types,
+          COUNT(DISTINCT licensee) as unique_operators,
+          COUNT(DISTINCT county) as county_count
+        FROM alf_facilities
+        WHERE UPPER(state) = $1
+      `, [state]);
+
+      const stats = supplyResult.rows[0];
+
+      supply = {
+        facilityCount: parseInt(stats.facility_count) || 0,
+        countyCount: parseInt(stats.county_count) || 0,
+        totalCapacity: parseInt(stats.total_capacity) || 0,
+        avgCapacity: stats.avg_capacity ? parseFloat(stats.avg_capacity) : null,
+        ownershipTypes: parseInt(stats.ownership_types) || 0,
+        uniqueOperators: parseInt(stats.unique_operators) || 0
+      };
+    }
+
+    // =========================================================================
+    // 4. CALCULATE DERIVED METRICS
+    // =========================================================================
+    const pop65Plus = parseInt(demo.population_65_plus) || 0;
+    const pop85Plus = parseInt(demo.population_85_plus) || 0;
+    const growthRate = parseFloat(demo.growth_rate_65_plus) || 0;
+
+    let bedsPerThousand65Plus = null;
+    let bedsPerThousand85Plus = null;
+    let capacityPerThousand65Plus = null;
+    let capacityPerThousand85Plus = null;
+
+    if (facilityType === 'SNF' && pop65Plus > 0) {
+      bedsPerThousand65Plus = ((supply.beds.total / pop65Plus) * 1000).toFixed(2);
+      if (pop85Plus > 0) {
+        bedsPerThousand85Plus = ((supply.beds.total / pop85Plus) * 1000).toFixed(2);
+      }
+    } else if (facilityType === 'ALF' && pop65Plus > 0) {
+      capacityPerThousand65Plus = ((supply.totalCapacity / pop65Plus) * 1000).toFixed(2);
+      if (pop85Plus > 0) {
+        capacityPerThousand85Plus = ((supply.totalCapacity / pop85Plus) * 1000).toFixed(2);
+      }
+    }
+
+    // Determine competition level and growth outlook
+    const marketCompetition = supply.uniqueOperators > 50 ? 'High' : supply.uniqueOperators > 20 ? 'Medium' : 'Low';
+    const growthOutlook = growthRate > 15 ? 'Strong' : growthRate > 8 ? 'Moderate' : 'Slow';
+
+    // =========================================================================
+    // 5. RETURN IN getMarketMetrics FORMAT
+    // =========================================================================
+    return {
+      demographics: {
+        marketType: 'state',
+        marketName: demo.state_name || state,
+        stateCode: state,
+        countyCount: supply.countyCount,
+        population: {
+          total: parseInt(demo.total_population) || 0,
+          age65Plus: pop65Plus,
+          age85Plus: pop85Plus,
+          percent65Plus: demo.percent_65_plus ? parseFloat(demo.percent_65_plus).toFixed(1) : null,
+          percent85Plus: demo.percent_85_plus ? parseFloat(demo.percent_85_plus).toFixed(2) : null
+        },
+        projections: {
+          age65Plus2030: parseInt(demo.projected_65_plus_2030) || null,
+          age85Plus2030: parseInt(demo.projected_85_plus_2030) || null,
+          growthRate65Plus: demo.growth_rate_65_plus ? parseFloat(demo.growth_rate_65_plus).toFixed(2) : null,
+          growthRate85Plus: demo.growth_rate_85_plus ? parseFloat(demo.growth_rate_85_plus).toFixed(2) : null
+        },
+        economics: {
+          medianHouseholdIncome: parseInt(econ.median_household_income) || null,
+          medianHomeValue: parseInt(econ.median_home_value) || null,
+          povertyRate: econ.poverty_rate ? parseFloat(econ.poverty_rate) : null,
+          unemploymentRate: econ.unemployment_rate ? parseFloat(econ.unemployment_rate) : null
+        },
+        education: {
+          collegeRate: econ.college_rate ? parseFloat(econ.college_rate) : null,
+          lessThanHsRate: econ.less_than_hs_rate ? parseFloat(econ.less_than_hs_rate) : null
+        }
+      },
+      supply,
+      metrics: {
+        bedsPerThousand65Plus: facilityType === 'SNF' ? bedsPerThousand65Plus : null,
+        bedsPerThousand85Plus: facilityType === 'SNF' ? bedsPerThousand85Plus : null,
+        capacityPerThousand65Plus: facilityType === 'ALF' ? capacityPerThousand65Plus : null,
+        capacityPerThousand85Plus: facilityType === 'ALF' ? capacityPerThousand85Plus : null,
+        marketCompetition,
+        growthOutlook
+      }
+    };
+  } catch (error) {
+    console.error('[MarketService] getStateMetrics error:', error);
+    throw error;
+  }
+}
+
+/**
  * Close the database connection pool
  */
 async function closePool() {
@@ -1900,6 +2110,7 @@ module.exports = {
   getSupplySummaryForCBSA,
   getFacilityDetail,
   getMarketMetrics,
+  getStateMetrics,
   getStates,
   getCounties,
   searchFacilities,
