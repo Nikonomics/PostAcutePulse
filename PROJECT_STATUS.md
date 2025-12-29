@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-28** - Add state metrics, SPA routing, and View Profile navigation
 - **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
 - **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
@@ -41,7 +42,6 @@
 - **2025-12-22** - Fix duplicate deal creation and add persistent logging
 - **2025-12-22** - Add 'All Time' period option to Survey Analytics
 - **2025-12-22** - Redesign comparison cards to compact two-row layout
-- **2025-12-22** - Improve SNFalyze AI and Help chatbot panels
 
 
 ### Areas Modified (Last 20 Commits)

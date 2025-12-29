@@ -276,16 +276,16 @@ module.exports = {
 
       const pool = getMarketPool();
 
-      // Step 1: Check SNF facilities first (use correct column names)
+      // Step 1: Check SNF facilities first (correct column names from schema)
       try {
         const snfResult = await pool.query(`
           SELECT
             federal_provider_number as ccn,
-            provider_name as name,
-            provider_city as city,
-            provider_state as state,
+            facility_name as name,
+            city,
+            state,
             overall_rating,
-            number_of_certified_beds as certified_beds,
+            certified_beds,
             ownership_type,
             latitude,
             longitude

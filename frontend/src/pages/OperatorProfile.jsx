@@ -101,11 +101,14 @@ const OperatorProfile = () => {
 
       try {
         const response = await getProviderMetadata(ccn);
-        if (response.success) {
-          setProviderType(response.data.type);
-          setMetadata(response.data);
+        // Backend helper.success returns { success, body } not { success, data }
+        const providerData = response?.body || response?.data || response;
+
+        if (response?.success && providerData?.type) {
+          setProviderType(providerData.type);
+          setMetadata(providerData);
         } else {
-          setError(response.message || 'Provider not found');
+          setError(response?.message || 'Provider not found');
         }
       } catch (err) {
         console.error('[OperatorProfile] Error fetching metadata:', err);
