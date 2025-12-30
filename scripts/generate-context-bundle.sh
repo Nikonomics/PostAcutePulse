@@ -2,16 +2,17 @@
 # Auto-generate CLAUDE_ONBOARDING.md from key project files
 # This file is automatically updated before each git commit
 
-BUNDLE_FILE="CLAUDE_ONBOARDING_snfalyze.md"
+BUNDLE_FILE="CLAUDE_ONBOARDING_postacutepulse.md"
 TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 
 echo "Generating $BUNDLE_FILE..."
 
 cat > "$BUNDLE_FILE" << 'HEADER'
-# SNFalyze - Claude Code Onboarding Bundle
+# PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
 > Last updated: TIMESTAMP_PLACEHOLDER
+> Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
 

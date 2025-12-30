@@ -263,19 +263,27 @@
     width: 240px;
     background-color: #f1f5f9;
     border-right: 1px solid #e2e8f0;
-    transition: all 0.3s ease;
+    transition: width 0.2s ease;
     overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
   }
-  
-  .sidebar-hidden {
-    width: 0;
-    overflow: hidden;
+
+  .sidebar-collapsed {
+    width: 64px;
   }
-  
+
   .sidebar-nav {
     padding: 16px;
+    flex: 1;
   }
-  
+
+  .sidebar-collapsed .sidebar-nav {
+    padding: 16px 8px;
+  }
+
   .sidebar-menu {
     list-style: none;
     display: flex;
@@ -283,7 +291,7 @@
     gap: 4px;
     padding-left: 0;
   }
-  
+
   .menu-item {
     display: flex;
     align-items: center;
@@ -299,30 +307,58 @@
     cursor: pointer;
     width: 100%;
     text-align: left;
+    white-space: nowrap;
   }
-  
+
+  .sidebar-collapsed .menu-item {
+    padding: 12px;
+    justify-content: center;
+    gap: 0;
+  }
+
   .menu-item:hover {
     background-color: #e2e8f0;
     color: #1e293b;
   }
-  
+
   .menu-item.active {
     background-color: #3b82f6;
     color: white;
   }
-  
+
   .menu-item.special.active {
     background-color: #7c3aed;
   }
-  
+
+  /* Sidebar toggle button */
+  .sidebar-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    margin: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background-color: white;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .sidebar-toggle-btn:hover {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    border-color: #cbd5e1;
+  }
+
   /* Main Content */
   .main-content {
     flex: 1;
     overflow-y: auto;
     background-color: #f8fafc;
-    transition: margin-left 0.3s ease;
+    transition: all 0.2s ease;
   }
-  
+
   .main-content.sidebar-closed {
     margin-left: 0;
   }
@@ -1139,11 +1175,15 @@
     .sidebar {
       width: 200px;
     }
-    
+
+    .sidebar-collapsed {
+      width: 56px;
+    }
+
     .metrics-grid {
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     }
-    
+
     .dashboard-grid {
       grid-template-columns: 1fr;
     }
@@ -1153,14 +1193,20 @@
     .sidebar {
       position: fixed;
       left: 0;
+      top: 60px;
       height: calc(100vh - 60px);
       z-index: 999;
-      /* top: 60px;
-      transform: translateX(-100%); */
     }
-    
-    .sidebar-hidden {
-      transform: translateX(-100%);
+
+    .sidebar-collapsed {
+      width: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .sidebar-collapsed .sidebar-nav,
+    .sidebar-collapsed .sidebar-toggle-btn {
+      display: none;
     }
     
     .page {

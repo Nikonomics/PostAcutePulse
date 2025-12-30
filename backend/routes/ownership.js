@@ -930,7 +930,36 @@ router.get('/profiles/:id', async (req, res) => {
           non_profit: profile.non_profit_count,
           government: profile.government_count
         },
-        last_refreshed_at: profile.last_refreshed_at
+        last_refreshed_at: profile.last_refreshed_at,
+        // Multi-segment ownership data
+        care_segments: {
+          has_snf: profile.has_snf || false,
+          has_alf: profile.has_alf || false,
+          has_hha: profile.has_hha || false,
+          has_hospice: profile.has_hospice || false,
+          care_types: profile.care_types || [],
+          is_diversified: profile.is_diversified || false
+        },
+        alf_data: {
+          facility_count: profile.alf_facility_count || 0,
+          total_capacity: profile.alf_total_capacity || 0,
+          states: profile.alf_states || []
+        },
+        hha_data: {
+          subsidiary_count: profile.hha_subsidiary_count || 0,
+          agency_count: profile.hha_agency_count || 0,
+          states: profile.hha_states || [],
+          dba_brands: profile.hha_dba_brands || []
+        },
+        cross_segment: {
+          total_locations: profile.total_locations || 0,
+          total_states: profile.total_states_operated || 0,
+          all_states: profile.all_states || []
+        },
+        pe_investment: {
+          pe_backed: profile.pe_backed || false,
+          investors: profile.pe_investors || []
+        }
       },
       contacts: contactsResult.rows,
       facilities

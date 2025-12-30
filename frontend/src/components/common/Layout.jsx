@@ -14,7 +14,7 @@ const Layout = ({ children, onLogout }) => {
     <div className="app-layout">
       <Navbar onLogout={onLogout} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
       <div className="layout-content">
-        <Sidebar isOpen={sidebarOpen} />
+        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
         <main className={`main-content ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
           {children}
         </main>

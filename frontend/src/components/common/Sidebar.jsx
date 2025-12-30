@@ -12,10 +12,12 @@ import {
   ArrowLeftRight,
   LayoutDashboard,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
-const Sidebar = ({ isOpen }) => {
+const Sidebar = ({ isOpen, onToggle }) => {
   const { user } = useAuth();
 
   // Define all menu items
@@ -45,7 +47,7 @@ const Sidebar = ({ isOpen }) => {
   }
 
   return (
-    <aside className={`sidebar ${!isOpen ? 'sidebar-hidden' : ''}`}>
+    <aside className={`sidebar ${!isOpen ? 'sidebar-collapsed' : ''}`}>
       <nav className="sidebar-nav">
         <ul className="sidebar-menu">
           {menuItems.map((item) => {
@@ -57,15 +59,25 @@ const Sidebar = ({ isOpen }) => {
                   className={({ isActive }) =>
                     `menu-item ${isActive ? 'active' : ''} ${item.special ? 'special' : ''}`
                   }
+                  title={!isOpen ? item.label : undefined}
                 >
                   <IconComponent size={18} />
-                  <span>{item.label}</span>
+                  {isOpen && <span>{item.label}</span>}
                 </NavLink>
               </li>
             );
           })}
         </ul>
       </nav>
+
+      {/* Collapse toggle button at bottom of sidebar */}
+      <button
+        className="sidebar-toggle-btn"
+        onClick={onToggle}
+        title={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+      >
+        {isOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+      </button>
     </aside>
   );
 };

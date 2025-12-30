@@ -5,7 +5,7 @@ import {
   Loader, ArrowLeft, Edit2, Save, X, Plus, Trash2, Mail,
   Phone, Globe, Linkedin, MessageSquare, Clock, ChevronRight,
   Send, User, Bookmark, BookmarkCheck, Map, TrendingUp, TrendingDown,
-  ArrowRightLeft, ExternalLink, Activity, ClipboardList
+  ArrowRightLeft, ExternalLink, Activity, ClipboardList, Home, Heart
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
@@ -56,6 +56,7 @@ function OwnershipProfile() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [stateFilter, setStateFilter] = useState('all');
+  const [segmentFilter, setSegmentFilter] = useState('all');
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState({});
   const [saving, setSaving] = useState(false);
@@ -502,6 +503,25 @@ function OwnershipProfile() {
                 ) : (
                   <span className="cms-badge custom-badge">Custom Profile</span>
                 )}
+                {/* Care Type Badges */}
+                {profile.care_segments?.has_snf && (
+                  <span className="care-type-badge snf">SNF</span>
+                )}
+                {profile.care_segments?.has_alf && (
+                  <span className="care-type-badge alf">ALF</span>
+                )}
+                {profile.care_segments?.has_hha && (
+                  <span className="care-type-badge hha">HHA</span>
+                )}
+                {profile.care_segments?.has_hospice && (
+                  <span className="care-type-badge hospice">Hospice</span>
+                )}
+                {profile.care_segments?.is_diversified && (
+                  <span className="diversified-badge">Diversified</span>
+                )}
+                {profile.pe_investment?.pe_backed && (
+                  <span className="pe-backed-badge">PE-Backed</span>
+                )}
               </div>
             </div>
           </div>
@@ -622,6 +642,134 @@ function OwnershipProfile() {
                 </div>
               </div>
             </div>
+
+            {/* Portfolio Summary - Multi-Segment Data */}
+            {(profile.care_segments?.is_diversified || profile.alf_data?.facility_count > 0 || profile.hha_data?.agency_count > 0) && (
+              <div className="ownership-card portfolio-summary-card">
+                <div className="ownership-card-header">
+                  <h3 className="ownership-card-title">
+                    <Activity size={18} /> Portfolio Summary
+                  </h3>
+                  {profile.pe_investment?.pe_backed && (
+                    <span className="pe-backed-badge-inline">
+                      <DollarSign size={14} /> PE-Backed
+                    </span>
+                  )}
+                </div>
+                <div className="portfolio-segments">
+                  {/* SNF Segment */}
+                  {profile.care_segments?.has_snf && (
+                    <div className="portfolio-segment snf">
+                      <div className="segment-header">
+                        <span className="segment-icon snf">SNF</span>
+                        <span className="segment-name">Skilled Nursing Facilities</span>
+                      </div>
+                      <div className="segment-stats">
+                        <div className="segment-stat">
+                          <span className="stat-value">{profile.facility_count}</span>
+                          <span className="stat-label">Facilities</span>
+                        </div>
+                        <div className="segment-stat">
+                          <span className="stat-value">{(profile.total_beds || 0).toLocaleString()}</span>
+                          <span className="stat-label">Beds</span>
+                        </div>
+                        <div className="segment-stat">
+                          <span className="stat-value">{profile.state_count}</span>
+                          <span className="stat-label">States</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ALF Segment */}
+                  {profile.care_segments?.has_alf && profile.alf_data?.facility_count > 0 && (
+                    <div className="portfolio-segment alf">
+                      <div className="segment-header">
+                        <span className="segment-icon alf">ALF</span>
+                        <span className="segment-name">Assisted Living Facilities</span>
+                      </div>
+                      <div className="segment-stats">
+                        <div className="segment-stat">
+                          <span className="stat-value">{profile.alf_data.facility_count}</span>
+                          <span className="stat-label">Facilities</span>
+                        </div>
+                        <div className="segment-stat">
+                          <span className="stat-value">{(profile.alf_data.total_capacity || 0).toLocaleString()}</span>
+                          <span className="stat-label">Capacity</span>
+                        </div>
+                        <div className="segment-stat">
+                          <span className="stat-value">{(profile.alf_data.states || []).length}</span>
+                          <span className="stat-label">States</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* HHA Segment */}
+                  {profile.care_segments?.has_hha && profile.hha_data?.agency_count > 0 && (
+                    <div className="portfolio-segment hha">
+                      <div className="segment-header">
+                        <span className="segment-icon hha">HHA</span>
+                        <span className="segment-name">Home Health Agencies</span>
+                      </div>
+                      <div className="segment-stats">
+                        <div className="segment-stat">
+                          <span className="stat-value">{profile.hha_data.agency_count}</span>
+                          <span className="stat-label">Agencies</span>
+                        </div>
+                        <div className="segment-stat">
+                          <span className="stat-value">{profile.hha_data.subsidiary_count || 0}</span>
+                          <span className="stat-label">Subsidiaries</span>
+                        </div>
+                        <div className="segment-stat">
+                          <span className="stat-value">{(profile.hha_data.states || []).length}</span>
+                          <span className="stat-label">States</span>
+                        </div>
+                      </div>
+                      {/* HHA Brands */}
+                      {profile.hha_data.dba_brands && profile.hha_data.dba_brands.length > 0 && (
+                        <div className="hha-brands">
+                          <span className="brands-label">Brands:</span>
+                          <div className="brands-list">
+                            {profile.hha_data.dba_brands.slice(0, 5).map((brand, idx) => (
+                              <span key={idx} className="brand-tag">{brand}</span>
+                            ))}
+                            {profile.hha_data.dba_brands.length > 5 && (
+                              <span className="brand-tag more">+{profile.hha_data.dba_brands.length - 5} more</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cross-Segment Totals */}
+                {profile.care_segments?.is_diversified && (
+                  <div className="cross-segment-totals">
+                    <div className="total-item">
+                      <Building2 size={16} />
+                      <span className="total-value">{profile.cross_segment?.total_locations || 0}</span>
+                      <span className="total-label">Total Locations</span>
+                    </div>
+                    <div className="total-item">
+                      <MapPin size={16} />
+                      <span className="total-value">{profile.cross_segment?.total_states || 0}</span>
+                      <span className="total-label">States Operated</span>
+                    </div>
+                    {profile.pe_investment?.investors && profile.pe_investment.investors.length > 0 && (
+                      <div className="total-item investors">
+                        <DollarSign size={16} />
+                        <span className="total-label">Investors:</span>
+                        <span className="investors-list">
+                          {profile.pe_investment.investors.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               {/* Company Info */}
@@ -1025,6 +1173,47 @@ function OwnershipProfile() {
         {/* Facilities Tab */}
         {activeTab === 'facilities' && (
           <>
+            {/* Segment Filter - only show if multi-segment */}
+            {(profile?.care_segments?.has_alf || profile?.care_segments?.has_hha) && (
+              <div className="segment-filter-group">
+                <div className="btn-group">
+                  <button
+                    className={`btn btn-sm ${segmentFilter === 'all' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => setSegmentFilter('all')}
+                  >
+                    All ({profile?.cross_segment?.total_locations || profile?.facility_count || 0})
+                  </button>
+                  {profile?.care_segments?.has_snf && (
+                    <button
+                      className={`btn btn-sm ${segmentFilter === 'snf' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                      onClick={() => setSegmentFilter('snf')}
+                    >
+                      SNF ({profile?.facility_count || 0})
+                    </button>
+                  )}
+                  {profile?.care_segments?.has_alf && (
+                    <button
+                      className={`btn btn-sm ${segmentFilter === 'alf' ? 'btn-success' : 'btn-outline-secondary'}`}
+                      onClick={() => setSegmentFilter('alf')}
+                    >
+                      ALF ({profile?.alf_data?.facility_count || 0})
+                    </button>
+                  )}
+                  {profile?.care_segments?.has_hha && (
+                    <button
+                      className={`btn btn-sm ${segmentFilter === 'hha' ? 'btn-warning' : 'btn-outline-secondary'}`}
+                      onClick={() => setSegmentFilter('hha')}
+                    >
+                      HHA ({profile?.hha_data?.agency_count || 0})
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* SNF Facilities Map & Table - show for 'all' or 'snf' */}
+            {(segmentFilter === 'all' || segmentFilter === 'snf') && (
+            <>
             {/* Facilities Map */}
             <div className="ownership-card">
               <div className="ownership-card-header">
@@ -1211,6 +1400,57 @@ function OwnershipProfile() {
                 </div>
               )}
             </div>
+            </>
+            )}
+
+            {/* ALF Placeholder */}
+            {segmentFilter === 'alf' && (
+              <div className="segment-placeholder">
+                <div className="segment-placeholder-content">
+                  <Home size={48} className="segment-placeholder-icon alf" />
+                  <h5>Assisted Living Facilities</h5>
+                  <p className="segment-placeholder-stats">
+                    {profile?.alf_data?.facility_count || 0} facilities with {(profile?.alf_data?.total_capacity || 0).toLocaleString()} total capacity
+                    across {profile?.alf_data?.states?.length || 0} states
+                  </p>
+                  {profile?.alf_data?.states?.length > 0 && (
+                    <p className="segment-placeholder-states">
+                      States: {profile.alf_data.states.join(', ')}
+                    </p>
+                  )}
+                  <p className="segment-placeholder-note">Detailed facility list coming soon</p>
+                </div>
+              </div>
+            )}
+
+            {/* HHA Placeholder */}
+            {segmentFilter === 'hha' && (
+              <div className="segment-placeholder">
+                <div className="segment-placeholder-content">
+                  <Heart size={48} className="segment-placeholder-icon hha" />
+                  <h5>Home Health Agencies</h5>
+                  <p className="segment-placeholder-stats">
+                    {profile?.hha_data?.agency_count || 0} agencies through {profile?.hha_data?.subsidiary_count || 0} operating subsidiaries
+                    across {profile?.hha_data?.states?.length || 0} states
+                  </p>
+                  {profile?.hha_data?.dba_brands?.length > 0 && (
+                    <div className="segment-placeholder-brands">
+                      <span className="brands-label">Brands:</span>
+                      <span className="brands-text">
+                        {profile.hha_data.dba_brands.slice(0, 5).join(', ')}
+                        {profile.hha_data.dba_brands.length > 5 && ` +${profile.hha_data.dba_brands.length - 5} more`}
+                      </span>
+                    </div>
+                  )}
+                  {profile?.hha_data?.states?.length > 0 && (
+                    <p className="segment-placeholder-states">
+                      States: {profile.hha_data.states.join(', ')}
+                    </p>
+                  )}
+                  <p className="segment-placeholder-note">Detailed agency list coming soon</p>
+                </div>
+              </div>
+            )}
           </>
         )}
 
