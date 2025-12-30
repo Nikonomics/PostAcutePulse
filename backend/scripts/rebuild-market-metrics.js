@@ -88,7 +88,7 @@ async function main() {
         'cbsa',
         cbsa_code,
         COUNT(*) as snf_facility_count,
-        SUM(number_of_certified_beds) as snf_total_beds,
+        SUM(certified_beds) as snf_total_beds,
         ROUND(AVG(overall_rating)::numeric, 2) as snf_avg_overall_rating,
         ROUND(AVG(occupancy_rate)::numeric, 2) as snf_avg_occupancy
       FROM snf_facilities
@@ -153,8 +153,8 @@ async function main() {
         SELECT
           cbsa_code,
           COUNT(*) as agency_count,
-          SUM(total_episodes_fy) as total_episodes,
-          ROUND(AVG(quality_of_patient_care_star_rating)::numeric, 2) as avg_rating
+          SUM(episode_count) as total_episodes,
+          ROUND(AVG(quality_star_rating)::numeric, 2) as avg_rating
         FROM hh_provider_snapshots
         WHERE extract_id = (SELECT MAX(extract_id) FROM hh_provider_snapshots)
           AND cbsa_code IS NOT NULL
@@ -182,7 +182,7 @@ async function main() {
           SUM(population_65_plus) as pop_65_plus,
           SUM(population_85_plus) as pop_85_plus,
           ROUND(AVG(median_household_income)::numeric, 0) as median_income,
-          ROUND(AVG(projected_growth_65_2030)::numeric, 2) as growth_rate
+          ROUND(AVG(growth_rate_65_plus)::numeric, 2) as growth_rate
         FROM county_demographics
         WHERE cbsa_code IS NOT NULL
         GROUP BY cbsa_code

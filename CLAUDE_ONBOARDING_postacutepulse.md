@@ -1,7 +1,7 @@
 # PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-30 09:06:08
+> Last updated: 2025-12-30 10:12:34
 > Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
@@ -797,6 +797,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -981,6 +982,7 @@ backend/migrations/add-user-approval-columns.js
 
 ### Last 7 Days
 
+- **2025-12-30** - Add market scoring scripts and methodology documentation
 - **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
 - **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
@@ -990,11 +992,6 @@ backend/migrations/add-user-approval-columns.js
 - **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 - **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
-- **2025-12-23** - Fix: Change occupancy >100% and ADC>beds from errors to warnings
-- **2025-12-23** - Add missing columns from schema audit
-- **2025-12-23** - Add comprehensive audit logging for deal operations
-- **2025-12-23** - Add database migration reminder system
-- **2025-12-23** - Add automatic migration runner on app startup
 
 ### Areas Modified (Last 20 Commits)
 
