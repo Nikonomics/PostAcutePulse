@@ -429,6 +429,7 @@ Item appears in SavedItems page
 
 5. **React 19** - Uses latest React with some legacy peer dependencies in frontend packages.
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.

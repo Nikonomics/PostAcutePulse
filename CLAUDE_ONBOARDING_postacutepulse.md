@@ -1,7 +1,7 @@
 # PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-29 22:18:55
+> Last updated: 2025-12-29 22:20:17
 > Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
@@ -795,6 +795,7 @@ Item appears in SavedItems page
 
 5. **React 19** - Uses latest React with some legacy peer dependencies in frontend packages.
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -979,6 +980,7 @@ backend/migrations/add-user-approval-columns.js
 
 ### Last 7 Days
 
+- **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
 - **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
 - **2025-12-28** - Fix provider metadata lookup from ownership analysis
 - **2025-12-28** - Add state metrics, SPA routing, and View Profile navigation
@@ -996,7 +998,7 @@ backend/migrations/add-user-approval-columns.js
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     76 files
+Backend:     75 files
 Frontend:    109 files
 Routes:      8 files
 Services:    10 files

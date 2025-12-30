@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
 - **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
 - **2025-12-28** - Fix provider metadata lookup from ownership analysis
 - **2025-12-28** - Add state metrics, SPA routing, and View Profile navigation
@@ -29,7 +30,7 @@
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     76 files
+Backend:     75 files
 Frontend:    109 files
 Routes:      8 files
 Services:    10 files
