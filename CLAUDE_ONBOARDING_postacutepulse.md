@@ -1,7 +1,7 @@
 # PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-29 22:20:17
+> Last updated: 2025-12-30 09:06:08
 > Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
@@ -796,6 +796,7 @@ Item appears in SavedItems page
 5. **React 19** - Uses latest React with some legacy peer dependencies in frontend packages.
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -968,7 +969,7 @@ backend/migrations/add-user-approval-columns.js
 ```markdown
 # PostAcutePulse - Project Status
 
-**Last Updated:** December 29, 2025
+**Last Updated:** December 30, 2025
 **Project:** Market Intelligence Platform (PostAcutePulse)
 **Repository:** pac-advocate
 
@@ -980,6 +981,7 @@ backend/migrations/add-user-approval-columns.js
 
 ### Last 7 Days
 
+- **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
 - **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
 - **2025-12-28** - Fix provider metadata lookup from ownership analysis
@@ -993,12 +995,11 @@ backend/migrations/add-user-approval-columns.js
 - **2025-12-23** - Add comprehensive audit logging for deal operations
 - **2025-12-23** - Add database migration reminder system
 - **2025-12-23** - Add automatic migration runner on app startup
-- **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     75 files
+Backend:     84 files
 Frontend:    109 files
 Routes:      8 files
 Services:    10 files
@@ -1013,6 +1014,8 @@ CLAUDE_ONBOARDING_postacutepulse.md
 backend/DATABASE_MIGRATIONS.md
 backend/controller/MarketController.js
 backend/controller/WatchlistController.js
+backend/docs/MARKET_GRADING_METHODOLOGY.md
+backend/docs/MARKET_SCORING_DATA_DICTIONARY.md
 backend/migrations/20250101-create-watchlist-tables.js
 backend/migrations/20250101-drop-deal-tables.js
 backend/migrations/20251229-add-multi-segment-ownership-profiles.js
@@ -1022,8 +1025,6 @@ backend/models/custom_reports.js
 backend/models/watchlist.js
 backend/models/watchlist_item.js
 backend/routes/customReports.js
-backend/routes/hh-market.js
-backend/routes/hha-ma-analytics.js
 ```
 
 ---

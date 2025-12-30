@@ -1,6 +1,6 @@
 # PostAcutePulse - Project Status
 
-**Last Updated:** December 29, 2025
+**Last Updated:** December 30, 2025
 **Project:** Market Intelligence Platform (PostAcutePulse)
 **Repository:** pac-advocate
 
@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
 - **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
 - **2025-12-28** - Fix provider metadata lookup from ownership analysis
@@ -25,12 +26,11 @@
 - **2025-12-23** - Add comprehensive audit logging for deal operations
 - **2025-12-23** - Add database migration reminder system
 - **2025-12-23** - Add automatic migration runner on app startup
-- **2025-12-22** - Add Custom Report Builder for drag-and-drop analytics
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     75 files
+Backend:     84 files
 Frontend:    109 files
 Routes:      8 files
 Services:    10 files
@@ -45,6 +45,8 @@ CLAUDE_ONBOARDING_postacutepulse.md
 backend/DATABASE_MIGRATIONS.md
 backend/controller/MarketController.js
 backend/controller/WatchlistController.js
+backend/docs/MARKET_GRADING_METHODOLOGY.md
+backend/docs/MARKET_SCORING_DATA_DICTIONARY.md
 backend/migrations/20250101-create-watchlist-tables.js
 backend/migrations/20250101-drop-deal-tables.js
 backend/migrations/20251229-add-multi-segment-ownership-profiles.js
@@ -54,8 +56,6 @@ backend/models/custom_reports.js
 backend/models/watchlist.js
 backend/models/watchlist_item.js
 backend/routes/customReports.js
-backend/routes/hh-market.js
-backend/routes/hha-ma-analytics.js
 ```
 
 ---

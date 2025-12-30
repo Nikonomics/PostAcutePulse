@@ -205,3 +205,97 @@ Check Render environment variables:
 - `MARKET_DATABASE_URL` - points to snf_market_data
 
 Both should have `?sslmode=require` for Render connections.
+
+---
+
+## Market Scoring Scripts
+
+These scripts calculate opportunity scores for SNF, ALF, and HHA markets.
+
+### Quick Start
+
+Rebuild all market scores from scratch:
+
+```bash
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js
+```
+
+### Run Order (Dependencies)
+
+Scripts must run in this order:
+
+```
+1. rebuild-market-metrics.js      # Aggregates facility data per CBSA
+       ↓
+2. update-snf-opportunity-scores.js
+3. update-alf-opportunity-scores.js
+4. update-hha-opportunity-scores.js   # Can run in parallel
+       ↓
+5. calculate-overall-pac-scores.js    # Combines all three
+```
+
+### Individual Scoring Scripts
+
+| Script | Description | Depends On |
+|--------|-------------|------------|
+| `rebuild-market-metrics.js` | Aggregates SNF/ALF/HHA counts and metrics per CBSA | `hud_zip_cbsa`, facility tables |
+| `update-snf-opportunity-scores.js` | Calculates SNF opportunity scores | `market_metrics` |
+| `update-alf-opportunity-scores.js` | Calculates ALF opportunity scores | `market_metrics` |
+| `update-hha-opportunity-scores.js` | Calculates HHA opportunity scores (service-area based) | `hh_service_areas`, `hud_zip_cbsa` |
+| `calculate-overall-pac-scores.js` | Combines SNF/ALF/HHA into overall PAC score | All scoring scripts |
+| `rebuild-all-market-scores.js` | Master orchestrator - runs everything in order | All of the above |
+
+### Orchestrator Options
+
+```bash
+# Full rebuild
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js
+
+# Skip metrics rebuild (use existing aggregated data)
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js --skip-metrics
+
+# Run only specific scoring
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js --snf-only
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js --alf-only
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js --hha-only
+
+# Only recalculate overall PAC (after manual score adjustments)
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js --pac-only
+```
+
+### Scoring Methodology
+
+**SNF Opportunity Score** - Based on:
+- Capacity gap (beds per 1K 65+)
+- Occupancy (lower = acquisition opportunity)
+- Quality ratings (lower = improvement opportunity)
+- Population growth
+
+**ALF Opportunity Score** - Based on:
+- Capacity gap: 50% weight
+- Population growth: 30% weight
+- Median income: 20% weight (ALF is private-pay)
+
+**HHA Opportunity Score** - Based on:
+- Service area competition (HHAs serving each CBSA via `hh_service_areas`)
+- HHAs per 10K 65+ population
+
+**Overall PAC Score** - Weighted combination:
+- SNF: 40%, ALF: 30%, HHA: 30%
+
+### Grade Scale
+
+| Score | Grade | Score | Grade |
+|-------|-------|-------|-------|
+| 95-100 | A+ | 60-64 | C |
+| 90-94 | A | 55-59 | C- |
+| 85-89 | A- | 50-54 | D+ |
+| 80-84 | B+ | 45-49 | D |
+| 75-79 | B | 40-44 | D- |
+| 70-74 | B- | 0-39 | F |
+| 65-69 | C+ | | |
+
+### Related Documentation
+
+- `backend/docs/MARKET_GRADING_METHODOLOGY.md` - Detailed methodology
+- `backend/docs/MARKET_SCORING_DATA_DICTIONARY.md` - Column definitions
