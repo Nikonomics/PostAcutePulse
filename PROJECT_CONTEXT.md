@@ -432,6 +432,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -544,6 +545,7 @@ MAIntelligence
 MarketAnalysis
 MarketCommentsSection
 MarketDynamicsTab
+MarketGrading
 MarketScorecard
 NotificationCenter
 OwnershipResearch

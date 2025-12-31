@@ -12,6 +12,7 @@
 
 ### Last 7 Days
 
+- **2025-12-30** - Fix column name in rebuild-market-metrics.js
 - **2025-12-30** - Add market scoring scripts and methodology documentation
 - **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
@@ -21,12 +22,11 @@
 - **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
 - **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
-- **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     84 files
+Backend:     92 files
 Frontend:    109 files
 Routes:      8 files
 Services:    10 files

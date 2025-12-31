@@ -1,7 +1,7 @@
 # PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-30 10:12:34
+> Last updated: 2025-12-30 19:19:22
 > Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
@@ -798,6 +798,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -910,6 +911,7 @@ MAIntelligence
 MarketAnalysis
 MarketCommentsSection
 MarketDynamicsTab
+MarketGrading
 MarketScorecard
 NotificationCenter
 OwnershipResearch
@@ -982,6 +984,7 @@ backend/migrations/add-user-approval-columns.js
 
 ### Last 7 Days
 
+- **2025-12-30** - Fix column name in rebuild-market-metrics.js
 - **2025-12-30** - Add market scoring scripts and methodology documentation
 - **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
@@ -991,12 +994,11 @@ backend/migrations/add-user-approval-columns.js
 - **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
 - **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
 - **2025-12-25** - Add fire safety and health citations collectors with API endpoints
-- **2025-12-23** - Update deal creation flow docs and add extraction docs checker script
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     84 files
+Backend:     92 files
 Frontend:    109 files
 Routes:      8 files
 Services:    10 files
@@ -1217,6 +1219,7 @@ A market intelligence platform for the post-acute care sector that provides:
     "@testing-library/user-event": "^13.2.1",
     "ajv": "^8.17.1",
     "axios": "^1.10.0",
+    "d3-geo": "^3.1.1",
     "d3-scale": "^4.0.2",
     "date-fns": "^4.1.0",
     "jspdf": "^3.0.4",
@@ -1224,6 +1227,7 @@ A market intelligence platform for the post-acute care sector that provides:
     "lucide-react": "^0.525.0",
     "mammoth": "^1.11.0",
     "posthog-js": "^1.309.1",
+    "prop-types": "^15.8.1",
     "react": "^19.1.0",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.1.0",
@@ -1237,6 +1241,7 @@ A market intelligence platform for the post-acute care sector that provides:
     "recharts": "^3.5.1",
     "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.8.1",
+    "topojson-client": "^3.1.0",
     "web-vitals": "^2.1.0",
     "xlsx": "^0.18.5",
     "yup": "^1.6.1"
