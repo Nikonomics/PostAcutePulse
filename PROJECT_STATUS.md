@@ -1,6 +1,6 @@
 # PostAcutePulse - Project Status
 
-**Last Updated:** December 30, 2025
+**Last Updated:** January 05, 2026
 **Project:** Market Intelligence Platform (PostAcutePulse)
 **Repository:** pac-advocate
 
@@ -12,32 +12,29 @@
 
 ### Last 7 Days
 
+- **2025-12-30** - Add CMS quality measures ingestion scripts
 - **2025-12-30** - Fix column name in rebuild-market-metrics.js
 - **2025-12-30** - Add market scoring scripts and methodology documentation
 - **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
-- **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
-- **2025-12-28** - Fix provider metadata lookup from ownership analysis
-- **2025-12-28** - Add state metrics, SPA routing, and View Profile navigation
-- **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
-- **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
-- **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     92 files
-Frontend:    109 files
-Routes:      8 files
-Services:    10 files
-Components:  52 files
+Backend:     99 files
+Frontend:    162 files
+Routes:      10 files
+Services:    12 files
+Components:  93 files
 Migrations:  19 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
+CLAUDE_ONBOARDING_pac-advocate.md
 CLAUDE_ONBOARDING_postacutepulse.md
+backend/.claude/BACKLOG.md
 backend/DATABASE_MIGRATIONS.md
 backend/controller/MarketController.js
 backend/controller/WatchlistController.js
@@ -50,8 +47,6 @@ backend/migrations/20251229-create-ownership-hierarchy-tables.js
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
 backend/models/watchlist.js
-backend/models/watchlist_item.js
-backend/routes/customReports.js
 ```
 
 ---

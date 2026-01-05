@@ -14,6 +14,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  TrendingUp,
+  Flag,
 } from 'lucide-react';
 import { useAuth } from "../../context/UserContext";
 
@@ -25,8 +27,10 @@ const Sidebar = ({ isOpen, onToggle }) => {
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/provider-search', icon: Search, label: 'Provider Lookup' },
     { path: '/market-analysis', icon: MapPin, label: 'Market Analysis' },
+    { path: '/market-grading', icon: TrendingUp, label: 'Market Grading' },
     { path: '/ownership-research', icon: Building2, label: 'Ownership Research' },
     { path: '/ma-intelligence', icon: ArrowLeftRight, label: 'M&A Intelligence' },
+    { path: '/pennant-intelligence', icon: Flag, label: 'Pennant Intelligence' },
     { path: '/survey-analytics', icon: ClipboardList, label: 'Survey Analytics' },
     { path: '/reports', icon: LayoutDashboard, label: 'Report Builder' },
     { path: '/data-dictionary', icon: BookOpen, label: 'Data Dictionary' },
@@ -42,7 +46,7 @@ const Sidebar = ({ isOpen, onToggle }) => {
   } else {
     // Show all items except user management for non-admins
     menuItems = allMenuItems.filter(item =>
-      ['/dashboard', '/provider-search', '/market-analysis', '/ownership-research', '/ma-intelligence', '/survey-analytics', '/reports', '/data-dictionary', '/saved-items', '/ai-assistant'].includes(item.path)
+      ['/dashboard', '/provider-search', '/market-analysis', '/market-grading', '/ownership-research', '/ma-intelligence', '/pennant-intelligence', '/survey-analytics', '/reports', '/data-dictionary', '/saved-items', '/ai-assistant'].includes(item.path)
     );
   }
 

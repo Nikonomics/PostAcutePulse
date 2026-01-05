@@ -1500,6 +1500,318 @@ router.get('/snf/:ccn/vbp', async (req, res) => {
 });
 
 // ============================================================================
+// HH/HOSPICE PARTNERSHIP PROJECTION API
+// ============================================================================
+
+/**
+ * GET /api/facilities/snf/:ccn/partnership-projection
+ * Calculate HH/Hospice partnership revenue projections for a SNF
+ *
+ * Uses the platform's standard throughput methodology:
+ * - 35% of beds are short-term (consistent with market_metrics table)
+ * - Monthly discharges = short-term beds × occupancy rate
+ *
+ * Query Params:
+ * - hhAppropriatePct: % of discharges appropriate for HH (default: 0.75)
+ * - referralCaptureRate: % of referrals captured at maturity (default: 0.80)
+ * - hhLOS: HH length of stay in months (default: 2.4)
+ * - hospiceLOS: Hospice length of stay in months (default: 5)
+ * - hhToHospiceConversionRate: % of HH patients converting to hospice (default: 0.10)
+ * - facilityHospiceCensusPct: % of LT residents appropriate for hospice (default: 0.10)
+ * - hospiceDailyRate: Daily hospice rate (default: 200)
+ *
+ * Returns facility data, partnership projections, and all assumptions
+ */
+router.get('/snf/:ccn/partnership-projection', async (req, res) => {
+  const { ccn } = req.params;
+
+  if (!ccn) {
+    return res.status(400).json({
+      success: false,
+      error: 'CCN is required'
+    });
+  }
+
+  const pool = getMarketPool();
+
+  try {
+    // Parse query params with defaults
+    const assumptions = {
+      // Bed split (consistent with market_metrics table)
+      shortTermBedsPct: 0.35,
+      longTermBedsPct: 0.65,
+
+      // HH assumptions
+      hhAppropriatePct: parseFloat(req.query.hhAppropriatePct) || 0.75,
+      hhLOS: parseFloat(req.query.hhLOS) || 2.4, // months
+      hhToHospiceConversionRate: parseFloat(req.query.hhToHospiceConversionRate) || 0.10,
+
+      // Hospice assumptions
+      facilityHospiceCensusPct: parseFloat(req.query.facilityHospiceCensusPct) || 0.10,
+      hospiceDailyRate: parseFloat(req.query.hospiceDailyRate) || 200,
+      hospiceLOS: parseFloat(req.query.hospiceLOS) || 5, // months
+
+      // Partnership assumptions
+      referralCaptureRate: parseFloat(req.query.referralCaptureRate) || 0.80
+    };
+
+    // Get facility data from snf_facilities
+    const facilityResult = await pool.query(`
+      SELECT
+        federal_provider_number as ccn,
+        facility_name,
+        address,
+        city,
+        state,
+        zip_code,
+        county,
+        certified_beds,
+        average_residents_per_day,
+        CASE
+          WHEN certified_beds > 0 AND average_residents_per_day > 0
+          THEN ROUND((average_residents_per_day::numeric / certified_beds::numeric) * 100, 1)
+          ELSE 80
+        END as occupancy_rate,
+        overall_rating,
+        staffing_rating,
+        quality_measure_rating,
+        ownership_type,
+        chain_name,
+        latitude,
+        longitude
+      FROM snf_facilities
+      WHERE federal_provider_number = $1
+      LIMIT 1
+    `, [ccn]);
+
+    if (facilityResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No facility found with CCN ${ccn}`
+      });
+    }
+
+    const facility = facilityResult.rows[0];
+
+    // Get VBP data for the facility (optional - table may not exist)
+    let vbpData = null;
+    try {
+      const vbpResult = await pool.query(`
+        SELECT
+          fiscal_year,
+          incentive_payment_multiplier,
+          performance_score
+        FROM vbp_scores
+        WHERE ccn = $1
+        ORDER BY fiscal_year DESC
+        LIMIT 1
+      `, [ccn]);
+
+      if (vbpResult.rows.length > 0) {
+        vbpData = {
+          fiscalYear: vbpResult.rows[0].fiscal_year,
+          incentiveMultiplier: parseFloat(vbpResult.rows[0].incentive_payment_multiplier) || null,
+          performanceScore: parseFloat(vbpResult.rows[0].performance_score) || null
+        };
+      }
+    } catch (vbpError) {
+      // VBP table may not exist in this database - continue without VBP data
+      console.log('VBP data not available:', vbpError.message);
+    }
+
+    // Get HH data for the facility's state (optional - tables may not exist)
+    let hhMarketData = null;
+    try {
+      const hhStateResult = await pool.query(`
+        SELECT
+          COUNT(*) as agency_count,
+          AVG(quality_star_rating) as avg_quality_rating,
+          AVG(NULLIF(medicare_spending_ratio, 0)) as avg_medicare_spending_ratio
+        FROM hh_provider_snapshots
+        WHERE state = $1
+          AND extract_id = (SELECT MAX(extract_id) FROM hh_extracts)
+      `, [facility.state]);
+
+      if (hhStateResult.rows.length > 0 && hhStateResult.rows[0].agency_count > 0) {
+        hhMarketData = {
+          level: 'state',
+          state: facility.state,
+          agencyCount: parseInt(hhStateResult.rows[0].agency_count) || 0,
+          avgQualityRating: parseFloat(hhStateResult.rows[0].avg_quality_rating) || null,
+          avgMedicareSpendingRatio: parseFloat(hhStateResult.rows[0].avg_medicare_spending_ratio) || null
+        };
+      }
+    } catch (hhError) {
+      // HH tables may not exist in this database - continue with defaults
+      console.log('HH market data not available:', hhError.message);
+    }
+
+    // Calculate HH revenue per episode (using medicare spending ratio as proxy)
+    // National average HH episode payment is ~$3,200
+    const nationalAvgHHEpisode = 3200;
+    const hhRevenuePerEpisode = hhMarketData?.avgMedicareSpendingRatio
+      ? nationalAvgHHEpisode * hhMarketData.avgMedicareSpendingRatio
+      : nationalAvgHHEpisode;
+
+    // =========================================================================
+    // CALCULATE PARTNERSHIP PROJECTIONS
+    // =========================================================================
+
+    const totalBeds = parseInt(facility.certified_beds) || 0;
+    const occupancyRate = parseFloat(facility.occupancy_rate) / 100 || 0.80;
+
+    // Step 1: Calculate bed allocation (using platform standard 35/65 split)
+    const shortTermBeds = Math.round(totalBeds * assumptions.shortTermBedsPct);
+    const longTermBeds = Math.round(totalBeds * assumptions.longTermBedsPct);
+
+    // Step 2: Calculate census
+    const shortTermCensus = Math.round(shortTermBeds * occupancyRate);
+    const longTermCensus = Math.round(longTermBeds * occupancyRate);
+
+    // Step 3: Calculate throughput (monthly discharges = short-term census)
+    // This matches the existing market_metrics calculation
+    const monthlyDischarges = shortTermCensus;
+
+    // =========================================================================
+    // HOME HEALTH PROJECTIONS
+    // =========================================================================
+
+    // Appropriate discharges for HH
+    const hhAppropriateDischargesMonthly = Math.round(monthlyDischarges * assumptions.hhAppropriatePct);
+    const hhAppropriateDischargesAnnual = hhAppropriateDischargesMonthly * 12;
+
+    // Partnership HH census (captured referrals × LOS)
+    const partnershipHHCensus = Math.round(
+      (monthlyDischarges * assumptions.referralCaptureRate) * assumptions.hhLOS
+    );
+
+    // Partnership HH revenue
+    // Revenue = (census × revenue per episode) / 2 (avg 2 episodes per LOS)
+    const partnershipHHRevenueMonthly = Math.round(
+      (partnershipHHCensus * hhRevenuePerEpisode) / 2
+    );
+    const partnershipHHRevenueAnnual = partnershipHHRevenueMonthly * 12;
+
+    // =========================================================================
+    // HOSPICE PROJECTIONS
+    // =========================================================================
+
+    // Facility-based hospice census (from long-term residents)
+    const facilityHospiceCensus = Math.round(longTermCensus * assumptions.facilityHospiceCensusPct);
+    const partnershipHOSCensusFacility = Math.round(facilityHospiceCensus * assumptions.referralCaptureRate);
+
+    // HH-to-Hospice conversions
+    const partnershipHOSCensusFromHH = Math.round(
+      partnershipHHCensus * assumptions.hhToHospiceConversionRate
+    );
+
+    // Total hospice census
+    const totalPartnershipHOSCensus = partnershipHOSCensusFacility + partnershipHOSCensusFromHH;
+
+    // Hospice revenue (census × 30 days × daily rate)
+    const partnershipHOSRevenueMonthly = Math.round(
+      totalPartnershipHOSCensus * 30 * assumptions.hospiceDailyRate
+    );
+    const partnershipHOSRevenueAnnual = partnershipHOSRevenueMonthly * 12;
+
+    // =========================================================================
+    // TOTAL PARTNERSHIP
+    // =========================================================================
+
+    const totalPartnershipRevenueMonthly = partnershipHHRevenueMonthly + partnershipHOSRevenueMonthly;
+    const totalPartnershipRevenueAnnual = totalPartnershipRevenueMonthly * 12;
+
+    // =========================================================================
+    // BUILD RESPONSE
+    // =========================================================================
+
+    res.json({
+      success: true,
+      data: {
+        facility: {
+          ccn: facility.ccn,
+          name: facility.facility_name,
+          address: facility.address,
+          city: facility.city,
+          state: facility.state,
+          zipCode: facility.zip_code,
+          county: facility.county,
+          totalBeds,
+          occupancyRate: Math.round(occupancyRate * 100),
+          overallRating: facility.overall_rating,
+          staffingRating: facility.staffing_rating,
+          qualityRating: facility.quality_measure_rating,
+          ownershipType: facility.ownership_type,
+          chainName: facility.chain_name,
+          latitude: parseFloat(facility.latitude) || null,
+          longitude: parseFloat(facility.longitude) || null
+        },
+
+        vbp: vbpData,
+
+        hhMarket: hhMarketData,
+
+        // Calculated bed allocation
+        bedAllocation: {
+          shortTermBeds,
+          longTermBeds,
+          shortTermCensus,
+          longTermCensus
+        },
+
+        // Throughput (matches market_metrics methodology)
+        throughput: {
+          monthlyDischarges,
+          annualDischarges: monthlyDischarges * 12
+        },
+
+        // Home Health projections
+        homeHealth: {
+          appropriateDischargesMonthly: hhAppropriateDischargesMonthly,
+          appropriateDischargesAnnual: hhAppropriateDischargesAnnual,
+          partnershipCensus: partnershipHHCensus,
+          revenuePerEpisode: Math.round(hhRevenuePerEpisode),
+          revenueMonthly: partnershipHHRevenueMonthly,
+          revenueAnnual: partnershipHHRevenueAnnual
+        },
+
+        // Hospice projections
+        hospice: {
+          facilityHospiceCensus,
+          partnershipCensusFromFacility: partnershipHOSCensusFacility,
+          partnershipCensusFromHH: partnershipHOSCensusFromHH,
+          totalPartnershipCensus: totalPartnershipHOSCensus,
+          dailyRate: assumptions.hospiceDailyRate,
+          revenueMonthly: partnershipHOSRevenueMonthly,
+          revenueAnnual: partnershipHOSRevenueAnnual
+        },
+
+        // Total partnership revenue
+        totalPartnership: {
+          revenueMonthly: totalPartnershipRevenueMonthly,
+          revenueAnnual: totalPartnershipRevenueAnnual
+        },
+
+        // All assumptions (for frontend recalculation)
+        assumptions: {
+          ...assumptions,
+          hhRevenuePerEpisode: Math.round(hhRevenuePerEpisode),
+          nationalAvgHHEpisode
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Facilities API] Error calculating partnership projection:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate partnership projection',
+      message: error.message
+    });
+  }
+});
+
+// ============================================================================
 // FACILITY COMMENTS API
 // ============================================================================
 

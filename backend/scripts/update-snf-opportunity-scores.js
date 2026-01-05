@@ -1,7 +1,7 @@
 /**
  * Update SNF Opportunity Scores
  *
- * Calculates SNF opportunity scores for all CBSAs based on:
+ * Calculates SNF opportunity scores for all geographies (CBSA, state, county) based on:
  * - Capacity gap (beds per 1K 65+ population)
  * - Occupancy opportunity (lower occupancy = room for growth)
  * - Quality gap (lower ratings = improvement opportunity)
@@ -10,7 +10,13 @@
  * Methodology: Absolute thresholds (matching HHA script pattern)
  * Lower competition / more growth = higher opportunity score
  *
- * Usage: MARKET_DATABASE_URL=<url> node scripts/update-snf-opportunity-scores.js
+ * Usage: MARKET_DATABASE_URL=<url> node scripts/update-snf-opportunity-scores.js [--geography=<type>]
+ *
+ * Options:
+ *   --geography=cbsa   Score CBSAs only
+ *   --geography=state  Score states only
+ *   --geography=county Score counties only (no ranking display)
+ *   --geography=all    Score all geography types (default)
  */
 
 const { Pool } = require('pg');
@@ -128,149 +134,165 @@ function calculateLetterGrade(score) {
   return 'F';
 }
 
+/**
+ * Score a single geography type
+ */
+async function scoreGeographyType(geoType, showRankings = true) {
+  console.log(`\n--- Scoring ${geoType.toUpperCase()} ---`);
+
+  // Fetch metrics for this geography type
+  const metricsResult = await pool.query(`
+    SELECT
+      mm.geography_id,
+      mm.geography_name,
+      mm.snf_facility_count,
+      mm.snf_total_beds,
+      mm.snf_beds_per_1k_65,
+      mm.snf_avg_occupancy,
+      mm.snf_avg_overall_rating,
+      mm.projected_growth_65_2030,
+      mm.pop_65_plus
+    FROM market_metrics mm
+    WHERE mm.geography_type = $1
+      AND mm.snf_facility_count IS NOT NULL
+      AND mm.snf_facility_count > 0
+    ORDER BY mm.snf_facility_count DESC
+  `, [geoType]);
+
+  console.log(`Found ${metricsResult.rows.length} ${geoType}s with SNF data`);
+
+  if (metricsResult.rows.length === 0) return 0;
+
+  // Calculate opportunity scores
+  const updates = [];
+  for (const row of metricsResult.rows) {
+    const score = calculateSNFOpportunityScore(
+      parseFloat(row.snf_beds_per_1k_65) || null,
+      parseFloat(row.snf_avg_occupancy) || null,
+      parseFloat(row.snf_avg_overall_rating) || null,
+      parseFloat(row.projected_growth_65_2030) || null
+    );
+    const grade = calculateLetterGrade(score);
+
+    updates.push({
+      geography_id: row.geography_id,
+      geography_name: row.geography_name,
+      snf_count: row.snf_facility_count,
+      beds_per_k: row.snf_beds_per_1k_65,
+      occupancy: row.snf_avg_occupancy,
+      rating: row.snf_avg_overall_rating,
+      growth: row.projected_growth_65_2030,
+      score: score,
+      grade: grade
+    });
+  }
+
+  // Sort by score descending
+  updates.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  // Show rankings only for CBSAs and states (not counties)
+  if (showRankings && updates.length > 0) {
+    console.log(`\nTop 10 ${geoType.toUpperCase()} SNF opportunities:`);
+    console.log('ID    | Name                          | SNFs | Beds/1K | Occ% | Rating | Score | Grade');
+    console.log('-'.repeat(95));
+
+    for (const u of updates.slice(0, 10)) {
+      console.log(
+        `${(u.geography_id || '').substring(0, 5).padEnd(5)} | ` +
+        `${(u.geography_name || '').substring(0, 29).padEnd(29)} | ` +
+        `${String(u.snf_count || '').padStart(4)} | ` +
+        `${String(u.beds_per_k || '').padStart(7)} | ` +
+        `${String(u.occupancy || '').padStart(4)} | ` +
+        `${String(u.rating || '').padStart(6)} | ` +
+        `${String(u.score || '').padStart(5)} | ${u.grade || ''}`
+      );
+    }
+  }
+
+  // Ensure all records exist in market_grades
+  await pool.query(`
+    INSERT INTO market_grades (geography_type, geography_id, geography_name)
+    SELECT $1::varchar, geography_id, geography_name
+    FROM market_metrics
+    WHERE geography_type = $1::varchar
+      AND geography_id NOT IN (
+        SELECT geography_id FROM market_grades WHERE geography_type = $1::varchar
+      )
+  `, [geoType]);
+
+  // Update scores
+  let updated = 0;
+  for (const u of updates) {
+    if (u.score !== null) {
+      try {
+        const result = await pool.query(`
+          UPDATE market_grades
+          SET
+            snf_opportunity_score = $1,
+            snf_grade = $2,
+            geography_name = COALESCE(geography_name, $3),
+            calculated_at = NOW()
+          WHERE geography_type = $4 AND geography_id = $5
+          RETURNING id
+        `, [u.score, u.grade, u.geography_name, geoType, u.geography_id]);
+
+        if (result.rowCount > 0) updated++;
+      } catch (err) {
+        console.error(`Error updating ${geoType} ${u.geography_id}: ${err.message}`);
+      }
+    }
+  }
+
+  console.log(`Updated ${updated} ${geoType}s with SNF opportunity scores`);
+
+  // Show grade distribution
+  const gradeDist = await pool.query(`
+    SELECT snf_grade as grade, COUNT(*) as count
+    FROM market_grades
+    WHERE geography_type = $1 AND snf_grade IS NOT NULL
+    GROUP BY snf_grade
+    ORDER BY snf_grade
+  `, [geoType]);
+
+  if (gradeDist.rows.length > 0) {
+    console.log(`Grade distribution for ${geoType}s:`);
+    for (const row of gradeDist.rows) {
+      console.log(`  ${row.grade}: ${row.count}`);
+    }
+  }
+
+  return updated;
+}
+
 async function main() {
   console.log('=== SNF Opportunity Score Update ===\n');
 
+  // Parse command line args
+  const args = process.argv.slice(2);
+  let geographyArg = args.find(a => a.startsWith('--geography='));
+  let geoTypes = ['cbsa', 'state', 'county']; // default: all
+
+  if (geographyArg) {
+    const geoType = geographyArg.split('=')[1];
+    if (geoType !== 'all') {
+      geoTypes = [geoType];
+    }
+  }
+
+  console.log(`Scoring geography types: ${geoTypes.join(', ')}`);
+
   try {
-    // Step 1: Get SNF metrics per CBSA
-    console.log('Step 1: Fetching SNF metrics per CBSA...');
+    let totalUpdated = 0;
 
-    const metricsResult = await pool.query(`
-      SELECT
-        mm.geography_id as cbsa_code,
-        c.cbsa_title,
-        mm.snf_facility_count,
-        mm.snf_total_beds,
-        mm.snf_beds_per_1k_65,
-        mm.snf_avg_occupancy,
-        mm.snf_avg_overall_rating,
-        mm.projected_growth_65_2030,
-        mm.pop_65_plus
-      FROM market_metrics mm
-      LEFT JOIN cbsas c ON c.cbsa_code = mm.geography_id
-      WHERE mm.geography_type = 'cbsa'
-        AND mm.snf_facility_count IS NOT NULL
-      ORDER BY mm.snf_facility_count DESC
-    `);
-
-    console.log(`Found ${metricsResult.rows.length} CBSAs with SNF data`);
-
-    // Step 2: Calculate opportunity scores
-    console.log('\nStep 2: Calculating opportunity scores...');
-
-    const updates = [];
-    for (const row of metricsResult.rows) {
-      const score = calculateSNFOpportunityScore(
-        parseFloat(row.snf_beds_per_1k_65) || null,
-        parseFloat(row.snf_avg_occupancy) || null,
-        parseFloat(row.snf_avg_overall_rating) || null,
-        parseFloat(row.projected_growth_65_2030) || null
-      );
-      const grade = calculateLetterGrade(score);
-
-      updates.push({
-        cbsa_code: row.cbsa_code,
-        cbsa_title: row.cbsa_title,
-        snf_count: row.snf_facility_count,
-        beds_per_k: row.snf_beds_per_1k_65,
-        occupancy: row.snf_avg_occupancy,
-        rating: row.snf_avg_overall_rating,
-        growth: row.projected_growth_65_2030,
-        score: score,
-        grade: grade
-      });
+    for (const geoType of geoTypes) {
+      // Counties get scores but no ranking display
+      const showRankings = geoType !== 'county';
+      const updated = await scoreGeographyType(geoType, showRankings);
+      totalUpdated += updated;
     }
 
-    // Sort by score descending
-    updates.sort((a, b) => (b.score || 0) - (a.score || 0));
-
-    console.log(`\nTop 15 SNF opportunities (highest scores):`);
-    console.log('CBSA  | Market Name                   | SNFs | Beds/1K | Occ% | Rating | Growth | Score | Grade');
-    console.log('-'.repeat(105));
-
-    for (const u of updates.slice(0, 15)) {
-      console.log(
-        `${(u.cbsa_code || '').padEnd(5)} | ` +
-        `${(u.cbsa_title || '').substring(0, 29).padEnd(29)} | ` +
-        `${String(u.snf_count || '').padStart(4)} | ` +
-        `${String(u.beds_per_k || '').padStart(7)} | ` +
-        `${String(u.occupancy || '').padStart(4)} | ` +
-        `${String(u.rating || '').padStart(6)} | ` +
-        `${String(u.growth || '').padStart(6)} | ` +
-        `${String(u.score || '').padStart(5)} | ${u.grade || ''}`
-      );
-    }
-
-    console.log(`\nBottom 15 SNF opportunities (most competitive):`);
-    console.log('CBSA  | Market Name                   | SNFs | Beds/1K | Occ% | Rating | Growth | Score | Grade');
-    console.log('-'.repeat(105));
-
-    for (const u of updates.slice(-15).reverse()) {
-      console.log(
-        `${(u.cbsa_code || '').padEnd(5)} | ` +
-        `${(u.cbsa_title || '').substring(0, 29).padEnd(29)} | ` +
-        `${String(u.snf_count || '').padStart(4)} | ` +
-        `${String(u.beds_per_k || '').padStart(7)} | ` +
-        `${String(u.occupancy || '').padStart(4)} | ` +
-        `${String(u.rating || '').padStart(6)} | ` +
-        `${String(u.growth || '').padStart(6)} | ` +
-        `${String(u.score || '').padStart(5)} | ${u.grade || ''}`
-      );
-    }
-
-    // Step 3: Update market_grades table
-    console.log('\n\nStep 3: Updating market_grades table...');
-
-    // First ensure all CBSAs exist in market_grades
-    await pool.query(`
-      INSERT INTO market_grades (geography_type, geography_id)
-      SELECT 'cbsa', geography_id
-      FROM market_metrics
-      WHERE geography_type = 'cbsa'
-        AND geography_id NOT IN (
-          SELECT geography_id FROM market_grades WHERE geography_type = 'cbsa'
-        )
-    `);
-
-    let updated = 0;
-    for (const u of updates) {
-      if (u.score !== null) {
-        try {
-          const result = await pool.query(`
-            UPDATE market_grades
-            SET
-              snf_opportunity_score = $1,
-              snf_grade = $2,
-              geography_name = COALESCE(geography_name, $3),
-              calculated_at = NOW()
-            WHERE geography_type = 'cbsa' AND geography_id = $4
-            RETURNING id
-          `, [u.score, u.grade, u.cbsa_title, u.cbsa_code]);
-
-          if (result.rowCount > 0) updated++;
-        } catch (err) {
-          console.error(`Error updating CBSA ${u.cbsa_code}: ${err.message}`);
-        }
-      }
-    }
-
-    console.log(`Updated ${updated} CBSAs with SNF opportunity scores`);
-
-    // Step 4: Grade distribution
-    console.log('\n=== Grade Distribution ===');
-
-    const gradeDist = await pool.query(`
-      SELECT snf_grade as grade, COUNT(*) as count
-      FROM market_grades
-      WHERE geography_type = 'cbsa' AND snf_grade IS NOT NULL
-      GROUP BY snf_grade
-      ORDER BY snf_grade
-    `);
-
-    for (const row of gradeDist.rows) {
-      console.log(`  ${row.grade}: ${row.count} CBSAs`);
-    }
-
+    console.log('\n=== Summary ===');
+    console.log(`Total records updated: ${totalUpdated}`);
     console.log('\n=== Done ===');
     console.log('Next step: Run update-alf-opportunity-scores.js');
 

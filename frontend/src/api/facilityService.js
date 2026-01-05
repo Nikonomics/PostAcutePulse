@@ -243,3 +243,14 @@ export const getRegulatoryRisk = async (ccn) => {
   const response = await apiService.get(`${FACILITIES_BASE}/${ccn}/regulatory-risk`);
   return response.data;
 };
+
+/**
+ * Get partnership opportunity projection for a facility
+ * Calculates HH and Hospice revenue projections based on facility data
+ * @param {string} ccn - CMS Certification Number
+ * @returns {Promise<Object>} Partnership projection data with facility info, assumptions, and projections
+ */
+export const getPartnershipProjection = async (ccn) => {
+  const response = await apiService.get(`${FACILITIES_BASE}/snf/${ccn}/partnership-projection`);
+  return response.data;
+};

@@ -29,6 +29,8 @@ import DataDictionaryTab from "./components/DataDictionaryTab/DataDictionaryTab"
 import MAIntelligence from "./pages/MAIntelligence";
 import CustomReportBuilder from "./pages/CustomReportBuilder";
 import OperatorProfile from "./pages/OperatorProfile";
+import PennantDashboard from "./pages/PennantDashboard";
+import { NationalMapView, StateDetailPage, MarketDetailPage, MarketListPage } from "./pages/MarketGrading";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePageTracking } from "./analytics";
 
@@ -240,6 +242,56 @@ function App() {
           element={
             <ProtectedRoute>
               <MAIntelligence />
+            </ProtectedRoute>
+          }
+        />
+        {/* Market Grading routes */}
+        <Route
+          path="/market-grading"
+          element={
+            <ProtectedRoute>
+              <NationalMapView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market-grading/state/:stateCode"
+          element={
+            <ProtectedRoute>
+              <StateDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market-grading/market/:marketCode"
+          element={
+            <ProtectedRoute>
+              <MarketDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market-grading/list"
+          element={
+            <ProtectedRoute>
+              <MarketListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market-grading/county/:countyFips"
+          element={
+            <ProtectedRoute>
+              <MarketDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Pennant Intelligence route */}
+        <Route
+          path="/pennant-intelligence"
+          element={
+            <ProtectedRoute>
+              <PennantDashboard />
             </ProtectedRoute>
           }
         />

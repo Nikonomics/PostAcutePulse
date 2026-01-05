@@ -10,8 +10,14 @@
  *
  * This is the single command to regenerate all market scores from scratch.
  *
+ * Geographies Scored:
+ * - CBSA (Metropolitan/Micropolitan Statistical Areas) - ranked against each other
+ * - State (50 states + DC + territories) - ranked against each other
+ * - County (rural non-CBSA counties) - scored but not ranked
+ *
  * Prerequisites:
  * - hud_zip_cbsa table must be populated (HUD ZIP-to-CBSA crosswalk)
+ * - hud_zip_county table must be populated (HUD ZIP-to-county crosswalk)
  * - snf_facilities, alf_facilities, hh_provider_snapshots must have data
  * - county_demographics must have population data
  *
@@ -23,6 +29,9 @@
  *   --alf-only        Only run ALF scoring
  *   --hha-only        Only run HHA scoring
  *   --pac-only        Only recalculate overall PAC scores
+ *   --geography=cbsa  Only score CBSAs (passed to individual scripts)
+ *   --geography=state Only score states (passed to individual scripts)
+ *   --geography=county Only score counties (passed to individual scripts)
  */
 
 const { execSync } = require('child_process');

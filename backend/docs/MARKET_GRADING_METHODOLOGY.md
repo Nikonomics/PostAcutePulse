@@ -1,9 +1,9 @@
 # Market Grading Methodology
 
-**Session Date:** 2025-12-30
-**Status:** Documentation backup - needs consolidation into collector scripts
+**Last Updated:** 2025-01-05
+**Status:** Active - All scoring scripts implemented (including Hospice)
 
-This document captures the methodology used to calculate market opportunity scores and grades for PostAcutePulse. The logic below was run via ad-hoc SQL and needs to be converted into reusable collector scripts.
+This document captures the methodology used to calculate market opportunity scores and grades for PostAcutePulse. All scoring logic has been consolidated into reusable collector scripts in `backend/scripts/`.
 
 ---
 
@@ -242,21 +242,89 @@ WHERE mm.geography_id = p.geography_id AND mm.geography_type = 'cbsa';
 
 ---
 
-## 6. HHA Opportunity Score (This Session - HQ Based)
+## 6. HHA Opportunity Score (Current Implementation)
 
-**NOTE:** This was superseded by Chat 1's service-area methodology. See `backend/scripts/update-hha-opportunity-scores.js` for the preferred approach.
+**Script:** `backend/scripts/generate-hha-market-opportunity-scores.js`
+**Output Table:** `hha_market_opportunity_scores`
 
-### Original HQ-based approach (deprecated):
+### Methodology: Percentile-Based with 6 Components
 
-```sql
-UPDATE market_metrics
-SET hha_opportunity_score = ROUND(
-  (COALESCE(hha_agencies_per_100k_pctl, 50) * 0.4 +
-   COALESCE(hha_quality_pctl, 50) * 0.3 +
-   COALESCE(pop_65_growth_pctl, 50) * 0.3)::numeric, 1
-)
-WHERE geography_type = 'cbsa';
+All metrics are converted to percentiles (0-100) using `PERCENT_RANK()`, then weighted and combined.
+
+### Component Weights
+
+| Component | Weight | What It Measures |
+|-----------|--------|------------------|
+| Referral Opportunity | 30% | SNF discharges available per HHA agency |
+| Supply Gap | 25% | Agencies per 100K 65+ population (inverse) |
+| Capacity Strain | 20% | Timely care initiation rate (inverse) |
+| Quality Gap | 10% | Average star ratings + % low-quality agencies |
+| Market Dynamics | 10% | Net agency change over 12 months |
+| Competition | 5% | Market concentration (HHI, inverse) |
+
+### Percentile Direction
+
+- **Direct percentile** (higher = more opportunity): `PERCENT_RANK() OVER (ORDER BY metric)`
+- **Inverse percentile** (lower = more opportunity): `(1 - PERCENT_RANK() OVER (ORDER BY metric)) * 100`
+
+| Metric | Percentile Direction | Rationale |
+|--------|---------------------|-----------|
+| SNF discharges per agency | Direct | More discharges = more referral opportunity |
+| Throughput capture ratio | Inverse | Lower capture = unmet demand |
+| HHA per 100K 65+ | Inverse | Fewer agencies = supply gap |
+| Timely initiation rate | Inverse | Lower = agencies at capacity |
+| Average star rating | Inverse | Lower = quality improvement opportunity |
+| % 1-2 star agencies | Direct | More low-quality = opportunity to outperform |
+| Net agency change | Direct | Growth signals market opportunity |
+| HHI concentration | Inverse | Lower = easier market entry |
+
+### Score Calculation
+
+```javascript
+// Component 1: Referral Opportunity (30%)
+referralScore = (discharges_pctl * 0.50) + (capture_inv_pctl * 0.50)
+
+// Component 2: Supply Gap (25%)
+supplyGapScore = supply_gap_pctl
+
+// Component 3: Capacity Strain (20%)
+capacityStrainScore = timely_inv_pctl
+
+// Component 4: Quality Gap (10%)
+qualityGapScore = (rating_inv_pctl * 0.50) + (low_quality_pctl * 0.50)
+
+// Component 5: Market Dynamics (10%)
+marketDynamicsScore = dynamics_pctl
+
+// Component 6: Competition (5%)
+competitionScore = competition_pctl
+
+// Final Score
+finalScore = (referralScore * 0.30) +
+             (supplyGapScore * 0.25) +
+             (capacityStrainScore * 0.20) +
+             (qualityGapScore * 0.10) +
+             (marketDynamicsScore * 0.10) +
+             (competitionScore * 0.05)
 ```
+
+### Grading: Percentile-Based Distribution
+
+Grades are assigned based on score distribution to achieve target percentages:
+
+| Grade | Target Distribution | How Assigned |
+|-------|---------------------|--------------|
+| A | Top 10% | score >= 90th percentile of all scores |
+| B | Next 20% | score >= 70th percentile |
+| C | Middle 40% | score >= 30th percentile |
+| D | Next 20% | score >= 10th percentile |
+| F | Bottom 10% | score < 10th percentile |
+
+### Result Statistics (926 CBSAs)
+
+- Score range: 20.80 - 85.62
+- Mean: 50.11, StdDev: 12.50
+- Grade distribution: A=10%, B=20%, C=40%, D=20%, F=10%
 
 ---
 
@@ -316,7 +384,134 @@ WHERE geography_type = 'cbsa';
 
 ---
 
-## 9. Current State Summary
+## 9. Hospice Market Scoring (Pennant-Specific)
+
+**Service:** `backend/services/hospiceMarketScoringService.js`
+
+The hospice scoring methodology is the most sophisticated system, designed specifically for Pennant Group's strategic planning. It uses **two distinct scoring modes** depending on whether Pennant has existing presence in the market.
+
+### Two Scoring Modes
+
+| Mode | When Used | Primary Focus |
+|------|-----------|---------------|
+| **Footprint** | Pennant has existing presence | Leverage captive referral sources (75% weight) |
+| **Greenfield** | New market entry | Market opportunity & demand (40%/40% weight) |
+
+### Footprint Mode Weights
+
+Used when Pennant already operates in the CBSA:
+
+```javascript
+{
+  pennant_synergy: 0.75,  // Existing ecosystem leverage
+  demand: 0.15,           // Market demand indicators
+  quality_gap: 0.10       // Opportunity to outperform
+}
+```
+
+### Greenfield Mode Weights
+
+Used for new market entry analysis:
+
+```javascript
+{
+  demand: 0.40,             // Market demand indicators
+  market_opportunity: 0.40, // Supply gaps & dynamics
+  quality_gap: 0.20         // Improvement opportunity
+}
+```
+
+### Pennant Synergy Score Components
+
+The synergy score measures the value of existing Ensign/Pennant infrastructure:
+
+| Component | Weight | Max Value | Rationale |
+|-----------|--------|-----------|-----------|
+| Ensign LT Beds | 50% | 1,000 beds | Primary referral source (end-of-life transitions) |
+| Pennant ALF Beds | 25% | 250 beds | Secondary referral source |
+| Pennant HHA Agencies | 10% | 2 agencies | Coordination opportunity |
+| Pennant Hospice | 15% | 3 agencies | Brand presence/scale |
+
+**Calculation:**
+```javascript
+pennantSynergyScore =
+  (min(ensignLTBeds / 1000, 1) * 0.50 +
+   min(pennantALFBeds / 250, 1) * 0.25 +
+   min(pennantHHACount / 2, 1) * 0.10 +
+   min(pennantHospiceCount / 3, 1) * 0.15) * 100
+```
+
+### State-Calibrated LT Bed Estimation
+
+Hospice scoring uses a sophisticated methodology to estimate long-term (custodial) beds from CMS Quality Measures data, calibrated by state:
+
+**Formula:**
+```javascript
+// LS = Long-stay QM denominator, SS = Short-stay QM denominator
+ratio = ls_denominator / ss_denominator;
+long_term_pct = 0.40 + (ratio / (ratio + 1)) * 0.35;  // Bounded 40-75%
+estimated_lt_beds = certified_beds * occupancy * long_term_pct;
+```
+
+This produces state-appropriate LT bed estimates that account for:
+- High LT states (TX, LA, OK): 65-75% LT share
+- Balanced states (CA, FL): 55-60% LT share
+- Low LT states (AZ, NV): 45-55% LT share
+
+### Demand Score Components
+
+| Metric | Direction | Rationale |
+|--------|-----------|-----------|
+| Deaths per 1K 65+ | Higher = Better | Mortality = hospice demand |
+| LT Bed Deaths/1K | Higher = Better | Captive referral opportunity |
+| Pop 65+ Growth | Higher = Better | Future demand |
+
+### Market Opportunity Components
+
+| Metric | Direction | Rationale |
+|--------|-----------|-----------|
+| Hospice per 100K 65+ | Lower = Better | Less competition |
+| HHI Concentration | Lower = Better | Fragmented market = opportunity |
+| Net Agency Change | Higher = Better | Growing markets |
+
+### Quality Gap Score
+
+| Metric | Direction | Rationale |
+|--------|-----------|-----------|
+| Average Star Rating | Lower = Better | Quality improvement opportunity |
+| % Low Quality (1-2 star) | Higher = Better | Chance to outperform |
+
+### Example Score Calculation (Footprint Mode)
+
+```javascript
+// Phoenix-Mesa-Chandler, AZ (has Ensign SNFs, Pennant ALF/HHA)
+pennantSynergyScore = 72.5  // (800 LT beds + 180 ALF beds + 2 HHA)
+demandScore = 65.0          // Good mortality rates, growing pop
+qualityGapScore = 55.0      // Moderate quality competition
+
+// Footprint weights: 75% synergy, 15% demand, 10% quality
+finalScore = (72.5 * 0.75) + (65.0 * 0.15) + (55.0 * 0.10)
+           = 54.4 + 9.8 + 5.5
+           = 69.7 (Grade: B-)
+```
+
+### Pennant Market Presence Table
+
+The scoring relies on `pennant_market_presence` table which tracks:
+
+| Field | Description |
+|-------|-------------|
+| `has_ensign_snf` | Whether Ensign operates SNFs in CBSA |
+| `ensign_snf_count` | Number of Ensign SNFs |
+| `ensign_snf_total_beds` | Total Ensign SNF beds |
+| `has_pennant_alf` | Whether Pennant operates ALFs |
+| `pennant_alf_count` | Number of Pennant ALFs |
+| `has_pennant_hha` | Whether Pennant operates HHAs |
+| `has_pennant_hospice` | Whether Pennant operates hospices |
+
+---
+
+## 10. Current State Summary (Generic PAC)
 
 | Metric | Value |
 |--------|-------|
@@ -330,24 +525,140 @@ WHERE geography_type = 'cbsa';
 
 ## 10. Known Issues & TODOs
 
-1. **Methodology inconsistency:** SNF/ALF use percentile-based scoring, HHA uses absolute thresholds
-2. **Grade scale inconsistency:** SNF/ALF use simple A-F, HHA uses plus/minus
-3. **HHA methodology:** Service-area approach (Chat 1) is more accurate than HQ-based (this session)
-4. **Missing scripts:** Need to create reusable collector scripts for SNF and ALF scoring
-5. **7 missing CBSAs:** 935 in `cbsas` table but only 928 in `market_grades`
+1. ~~**Methodology inconsistency:** SNF/ALF use percentile-based scoring, HHA uses absolute thresholds~~ ✅ RESOLVED: All now use percentile-based
+2. ~~**Grade scale inconsistency:** SNF/ALF use simple A-F, HHA uses plus/minus~~ ✅ RESOLVED: HHA uses percentile-based grading
+3. ~~**HHA methodology:** Service-area approach is more accurate than HQ-based~~ ✅ RESOLVED: Service-area approach implemented
+4. ~~**Missing scripts:** Need to create reusable collector scripts~~ ✅ RESOLVED: All scripts created
+5. **7 missing CBSAs:** 935 in `cbsas` table but only 928 in `market_grades` - minor data gap
 
 ---
 
-## 11. Recommended Consolidation
+## 12. Implemented Scripts
 
-Create these collector scripts:
-1. `rebuild-market-metrics.js` - Aggregate facility data per CBSA
-2. `update-snf-opportunity-scores.js` - SNF scoring (match HHA pattern)
-3. `update-alf-opportunity-scores.js` - ALF scoring (match HHA pattern)
-4. `update-hha-opportunity-scores.js` - Already exists (Chat 1)
-5. `calculate-overall-pac-scores.js` - Final weighted combination
+All scoring logic consolidated into these locations:
 
-All scripts should use consistent:
-- Scoring methodology (absolute thresholds vs percentile)
-- Grade scale (plus/minus)
-- Default handling for missing data
+### Scripts (`backend/scripts/`)
+
+| Script | Purpose | Key Factors |
+|--------|---------|-------------|
+| `update-snf-opportunity-scores.js` | SNF opportunity scoring | Capacity (30%), Occupancy (20%), Quality (20%), Growth (30%) |
+| `update-alf-opportunity-scores.js` | ALF opportunity scoring | Capacity (50%), Growth (30%), Affluence (20%) |
+| `update-hha-opportunity-scores.js` | HHA opportunity scoring | HHAs per 10K 65+ population (service area based) |
+| `calculate-overall-pac-scores.js` | Combined PAC score | SNF (40%) + ALF (30%) + HHA (30%) |
+| `rebuild-market-metrics.js` | Aggregate facility data | Per CBSA/state/county |
+| `rebuild-all-market-scores.js` | Master orchestrator | Runs all in sequence |
+
+### Services (`backend/services/`)
+
+| Service | Purpose | Key Features |
+|---------|---------|--------------|
+| `hospiceMarketScoringService.js` | Pennant-specific hospice scoring | Footprint/Greenfield modes, Pennant synergy, state-calibrated LT beds |
+
+**Usage:**
+```bash
+# Run all market scores
+MARKET_DATABASE_URL=<url> node scripts/rebuild-all-market-scores.js
+
+# Run individual scorers
+MARKET_DATABASE_URL=<url> node scripts/update-snf-opportunity-scores.js
+MARKET_DATABASE_URL=<url> node scripts/update-alf-opportunity-scores.js
+MARKET_DATABASE_URL=<url> node scripts/update-hha-opportunity-scores.js
+MARKET_DATABASE_URL=<url> node scripts/calculate-overall-pac-scores.js
+```
+
+---
+
+## 13. HHA Agency Counting Methodology
+
+### Design Decision: Service-Area Based Counting
+
+HHA agencies are counted per CBSA based on their **declared service areas** (ZIP codes they serve), not their headquarters location. This is intentional.
+
+### Why Service-Area Counting?
+
+1. **HHAs serve wide geographic areas** - Unlike SNFs (fixed location), HHAs actively serve patients across multiple markets
+2. **Reflects actual competition** - A CBSA's competitive landscape includes all agencies serving that area, not just those headquartered there
+3. **Better opportunity assessment** - Markets are scored based on actual provider availability to patients
+
+### Implication: Agencies Count in Multiple CBSAs
+
+An agency serving ZIPs across multiple CBSAs will be counted in each:
+
+| Metric | Value |
+|--------|-------|
+| Unique HHA agencies (nationally) | 11,990 |
+| Sum of agency counts across CBSAs | 29,165 |
+| Average CBSAs per agency | 2.43 |
+
+### Example: Multi-CBSA Agency
+
+**HOME HEALTH CARE SOLUTIONS LLC** (CCN 157597) serves 33 CBSAs across Indiana, Ohio, and Michigan. This agency is counted in the agency count for all 33 markets.
+
+### Distribution of CBSA Coverage
+
+| CBSAs Served | Number of Agencies |
+|--------------|-------------------|
+| 1 (single market) | ~5,400 |
+| 2 | 2,635 |
+| 3 | 1,600 |
+| 4 | 927 |
+| 5+ | 1,400+ |
+| 10+ | ~330 |
+| 20+ | ~15 |
+| 30+ | 3 |
+
+### Impact on Scoring
+
+- **Percentile rankings are unaffected** - All CBSAs are counted the same way
+- **Agency counts are inflated** - CBSA-level counts > unique national count
+- **This is intentional** - Reflects competitive reality for each market
+
+---
+
+## 14. Statistical Caveats
+
+### Metric: "HHA per 100K 65+"
+
+This metric can be calculated three ways with very different results:
+
+| Method | Formula | Result | Use Case |
+|--------|---------|--------|----------|
+| **Mean of ratios** | `AVG(per_cbsa_rate)` | 121.9 | Per-CBSA percentile comparisons |
+| **Aggregate (service-area)** | `SUM(cbsa_counts) / SUM(cbsa_pop)` | 56.6 | Market-level aggregate |
+| **Aggregate (unique)** | `COUNT(DISTINCT ccn) / national_pop` | 22.1 | True national rate |
+
+**Current implementation uses "mean of ratios"** for percentile calculations because each CBSA is compared to other CBSAs, not to a national aggregate.
+
+### Right-Skewed Distribution
+
+The HHA per 100K distribution is heavily right-skewed due to small Texas CBSAs with extreme ratios:
+
+| Statistic | Value |
+|-----------|-------|
+| Minimum | 3.0 |
+| 25th percentile | 40.6 |
+| Median | 80.7 |
+| Mean | 121.9 |
+| 75th percentile | 152.0 |
+| Maximum | 1,476.0 |
+
+### Outlier Markets
+
+Top 5 outliers (small Texas border CBSAs):
+
+| CBSA | HHA per 100K | Pop 65+ | Note |
+|------|--------------|---------|------|
+| Zapata, TX | 1,476 | 1,897 | Border region |
+| Raymondville, TX | 1,453 | 2,959 | Border region |
+| Kingsville, TX | 1,061 | 4,052 | Border region |
+| Beeville, TX | 1,053 | 3,895 | Border region |
+| Bonham, TX | 903 | 6,535 | Small rural |
+
+These outliers get **equal weight** to large markets (NYC, LA) in mean calculations, pulling the average up significantly above the median.
+
+### Recommendation
+
+When presenting national averages to users:
+- Show **median (80.7)** as the typical rate
+- Show **mean (121.9)** only with context about outlier influence
+- For aggregate statistics, use unique agency counts (22.1 per 100K nationally)

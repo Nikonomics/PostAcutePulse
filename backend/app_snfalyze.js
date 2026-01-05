@@ -162,6 +162,7 @@ var facilityRiskRouter = require('./routes/facilityRisk');
 var customReportsRouter = require('./routes/customReports');
 var hhMarketRouter = require('./routes/hh-market');
 var watchlistRouter = require('./routes/watchlist');
+var pennantRouter = require('./routes/pennant');
 
 app.use(fileUpload());
 
@@ -243,6 +244,9 @@ app.use('/api/v1/hh-market', hhMarketRouter);
 
 // Watchlist API routes (save and organize facilities)
 app.use('/api/v1/watchlist', watchlistRouter);
+
+// Pennant Intelligence API routes (Pennant Group portfolio analytics)
+app.use('/api/v1/pennant', pennantRouter);
 
 // ============================================================================
 // REACT FRONTEND - Static files and catch-all route

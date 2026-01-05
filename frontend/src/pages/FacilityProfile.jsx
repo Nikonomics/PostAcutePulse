@@ -5,7 +5,7 @@ import {
   Loader, ArrowLeft, TrendingUp, TrendingDown, Activity,
   Shield, Flame, Calendar, Award, Bookmark, BookmarkCheck,
   ChevronRight, AlertTriangle, CheckCircle, Clock, Map,
-  BarChart2, PieChart, MessageCircle
+  BarChart2, PieChart, MessageCircle, Handshake
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../context/UserContext';
 import { useGoogleMaps } from '../context/GoogleMapsContext';
 import FacilityCommentsSection from '../components/FacilityCommentsSection';
+import PartnershipOpportunity from '../components/PartnershipOpportunity';
 import RegulatoryRiskCard from '../components/RegulatoryRiskCard';
 import './FacilityProfile.css';
 
@@ -352,6 +353,12 @@ function FacilityProfile() {
             onClick={() => setActiveTab('comments')}
           >
             <MessageCircle size={16} /> Comments
+          </button>
+          <button
+            className={`facility-tab ${activeTab === 'partnership' ? 'active' : ''}`}
+            onClick={() => setActiveTab('partnership')}
+          >
+            <Handshake size={16} /> Partnership
           </button>
         </div>
       </div>
@@ -1517,6 +1524,13 @@ function FacilityProfile() {
             ccn={ccn}
             facilityName={facility?.provider_name || facility?.facility_name || 'Unknown Facility'}
           />
+        )}
+
+        {/* ============================================= */}
+        {/* PARTNERSHIP TAB */}
+        {/* ============================================= */}
+        {activeTab === 'partnership' && (
+          <PartnershipOpportunity ccn={ccn} />
         )}
       </div>
     </div>

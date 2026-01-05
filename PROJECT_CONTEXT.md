@@ -433,6 +433,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -454,6 +455,7 @@ backend/routes/ma-analytics.js
 backend/routes/market.js
 backend/routes/markets.js
 backend/routes/ownership.js
+backend/routes/pennant.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
 backend/routes/survey.js
@@ -479,11 +481,13 @@ backend/services/extractionReconciler.js
 backend/services/extractionValidator.js
 backend/services/facilityMatcher.js
 backend/services/fileStorage.js
+backend/services/hospiceMarketScoringService.js
 backend/services/marketService.js
 backend/services/migrationRunner.js
 backend/services/normalizationService.js
 backend/services/notificationService.js
 backend/services/parallelExtractor.js
+backend/services/pennantClusterService.js
 backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
@@ -521,6 +525,7 @@ frontend/src/pages/MarketAnalysis.jsx
 frontend/src/pages/OperatorProfile.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
+frontend/src/pages/PennantDashboard.jsx
 frontend/src/pages/Profile.jsx
 frontend/src/pages/renderStep1.jsx
 frontend/src/pages/renderStep2.jsx
@@ -549,6 +554,7 @@ MarketGrading
 MarketScorecard
 NotificationCenter
 OwnershipResearch
+PartnershipOpportunity
 RegulatoryRiskCard
 ui
 ```

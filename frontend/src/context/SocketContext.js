@@ -15,7 +15,9 @@ export const SocketProvider = ({ children }) => {
 
     if (user?.id) {
       // Connect to the socket server
-      const socketUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      // Extract base URL from API_BASE_URL (remove /api/v1 path)
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5002/api/v1';
+      const socketUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
       const newSocket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,

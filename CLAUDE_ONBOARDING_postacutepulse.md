@@ -1,7 +1,7 @@
 # PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2025-12-30 19:19:22
+> Last updated: 2026-01-05 09:45:33
 > Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
@@ -799,6 +799,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -820,6 +821,7 @@ backend/routes/ma-analytics.js
 backend/routes/market.js
 backend/routes/markets.js
 backend/routes/ownership.js
+backend/routes/pennant.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
 backend/routes/survey.js
@@ -845,11 +847,13 @@ backend/services/extractionReconciler.js
 backend/services/extractionValidator.js
 backend/services/facilityMatcher.js
 backend/services/fileStorage.js
+backend/services/hospiceMarketScoringService.js
 backend/services/marketService.js
 backend/services/migrationRunner.js
 backend/services/normalizationService.js
 backend/services/notificationService.js
 backend/services/parallelExtractor.js
+backend/services/pennantClusterService.js
 backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
@@ -887,6 +891,7 @@ frontend/src/pages/MarketAnalysis.jsx
 frontend/src/pages/OperatorProfile.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
+frontend/src/pages/PennantDashboard.jsx
 frontend/src/pages/Profile.jsx
 frontend/src/pages/renderStep1.jsx
 frontend/src/pages/renderStep2.jsx
@@ -915,6 +920,7 @@ MarketGrading
 MarketScorecard
 NotificationCenter
 OwnershipResearch
+PartnershipOpportunity
 RegulatoryRiskCard
 ui
 ```
@@ -972,7 +978,7 @@ backend/migrations/add-user-approval-columns.js
 ```markdown
 # PostAcutePulse - Project Status
 
-**Last Updated:** December 30, 2025
+**Last Updated:** January 05, 2026
 **Project:** Market Intelligence Platform (PostAcutePulse)
 **Repository:** pac-advocate
 
@@ -984,32 +990,29 @@ backend/migrations/add-user-approval-columns.js
 
 ### Last 7 Days
 
+- **2025-12-30** - Add CMS quality measures ingestion scripts
 - **2025-12-30** - Fix column name in rebuild-market-metrics.js
 - **2025-12-30** - Add market scoring scripts and methodology documentation
 - **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
 - **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
-- **2025-12-29** - Add HHA M&A Analytics API and extraction architecture planning
-- **2025-12-28** - Fix provider metadata lookup from ownership analysis
-- **2025-12-28** - Add state metrics, SPA routing, and View Profile navigation
-- **2025-12-28** - Transform SNFalyze into PostAcutePulse market analysis platform
-- **2025-12-25** - Fix CMS citation collectors to handle API limits and extract constraints
-- **2025-12-25** - Add fire safety and health citations collectors with API endpoints
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     92 files
-Frontend:    109 files
-Routes:      8 files
-Services:    10 files
-Components:  52 files
+Backend:     99 files
+Frontend:    162 files
+Routes:      10 files
+Services:    12 files
+Components:  93 files
 Migrations:  19 files
 ```
 
 ### New Files Added (Last 20 Commits)
 
 ```
+CLAUDE_ONBOARDING_pac-advocate.md
 CLAUDE_ONBOARDING_postacutepulse.md
+backend/.claude/BACKLOG.md
 backend/DATABASE_MIGRATIONS.md
 backend/controller/MarketController.js
 backend/controller/WatchlistController.js
@@ -1022,8 +1025,6 @@ backend/migrations/20251229-create-ownership-hierarchy-tables.js
 backend/migrations/add-custom-reports-table.js
 backend/models/custom_reports.js
 backend/models/watchlist.js
-backend/models/watchlist_item.js
-backend/routes/customReports.js
 ```
 
 ---
@@ -1315,6 +1316,7 @@ backend/routes/ma-analytics.js
 backend/routes/market.js
 backend/routes/markets.js
 backend/routes/ownership.js
+backend/routes/pennant.js
 backend/routes/savedItems.js
 backend/routes/stateRouter.js
 backend/routes/survey.js
@@ -1338,11 +1340,13 @@ backend/services/extractionReconciler.js
 backend/services/extractionValidator.js
 backend/services/facilityMatcher.js
 backend/services/fileStorage.js
+backend/services/hospiceMarketScoringService.js
 backend/services/marketService.js
 backend/services/migrationRunner.js
 backend/services/normalizationService.js
 backend/services/notificationService.js
 backend/services/parallelExtractor.js
+backend/services/pennantClusterService.js
 backend/services/periodAnalyzer.js
 backend/services/periodAnalyzer.test.js
 backend/services/proformaService.js
@@ -1369,6 +1373,7 @@ frontend/src/pages/MarketAnalysis.jsx
 frontend/src/pages/OperatorProfile.jsx
 frontend/src/pages/OwnershipProfile.jsx
 frontend/src/pages/OwnershipResearch.jsx
+frontend/src/pages/PennantDashboard.jsx
 frontend/src/pages/Profile.jsx
 frontend/src/pages/renderStep1.jsx
 frontend/src/pages/renderStep2.jsx
