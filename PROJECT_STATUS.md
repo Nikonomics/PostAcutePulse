@@ -1,6 +1,6 @@
 # PostAcutePulse - Project Status
 
-**Last Updated:** January 05, 2026
+**Last Updated:** January 07, 2026
 **Project:** Market Intelligence Platform (PostAcutePulse)
 **Repository:** pac-advocate
 
@@ -12,17 +12,13 @@
 
 ### Last 7 Days
 
-- **2025-12-30** - Add CMS quality measures ingestion scripts
-- **2025-12-30** - Fix column name in rebuild-market-metrics.js
-- **2025-12-30** - Add market scoring scripts and methodology documentation
-- **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
-- **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
+- **2026-01-05** - Add hospice scoring service and comprehensive market grading updates
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     99 files
-Frontend:    162 files
+Backend:     110 files
+Frontend:    161 files
 Routes:      10 files
 Services:    12 files
 Components:  93 files
@@ -38,15 +34,15 @@ backend/.claude/BACKLOG.md
 backend/DATABASE_MIGRATIONS.md
 backend/controller/MarketController.js
 backend/controller/WatchlistController.js
+backend/docs/COST_REPORT_CALIBRATION.md
 backend/docs/MARKET_GRADING_METHODOLOGY.md
 backend/docs/MARKET_SCORING_DATA_DICTIONARY.md
-backend/migrations/20250101-create-watchlist-tables.js
-backend/migrations/20250101-drop-deal-tables.js
-backend/migrations/20251229-add-multi-segment-ownership-profiles.js
-backend/migrations/20251229-create-ownership-hierarchy-tables.js
-backend/migrations/add-custom-reports-table.js
-backend/models/custom_reports.js
-backend/models/watchlist.js
+backend/docs/TAM_METHODOLOGY.md
+backend/docs/cms_data_dictionaries/2014-2023 Medicare FFS Geographic Variation by National_State_County Data Dictionary_0.pdf
+backend/docs/cms_data_dictionaries/HHS_Data_Dictionary.pdf
+backend/docs/cms_data_dictionaries/HOSPICE_Data_Dictionary.pdf
+backend/docs/cms_data_dictionaries/MUP_PHY_RY21_20211021_DD_Geo (1).pdf
+backend/docs/cms_data_dictionaries/MUP_PHY_RY25_20250312_DD_PRV_SVC_508.pdf
 ```
 
 ---

@@ -434,6 +434,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -445,6 +446,7 @@ backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
 backend/routes/customReports.js
+backend/routes/database.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/facilityRisk.js
@@ -513,6 +515,7 @@ frontend/src/pages/ChatInterfaceAI.jsx
 frontend/src/pages/CreateUser.jsx
 frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
+frontend/src/pages/DatabaseExplorer.jsx
 frontend/src/pages/EditUser.jsx
 frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx

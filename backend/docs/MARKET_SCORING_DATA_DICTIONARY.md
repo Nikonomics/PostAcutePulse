@@ -80,6 +80,45 @@ Aggregated facility and demographic data per geographic unit (CBSA).
 | `alf_grade` | VARCHAR | Letter grade (A+ to F) |
 | `hha_grade` | VARCHAR | Letter grade (A+ to F) |
 
+### CMS Geographic Variation Data
+
+See [TAM_METHODOLOGY.md](./TAM_METHODOLOGY.md) for full methodology.
+
+| Column | Type | Description | Source |
+|--------|------|-------------|--------|
+| `gv_ffs_benes` | NUMERIC | FFS Medicare beneficiaries | `medicare_gv_full` |
+| `gv_snf_spend_m` | NUMERIC | Actual SNF Medicare spend ($M) | `medicare_gv_full` |
+| `gv_hh_spend_m` | NUMERIC | Actual HH Medicare spend ($M) | `medicare_gv_full` |
+| `gv_hospice_spend_m` | NUMERIC | Actual Hospice Medicare spend ($M) | `medicare_gv_full` |
+| `gv_readmit_rate` | NUMERIC | Hospital readmission rate (%) | `medicare_gv_full` |
+
+### Per-Day/Per-Episode Rates (CBSA-Level)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `gv_snf_per_day_2023` | NUMERIC | SNF per-day rate ($) - 2023 actual |
+| `gv_snf_per_day_2024` | NUMERIC | SNF per-day rate ($) - 2024 projected (+4%) |
+| `gv_snf_per_day_2025` | NUMERIC | SNF per-day rate ($) - 2025 projected (+8.37%) |
+| `gv_hh_per_episode_2023` | NUMERIC | HH per-episode rate ($) - 2023 actual |
+| `gv_hh_per_episode_2024` | NUMERIC | HH per-episode rate ($) - 2024 projected |
+| `gv_hh_per_episode_2025` | NUMERIC | HH per-episode rate ($) - 2025 projected |
+| `gv_hospice_per_day_2023` | NUMERIC | Hospice per-day rate ($) - 2023 actual |
+| `gv_hospice_per_day_2024` | NUMERIC | Hospice per-day rate ($) - 2024 projected |
+| `gv_hospice_per_day_2025` | NUMERIC | Hospice per-day rate ($) - 2025 projected |
+
+### TAM (Total Addressable Market)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `snf_medicare_tam_2023` | NUMERIC | Total market TAM (capacity × rate) |
+| `snf_medicare_tam_2024` | NUMERIC | Total market TAM - 2024 |
+| `snf_medicare_tam_2025` | NUMERIC | Total market TAM - 2025 |
+| `snf_ffs_tam_2023` | NUMERIC | FFS Medicare TAM (actual CMS spend) |
+| `snf_ffs_tam_2025` | NUMERIC | FFS Medicare TAM - 2025 projected |
+| `hha_medicare_tam_2023` | NUMERIC | HHA Medicare TAM |
+| `hha_medicare_tam_2024` | NUMERIC | HHA Medicare TAM - 2024 |
+| `hha_medicare_tam_2025` | NUMERIC | HHA Medicare TAM - 2025 |
+
 ### Timestamps
 
 | Column | Type | Description |
@@ -191,6 +230,7 @@ Final opportunity scores and grades per CBSA. This is the primary table for mark
 | CMS Provider Enrollment | `hh_service_areas` | Periodic |
 | Census ACS | `county_demographics` | Annual |
 | HUD Crosswalk | `hud_zip_cbsa` | Annual |
+| CMS Geographic Variation PUF | `medicare_gv_full` | Annual (~2yr lag) |
 
 ---
 
@@ -229,3 +269,25 @@ HHA service territories (which ZIPs each HHA serves).
 | `ccn` | VARCHAR | CMS Certification Number |
 | `zip_code` | VARCHAR | ZIP code served |
 | `extract_id` | INTEGER | Data extract version |
+
+### `medicare_gv_full`
+
+CMS Geographic Variation Public Use File. 247 columns of Medicare utilization and spending by county.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `year` | INTEGER | Data year (2014-2023) |
+| `bene_geo_lvl` | VARCHAR | Geography level: 'National', 'State', 'County' |
+| `bene_geo_cd` | VARCHAR | FIPS code (county) or state abbreviation |
+| `bene_age_lvl` | VARCHAR | Age cohort: 'All', '<65', '65-74', '75-84', '85+' |
+| `benes_ffs_cnt` | NUMERIC | FFS Medicare beneficiaries |
+| `ma_prtcptn_rate` | NUMERIC | MA penetration rate (0-1) |
+| `snf_mdcr_pymt_amt` | NUMERIC | SNF Medicare FFS payments ($) |
+| `snf_cvrd_days_per_1000_benes` | NUMERIC | SNF days per 1,000 FFS benes |
+| `hh_mdcr_pymt_amt` | NUMERIC | HH Medicare FFS payments ($) |
+| `hh_episodes_per_1000_benes` | NUMERIC | HH episodes per 1,000 FFS benes |
+| `hospc_mdcr_pymt_amt` | NUMERIC | Hospice Medicare FFS payments ($) |
+| `hospc_cvrd_days_per_1000_benes` | NUMERIC | Hospice days per 1,000 FFS benes |
+| `acute_hosp_readmsn_pct` | NUMERIC | Hospital readmission rate (%) |
+
+See [TAM_METHODOLOGY.md](./TAM_METHODOLOGY.md) for usage details.

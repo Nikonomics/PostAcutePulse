@@ -1,7 +1,7 @@
 # PostAcutePulse - Claude Code Onboarding Bundle
 
 > **Auto-generated** - Do not edit manually
-> Last updated: 2026-01-05 09:45:33
+> Last updated: 2026-01-07 12:28:50
 > Project: /Users/nikolashulewsky/Projects/pac-advocate
 
 This bundle contains all essential project context for onboarding new Claude Code sessions.
@@ -800,6 +800,7 @@ Item appears in SavedItems page
 
 
 
+
 ## Key Files (Auto-Updated)
 
 > This section is automatically updated on each commit.
@@ -811,6 +812,7 @@ backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
 backend/routes/customReports.js
+backend/routes/database.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/facilityRisk.js
@@ -879,6 +881,7 @@ frontend/src/pages/ChatInterfaceAI.jsx
 frontend/src/pages/CreateUser.jsx
 frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
+frontend/src/pages/DatabaseExplorer.jsx
 frontend/src/pages/EditUser.jsx
 frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
@@ -978,7 +981,7 @@ backend/migrations/add-user-approval-columns.js
 ```markdown
 # PostAcutePulse - Project Status
 
-**Last Updated:** January 05, 2026
+**Last Updated:** January 07, 2026
 **Project:** Market Intelligence Platform (PostAcutePulse)
 **Repository:** pac-advocate
 
@@ -990,17 +993,13 @@ backend/migrations/add-user-approval-columns.js
 
 ### Last 7 Days
 
-- **2025-12-30** - Add CMS quality measures ingestion scripts
-- **2025-12-30** - Fix column name in rebuild-market-metrics.js
-- **2025-12-30** - Add market scoring scripts and methodology documentation
-- **2025-12-29** - Remove outdated SNFalyze docs after PostAcutePulse rebrand
-- **2025-12-29** - Add multi-segment ownership profiles (SNF + ALF + HHA)
+- **2026-01-05** - Add hospice scoring service and comprehensive market grading updates
 
 ### Areas Modified (Last 20 Commits)
 
 ```
-Backend:     99 files
-Frontend:    162 files
+Backend:     110 files
+Frontend:    161 files
 Routes:      10 files
 Services:    12 files
 Components:  93 files
@@ -1016,15 +1015,15 @@ backend/.claude/BACKLOG.md
 backend/DATABASE_MIGRATIONS.md
 backend/controller/MarketController.js
 backend/controller/WatchlistController.js
+backend/docs/COST_REPORT_CALIBRATION.md
 backend/docs/MARKET_GRADING_METHODOLOGY.md
 backend/docs/MARKET_SCORING_DATA_DICTIONARY.md
-backend/migrations/20250101-create-watchlist-tables.js
-backend/migrations/20250101-drop-deal-tables.js
-backend/migrations/20251229-add-multi-segment-ownership-profiles.js
-backend/migrations/20251229-create-ownership-hierarchy-tables.js
-backend/migrations/add-custom-reports-table.js
-backend/models/custom_reports.js
-backend/models/watchlist.js
+backend/docs/TAM_METHODOLOGY.md
+backend/docs/cms_data_dictionaries/2014-2023 Medicare FFS Geographic Variation by National_State_County Data Dictionary_0.pdf
+backend/docs/cms_data_dictionaries/HHS_Data_Dictionary.pdf
+backend/docs/cms_data_dictionaries/HOSPICE_Data_Dictionary.pdf
+backend/docs/cms_data_dictionaries/MUP_PHY_RY21_20211021_DD_Geo (1).pdf
+backend/docs/cms_data_dictionaries/MUP_PHY_RY25_20250312_DD_PRV_SVC_508.pdf
 ```
 
 ---
@@ -1306,6 +1305,7 @@ backend/routes/auth.js
 backend/routes/authentication.js
 backend/routes/contracts.js
 backend/routes/customReports.js
+backend/routes/database.js
 backend/routes/dueDiligence.js
 backend/routes/facilities.js
 backend/routes/facilityRisk.js
@@ -1361,6 +1361,7 @@ frontend/src/pages/ChatInterfaceAI.jsx
 frontend/src/pages/CreateUser.jsx
 frontend/src/pages/CustomReportBuilder.jsx
 frontend/src/pages/Dashboard.jsx
+frontend/src/pages/DatabaseExplorer.jsx
 frontend/src/pages/EditUser.jsx
 frontend/src/pages/FacilityMetrics.jsx
 frontend/src/pages/FacilityProfile.jsx
