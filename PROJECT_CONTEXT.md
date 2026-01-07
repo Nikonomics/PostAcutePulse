@@ -406,6 +406,31 @@ Item appears in SavedItems page
 
 ---
 
+## Key Documentation
+
+### Market Data & TAM Methodology
+Located in `backend/docs/`:
+
+| Document | Purpose | When to Reference |
+|----------|---------|-------------------|
+| **TAM_METHODOLOGY.md** | TAM calculation formulas, per-day rates, projections | Building financial models, market sizing |
+| **COST_REPORT_CALIBRATION.md** | MA penetration multipliers (1.107-1.181x), Cost Report vs GV relationship | Converting FFS estimates to total Medicare |
+| **MARKET_SCORING_DATA_DICTIONARY.md** | All columns in `market_metrics` and `market_grades` tables | Building market analytics features |
+| **MARKET_GRADING_METHODOLOGY.md** | How A-F grades are calculated | Understanding market scores |
+
+### CMS Data Dictionaries
+Located in `backend/docs/cms_data_dictionaries/`:
+- Official CMS data dictionaries for SNF, HHA, Hospice, Physician, Geographic Variation
+- `README.md` maps each PDF to database tables
+- Reference when working with raw CMS data fields
+
+### Critical Business Logic (Don't Forget!)
+1. **Cost Report vs GV**: GV = FFS only (~47%), Cost Reports = FFS + MA (total Medicare)
+2. **Calibration Multipliers**: Low MA: 1.107x, Medium: 1.153x, High: 1.181x
+3. **377 CBSAs** have validated Cost Report data, **923 CBSAs** have GV rates
+
+---
+
 ## Related Projects
 
 - **SNFalyze** (`/Users/nikolashulewsky/Projects/snfalyze`) - M&A deal analysis platform (parent project)
@@ -428,6 +453,7 @@ Item appears in SavedItems page
    - snf_platform (CMS survey data)
 
 5. **React 19** - Uses latest React with some legacy peer dependencies in frontend packages.
+
 
 
 

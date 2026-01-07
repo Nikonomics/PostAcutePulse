@@ -73,6 +73,30 @@ echo "" >> "$BUNDLE_FILE"
 echo "---" >> "$BUNDLE_FILE"
 echo "" >> "$BUNDLE_FILE"
 
+# Add TAM Methodology (critical business logic)
+if [ -f "backend/docs/TAM_METHODOLOGY.md" ]; then
+  echo "## TAM_METHODOLOGY.md" >> "$BUNDLE_FILE"
+  echo "" >> "$BUNDLE_FILE"
+  echo '```markdown' >> "$BUNDLE_FILE"
+  cat backend/docs/TAM_METHODOLOGY.md >> "$BUNDLE_FILE"
+  echo '```' >> "$BUNDLE_FILE"
+  echo "" >> "$BUNDLE_FILE"
+  echo "---" >> "$BUNDLE_FILE"
+  echo "" >> "$BUNDLE_FILE"
+fi
+
+# Add Cost Report Calibration (critical business logic)
+if [ -f "backend/docs/COST_REPORT_CALIBRATION.md" ]; then
+  echo "## COST_REPORT_CALIBRATION.md" >> "$BUNDLE_FILE"
+  echo "" >> "$BUNDLE_FILE"
+  echo '```markdown' >> "$BUNDLE_FILE"
+  cat backend/docs/COST_REPORT_CALIBRATION.md >> "$BUNDLE_FILE"
+  echo '```' >> "$BUNDLE_FILE"
+  echo "" >> "$BUNDLE_FILE"
+  echo "---" >> "$BUNDLE_FILE"
+  echo "" >> "$BUNDLE_FILE"
+fi
+
 # Add key file structure
 echo "## Key File Structure" >> "$BUNDLE_FILE"
 echo "" >> "$BUNDLE_FILE"

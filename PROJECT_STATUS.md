@@ -12,13 +12,14 @@
 
 ### Last 7 Days
 
+- **2026-01-07** - Add CMS data dictionaries and TAM calibration documentation
 - **2026-01-05** - Add hospice scoring service and comprehensive market grading updates
 
 ### Areas Modified (Last 20 Commits)
 
 ```
 Backend:     110 files
-Frontend:    161 files
+Frontend:    160 files
 Routes:      10 files
 Services:    12 files
 Components:  93 files
